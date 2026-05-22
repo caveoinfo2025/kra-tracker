@@ -13,6 +13,8 @@ const statusVariant = (s: string) =>
 export default function KRASection({ employee }: { employee: Employee }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
   const [editKRA, setEditKRA] = useState<KRASerialized | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -87,14 +89,39 @@ export default function KRASection({ employee }: { employee: Employee }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-lg font-semibold text-gray-800">Key Result Areas (KRAs)</h2>
-        <button
-          onClick={openAdd}
-          className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
-        >
-          + Add KRA
-        </button>
+        <div className="flex items-center gap-2">
+          {syncMsg && (
+            <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">
+              {syncMsg}
+            </span>
+          )}
+          <button
+            onClick={async () => {
+              setSyncing(true); setSyncMsg("");
+              const res = await fetch("/api/kra-sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ employeeId: employee.id }),
+              });
+              const data = await res.json();
+              setSyncMsg(`✓ Synced ${data.synced} KRAs (Wk ${data.week})`);
+              setSyncing(false);
+              router.refresh();
+            }}
+            disabled={syncing}
+            className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+          >
+            {syncing ? "Syncing…" : "⚡ Sync from Data"}
+          </button>
+          <button
+            onClick={openAdd}
+            className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
+          >
+            + Add KRA
+          </button>
+        </div>
       </div>
 
       {/* KRA Form Modal */}

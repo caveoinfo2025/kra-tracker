@@ -8,14 +8,22 @@ datasource db {
 }
 
 model Employee {
-  id         Int      @id @default(autoincrement())
-  name       String
-  email      String   @unique
-  department String
-  role       String
-  createdAt  DateTime @default(now())
-  kras       KRA[]
-  reviews    WeeklyReview[]
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  department  String
+  role        String
+  isManager   Boolean  @default(false)
+  msEmail     String?  @unique
+  msId        String?  @unique
+  createdAt   DateTime @default(now())
+
+  kras         KRA[]
+  reviews      WeeklyReview[]
+  leads        LeadGeneration[]
+  funnel       SalesFunnel[]
+  collections  Collection[]
+  dailyUpdates DailyUpdate[]
 }
 
 model KRA {
@@ -45,4 +53,76 @@ model WeeklyReview {
   employeeId Int
   kra        KRA      @relation(fields: [kraId], references: [id], onDelete: Cascade)
   kraId      Int
+}
+
+model LeadGeneration {
+  id             Int       @id @default(autoincrement())
+  date           DateTime  @default(now())
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     Int
+  territory      String    @default("")
+  leadSource     String    @default("")
+  customerName   String
+  contactPerson  String    @default("")
+  phoneEmail     String    @default("")
+  activityType   String    @default("")
+  activityCount  Int       @default(1)
+  leadStatus     String    @default("New")
+  qualifiedFlag  Boolean   @default(false)
+  nextActionDate DateTime?
+  remarks        String    @default("")
+  createdAt      DateTime  @default(now())
+}
+
+model SalesFunnel {
+  id                Int       @id @default(autoincrement())
+  opportunityId     String    @default("")
+  createdDate       DateTime  @default(now())
+  employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId        Int
+  territory         String    @default("")
+  customerName      String
+  solutionCategory  String    @default("")
+  opportunityName   String
+  stage             String    @default("Lead")
+  dealValueLakhs    Float     @default(0)
+  billingValueLakhs Float     @default(0)
+  grossProfitPct    Float     @default(0)
+  proposalDate      DateTime?
+  expectedCloseDate DateTime?
+  probabilityPct    Float     @default(0)
+  status            String    @default("Active")
+  newCustomerFlag   Boolean   @default(false)
+  pocFlag           Boolean   @default(false)
+  remarks           String    @default("")
+  createdAt         DateTime  @default(now())
+}
+
+model Collection {
+  id                  Int      @id @default(autoincrement())
+  invoiceDate         DateTime @default(now())
+  invoiceNo           String   @default("")
+  employee            Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId          Int
+  customerName        String
+  invoiceValueLakhs   Float
+  dueDate             DateTime
+  amountReceivedLakhs Float    @default(0)
+  collectionStatus    String   @default("Pending")
+  remarks             String   @default("")
+  createdAt           DateTime @default(now())
+}
+
+model DailyUpdate {
+  id                     Int      @id @default(autoincrement())
+  date                   DateTime @default(now())
+  employee               Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId             Int
+  topUpdates             String
+  keyMovement            String   @default("")
+  blockers               String   @default("")
+  topDealThisWeek        String   @default("")
+  managerSupportRequired Boolean  @default(false)
+  updateStatus           String   @default("On Track")
+  createdAt              DateTime @default(now())
 }

@@ -23,10 +23,17 @@ export async function PUT(
 ) {
   const { id } = await params;
   const body = await req.json();
-  const { name, email, department, role } = body;
+  const { name, email, department, role, isManager, msEmail } = body;
   const employee = await prisma.employee.update({
     where: { id: Number(id) },
-    data: { name, email, department, role },
+    data: {
+      name,
+      email,
+      department,
+      role,
+      ...(isManager !== undefined && { isManager }),
+      ...(msEmail !== undefined && { msEmail: msEmail || null }),
+    },
   });
   return NextResponse.json(employee);
 }
