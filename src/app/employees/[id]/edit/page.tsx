@@ -1,6 +1,6 @@
 import prisma from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
-import { auth } from "@/../auth";
+import { getSession } from "@/lib/dev-session";
 import EditEmployeeForm from "./EditEmployeeForm";
 
 export default async function EditEmployeePage({
@@ -8,7 +8,7 @@ export default async function EditEmployeePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.isManager) redirect("/");
 
   const { id } = await params;

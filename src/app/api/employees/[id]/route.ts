@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/../auth";
+import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
 
 function forbidden() {
@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.isManager && session?.user?.employeeId !== Number(id)) return forbidden();
 
   const employee = await prisma.employee.findUnique({
@@ -30,7 +30,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const session = await auth();
+  const session = await getSession();
   // Only managers can update employee records
   if (!session?.user?.isManager) return forbidden();
 
@@ -55,7 +55,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.isManager) return forbidden();
 
   await prisma.employee.delete({ where: { id: Number(id) } });

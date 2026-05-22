@@ -1,5 +1,6 @@
 ﻿import Link from "next/link";
-import { auth, signOut } from "@/../auth";
+import { signOut } from "@/../auth";
+import { getSession } from "@/lib/dev-session";
 
 const MANAGER_LINKS = [
   { href: "/", label: "Dashboard" },
