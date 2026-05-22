@@ -9,6 +9,7 @@ const MANAGER_LINKS = [
   { href: "/sales-funnel", label: "Funnel" },
   { href: "/collections", label: "Collections" },
   { href: "/daily-updates", label: "Daily Updates" },
+  { href: "/import", label: "⬆ Import" },
 ];
 
 const EMPLOYEE_LINKS = [
