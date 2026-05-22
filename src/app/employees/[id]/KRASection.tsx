@@ -10,7 +10,7 @@ type Employee = Pick<EmployeeSerialized, "id" | "name" | "kras">;
 const statusVariant = (s: string) =>
   s === "active" ? "success" : s === "completed" ? "info" : "neutral";
 
-export default function KRASection({ employee }: { employee: Employee }) {
+export default function KRASection({ employee, isManager }: { employee: Employee; isManager: boolean }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -97,30 +97,34 @@ export default function KRASection({ employee }: { employee: Employee }) {
               {syncMsg}
             </span>
           )}
-          <button
-            onClick={async () => {
-              setSyncing(true); setSyncMsg("");
-              const res = await fetch("/api/kra-sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ employeeId: employee.id }),
-              });
-              const data = await res.json();
-              setSyncMsg(`✓ Synced ${data.synced} KRAs (Wk ${data.week})`);
-              setSyncing(false);
-              router.refresh();
-            }}
-            disabled={syncing}
-            className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
-          >
-            {syncing ? "Syncing…" : "⚡ Sync from Data"}
-          </button>
-          <button
-            onClick={openAdd}
-            className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
-          >
-            + Add KRA
-          </button>
+          {isManager && (
+            <>
+              <button
+                onClick={async () => {
+                  setSyncing(true); setSyncMsg("");
+                  const res = await fetch("/api/kra-sync", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ employeeId: employee.id }),
+                  });
+                  const data = await res.json();
+                  setSyncMsg(`✓ Synced ${data.synced} KRAs (Wk ${data.week})`);
+                  setSyncing(false);
+                  router.refresh();
+                }}
+                disabled={syncing}
+                className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+              >
+                {syncing ? "Syncing…" : "⚡ Sync from Data"}
+              </button>
+              <button
+                onClick={openAdd}
+                className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
+              >
+                + Add KRA
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -251,26 +255,28 @@ export default function KRASection({ employee }: { employee: Employee }) {
                       🎯 Target: {kra.target} &nbsp;·&nbsp; Weight: {kra.weight}%
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => toggleStatus(kra)}
-                      className="text-xs border px-2 py-1 rounded text-gray-600 hover:bg-gray-50"
-                    >
-                      {kra.status === "active" ? "Mark Done" : "Reopen"}
-                    </button>
-                    <button
-                      onClick={() => openEdit(kra)}
-                      className="text-xs border px-2 py-1 rounded text-gray-600 hover:bg-gray-50"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(kra.id)}
-                      className="text-xs border px-2 py-1 rounded text-red-600 hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  {isManager && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => toggleStatus(kra)}
+                        className="text-xs border px-2 py-1 rounded text-gray-600 hover:bg-gray-50"
+                      >
+                        {kra.status === "active" ? "Mark Done" : "Reopen"}
+                      </button>
+                      <button
+                        onClick={() => openEdit(kra)}
+                        className="text-xs border px-2 py-1 rounded text-gray-600 hover:bg-gray-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(kra.id)}
+                        className="text-xs border px-2 py-1 rounded text-red-600 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 flex items-center gap-3">
                   <div className="flex-1">

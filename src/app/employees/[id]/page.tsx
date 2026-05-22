@@ -82,14 +82,16 @@ export default async function EmployeeDetailPage({
             </div>
             <p className="text-sm text-gray-500 mt-1">{employee.email}</p>
           </div>
-          <div className="flex gap-3">
-            <Link
-              href={`/employees/${employee.id}/edit`}
-              className="text-sm border border-gray-300 text-gray-700 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition"
-            >
-              Edit
-            </Link>
-          </div>
+          {session?.user?.isManager && (
+            <div className="flex gap-3">
+              <Link
+                href={`/employees/${employee.id}/edit`}
+                className="text-sm border border-gray-300 text-gray-700 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition"
+              >
+                Edit
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Score summary */}
@@ -117,7 +119,7 @@ export default async function EmployeeDetailPage({
       </div>
 
       {/* KRA Section */}
-      <KRASection employee={employee} />
+      <KRASection employee={employee} isManager={session?.user?.isManager ?? false} />
 
       {/* Review Section */}
       <ReviewSection employee={employee} />
