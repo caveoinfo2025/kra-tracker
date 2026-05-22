@@ -17,8 +17,8 @@ export default async function LoginPage({
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm text-center">
-        <div className="text-4xl mb-4">🎯</div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">KRA Tracker</h1>
+        <div className="text-4xl mb-4">📊</div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Sales Tracker</h1>
         <p className="text-sm text-gray-500 mb-8">Caveo Sales · Q1 2026–27</p>
 
         {error && (

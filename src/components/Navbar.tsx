@@ -19,7 +19,7 @@ export default async function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-4">
         {/* Logo */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xl font-bold tracking-tight">🎯 KRA Tracker</span>
+          <span className="text-xl font-bold tracking-tight">📊 Sales Tracker</span>
         </div>
 
         {/* Nav links */}

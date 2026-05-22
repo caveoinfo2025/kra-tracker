@@ -6,8 +6,8 @@ import Navbar from "@/components/Navbar";
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "KRA Tracker",
-  description: "Track employee KRAs and weekly reviews",
+  title: "Sales Tracker",
+  description: "Track Caveo Sales team KRAs, pipeline, collections and daily updates",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
