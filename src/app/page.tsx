@@ -1,65 +1,162 @@
-import Image from "next/image";
+import Link from "next/link";
+import prisma from "@/lib/prisma";
+import ProgressBar from "@/components/ProgressBar";
+import Badge from "@/components/Badge";
 
-export default function Home() {
+function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+export default async function DashboardPage() {
+  const employees = await prisma.employee.findMany({
+    include: {
+      kras: {
+        where: { status: "active" },
+        include: { reviews: { orderBy: [{ year: "desc" }, { week: "desc" }], take: 1 } },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  const now = new Date();
+  const currentWeek = getWeekNumber(now);
+  const currentYear = now.getFullYear();
+
+  const reviewedThisWeekCount = await prisma.weeklyReview.count({
+    where: { week: currentWeek, year: currentYear },
+  });
+
+  const totalKRAs = employees.reduce((s, e) => s + e.kras.length, 0);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Week {currentWeek}, {currentYear}
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        <Link
+          href="/employees/new"
+          className="inline-flex items-center gap-2 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+        >
+          + Add Employee
+        </Link>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: "Total Employees", value: employees.length, icon: "👥" },
+          { label: "Active KRAs", value: totalKRAs, icon: "🎯" },
+          { label: "Reviews This Week", value: reviewedThisWeekCount, icon: "📝" },
+        ].map((s) => (
+          <div key={s.label} className="bg-white rounded-xl shadow-sm border p-5 flex items-center gap-4">
+            <span className="text-3xl">{s.icon}</span>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+              <p className="text-sm text-gray-500">{s.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Employee KRA Overview */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Employee KRA Overview</h2>
+        {employees.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-xl border text-gray-400">
+            <p className="text-4xl mb-3">👤</p>
+            <p className="font-medium">No employees yet.</p>
+            <Link href="/employees/new" className="mt-2 inline-block text-indigo-600 text-sm hover:underline">
+              Add your first employee →
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {employees.map((emp) => {
+              const avgProgress =
+                emp.kras.length > 0
+                  ? Math.round(
+                      emp.kras.reduce((sum, k) => {
+                        const lastReview = k.reviews[0];
+                        return sum + (lastReview?.progress ?? 0);
+                      }, 0) / emp.kras.length
+                    )
+                  : 0;
+
+              const avgScore =
+                emp.kras.length > 0
+                  ? (
+                      emp.kras.reduce((sum, k) => {
+                        const lastReview = k.reviews[0];
+                        return sum + (lastReview?.score ?? 0);
+                      }, 0) / emp.kras.length
+                    ).toFixed(1)
+                  : "—";
+
+              const reviewedThisWeek = emp.kras.some(
+                (k) =>
+                  k.reviews[0]?.week === currentWeek && k.reviews[0]?.year === currentYear
+              );
+
+              return (
+                <Link
+                  key={emp.id}
+                  href={`/employees/${emp.id}`}
+                  className="bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition block"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-gray-900">{emp.name}</h3>
+                        <Badge label={emp.department} variant="info" />
+                        <Badge label={emp.role} variant="neutral" />
+                        {reviewedThisWeek && <Badge label="✓ Reviewed" variant="success" />}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-0.5">{emp.email}</p>
+                    </div>
+                    <div className="flex items-center gap-6 text-sm text-gray-600">
+                      <span>{emp.kras.length} KRA{emp.kras.length !== 1 ? "s" : ""}</span>
+                      <span>Avg Score: <strong>{avgScore}</strong>/10</span>
+                    </div>
+                  </div>
+                  {emp.kras.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {emp.kras.map((kra) => {
+                        const prog = kra.reviews[0]?.progress ?? 0;
+                        return (
+                          <div key={kra.id} className="flex items-center gap-3">
+                            <span className="text-xs text-gray-500 w-40 truncate">{kra.title}</span>
+                            <div className="flex-1">
+                              <ProgressBar value={prog} />
+                            </div>
+                            <span className="text-xs text-gray-500 w-8 text-right">{prog}%</span>
+                          </div>
+                        );
+                      })}
+                      <div className="mt-2 pt-2 border-t">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-medium text-gray-600 w-40">Overall</span>
+                          <div className="flex-1">
+                            <ProgressBar value={avgProgress} />
+                          </div>
+                          <span className="text-xs font-medium text-gray-600 w-8 text-right">{avgProgress}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
