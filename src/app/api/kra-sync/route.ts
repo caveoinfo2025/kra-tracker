@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { computeKRAProgress } from "@/lib/kra-engine";
-import { auth } from "@/../auth";
+import { getSession } from "@/lib/dev-session";
 
 function getWeekNumber(date: Date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -11,7 +11,7 @@ function getWeekNumber(date: Date) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
+  const session = await getSession();
   const body = await req.json();
 
   // Manager can sync any employee; employee can only sync themselves
@@ -66,3 +66,4 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ synced, week, year });
 }
+

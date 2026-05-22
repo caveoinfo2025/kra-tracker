@@ -1,10 +1,10 @@
-import prisma from "@/lib/prisma";
-import { auth } from "@/../auth";
+﻿import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import SalesFunnelClient from "./SalesFunnelClient";
 
 export default async function SalesFunnelPage() {
-  const session = await auth();
+  const session = await getSession();
   const empId = session?.user?.employeeId;
   const isManager = session?.user?.isManager ?? false;
 
@@ -23,7 +23,7 @@ export default async function SalesFunnelPage() {
 
   return (
     <SheetLayout
-      icon="📈"
+      icon="ðŸ“ˆ"
       title="Sales Funnel"
       description="Track opportunities from Lead to Closed Won. Auto-feeds Revenue, Pipeline, New Customer & PoC KPIs."
     >
@@ -36,3 +36,4 @@ export default async function SalesFunnelPage() {
     </SheetLayout>
   );
 }
+

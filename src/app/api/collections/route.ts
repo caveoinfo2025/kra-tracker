@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { auth } from "@/../auth";
+import { getSession } from "@/lib/dev-session";
 
 export async function GET(req: Request) {
-  const session = await auth();
+  const session = await getSession();
   const { searchParams } = new URL(req.url);
   const empId = searchParams.get("employeeId");
 
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
+  const session = await getSession();
   const body = await req.json();
   const employeeId = session?.user?.isManager
     ? Number(body.employeeId ?? session?.user?.employeeId)
@@ -44,3 +44,4 @@ export async function POST(req: Request) {
   });
   return NextResponse.json(row, { status: 201 });
 }
+

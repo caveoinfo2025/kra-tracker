@@ -1,10 +1,10 @@
-import prisma from "@/lib/prisma";
-import { auth } from "@/../auth";
+﻿import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import DailyUpdatesClient from "./DailyUpdatesClient";
 
 export default async function DailyUpdatesPage() {
-  const session = await auth();
+  const session = await getSession();
   const empId = session?.user?.employeeId;
   const isManager = session?.user?.isManager ?? false;
 
@@ -23,7 +23,7 @@ export default async function DailyUpdatesPage() {
 
   return (
     <SheetLayout
-      icon="📋"
+      icon="ðŸ“‹"
       title="Daily Updates"
       description="Log daily progress, key movements, and blockers. Visible to your manager in real time."
     >
@@ -36,3 +36,4 @@ export default async function DailyUpdatesPage() {
     </SheetLayout>
   );
 }
+

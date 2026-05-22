@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/../auth";
+﻿import { redirect } from "next/navigation";
+import { getSession } from "@/lib/dev-session";
 import NewEmployeeForm from "./NewEmployeeForm";
 
 export default async function NewEmployeePage() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.isManager) redirect("/");
   return (
     <div className="max-w-lg mx-auto">
@@ -12,3 +12,4 @@ export default async function NewEmployeePage() {
     </div>
   );
 }
+

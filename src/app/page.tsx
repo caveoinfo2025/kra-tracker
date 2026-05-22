@@ -1,6 +1,6 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/../auth";
+import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
 import ProgressBar from "@/components/ProgressBar";
 import Badge from "@/components/Badge";
@@ -13,7 +13,7 @@ function getWeekNumber(date: Date): number {
 }
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const session = await getSession();
   // Non-managers go straight to their own profile
   if (!session?.user?.isManager && session?.user?.employeeId) {
     redirect(`/employees/${session.user.employeeId}`);
@@ -60,9 +60,9 @@ export default async function DashboardPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Total Employees", value: employees.length, icon: "👥" },
-          { label: "Active KRAs", value: totalKRAs, icon: "🎯" },
-          { label: "Reviews This Week", value: reviewedThisWeekCount, icon: "📝" },
+          { label: "Total Employees", value: employees.length, icon: "ðŸ‘¥" },
+          { label: "Active KRAs", value: totalKRAs, icon: "ðŸŽ¯" },
+          { label: "Reviews This Week", value: reviewedThisWeekCount, icon: "ðŸ“" },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl shadow-sm border p-5 flex items-center gap-4">
             <span className="text-3xl">{s.icon}</span>
@@ -79,10 +79,10 @@ export default async function DashboardPage() {
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Employee KRA Overview</h2>
         {employees.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border text-gray-400">
-            <p className="text-4xl mb-3">👤</p>
+            <p className="text-4xl mb-3">ðŸ‘¤</p>
             <p className="font-medium">No employees yet.</p>
             <Link href="/employees/new" className="mt-2 inline-block text-indigo-600 text-sm hover:underline">
-              Add your first employee →
+              Add your first employee â†’
             </Link>
           </div>
         ) : (
@@ -106,7 +106,7 @@ export default async function DashboardPage() {
                         return sum + (lastReview?.score ?? 0);
                       }, 0) / emp.kras.length
                     ).toFixed(1)
-                  : "—";
+                  : "â€”";
 
               const reviewedThisWeek = emp.kras.some(
                 (k) =>
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
                         <h3 className="font-semibold text-gray-900">{emp.name}</h3>
                         <Badge label={emp.department} variant="info" />
                         <Badge label={emp.role} variant="neutral" />
-                        {reviewedThisWeek && <Badge label="✓ Reviewed" variant="success" />}
+                        {reviewedThisWeek && <Badge label="âœ“ Reviewed" variant="success" />}
                       </div>
                       <p className="text-sm text-gray-500 mt-0.5">{emp.email}</p>
                     </div>
@@ -168,3 +168,4 @@ export default async function DashboardPage() {
     </div>
   );
 }
+

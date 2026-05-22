@@ -1,10 +1,10 @@
-import prisma from "@/lib/prisma";
-import { auth } from "@/../auth";
+﻿import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import CollectionsClient from "./CollectionsClient";
 
 export default async function CollectionsPage() {
-  const session = await auth();
+  const session = await getSession();
   const empId = session?.user?.employeeId;
   const isManager = session?.user?.isManager ?? false;
 
@@ -23,7 +23,7 @@ export default async function CollectionsPage() {
 
   return (
     <SheetLayout
-      icon="💰"
+      icon="ðŸ’°"
       title="Collections"
       description="Track invoice payments and collections. Auto-feeds the Payment Collections KPI."
     >
@@ -36,3 +36,4 @@ export default async function CollectionsPage() {
     </SheetLayout>
   );
 }
+

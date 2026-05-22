@@ -1,10 +1,10 @@
-import prisma from "@/lib/prisma";
-import { auth } from "@/../auth";
+﻿import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import LeadGenClient from "./LeadGenClient";
 
 export default async function LeadGenerationPage() {
-  const session = await auth();
+  const session = await getSession();
   const empId = session?.user?.employeeId;
   const isManager = session?.user?.isManager ?? false;
 
@@ -25,7 +25,7 @@ export default async function LeadGenerationPage() {
 
   return (
     <SheetLayout
-      icon="🎯"
+      icon="ðŸŽ¯"
       title="Lead Generation"
       description="Track outbound activity, leads, and qualification status. Auto-feeds Qualified Leads KPI."
     >
@@ -38,3 +38,4 @@ export default async function LeadGenerationPage() {
     </SheetLayout>
   );
 }
+

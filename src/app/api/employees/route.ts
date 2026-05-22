@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/../auth";
+﻿import { NextResponse } from "next/server";
+import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
 
 export async function GET() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Managers see all; employees only see their own record
@@ -23,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.isManager) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -39,3 +39,4 @@ export async function POST(req: Request) {
   });
   return NextResponse.json(employee, { status: 201 });
 }
+
