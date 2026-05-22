@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/../auth";
 import Badge from "@/components/Badge";
 import ProgressBar from "@/components/ProgressBar";
 import KRASection from "./KRASection";
@@ -13,6 +14,13 @@ export default async function EmployeeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const session = await auth();
+
+  // Non-managers can only view their own profile
+  if (!session?.user?.isManager && session?.user?.employeeId !== Number(id)) {
+    redirect(`/employees/${session?.user?.employeeId}`);
+  }
+
   const raw = await prisma.employee.findUnique({
     where: { id: Number(id) },
     include: {

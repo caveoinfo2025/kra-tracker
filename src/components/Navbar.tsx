@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { auth, signOut } from "@/../auth";
 
-const NAV_LINKS = [
+const MANAGER_LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/employees", label: "Employees" },
+  { href: "/lead-generation", label: "Leads" },
+  { href: "/sales-funnel", label: "Funnel" },
+  { href: "/collections", label: "Collections" },
+  { href: "/daily-updates", label: "Daily Updates" },
+];
+
+const EMPLOYEE_LINKS = [
   { href: "/lead-generation", label: "Leads" },
   { href: "/sales-funnel", label: "Funnel" },
   { href: "/collections", label: "Collections" },
@@ -13,18 +20,24 @@ const NAV_LINKS = [
 export default async function Navbar() {
   const session = await auth();
   const user = session?.user;
+  const navLinks = user?.isManager ? MANAGER_LINKS : EMPLOYEE_LINKS;
 
   return (
     <nav className="bg-indigo-700 text-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-4">
-        {/* Logo */}
+        {/* Logo — links manager to dashboard, employee to their own profile */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xl font-bold tracking-tight">📊 Sales Tracker</span>
+          <Link
+            href={user?.isManager ? "/" : `/employees/${user?.employeeId ?? ""}`}
+            className="text-xl font-bold tracking-tight hover:opacity-90"
+          >
+            📊 Sales Tracker
+          </Link>
         </div>
 
         {/* Nav links */}
         <div className="hidden md:flex items-center gap-1 overflow-x-auto">
-          {NAV_LINKS.map((l) => (
+          {navLinks.map((l) => (
             <Link
               key={l.href}
               href={l.href}
@@ -73,7 +86,7 @@ export default async function Navbar() {
 
       {/* Mobile nav */}
       <div className="md:hidden flex gap-1 px-4 pb-2 overflow-x-auto">
-        {NAV_LINKS.map((l) => (
+        {navLinks.map((l) => (
           <Link
             key={l.href}
             href={l.href}

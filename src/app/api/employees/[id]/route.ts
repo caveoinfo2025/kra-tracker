@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/../auth";
 import prisma from "@/lib/prisma";
+
+function forbidden() {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const session = await auth();
+  if (!session?.user?.isManager && session?.user?.employeeId !== Number(id)) return forbidden();
+
   const employee = await prisma.employee.findUnique({
     where: { id: Number(id) },
     include: {
@@ -22,6 +30,10 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const session = await auth();
+  // Only managers can update employee records
+  if (!session?.user?.isManager) return forbidden();
+
   const body = await req.json();
   const { name, email, department, role, isManager, msEmail } = body;
   const employee = await prisma.employee.update({
@@ -43,6 +55,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const session = await auth();
+  if (!session?.user?.isManager) return forbidden();
+
   await prisma.employee.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

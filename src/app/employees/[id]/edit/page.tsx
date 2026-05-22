@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/../auth";
 import EditEmployeeForm from "./EditEmployeeForm";
 
 export default async function EditEmployeePage({
@@ -7,6 +8,9 @@ export default async function EditEmployeePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await auth();
+  if (!session?.user?.isManager) redirect("/");
+
   const { id } = await params;
   const employee = await prisma.employee.findUnique({
     where: { id: Number(id) },

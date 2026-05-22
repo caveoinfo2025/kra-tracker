@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/../auth";
 import prisma from "@/lib/prisma";
 import Badge from "@/components/Badge";
 
 export default async function EmployeesPage() {
+  const session = await auth();
+  if (!session?.user?.isManager) {
+    redirect(session?.user?.employeeId ? `/employees/${session.user.employeeId}` : "/");
+  }
+
   const employees = await prisma.employee.findMany({
     include: { kras: { where: { status: "active" } } },
     orderBy: { name: "asc" },

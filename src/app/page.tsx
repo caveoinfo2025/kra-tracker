@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/../auth";
 import prisma from "@/lib/prisma";
 import ProgressBar from "@/components/ProgressBar";
 import Badge from "@/components/Badge";
@@ -11,6 +13,12 @@ function getWeekNumber(date: Date): number {
 }
 
 export default async function DashboardPage() {
+  const session = await auth();
+  // Non-managers go straight to their own profile
+  if (!session?.user?.isManager && session?.user?.employeeId) {
+    redirect(`/employees/${session.user.employeeId}`);
+  }
+
   const employees = await prisma.employee.findMany({
     include: {
       kras: {
