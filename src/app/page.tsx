@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
@@ -14,7 +14,6 @@ function getWeekNumber(date: Date): number {
 
 export default async function DashboardPage() {
   const session = await getSession();
-  // Non-managers go straight to their own profile
   if (!session?.user?.isManager && session?.user?.employeeId) {
     redirect(`/employees/${session.user.employeeId}`);
   }
@@ -45,9 +44,7 @@ export default async function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Week {currentWeek}, {currentYear}
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Week {currentWeek}, {currentYear}</p>
         </div>
         <Link
           href="/employees/new"
@@ -60,16 +57,13 @@ export default async function DashboardPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Total Employees", value: employees.length, icon: "ðŸ‘¥" },
-          { label: "Active KRAs", value: totalKRAs, icon: "ðŸŽ¯" },
-          { label: "Reviews This Week", value: reviewedThisWeekCount, icon: "ðŸ“" },
+          { label: "Total Employees", value: employees.length },
+          { label: "Active KRAs", value: totalKRAs },
+          { label: "Reviews This Week", value: reviewedThisWeekCount },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl shadow-sm border p-5 flex items-center gap-4">
-            <span className="text-3xl">{s.icon}</span>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{s.value}</p>
-              <p className="text-sm text-gray-500">{s.label}</p>
-            </div>
+          <div key={s.label} className="bg-white rounded-xl shadow-sm border p-5">
+            <p className="text-3xl font-bold text-indigo-600">{s.value}</p>
+            <p className="text-sm text-gray-500 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
@@ -79,10 +73,9 @@ export default async function DashboardPage() {
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Employee KRA Overview</h2>
         {employees.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border text-gray-400">
-            <p className="text-4xl mb-3">ðŸ‘¤</p>
             <p className="font-medium">No employees yet.</p>
             <Link href="/employees/new" className="mt-2 inline-block text-indigo-600 text-sm hover:underline">
-              Add your first employee â†’
+              Add your first employee
             </Link>
           </div>
         ) : (
@@ -91,26 +84,21 @@ export default async function DashboardPage() {
               const avgProgress =
                 emp.kras.length > 0
                   ? Math.round(
-                      emp.kras.reduce((sum, k) => {
-                        const lastReview = k.reviews[0];
-                        return sum + (lastReview?.progress ?? 0);
-                      }, 0) / emp.kras.length
+                      emp.kras.reduce((sum, k) => sum + (k.reviews[0]?.progress ?? 0), 0) /
+                        emp.kras.length
                     )
                   : 0;
 
               const avgScore =
                 emp.kras.length > 0
                   ? (
-                      emp.kras.reduce((sum, k) => {
-                        const lastReview = k.reviews[0];
-                        return sum + (lastReview?.score ?? 0);
-                      }, 0) / emp.kras.length
+                      emp.kras.reduce((sum, k) => sum + (k.reviews[0]?.score ?? 0), 0) /
+                      emp.kras.length
                     ).toFixed(1)
-                  : "â€”";
+                  : "—";
 
               const reviewedThisWeek = emp.kras.some(
-                (k) =>
-                  k.reviews[0]?.week === currentWeek && k.reviews[0]?.year === currentYear
+                (k) => k.reviews[0]?.week === currentWeek && k.reviews[0]?.year === currentYear
               );
 
               return (
@@ -125,7 +113,7 @@ export default async function DashboardPage() {
                         <h3 className="font-semibold text-gray-900">{emp.name}</h3>
                         <Badge label={emp.department} variant="info" />
                         <Badge label={emp.role} variant="neutral" />
-                        {reviewedThisWeek && <Badge label="âœ“ Reviewed" variant="success" />}
+                        {reviewedThisWeek && <Badge label="Reviewed" variant="success" />}
                       </div>
                       <p className="text-sm text-gray-500 mt-0.5">{emp.email}</p>
                     </div>
@@ -141,9 +129,7 @@ export default async function DashboardPage() {
                         return (
                           <div key={kra.id} className="flex items-center gap-3">
                             <span className="text-xs text-gray-500 w-40 truncate">{kra.title}</span>
-                            <div className="flex-1">
-                              <ProgressBar value={prog} />
-                            </div>
+                            <div className="flex-1"><ProgressBar value={prog} /></div>
                             <span className="text-xs text-gray-500 w-8 text-right">{prog}%</span>
                           </div>
                         );
@@ -151,9 +137,7 @@ export default async function DashboardPage() {
                       <div className="mt-2 pt-2 border-t">
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-medium text-gray-600 w-40">Overall</span>
-                          <div className="flex-1">
-                            <ProgressBar value={avgProgress} />
-                          </div>
+                          <div className="flex-1"><ProgressBar value={avgProgress} /></div>
                           <span className="text-xs font-medium text-gray-600 w-8 text-right">{avgProgress}%</span>
                         </div>
                       </div>
@@ -168,4 +152,3 @@ export default async function DashboardPage() {
     </div>
   );
 }
-

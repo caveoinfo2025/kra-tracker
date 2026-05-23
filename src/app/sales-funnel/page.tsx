@@ -23,8 +23,7 @@ export default async function SalesFunnelPage() {
 
   return (
     <SheetLayout
-      icon="ðŸ“ˆ"
-      title="Sales Funnel"
+      title=”Sales Funnel”
       description="Track opportunities from Lead to Closed Won. Auto-feeds Revenue, Pipeline, New Customer & PoC KPIs."
     >
       <SalesFunnelClient

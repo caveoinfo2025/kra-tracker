@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { signOut } from "@/../auth";
 import { getSession } from "@/lib/dev-session";
 
@@ -9,7 +9,7 @@ const MANAGER_LINKS = [
   { href: "/sales-funnel", label: "Funnel" },
   { href: "/collections", label: "Collections" },
   { href: "/daily-updates", label: "Daily Updates" },
-  { href: "/import", label: "⬆ Import" },
+  { href: "/import", label: "Import" },
 ];
 
 const EMPLOYEE_LINKS = [
@@ -27,13 +27,13 @@ export default async function Navbar() {
   return (
     <nav className="bg-indigo-700 text-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-4">
-        {/* Logo â€” links manager to dashboard, employee to their own profile */}
+        {/* Logo */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <Link
             href={user?.isManager ? "/" : `/employees/${user?.employeeId ?? ""}`}
             className="text-xl font-bold tracking-tight hover:opacity-90"
           >
-            ðŸ“Š Sales Tracker
+            Sales Tracker
           </Link>
         </div>
 
@@ -55,7 +55,7 @@ export default async function Navbar() {
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold leading-none">
-                {user.employeeName ?? user.name ?? "â€”"}
+                {user.employeeName ?? user.name ?? "—"}
               </p>
               <p className="text-xs text-indigo-200 mt-0.5">
                 {user.isManager ? "Manager" : user.role ?? "Employee"}
@@ -101,4 +101,3 @@ export default async function Navbar() {
     </nav>
   );
 }
-

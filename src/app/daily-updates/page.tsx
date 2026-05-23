@@ -23,8 +23,7 @@ export default async function DailyUpdatesPage() {
 
   return (
     <SheetLayout
-      icon="ðŸ“‹"
-      title="Daily Updates"
+      title=”Daily Updates”
       description="Log daily progress, key movements, and blockers. Visible to your manager in real time."
     >
       <DailyUpdatesClient

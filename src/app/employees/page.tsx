@@ -29,10 +29,9 @@ export default async function EmployeesPage() {
 
       {employees.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl border text-gray-400">
-          <p className="text-4xl mb-3">ðŸ‘¤</p>
           <p className="font-medium">No employees yet.</p>
           <Link href="/employees/new" className="mt-2 inline-block text-indigo-600 text-sm hover:underline">
-            Add your first employee â†’
+            Add your first employee
           </Link>
         </div>
       ) : (

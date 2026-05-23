@@ -25,7 +25,6 @@ export default async function LeadGenerationPage() {
 
   return (
     <SheetLayout
-      icon="ðŸŽ¯"
       title="Lead Generation"
       description="Track outbound activity, leads, and qualification status. Auto-feeds Qualified Leads KPI."
     >

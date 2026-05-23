@@ -23,7 +23,6 @@ export default async function CollectionsPage() {
 
   return (
     <SheetLayout
-      icon="ðŸ’°"
       title="Collections"
       description="Track invoice payments and collections. Auto-feeds the Payment Collections KPI."
     >
