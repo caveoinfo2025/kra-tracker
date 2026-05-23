@@ -1,5 +1,5 @@
-﻿"use client";
-import { useState } from "react";
+"use client";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 
@@ -36,6 +36,12 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
   const [form, setForm] = useState({ ...empty, employeeId: String(currentEmployeeId ?? "") });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ── Filter state ────────────────────────────────────────────────────────────
+  const [search, setSearch]             = useState("");
+  const [empFilter, setEmpFilter]       = useState("");
+  const [stageFilter, setStageFilter]   = useState("");
+  const [solutionFilter, setSolutionFilter] = useState("");
 
   function f(k: string, v: string | boolean) { setForm((p) => ({ ...p, [k]: v })); }
 
@@ -83,6 +89,26 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
+  // ── Filtered rows ───────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (empFilter && String(r.employeeId) !== empFilter) return false;
+      if (stageFilter && r.stage !== stageFilter) return false;
+      if (solutionFilter && r.solutionCategory !== solutionFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (
+          !r.customerName.toLowerCase().includes(q) &&
+          !r.opportunityName.toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    });
+  }, [rows, empFilter, stageFilter, solutionFilter, search]);
+
+  const hasFilter = !!(search || empFilter || stageFilter || solutionFilter);
+
+  // Stats always over all rows
   const totalPipeline = rows.filter((r) => r.status === "Active").reduce((s, r) => s + r.dealValueLakhs, 0);
   const closedWon = rows.filter((r) => r.stage === "Closed Won").reduce((s, r) => s + r.dealValueLakhs, 0);
 
@@ -90,10 +116,10 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Active Pipeline", value: `₹${totalPipeline.toFixed(1)}L` },
-          { label: "Closed Won", value: `₹${closedWon.toFixed(1)}L` },
+          { label: "Active Pipeline",   value: `₹${totalPipeline.toFixed(1)}L` },
+          { label: "Closed Won",        value: `₹${closedWon.toFixed(1)}L` },
           { label: "Total Opportunities", value: rows.length },
-          { label: "New Customers", value: rows.filter((r) => r.newCustomerFlag && r.stage === "Closed Won").length },
+          { label: "New Customers",     value: rows.filter((r) => r.newCustomerFlag && r.stage === "Closed Won").length },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
             <p className="text-xl font-bold text-[#CC2229]">{s.value}</p>
@@ -102,12 +128,64 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
         ))}
       </div>
 
-      <div className="flex justify-end">
-        <button onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
-          className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
-          + Add Opportunity
-        </button>
+      {/* ── Filter bar ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          placeholder="Search customer / opportunity…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[200px] focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        />
+        {isManager && (
+          <select
+            value={empFilter}
+            onChange={(e) => setEmpFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+          >
+            <option value="">All Employees</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
+        <select
+          value={stageFilter}
+          onChange={(e) => setStageFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        >
+          <option value="">All Stages</option>
+          {STAGES.map((s) => <option key={s}>{s}</option>)}
+        </select>
+        <select
+          value={solutionFilter}
+          onChange={(e) => setSolutionFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        >
+          <option value="">All Solutions</option>
+          {SOLUTIONS.map((s) => <option key={s}>{s}</option>)}
+        </select>
+        {hasFilter && (
+          <button
+            onClick={() => { setSearch(""); setEmpFilter(""); setStageFilter(""); setSolutionFilter(""); }}
+            className="text-xs text-gray-500 hover:text-gray-700 underline"
+          >
+            Clear filters
+          </button>
+        )}
+        <div className="ml-auto">
+          <button
+            onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
+            className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition"
+          >
+            + Add Opportunity
+          </button>
+        </div>
       </div>
+
+      {hasFilter && (
+        <p className="text-xs text-gray-500">
+          Showing <strong>{filtered.length}</strong> of {rows.length} records
+        </p>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -210,8 +288,14 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
       )}
 
       <div className="bg-white rounded-xl border shadow-sm overflow-auto">
-        {rows.length === 0 ? (
-          <div className="text-center py-16 text-gray-400"><p className="text-3xl mb-2">📊</p><p className="text-sm">No opportunities yet.</p></div>
+        {filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <p className="font-medium">{hasFilter ? "No records match the current filter." : "No opportunities yet."}</p>
+            {hasFilter && (
+              <button onClick={() => { setSearch(""); setEmpFilter(""); setStageFilter(""); setSolutionFilter(""); }}
+                className="mt-2 text-sm text-[#CC2229] hover:underline">Clear filters</button>
+            )}
+          </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -222,7 +306,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r) => (
+              {filtered.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-400 text-xs">{r.opportunityId}</td>
                   {isManager && <td className="px-4 py-3 font-medium">{r.employee.name}</td>}
@@ -234,7 +318,8 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                   <td className="px-4 py-3 text-gray-600">{r.grossProfitPct}%</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.expectedCloseDate?.slice(0, 10)}</td>
                   <td className="px-4 py-3 text-center text-sm">
-                    {r.newCustomerFlag && "🆕"} {r.pocFlag && "🔬"}
+                    {r.newCustomerFlag && <span title="New Customer" className="mr-1">New</span>}
+                    {r.pocFlag && <span title="PoC">PoC</span>}
                   </td>
                   <td className="px-4 py-3 flex gap-2">
                     <button onClick={() => openEdit(r)} className="text-xs text-[#CC2229] hover:underline">Edit</button>

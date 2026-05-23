@@ -1,5 +1,5 @@
-﻿"use client";
-import { useState } from "react";
+"use client";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 
@@ -20,8 +20,28 @@ const empty = {
   collectionStatus: "Pending", remarks: "",
 };
 
-export default function CollectionsClient({ initialRows, employees, isManager, currentEmployeeId }: {
-  initialRows: Row[]; employees: Employee[]; isManager: boolean; currentEmployeeId?: number;
+// ─── Filter helpers ───────────────────────────────────────────────────────────
+
+function isOverdue(row: Row): boolean {
+  const due = new Date(row.dueDate); due.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return due < today && row.collectionStatus !== "Fully Received";
+}
+
+function isUpcoming(row: Row): boolean {
+  const due = new Date(row.dueDate); due.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const in30 = new Date(today); in30.setDate(today.getDate() + 30);
+  return due >= today && due <= in30 && row.collectionStatus !== "Fully Received";
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function CollectionsClient({
+  initialRows, employees, isManager, currentEmployeeId, initialView, initialEmpId,
+}: {
+  initialRows: Row[]; employees: Employee[]; isManager: boolean;
+  currentEmployeeId?: number; initialView?: string; initialEmpId?: string;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
@@ -30,6 +50,11 @@ export default function CollectionsClient({ initialRows, employees, isManager, c
   const [form, setForm] = useState({ ...empty, employeeId: String(currentEmployeeId ?? "") });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ── Filter state ────────────────────────────────────────────────────────────
+  const [view, setView]         = useState(initialView ?? "all");  // all | overdue | upcoming | Fully Received
+  const [search, setSearch]     = useState("");
+  const [empFilter, setEmpFilter] = useState(initialEmpId ?? "");
 
   function f(k: string, v: string) { setForm((p) => ({ ...p, [k]: v })); }
 
@@ -73,33 +98,119 @@ export default function CollectionsClient({ initialRows, employees, isManager, c
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
-  const totalInvoiced = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
-  const totalReceived = rows.reduce((s, r) => s + r.amountReceivedLakhs, 0);
+  // ── Filtered rows ───────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (view === "overdue"   && !isOverdue(r))  return false;
+      if (view === "upcoming"  && !isUpcoming(r)) return false;
+      if (view === "Fully Received" && r.collectionStatus !== "Fully Received") return false;
+      if (view === "Pending"   && r.collectionStatus !== "Pending")   return false;
+      if (view === "Partially Received" && r.collectionStatus !== "Partially Received") return false;
+      if (empFilter && String(r.employeeId) !== empFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!r.customerName.toLowerCase().includes(q) && !r.invoiceNo.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, view, empFilter, search]);
+
+  // ── Summary over ALL rows (not filtered) for stat bar ───────────────────────
+  const totalInvoiced = filtered.reduce((s, r) => s + r.invoiceValueLakhs, 0);
+  const totalReceived = filtered.reduce((s, r) => s + r.amountReceivedLakhs, 0);
   const collRate = totalInvoiced > 0 ? ((totalReceived / totalInvoiced) * 100).toFixed(1) : "0";
+  const overdueCount = rows.filter(isOverdue).length;
+  const upcomingCount = rows.filter(isUpcoming).length;
+
+  const TABS = [
+    { key: "all",              label: "All",       count: rows.length },
+    { key: "overdue",          label: "Overdue",   count: overdueCount,   color: "text-red-600" },
+    { key: "upcoming",         label: "Upcoming (30d)", count: upcomingCount, color: "text-amber-600" },
+    { key: "Fully Received",   label: "Received",  count: rows.filter((r) => r.collectionStatus === "Fully Received").length, color: "text-green-600" },
+  ];
 
   return (
     <div className="space-y-4">
+      {/* ── Stat cards ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Invoiced", value: `₹${totalInvoiced.toFixed(1)}L` },
-          { label: "Total Received", value: `₹${totalReceived.toFixed(1)}L` },
-          { label: "Collection Rate", value: `${collRate}%` },
-          { label: "Overdue", value: rows.filter((r) => r.collectionStatus === "Overdue").length },
+          { label: "Invoiced (filtered)", value: `₹${totalInvoiced.toFixed(1)}L` },
+          { label: "Received (filtered)", value: `₹${totalReceived.toFixed(1)}L` },
+          { label: "Collection Rate",     value: `${collRate}%` },
+          { label: "Overdue",             value: overdueCount, danger: true },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
-            <p className="text-xl font-bold text-[#CC2229]">{s.value}</p>
+            <p className={`text-xl font-bold ${s.danger ? "text-red-600" : "text-[#CC2229]"}`}>{s.value}</p>
             <p className="text-xs text-gray-500">{s.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex justify-end">
-        <button onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
-          className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
-          + Add Invoice
-        </button>
+      {/* ── Quick-filter tabs ───────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+              view === t.key ? "bg-white shadow text-[#CC2229]" : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            {t.label}
+            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+              view === t.key ? "bg-red-50 text-[#CC2229]" : `bg-white ${t.color ?? "text-gray-500"}`
+            }`}>
+              {t.count}
+            </span>
+          </button>
+        ))}
       </div>
 
+      {/* ── Filter bar ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          placeholder="Search customer / invoice no…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[200px] focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        />
+        {isManager && (
+          <select
+            value={empFilter}
+            onChange={(e) => setEmpFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+          >
+            <option value="">All Employees</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
+        {(search || empFilter || view !== "all") && (
+          <button
+            onClick={() => { setSearch(""); setEmpFilter(""); setView("all"); }}
+            className="text-xs text-gray-500 hover:text-gray-700 underline"
+          >
+            Clear filters
+          </button>
+        )}
+        <div className="ml-auto">
+          <button
+            onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
+            className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition"
+          >
+            + Add Invoice
+          </button>
+        </div>
+      </div>
+
+      {/* ── Results count ───────────────────────────────────────────────────── */}
+      {(search || empFilter || view !== "all") && (
+        <p className="text-xs text-gray-500">
+          Showing <strong>{filtered.length}</strong> of {rows.length} records
+        </p>
+      )}
+
+      {/* ── Modal form ─────────────────────────────────────────────────────── */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -177,9 +288,14 @@ export default function CollectionsClient({ initialRows, employees, isManager, c
         </div>
       )}
 
+      {/* ── Table ──────────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border shadow-sm overflow-auto">
-        {rows.length === 0 ? (
-          <div className="text-center py-16 text-gray-400"><p className="text-3xl mb-2">💳</p><p className="text-sm">No collection records yet.</p></div>
+        {filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <p className="font-medium">No records match the current filter.</p>
+            <button onClick={() => { setSearch(""); setEmpFilter(""); setView("all"); }}
+              className="mt-2 text-sm text-[#CC2229] hover:underline">Clear filters</button>
+          </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -190,10 +306,11 @@ export default function CollectionsClient({ initialRows, employees, isManager, c
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r) => {
+              {filtered.map((r) => {
                 const balance = r.invoiceValueLakhs - r.amountReceivedLakhs;
+                const overdue = isOverdue(r);
                 return (
-                  <tr key={r.id} className="hover:bg-gray-50">
+                  <tr key={r.id} className={`hover:bg-gray-50 ${overdue ? "bg-red-50/40" : ""}`}>
                     <td className="px-4 py-3 text-gray-500">{r.invoiceNo || "—"}</td>
                     {isManager && <td className="px-4 py-3 font-medium">{r.employee.name}</td>}
                     <td className="px-4 py-3 font-medium">{r.customerName}</td>
@@ -201,7 +318,7 @@ export default function CollectionsClient({ initialRows, employees, isManager, c
                     <td className="px-4 py-3 font-semibold">{r.invoiceValueLakhs.toFixed(2)}</td>
                     <td className="px-4 py-3 text-green-700">{r.amountReceivedLakhs.toFixed(2)}</td>
                     <td className={`px-4 py-3 font-semibold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>{balance.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.dueDate.slice(0, 10)}</td>
+                    <td className={`px-4 py-3 ${overdue ? "text-red-600 font-semibold" : "text-gray-500"}`}>{r.dueDate.slice(0, 10)}</td>
                     <td className="px-4 py-3"><Badge label={r.collectionStatus} variant={statusVariant(r.collectionStatus)} /></td>
                     <td className="px-4 py-3 flex gap-2">
                       <button onClick={() => openEdit(r)} className="text-xs text-[#CC2229] hover:underline">Edit</button>

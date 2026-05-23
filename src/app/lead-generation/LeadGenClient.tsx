@@ -1,5 +1,5 @@
-﻿"use client";
-import { useState } from "react";
+"use client";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 
@@ -37,6 +37,12 @@ export default function LeadGenClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // ── Filter state ────────────────────────────────────────────────────────────
+  const [search, setSearch]           = useState("");
+  const [empFilter, setEmpFilter]     = useState("");
+  const [statusFilter, setStatusFilter]   = useState("");
+  const [activityFilter, setActivityFilter] = useState("");
+
   function f(k: string, v: string | boolean) { setForm((p) => ({ ...p, [k]: v })); }
 
   function openEdit(l: Lead) {
@@ -63,7 +69,6 @@ export default function LeadGenClient({
       if (!res.ok) { setError("Failed to save."); return; }
       setShowForm(false); setEditId(null);
       router.refresh();
-      // Optimistic update
       const saved = await res.json();
       setLeads((prev) => editId
         ? prev.map((l) => l.id === editId ? saved : l)
@@ -78,6 +83,25 @@ export default function LeadGenClient({
     setLeads((prev) => prev.filter((l) => l.id !== id));
   }
 
+  // ── Filtered rows ───────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return leads.filter((l) => {
+      if (empFilter && String(l.employeeId) !== empFilter) return false;
+      if (statusFilter && l.leadStatus !== statusFilter) return false;
+      if (activityFilter && l.activityType !== activityFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (
+          !l.customerName.toLowerCase().includes(q) &&
+          !l.contactPerson.toLowerCase().includes(q) &&
+          !(l.territory ?? "").toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    });
+  }, [leads, empFilter, statusFilter, activityFilter, search]);
+
+  const hasFilter = !!(search || empFilter || statusFilter || activityFilter);
   const qualified = leads.filter((l) => l.qualifiedFlag).length;
 
   return (
@@ -85,10 +109,10 @@ export default function LeadGenClient({
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Entries", value: leads.length },
+          { label: "Total Entries",   value: leads.length },
           { label: "Qualified Leads", value: qualified },
-          { label: "Converted", value: leads.filter((l) => l.leadStatus === "Converted").length },
-          { label: "Calls Made", value: leads.filter((l) => l.activityType === "Call").reduce((s, l) => s + l.activityCount, 0) },
+          { label: "Converted",       value: leads.filter((l) => l.leadStatus === "Converted").length },
+          { label: "Calls Made",      value: leads.filter((l) => l.activityType === "Call").reduce((s, l) => s + l.activityCount, 0) },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
             <p className="text-2xl font-bold text-[#CC2229]">{s.value}</p>
@@ -97,12 +121,64 @@ export default function LeadGenClient({
         ))}
       </div>
 
-      <div className="flex justify-end">
-        <button onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
-          className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
-          + Add Lead Entry
-        </button>
+      {/* ── Filter bar ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          placeholder="Search customer / contact / territory…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[200px] focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        />
+        {isManager && (
+          <select
+            value={empFilter}
+            onChange={(e) => setEmpFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+          >
+            <option value="">All Employees</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        >
+          <option value="">All Statuses</option>
+          {LEAD_STATUSES.map((s) => <option key={s}>{s}</option>)}
+        </select>
+        <select
+          value={activityFilter}
+          onChange={(e) => setActivityFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        >
+          <option value="">All Activities</option>
+          {ACTIVITY_TYPES.map((s) => <option key={s}>{s}</option>)}
+        </select>
+        {hasFilter && (
+          <button
+            onClick={() => { setSearch(""); setEmpFilter(""); setStatusFilter(""); setActivityFilter(""); }}
+            className="text-xs text-gray-500 hover:text-gray-700 underline"
+          >
+            Clear filters
+          </button>
+        )}
+        <div className="ml-auto">
+          <button
+            onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
+            className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition"
+          >
+            + Add Lead Entry
+          </button>
+        </div>
       </div>
+
+      {hasFilter && (
+        <p className="text-xs text-gray-500">
+          Showing <strong>{filtered.length}</strong> of {leads.length} records
+        </p>
+      )}
 
       {/* Modal */}
       {showForm && (
@@ -205,10 +281,13 @@ export default function LeadGenClient({
 
       {/* Table */}
       <div className="bg-white rounded-xl border shadow-sm overflow-auto">
-        {leads.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
-            <p className="text-3xl mb-2">📋</p>
-            <p className="text-sm">No lead entries yet. Add your first activity.</p>
+            <p className="font-medium">{hasFilter ? "No records match the current filter." : "No lead entries yet. Add your first activity."}</p>
+            {hasFilter && (
+              <button onClick={() => { setSearch(""); setEmpFilter(""); setStatusFilter(""); setActivityFilter(""); }}
+                className="mt-2 text-sm text-[#CC2229] hover:underline">Clear filters</button>
+            )}
           </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -220,7 +299,7 @@ export default function LeadGenClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {leads.map((l) => (
+              {filtered.map((l) => (
                 <tr key={l.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-600">{l.date.slice(0, 10)}</td>
                   {isManager && <td className="px-4 py-3 font-medium">{l.employee.name}</td>}
@@ -229,7 +308,7 @@ export default function LeadGenClient({
                   <td className="px-4 py-3 text-center">{l.activityCount}</td>
                   <td className="px-4 py-3 text-gray-500">{l.leadSource}</td>
                   <td className="px-4 py-3"><Badge label={l.leadStatus} variant={statusVariant(l.leadStatus)} /></td>
-                  <td className="px-4 py-3 text-center">{l.qualifiedFlag ? "✅" : "—"}</td>
+                  <td className="px-4 py-3 text-center">{l.qualifiedFlag ? "Yes" : "—"}</td>
                   <td className="px-4 py-3 flex gap-2">
                     <button onClick={() => openEdit(l)} className="text-xs text-[#CC2229] hover:underline">Edit</button>
                     <button onClick={() => handleDelete(l.id)} className="text-xs text-red-500 hover:underline">Del</button>

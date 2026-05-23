@@ -1,5 +1,5 @@
-﻿"use client";
-import { useState } from "react";
+"use client";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 
@@ -29,6 +29,12 @@ export default function DailyUpdatesClient({ initialRows, employees, isManager, 
   const [form, setForm] = useState({ ...empty, employeeId: String(currentEmployeeId ?? "") });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ── Filter state ────────────────────────────────────────────────────────────
+  const [empFilter, setEmpFilter]       = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateFrom, setDateFrom]         = useState("");
+  const [dateTo, setDateTo]             = useState("");
 
   function f(k: string, v: string | boolean) { setForm((p) => ({ ...p, [k]: v })); }
 
@@ -67,21 +73,91 @@ export default function DailyUpdatesClient({ initialRows, employees, isManager, 
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
+  // ── Filtered rows ───────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (empFilter && String(r.employeeId) !== empFilter) return false;
+      if (statusFilter && r.updateStatus !== statusFilter) return false;
+      if (dateFrom && r.date.slice(0, 10) < dateFrom) return false;
+      if (dateTo   && r.date.slice(0, 10) > dateTo)   return false;
+      return true;
+    });
+  }, [rows, empFilter, statusFilter, dateFrom, dateTo]);
+
+  const hasFilter = !!(empFilter || statusFilter || dateFrom || dateTo);
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div className="flex gap-3">
+      {/* ── Filter bar + Add button ────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-3 items-center">
+        {/* Status quick badges */}
+        <div className="flex gap-3 text-xs text-gray-500">
           {["On Track", "At Risk", "Blocked"].map((s) => (
-            <span key={s} className="text-xs text-gray-500">
+            <button
+              key={s}
+              onClick={() => setStatusFilter(statusFilter === s ? "" : s)}
+              className={`px-2.5 py-1 rounded-full border transition ${
+                statusFilter === s
+                  ? "bg-[#CC2229] text-white border-[#CC2229]"
+                  : "bg-white border-gray-300 hover:border-[#CC2229] hover:text-[#CC2229]"
+              }`}
+            >
               {s}: <strong>{rows.filter((r) => r.updateStatus === s).length}</strong>
-            </span>
+            </button>
           ))}
         </div>
-        <button onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
-          className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
-          + Add Update
-        </button>
+
+        {isManager && (
+          <select
+            value={empFilter}
+            onChange={(e) => setEmpFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+          >
+            <option value="">All Employees</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
+
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          title="From date"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        />
+        <span className="text-xs text-gray-400">to</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          title="To date"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        />
+
+        {hasFilter && (
+          <button
+            onClick={() => { setEmpFilter(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); }}
+            className="text-xs text-gray-500 hover:text-gray-700 underline"
+          >
+            Clear filters
+          </button>
+        )}
+
+        <div className="ml-auto">
+          <button
+            onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
+            className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition"
+          >
+            + Add Update
+          </button>
+        </div>
       </div>
+
+      {hasFilter && (
+        <p className="text-xs text-gray-500">
+          Showing <strong>{filtered.length}</strong> of {rows.length} updates
+        </p>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -156,18 +232,22 @@ export default function DailyUpdatesClient({ initialRows, employees, isManager, 
       )}
 
       <div className="space-y-3">
-        {rows.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border text-gray-400">
-            <p className="text-3xl mb-2">📋</p><p className="text-sm">No updates yet.</p>
+            <p className="font-medium">{hasFilter ? "No updates match the current filter." : "No updates yet."}</p>
+            {hasFilter && (
+              <button onClick={() => { setEmpFilter(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); }}
+                className="mt-2 text-sm text-[#CC2229] hover:underline">Clear filters</button>
+            )}
           </div>
-        ) : rows.map((r) => (
+        ) : filtered.map((r) => (
           <div key={r.id} className="bg-white border rounded-xl p-4 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold text-gray-700">{r.date.slice(0, 10)}</span>
                 {isManager && <span className="text-sm text-[#CC2229] font-medium">{r.employee.name}</span>}
                 <Badge label={r.updateStatus} variant={statusVariant(r.updateStatus)} />
-                {r.managerSupportRequired && <Badge label="🚨 Manager Support" variant="danger" />}
+                {r.managerSupportRequired && <Badge label="Manager Support" variant="danger" />}
               </div>
               <div className="flex gap-2">
                 <button onClick={() => openEdit(r)} className="text-xs text-[#CC2229] hover:underline">Edit</button>
@@ -175,9 +255,9 @@ export default function DailyUpdatesClient({ initialRows, employees, isManager, 
               </div>
             </div>
             <p className="text-sm text-gray-700 mt-2">{r.topUpdates}</p>
-            {r.keyMovement && <p className="text-sm text-gray-500 mt-1">🔄 {r.keyMovement}</p>}
-            {r.blockers && <p className="text-sm text-yellow-700 bg-yellow-50 px-2 py-1 rounded mt-1">⚠️ {r.blockers}</p>}
-            {r.topDealThisWeek && <p className="text-sm text-green-700 mt-1">💼 Top deal: {r.topDealThisWeek}</p>}
+            {r.keyMovement && <p className="text-sm text-gray-500 mt-1">Movement: {r.keyMovement}</p>}
+            {r.blockers && <p className="text-sm text-yellow-700 bg-yellow-50 px-2 py-1 rounded mt-1">Blocker: {r.blockers}</p>}
+            {r.topDealThisWeek && <p className="text-sm text-green-700 mt-1">Top deal: {r.topDealThisWeek}</p>}
           </div>
         ))}
       </div>

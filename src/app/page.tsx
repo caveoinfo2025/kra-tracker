@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
@@ -38,6 +38,32 @@ export default async function DashboardPage() {
 
   const totalKRAs = employees.reduce((s, e) => s + e.kras.length, 0);
 
+  // ── Collection overdue / upcoming per employee ────────────────────────────
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const in30 = new Date(today);
+  in30.setDate(today.getDate() + 30);
+
+  const pendingCollections = await prisma.collection.findMany({
+    where: { collectionStatus: { not: "Fully Received" } },
+    select: { employeeId: true, dueDate: true },
+  });
+
+  const overdueMap: Record<number, number> = {};
+  const upcomingMap: Record<number, number> = {};
+  for (const c of pendingCollections) {
+    const due = new Date(c.dueDate);
+    due.setHours(0, 0, 0, 0);
+    if (due < today) {
+      overdueMap[c.employeeId] = (overdueMap[c.employeeId] ?? 0) + 1;
+    } else if (due <= in30) {
+      upcomingMap[c.employeeId] = (upcomingMap[c.employeeId] ?? 0) + 1;
+    }
+  }
+
+  const totalOverdue  = Object.values(overdueMap).reduce((s, v) => s + v, 0);
+  const totalUpcoming = Object.values(upcomingMap).reduce((s, v) => s + v, 0);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -55,17 +81,33 @@ export default async function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: "Total Employees", value: employees.length },
-          { label: "Active KRAs", value: totalKRAs },
-          { label: "Reviews This Week", value: reviewedThisWeekCount },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl shadow-sm border p-5">
-            <p className="text-3xl font-bold text-[#CC2229]">{s.value}</p>
-            <p className="text-sm text-gray-500 mt-1">{s.label}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <p className="text-3xl font-bold text-[#CC2229]">{employees.length}</p>
+          <p className="text-sm text-gray-500 mt-1">Total Employees</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <p className="text-3xl font-bold text-[#CC2229]">{totalKRAs}</p>
+          <p className="text-sm text-gray-500 mt-1">Active KRAs</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <p className="text-3xl font-bold text-[#CC2229]">{reviewedThisWeekCount}</p>
+          <p className="text-sm text-gray-500 mt-1">Reviews This Week</p>
+        </div>
+        <Link
+          href="/collections?view=overdue"
+          className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition"
+        >
+          <p className="text-3xl font-bold text-red-600">{totalOverdue}</p>
+          <p className="text-sm text-gray-500 mt-1">Overdue Invoices</p>
+        </Link>
+        <Link
+          href="/collections?view=upcoming"
+          className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition"
+        >
+          <p className="text-3xl font-bold text-amber-600">{totalUpcoming}</p>
+          <p className="text-sm text-gray-500 mt-1">Due in 30 Days</p>
+        </Link>
       </div>
 
       {/* Employee KRA Overview */}
@@ -101,49 +143,83 @@ export default async function DashboardPage() {
                 (k) => k.reviews[0]?.week === currentWeek && k.reviews[0]?.year === currentYear
               );
 
+              const empOverdue  = overdueMap[emp.id]  ?? 0;
+              const empUpcoming = upcomingMap[emp.id] ?? 0;
+
               return (
-                <Link
+                <div
                   key={emp.id}
-                  href={`/employees/${emp.id}`}
-                  className="bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition block"
+                  className="relative bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-gray-900">{emp.name}</h3>
-                        <Badge label={emp.department} variant="info" />
-                        <Badge label={emp.role} variant="neutral" />
-                        {reviewedThisWeek && <Badge label="Reviewed" variant="success" />}
-                      </div>
-                      <p className="text-sm text-gray-500 mt-0.5">{emp.email}</p>
-                    </div>
-                    <div className="flex items-center gap-6 text-sm text-gray-600">
-                      <span>{emp.kras.length} KRA{emp.kras.length !== 1 ? "s" : ""}</span>
-                      <span>Avg Score: <strong>{avgScore}</strong>/10</span>
-                    </div>
-                  </div>
-                  {emp.kras.length > 0 && (
-                    <div className="mt-3 space-y-1.5">
-                      {emp.kras.map((kra) => {
-                        const prog = kra.reviews[0]?.progress ?? 0;
-                        return (
-                          <div key={kra.id} className="flex items-center gap-3">
-                            <span className="text-xs text-gray-500 w-40 truncate">{kra.title}</span>
-                            <div className="flex-1"><ProgressBar value={prog} /></div>
-                            <span className="text-xs text-gray-500 w-8 text-right">{prog}%</span>
+                  {/* Invisible full-area link to employee page (sits behind content) */}
+                  <Link
+                    href={`/employees/${emp.id}`}
+                    className="absolute inset-0 rounded-xl z-0"
+                    aria-label={`View ${emp.name} KRAs`}
+                  />
+
+                  {/* Content sits above the link overlay */}
+                  <div className="relative z-10 pointer-events-none">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-gray-900">{emp.name}</h3>
+                          <Badge label={emp.department} variant="info" />
+                          <Badge label={emp.role} variant="neutral" />
+                          {reviewedThisWeek && <Badge label="Reviewed" variant="success" />}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-0.5">{emp.email}</p>
+
+                        {/* Per-employee collection badges — re-enable pointer events so they are clickable */}
+                        {(empOverdue > 0 || empUpcoming > 0) && (
+                          <div className="flex gap-2 mt-1.5 pointer-events-auto">
+                            {empOverdue > 0 && (
+                              <Link
+                                href={`/collections?view=overdue&emp=${emp.id}`}
+                                className="text-xs font-medium bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full hover:bg-red-200 transition"
+                              >
+                                {empOverdue} overdue
+                              </Link>
+                            )}
+                            {empUpcoming > 0 && (
+                              <Link
+                                href={`/collections?view=upcoming&emp=${emp.id}`}
+                                className="text-xs font-medium bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full hover:bg-amber-200 transition"
+                              >
+                                {empUpcoming} upcoming
+                              </Link>
+                            )}
                           </div>
-                        );
-                      })}
-                      <div className="mt-2 pt-2 border-t">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-medium text-gray-600 w-40">Overall</span>
-                          <div className="flex-1"><ProgressBar value={avgProgress} /></div>
-                          <span className="text-xs font-medium text-gray-600 w-8 text-right">{avgProgress}%</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-6 text-sm text-gray-600">
+                        <span>{emp.kras.length} KRA{emp.kras.length !== 1 ? "s" : ""}</span>
+                        <span>Avg Score: <strong>{avgScore}</strong>/10</span>
+                      </div>
+                    </div>
+                    {emp.kras.length > 0 && (
+                      <div className="mt-3 space-y-1.5">
+                        {emp.kras.map((kra) => {
+                          const prog = kra.reviews[0]?.progress ?? 0;
+                          return (
+                            <div key={kra.id} className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500 w-40 truncate">{kra.title}</span>
+                              <div className="flex-1"><ProgressBar value={prog} /></div>
+                              <span className="text-xs text-gray-500 w-8 text-right">{prog}%</span>
+                            </div>
+                          );
+                        })}
+                        <div className="mt-2 pt-2 border-t">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-medium text-gray-600 w-40">Overall</span>
+                            <div className="flex-1"><ProgressBar value={avgProgress} /></div>
+                            <span className="text-xs font-medium text-gray-600 w-8 text-right">{avgProgress}%</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </Link>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
