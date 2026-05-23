@@ -55,14 +55,21 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
   const [defaultEmployee, setDefaultEmployee] = useState<string>("");
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ inserted: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<{
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: { row: number; reason: string; customer: string; ref: string }[];
+  } | null>(null);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const fields = tab === "sales" ? SALES_FIELDS : COLLECTION_FIELDS;
 
+  const [showErrors, setShowErrors] = useState(false);
+
   function reset() {
-    setHeaders([]); setRows([]); setMapping({}); setFileName(""); setResult(null); setError("");
+    setHeaders([]); setRows([]); setMapping({}); setFileName(""); setResult(null); setError(""); setShowErrors(false);
   }
 
   function handleTabChange(t: "sales" | "collections") {
@@ -255,19 +262,101 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
         </div>
       )}
 
-      {/* Errors / result */}
+      {/* Pre-import warning: required fields not mapped */}
       {missingRequired.length > 0 && rows.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-lg">
           ⚠️ Required fields not yet mapped: <strong>{missingRequired.join(", ")}</strong>
         </div>
       )}
+
+      {/* API-level error */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>
       )}
+
+      {/* Import result */}
       {result && (
-        <div className="bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
-          ✅ Import complete — <strong>{result.inserted}</strong> records imported
-          {result.skipped > 0 && <>, <strong>{result.skipped}</strong> rows skipped (missing required fields)</>}.
+        <div className="space-y-3">
+          {/* Summary bar */}
+          <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 flex flex-wrap gap-6 items-center">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+                <span className="text-sm text-gray-700">
+                  <strong className="text-green-700">{result.inserted}</strong> new records inserted
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+                <span className="text-sm text-gray-700">
+                  <strong className="text-blue-700">{result.updated}</strong> existing records updated
+                  {tab === "collections" && (
+                    <span className="text-xs text-gray-400 ml-1">(matched by Invoice No)</span>
+                  )}
+                  {tab === "sales" && (
+                    <span className="text-xs text-gray-400 ml-1">(matched by Customer + Opportunity)</span>
+                  )}
+                </span>
+              </div>
+              {result.skipped > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                  <span className="text-sm text-gray-700">
+                    <strong className="text-red-700">{result.skipped}</strong> rows skipped
+                  </span>
+                  <button
+                    onClick={() => setShowErrors((v) => !v)}
+                    className="text-xs underline text-[#CC2229] hover:text-[#A81B21]"
+                  >
+                    {showErrors ? "Hide details" : "Show details"}
+                  </button>
+                </div>
+              )}
+              {result.skipped === 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-green-700 font-medium">All rows processed successfully</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Error rows table */}
+          {showErrors && result.errors.length > 0 && (
+            <div className="bg-white border border-red-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-red-50 border-b border-red-200 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-red-800">
+                  {result.errors.length} skipped row{result.errors.length !== 1 ? "s" : ""} — fix and re-upload
+                </h3>
+                <span className="text-xs text-red-600">
+                  Correct the issues below in your file, then upload it again
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-500 w-16">Row</th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-500">Customer</th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-500">
+                        {tab === "collections" ? "Invoice No" : "Opportunity"}
+                      </th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-500">Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {result.errors.map((e) => (
+                      <tr key={e.row} className="hover:bg-red-50">
+                        <td className="px-4 py-2 text-gray-500 font-mono">{e.row}</td>
+                        <td className="px-4 py-2 text-gray-800 font-medium">{e.customer}</td>
+                        <td className="px-4 py-2 text-gray-600">{e.ref}</td>
+                        <td className="px-4 py-2 text-red-700">{e.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -279,7 +368,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
             disabled={importing || missingRequired.length > 0}
             className="bg-[#CC2229] text-white text-sm font-medium px-6 py-2.5 rounded-lg hover:bg-[#A81B21] transition disabled:opacity-50"
           >
-            {importing ? "Importing…" : `Import ${rows.length} rows into ${tab === "sales" ? "Sales Funnel" : "Collections"}`}
+            {importing ? "Importing…" : `Import / Update ${rows.length} rows → ${tab === "sales" ? "Sales Funnel" : "Collections"}`}
           </button>
           <button onClick={reset} className="text-sm text-gray-500 hover:text-gray-700">
             Clear
@@ -291,15 +380,25 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
         <p className="font-semibold mb-1">💡 Tip — column names your CRM export should include</p>
         {tab === "sales" ? (
-          <p className="text-xs text-blue-700">
-            <strong>Required:</strong> Customer Name, Opportunity Name, Invoice/Deal Value ·
-            <strong> Optional:</strong> Stage, Territory, Solution Category, GP%, Close Date, Salesperson, Remarks
-          </p>
+          <>
+            <p className="text-xs text-blue-700">
+              <strong>Required:</strong> Customer Name, Opportunity Name ·
+              <strong> Optional:</strong> Deal Value, Stage, Territory, Solution Category, GP%, Close Date, Salesperson, Remarks
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Re-uploading is safe — existing records are matched by <strong>Customer + Opportunity Name</strong> and updated in place.
+            </p>
+          </>
         ) : (
-          <p className="text-xs text-blue-700">
-            <strong>Required:</strong> Customer Name, Invoice Value, Due Date ·
-            <strong> Optional:</strong> Invoice No, Invoice Date, Amount Received, Status, Salesperson, Remarks
-          </p>
+          <>
+            <p className="text-xs text-blue-700">
+              <strong>Required:</strong> Customer Name, Invoice Value, Due Date ·
+              <strong> Optional:</strong> Invoice No, Invoice Date, Amount Received, Status, Salesperson, Remarks
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Re-uploading is safe — existing records are matched by <strong>Invoice No</strong> and updated in place (rows without an Invoice No are always inserted as new).
+            </p>
+          </>
         )}
         <p className="text-xs text-blue-600 mt-1">Column names are matched automatically — exact spelling not required.</p>
       </div>
