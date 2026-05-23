@@ -45,7 +45,7 @@ export default async function DashboardPage() {
   in30.setDate(today.getDate() + 30);
 
   const allCollections = await prisma.collection.findMany({
-    select: { employeeId: true, dueDate: true, invoiceValueLakhs: true, amountWithoutGstLakhs: true, collectionStatus: true },
+    orderBy: { invoiceDate: "desc" },
   });
   const pendingCollections = allCollections.filter((c) => c.collectionStatus !== "Fully Received");
 
@@ -66,8 +66,8 @@ export default async function DashboardPage() {
   const billingMap: Record<number, EmpBilling> = {};
   for (const c of allCollections) {
     if (!billingMap[c.employeeId]) billingMap[c.employeeId] = { billed: 0, withoutGst: 0 };
-    billingMap[c.employeeId].billed     += c.invoiceValueLakhs;
-    billingMap[c.employeeId].withoutGst += c.amountWithoutGstLakhs;
+    billingMap[c.employeeId].billed     += c.invoiceValueLakhs ?? 0;
+    billingMap[c.employeeId].withoutGst += c.amountWithoutGstLakhs ?? 0;
   }
 
   const totalOverdue  = Object.values(overdueMap).reduce((s, v) => s + v, 0);
