@@ -44,12 +44,12 @@ export default async function DashboardPage() {
   const in30 = new Date(today);
   in30.setDate(today.getDate() + 30);
 
-  const pendingCollections = await prisma.collection.findMany({
-    where: { collectionStatus: { not: "Fully Received" } },
-    select: { employeeId: true, dueDate: true },
+  const allCollections = await prisma.collection.findMany({
+    select: { employeeId: true, dueDate: true, invoiceValueLakhs: true, amountWithoutGstLakhs: true, collectionStatus: true },
   });
+  const pendingCollections = allCollections.filter((c) => c.collectionStatus !== "Fully Received");
 
-  const overdueMap: Record<number, number> = {};
+  const overdueMap: Record<number, number>  = {};
   const upcomingMap: Record<number, number> = {};
   for (const c of pendingCollections) {
     const due = new Date(c.dueDate);
@@ -61,8 +61,19 @@ export default async function DashboardPage() {
     }
   }
 
+  // Billing revenue per employee (all invoices, not just pending)
+  type EmpBilling = { billed: number; withoutGst: number };
+  const billingMap: Record<number, EmpBilling> = {};
+  for (const c of allCollections) {
+    if (!billingMap[c.employeeId]) billingMap[c.employeeId] = { billed: 0, withoutGst: 0 };
+    billingMap[c.employeeId].billed     += c.invoiceValueLakhs;
+    billingMap[c.employeeId].withoutGst += c.amountWithoutGstLakhs;
+  }
+
   const totalOverdue  = Object.values(overdueMap).reduce((s, v) => s + v, 0);
   const totalUpcoming = Object.values(upcomingMap).reduce((s, v) => s + v, 0);
+  const totalBilled   = Object.values(billingMap).reduce((s, v) => s + v.billed, 0);
+  const totalWithoutGst = Object.values(billingMap).reduce((s, v) => s + v.withoutGst, 0);
 
   return (
     <div className="space-y-8">
@@ -81,7 +92,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <p className="text-3xl font-bold text-[#CC2229]">{employees.length}</p>
           <p className="text-sm text-gray-500 mt-1">Total Employees</p>
@@ -89,10 +100,6 @@ export default async function DashboardPage() {
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <p className="text-3xl font-bold text-[#CC2229]">{totalKRAs}</p>
           <p className="text-sm text-gray-500 mt-1">Active KRAs</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <p className="text-3xl font-bold text-[#CC2229]">{reviewedThisWeekCount}</p>
-          <p className="text-sm text-gray-500 mt-1">Reviews This Week</p>
         </div>
         <Link
           href="/collections?view=overdue"
@@ -109,6 +116,35 @@ export default async function DashboardPage() {
           <p className="text-sm text-gray-500 mt-1">Due in 30 Days</p>
         </Link>
       </div>
+
+      {/* Billing Revenue Summary */}
+      {totalBilled > 0 && (
+        <div className="bg-white rounded-xl border shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b">
+            <div>
+              <h2 className="font-semibold text-gray-800">Billing Revenue</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Total across all salespersons from billing records</p>
+            </div>
+            <Link href="/collections?view=revenue"
+              className="text-xs text-[#CC2229] hover:underline font-medium">
+              Full breakdown
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100">
+            {[
+              { label: "Total Billed", value: `₹${totalBilled.toFixed(2)}L`, color: "text-[#CC2229]" },
+              { label: "Without GST",  value: totalWithoutGst > 0 ? `₹${totalWithoutGst.toFixed(2)}L` : "—", color: "text-indigo-700" },
+              { label: "GST Amount",   value: totalWithoutGst > 0 ? `₹${(totalBilled - totalWithoutGst).toFixed(2)}L` : "—", color: "text-gray-600" },
+              { label: "Reviews This Week", value: reviewedThisWeekCount, color: "text-[#CC2229]" },
+            ].map((s) => (
+              <div key={s.label} className="p-4 text-center">
+                <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Employee KRA Overview */}
       <div>
@@ -143,8 +179,11 @@ export default async function DashboardPage() {
                 (k) => k.reviews[0]?.week === currentWeek && k.reviews[0]?.year === currentYear
               );
 
-              const empOverdue  = overdueMap[emp.id]  ?? 0;
-              const empUpcoming = upcomingMap[emp.id] ?? 0;
+              const empOverdue   = overdueMap[emp.id]  ?? 0;
+              const empUpcoming  = upcomingMap[emp.id] ?? 0;
+              const empBilling   = billingMap[emp.id];
+              const empBilled    = empBilling?.billed    ?? 0;
+              const empWithoutGst = empBilling?.withoutGst ?? 0;
 
               return (
                 <div
@@ -192,9 +231,25 @@ export default async function DashboardPage() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-6 text-sm text-gray-600">
-                        <span>{emp.kras.length} KRA{emp.kras.length !== 1 ? "s" : ""}</span>
-                        <span>Avg Score: <strong>{avgScore}</strong>/10</span>
+                      <div className="flex flex-col items-end gap-1 text-sm text-gray-600">
+                        <div className="flex items-center gap-4">
+                          <span>{emp.kras.length} KRA{emp.kras.length !== 1 ? "s" : ""}</span>
+                          <span>Avg Score: <strong>{avgScore}</strong>/10</span>
+                        </div>
+                        {empBilled > 0 && (
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-gray-400">Billing:</span>
+                            <Link href={`/collections?emp=${emp.id}`}
+                              className="font-bold text-[#CC2229] hover:underline">
+                              ₹{empBilled.toFixed(2)}L
+                            </Link>
+                            {empWithoutGst > 0 && (
+                              <span className="text-indigo-600 font-medium">
+                                (ex-GST: ₹{empWithoutGst.toFixed(2)}L)
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {emp.kras.length > 0 && (

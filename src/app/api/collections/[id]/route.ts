@@ -11,11 +11,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       invoiceNo: body.invoiceNo,
       customerName: body.customerName,
       invoiceValueLakhs: body.invoiceValueLakhs !== undefined ? Number(body.invoiceValueLakhs) : undefined,
+      amountWithoutGstLakhs: body.amountWithoutGstLakhs !== undefined ? Number(body.amountWithoutGstLakhs) : undefined,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
       amountReceivedLakhs: body.amountReceivedLakhs !== undefined ? Number(body.amountReceivedLakhs) : undefined,
       collectionStatus: body.collectionStatus,
       remarks: body.remarks,
     },
+    include: { employee: { select: { name: true } } },
   });
   return NextResponse.json(row);
 }

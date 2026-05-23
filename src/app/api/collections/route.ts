@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       invoiceNo: body.invoiceNo ?? "",
       customerName: body.customerName,
       invoiceValueLakhs: Number(body.invoiceValueLakhs),
+      amountWithoutGstLakhs: Number(body.amountWithoutGstLakhs ?? 0),
       dueDate: new Date(body.dueDate),
       amountReceivedLakhs: Number(body.amountReceivedLakhs ?? 0),
       collectionStatus: body.collectionStatus ?? "Pending",
@@ -44,4 +45,3 @@ export async function POST(req: Request) {
   });
   return NextResponse.json(row, { status: 201 });
 }
-

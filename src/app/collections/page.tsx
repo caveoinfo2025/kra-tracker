@@ -28,8 +28,8 @@ export default async function CollectionsPage({
 
   return (
     <SheetLayout
-      title="Collections"
-      description="Track invoice payments and collections. Auto-feeds the Payment Collections KPI."
+      title="Billing & Collections"
+      description="Track invoices, billing revenue, and payment collections. Switch to Revenue Summary to see per-salesperson billing breakdown."
     >
       <CollectionsClient
         initialRows={JSON.parse(JSON.stringify(rows))}

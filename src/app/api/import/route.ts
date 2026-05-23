@@ -200,6 +200,7 @@ export async function POST(req: Request) {
         invoiceNo,
         invoiceDate: parseDate(field("invoiceDate", row)) ?? new Date(),
         invoiceValueLakhs,
+        amountWithoutGstLakhs: parseNum(field("amountWithoutGstLakhs", row)),
         dueDate: dueDate!, // non-null: guarded by missing-fields check above
         amountReceivedLakhs: parseNum(field("amountReceivedLakhs", row)),
         collectionStatus: parseStr(field("collectionStatus", row)) || "Pending",
