@@ -18,7 +18,7 @@ export default async function LoginPage({
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/caveo-logo.png" alt="Caveo Infosystems" className="h-20 w-auto mx-auto mb-5" />
+        <img src="/LOGO.png" alt="Caveo Infosystems" className="h-20 w-auto mx-auto mb-5" />
         <h1 className="text-xl font-bold text-[#1E1E1E] mb-1">Sales Tracker</h1>
         <p className="text-sm text-gray-500 mb-8">Caveo Infosystems · Q1 2026–27</p>
 
