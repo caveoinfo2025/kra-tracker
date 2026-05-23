@@ -1,4 +1,4 @@
-﻿import prisma from "@/lib/prisma";
+﻿﻿import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import SalesFunnelClient from "./SalesFunnelClient";
@@ -23,7 +23,7 @@ export default async function SalesFunnelPage() {
 
   return (
     <SheetLayout
-      title=”Sales Funnel”
+      title="Sales Funnel"
       description="Track opportunities from Lead to Closed Won. Auto-feeds Revenue, Pipeline, New Customer & PoC KPIs."
     >
       <SalesFunnelClient

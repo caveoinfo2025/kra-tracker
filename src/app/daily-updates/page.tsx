@@ -1,4 +1,4 @@
-﻿import prisma from "@/lib/prisma";
+﻿﻿import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import DailyUpdatesClient from "./DailyUpdatesClient";
@@ -23,7 +23,7 @@ export default async function DailyUpdatesPage() {
 
   return (
     <SheetLayout
-      title=”Daily Updates”
+      title="Daily Updates"
       description="Log daily progress, key movements, and blockers. Visible to your manager in real time."
     >
       <DailyUpdatesClient
