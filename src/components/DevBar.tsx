@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 /**
  * DevBar — floating dev toolbar for impersonating any employee.
  * Only rendered when NODE_ENV === "development" (checked in layout.tsx).
@@ -81,8 +81,8 @@ export default function DevBar({
               key={emp.id}
               onClick={() => switchTo(emp.id)}
               disabled={pending}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 transition flex items-center justify-between ${
-                emp.id === currentDevId ? "bg-indigo-50 font-semibold text-indigo-700" : "text-gray-700"
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 transition flex items-center justify-between ${
+                emp.id === currentDevId ? "bg-red-50 font-semibold text-[#CC2229]" : "text-gray-700"
               }`}
             >
               <span>{emp.name}</span>

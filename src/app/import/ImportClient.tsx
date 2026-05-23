@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
@@ -138,7 +138,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
             key={t}
             onClick={() => handleTabChange(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
-              tab === t ? "bg-white shadow text-indigo-700" : "text-gray-600 hover:text-gray-900"
+              tab === t ? "bg-white shadow text-[#CC2229]" : "text-gray-600 hover:text-gray-900"
             }`}
           >
             {t === "sales" ? "📈 Sales / Bookings" : "💰 Collections"}
@@ -151,7 +151,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
         onClick={() => fileRef.current?.click()}
-        className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition"
+        className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-[#CC2229] hover:bg-red-50 transition"
       >
         <input
           ref={fileRef}
@@ -162,7 +162,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
         />
         <p className="text-3xl mb-2">📂</p>
         {fileName ? (
-          <p className="text-sm font-medium text-indigo-700">{fileName} — {rows.length} rows loaded</p>
+          <p className="text-sm font-medium text-[#CC2229]">{fileName} — {rows.length} rows loaded</p>
         ) : (
           <>
             <p className="text-sm font-medium text-gray-700">Drop your CSV or Excel file here</p>
@@ -187,7 +187,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
                 <select
                   value={mapping[h] ?? ""}
                   onChange={(e) => setFieldMapping(h, e.target.value)}
-                  className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                 >
                   <option value="">(skip)</option>
                   {Object.entries(fields).map(([k, v]) => (
@@ -210,7 +210,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
             <select
               value={defaultEmployee}
               onChange={(e) => setDefaultEmployee(e.target.value)}
-              className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
             >
               <option value="">— use value from file —</option>
               {employees.map((e) => (
@@ -277,7 +277,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
           <button
             onClick={handleImport}
             disabled={importing || missingRequired.length > 0}
-            className="bg-indigo-600 text-white text-sm font-medium px-6 py-2.5 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+            className="bg-[#CC2229] text-white text-sm font-medium px-6 py-2.5 rounded-lg hover:bg-[#A81B21] transition disabled:opacity-50"
           >
             {importing ? "Importing…" : `Import ${rows.length} rows into ${tab === "sales" ? "Sales Funnel" : "Collections"}`}
           </button>

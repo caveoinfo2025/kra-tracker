@@ -1,4 +1,4 @@
-type Variant = "success" | "warning" | "danger" | "info" | "neutral";
+﻿type Variant = "success" | "warning" | "danger" | "info" | "neutral";
 
 const styles: Record<Variant, string> = {
   success: "bg-green-100 text-green-800",

@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+﻿import prisma from "@/lib/prisma";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/dev-session";
@@ -64,9 +64,9 @@ export default async function EmployeeDetailPage({
     <div className="space-y-8">
       {/* Breadcrumb */}
       <nav className="text-sm text-gray-500 flex gap-2">
-        <Link href="/" className="hover:text-indigo-600">Dashboard</Link>
+        <Link href="/" className="hover:text-[#CC2229]">Dashboard</Link>
         <span>/</span>
-        <Link href="/employees" className="hover:text-indigo-600">Employees</Link>
+        <Link href="/employees" className="hover:text-[#CC2229]">Employees</Link>
         <span>/</span>
         <span className="text-gray-900 font-medium">{employee.name}</span>
       </nav>
@@ -97,15 +97,15 @@ export default async function EmployeeDetailPage({
         {/* Score summary */}
         <div className="mt-5 grid grid-cols-3 gap-4 text-center border-t pt-4">
           <div>
-            <p className="text-2xl font-bold text-indigo-600">{employee.kras.length}</p>
+            <p className="text-2xl font-bold text-[#CC2229]">{employee.kras.length}</p>
             <p className="text-xs text-gray-500">Active KRAs</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-indigo-600">{avgProgress}%</p>
+            <p className="text-2xl font-bold text-[#CC2229]">{avgProgress}%</p>
             <p className="text-xs text-gray-500">Avg Progress</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-indigo-600">{avgScore}</p>
+            <p className="text-2xl font-bold text-[#CC2229]">{avgScore}</p>
             <p className="text-xs text-gray-500">Avg Score /10</p>
           </div>
         </div>

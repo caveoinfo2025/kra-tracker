@@ -2,12 +2,23 @@
 
 :root {
   --font-geist-sans: "Geist", sans-serif;
+
+  /* Caveo brand colours */
+  --caveo-red:       #CC2229;
+  --caveo-red-hover: #A81B21;
+  --caveo-dark:      #1E1E1E;
+  --caveo-charcoal:  #2D2D2D;
+  --caveo-gray:      #6B7280;
 }
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
+  --color-caveo-red:       var(--caveo-red);
+  --color-caveo-red-hover: var(--caveo-red-hover);
+  --color-caveo-dark:      var(--caveo-dark);
 }
 
 body {
   font-family: var(--font-geist-sans, Arial, sans-serif);
+  background-color: #F5F5F5;
 }

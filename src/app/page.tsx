@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
@@ -48,7 +48,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/employees/new"
-          className="inline-flex items-center gap-2 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+          className="inline-flex items-center gap-2 bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition"
         >
           + Add Employee
         </Link>
@@ -62,7 +62,7 @@ export default async function DashboardPage() {
           { label: "Reviews This Week", value: reviewedThisWeekCount },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl shadow-sm border p-5">
-            <p className="text-3xl font-bold text-indigo-600">{s.value}</p>
+            <p className="text-3xl font-bold text-[#CC2229]">{s.value}</p>
             <p className="text-sm text-gray-500 mt-1">{s.label}</p>
           </div>
         ))}
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
         {employees.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border text-gray-400">
             <p className="font-medium">No employees yet.</p>
-            <Link href="/employees/new" className="mt-2 inline-block text-indigo-600 text-sm hover:underline">
+            <Link href="/employees/new" className="mt-2 inline-block text-[#CC2229] text-sm hover:underline">
               Add your first employee
             </Link>
           </div>

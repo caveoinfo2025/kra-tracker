@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
@@ -96,7 +96,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
           { label: "New Customers", value: rows.filter((r) => r.newCustomerFlag && r.stage === "Closed Won").length },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
-            <p className="text-xl font-bold text-indigo-600">{s.value}</p>
+            <p className="text-xl font-bold text-[#CC2229]">{s.value}</p>
             <p className="text-xs text-gray-500">{s.label}</p>
           </div>
         ))}
@@ -104,7 +104,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
 
       <div className="flex justify-end">
         <button onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
-          className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+          className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
           + Add Opportunity
         </button>
       </div>
@@ -183,11 +183,11 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
               </div>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.newCustomerFlag as boolean} onChange={(e) => f("newCustomerFlag", e.target.checked)} className="accent-indigo-600" />
+                  <input type="checkbox" checked={form.newCustomerFlag as boolean} onChange={(e) => f("newCustomerFlag", e.target.checked)} className="accent-[#CC2229]" />
                   New Customer
                 </label>
                 <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.pocFlag as boolean} onChange={(e) => f("pocFlag", e.target.checked)} className="accent-indigo-600" />
+                  <input type="checkbox" checked={form.pocFlag as boolean} onChange={(e) => f("pocFlag", e.target.checked)} className="accent-[#CC2229]" />
                   PoC
                 </label>
               </div>
@@ -198,7 +198,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={loading}
-                  className="flex-1 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                  className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
                   {loading ? "Saving…" : editId ? "Update" : "Add"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)}
@@ -230,14 +230,14 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                   <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate">{r.opportunityName}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.solutionCategory}</td>
                   <td className="px-4 py-3"><Badge label={r.stage} variant={stageVariant(r.stage)} /></td>
-                  <td className="px-4 py-3 font-semibold text-indigo-700">{r.dealValueLakhs.toFixed(1)}</td>
+                  <td className="px-4 py-3 font-semibold text-[#CC2229]">{r.dealValueLakhs.toFixed(1)}</td>
                   <td className="px-4 py-3 text-gray-600">{r.grossProfitPct}%</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.expectedCloseDate?.slice(0, 10)}</td>
                   <td className="px-4 py-3 text-center text-sm">
                     {r.newCustomerFlag && "🆕"} {r.pocFlag && "🔬"}
                   </td>
                   <td className="px-4 py-3 flex gap-2">
-                    <button onClick={() => openEdit(r)} className="text-xs text-indigo-600 hover:underline">Edit</button>
+                    <button onClick={() => openEdit(r)} className="text-xs text-[#CC2229] hover:underline">Edit</button>
                     <button onClick={() => handleDelete(r.id)} className="text-xs text-red-500 hover:underline">Del</button>
                   </td>
                 </tr>

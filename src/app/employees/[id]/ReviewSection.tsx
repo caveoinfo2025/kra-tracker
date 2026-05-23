@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
@@ -122,7 +122,7 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
         {employee.kras.length > 0 && (
           <button
             onClick={openAdd}
-            className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
+            className="text-sm bg-[#CC2229] text-white px-3 py-1.5 rounded-lg hover:bg-[#A81B21] transition"
           >
             + Add Review
           </button>
@@ -147,7 +147,7 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
                     required
                     value={form.kraId}
                     onChange={(e) => setForm({ ...form, kraId: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                   >
                     {employee.kras.map((k) => (
                       <option key={k.id} value={k.id}>
@@ -168,7 +168,7 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
                     value={form.week}
                     onChange={(e) => setForm({ ...form, week: e.target.value })}
                     disabled={!!editReview}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229] disabled:bg-gray-50"
                   />
                 </div>
                 <div>
@@ -181,7 +181,7 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
                     value={form.year}
                     onChange={(e) => setForm({ ...form, year: e.target.value })}
                     disabled={!!editReview}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229] disabled:bg-gray-50"
                   />
                 </div>
               </div>
@@ -197,7 +197,7 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
                     max={100}
                     value={form.progress}
                     onChange={(e) => setForm({ ...form, progress: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                   />
                 </div>
                 <div>
@@ -211,7 +211,7 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
                     max={10}
                     value={form.score}
                     onChange={(e) => setForm({ ...form, score: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                   />
                 </div>
               </div>
@@ -225,7 +225,7 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
                   placeholder="What was accomplished this week?"
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                 />
               </div>
               <div>
@@ -237,14 +237,14 @@ export default function ReviewSection({ employee }: { employee: Employee }) {
                   placeholder="Any blockers or risks?"
                   value={form.blockers}
                   onChange={(e) => setForm({ ...form, blockers: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                 />
               </div>
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                  className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] transition disabled:opacity-50"
                 >
                   {loading ? "Saving…" : editReview ? "Update Review" : "Submit Review"}
                 </button>

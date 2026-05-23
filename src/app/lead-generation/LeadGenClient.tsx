@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
@@ -91,7 +91,7 @@ export default function LeadGenClient({
           { label: "Calls Made", value: leads.filter((l) => l.activityType === "Call").reduce((s, l) => s + l.activityCount, 0) },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-indigo-600">{s.value}</p>
+            <p className="text-2xl font-bold text-[#CC2229]">{s.value}</p>
             <p className="text-xs text-gray-500">{s.label}</p>
           </div>
         ))}
@@ -99,7 +99,7 @@ export default function LeadGenClient({
 
       <div className="flex justify-end">
         <button onClick={() => { setEditId(null); setForm({ ...empty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
-          className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+          className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
           + Add Lead Entry
         </button>
       </div>
@@ -179,7 +179,7 @@ export default function LeadGenClient({
                 <div className="flex items-center gap-2 pt-5">
                   <input type="checkbox" id="qf" checked={form.qualifiedFlag as boolean}
                     onChange={(e) => f("qualifiedFlag", e.target.checked)}
-                    className="w-4 h-4 accent-indigo-600" />
+                    className="w-4 h-4 accent-[#CC2229]" />
                   <label htmlFor="qf" className="text-sm text-gray-700 font-medium">Qualified Lead</label>
                 </div>
               </div>
@@ -190,7 +190,7 @@ export default function LeadGenClient({
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={loading}
-                  className="flex-1 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                  className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
                   {loading ? "Saving…" : editId ? "Update" : "Add Entry"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)}
@@ -231,7 +231,7 @@ export default function LeadGenClient({
                   <td className="px-4 py-3"><Badge label={l.leadStatus} variant={statusVariant(l.leadStatus)} /></td>
                   <td className="px-4 py-3 text-center">{l.qualifiedFlag ? "✅" : "—"}</td>
                   <td className="px-4 py-3 flex gap-2">
-                    <button onClick={() => openEdit(l)} className="text-xs text-indigo-600 hover:underline">Edit</button>
+                    <button onClick={() => openEdit(l)} className="text-xs text-[#CC2229] hover:underline">Edit</button>
                     <button onClick={() => handleDelete(l.id)} className="text-xs text-red-500 hover:underline">Del</button>
                   </td>
                 </tr>

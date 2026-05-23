@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -78,7 +78,7 @@ export default function EditEmployeeForm({ employee }: { employee: Employee }) {
             required
             value={form[f.name as keyof typeof form]}
             onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
           />
         </div>
       ))}
@@ -86,7 +86,7 @@ export default function EditEmployeeForm({ employee }: { employee: Employee }) {
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+          className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] transition disabled:opacity-50"
         >
           {loading ? "Saving…" : "Save Changes"}
         </button>

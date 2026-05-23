@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
@@ -119,7 +119,7 @@ export default function KRASection({ employee, isManager }: { employee: Employee
               </button>
               <button
                 onClick={openAdd}
-                className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
+                className="text-sm bg-[#CC2229] text-white px-3 py-1.5 rounded-lg hover:bg-[#A81B21] transition"
               >
                 + Add KRA
               </button>
@@ -147,7 +147,7 @@ export default function KRASection({ employee, isManager }: { employee: Employee
                   placeholder="e.g. Improve code review coverage"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                 />
               </div>
               <div>
@@ -158,7 +158,7 @@ export default function KRASection({ employee, isManager }: { employee: Employee
                   placeholder="Describe the KRA in detail"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                 />
               </div>
               <div>
@@ -169,7 +169,7 @@ export default function KRASection({ employee, isManager }: { employee: Employee
                   placeholder="e.g. 80% coverage by Q3"
                   value={form.target}
                   onChange={(e) => setForm({ ...form, target: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -180,7 +180,7 @@ export default function KRASection({ employee, isManager }: { employee: Employee
                     type="date"
                     value={form.deadline}
                     onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                   />
                 </div>
                 <div>
@@ -192,7 +192,7 @@ export default function KRASection({ employee, isManager }: { employee: Employee
                     max={100}
                     value={form.weight}
                     onChange={(e) => setForm({ ...form, weight: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
                   />
                 </div>
               </div>
@@ -200,7 +200,7 @@ export default function KRASection({ employee, isManager }: { employee: Employee
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                  className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] transition disabled:opacity-50"
                 >
                   {loading ? "Saving…" : editKRA ? "Update KRA" : "Add KRA"}
                 </button>

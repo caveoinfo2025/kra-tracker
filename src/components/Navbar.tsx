@@ -25,25 +25,31 @@ export default async function Navbar() {
   const navLinks = user?.isManager ? MANAGER_LINKS : EMPLOYEE_LINKS;
 
   return (
-    <nav className="bg-indigo-700 text-white shadow-md">
+    <nav className="bg-[#1E1E1E] text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-4">
+
         {/* Logo */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center flex-shrink-0">
           <Link
             href={user?.isManager ? "/" : `/employees/${user?.employeeId ?? ""}`}
-            className="text-xl font-bold tracking-tight hover:opacity-90"
+            className="flex items-center hover:opacity-90 transition-opacity"
           >
-            Sales Tracker
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/caveo-logo.png"
+              alt="Caveo Infosystems"
+              className="h-9 w-auto"
+            />
           </Link>
         </div>
 
-        {/* Nav links */}
-        <div className="hidden md:flex items-center gap-1 overflow-x-auto">
+        {/* Nav links — desktop */}
+        <div className="hidden md:flex items-center gap-0.5 overflow-x-auto flex-1 justify-center">
           {navLinks.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm font-medium px-3 py-1.5 rounded-md hover:bg-indigo-600 transition-colors whitespace-nowrap"
+              className="text-sm font-medium px-3 py-1.5 rounded-md text-gray-300 hover:bg-[#CC2229] hover:text-white transition-colors whitespace-nowrap"
             >
               {l.label}
             </Link>
@@ -54,16 +60,16 @@ export default async function Navbar() {
         {user ? (
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold leading-none">
+              <p className="text-sm font-semibold leading-none text-white">
                 {user.employeeName ?? user.name ?? "—"}
               </p>
-              <p className="text-xs text-indigo-200 mt-0.5">
+              <p className="text-xs text-gray-400 mt-0.5">
                 {user.isManager ? "Manager" : user.role ?? "Employee"}
               </p>
             </div>
             {user.image && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.image} alt="" className="w-8 h-8 rounded-full border-2 border-indigo-300" />
+              <img src={user.image} alt="" className="w-8 h-8 rounded-full border-2 border-[#CC2229]" />
             )}
             <form
               action={async () => {
@@ -73,26 +79,26 @@ export default async function Navbar() {
             >
               <button
                 type="submit"
-                className="text-xs bg-indigo-800 hover:bg-indigo-900 px-3 py-1.5 rounded-md transition"
+                className="text-xs bg-[#CC2229] hover:bg-[#A81B21] px-3 py-1.5 rounded-md transition font-medium"
               >
                 Sign out
               </button>
             </form>
           </div>
         ) : (
-          <Link href="/login" className="text-sm bg-white text-indigo-700 font-medium px-3 py-1.5 rounded-md hover:bg-indigo-50 transition">
+          <Link href="/login" className="text-sm bg-[#CC2229] hover:bg-[#A81B21] text-white font-medium px-3 py-1.5 rounded-md transition">
             Sign in
           </Link>
         )}
       </div>
 
       {/* Mobile nav */}
-      <div className="md:hidden flex gap-1 px-4 pb-2 overflow-x-auto">
+      <div className="md:hidden flex gap-1 px-4 pb-2 overflow-x-auto border-t border-white/10">
         {navLinks.map((l) => (
           <Link
             key={l.href}
             href={l.href}
-            className="text-xs font-medium px-2.5 py-1 rounded-md hover:bg-indigo-600 whitespace-nowrap transition-colors"
+            className="text-xs font-medium px-2.5 py-1.5 rounded-md text-gray-300 hover:bg-[#CC2229] hover:text-white whitespace-nowrap transition-colors mt-1"
           >
             {l.label}
           </Link>

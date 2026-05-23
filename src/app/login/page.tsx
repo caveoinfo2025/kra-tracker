@@ -1,4 +1,4 @@
-import { signIn } from "@/../auth";
+﻿import { signIn } from "@/../auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/../auth";
 
@@ -15,11 +15,12 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm text-center">
-        <div className="text-4xl mb-4">📊</div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Sales Tracker</h1>
-        <p className="text-sm text-gray-500 mb-8">Caveo Sales · Q1 2026–27</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/caveo-logo.png" alt="Caveo Infosystems" className="h-20 w-auto mx-auto mb-5" />
+        <h1 className="text-xl font-bold text-[#1E1E1E] mb-1">Sales Tracker</h1>
+        <p className="text-sm text-gray-500 mb-8">Caveo Infosystems · Q1 2026–27</p>
 
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">

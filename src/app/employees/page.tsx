@@ -21,7 +21,7 @@ export default async function EmployeesPage() {
         <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
         <Link
           href="/employees/new"
-          className="inline-flex items-center gap-2 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+          className="inline-flex items-center gap-2 bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition"
         >
           + Add Employee
         </Link>
@@ -30,7 +30,7 @@ export default async function EmployeesPage() {
       {employees.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl border text-gray-400">
           <p className="font-medium">No employees yet.</p>
-          <Link href="/employees/new" className="mt-2 inline-block text-indigo-600 text-sm hover:underline">
+          <Link href="/employees/new" className="mt-2 inline-block text-[#CC2229] text-sm hover:underline">
             Add your first employee
           </Link>
         </div>
@@ -60,7 +60,7 @@ export default async function EmployeesPage() {
                   <td className="px-6 py-4 text-sm text-gray-600">{emp.role}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{emp.kras.length}</td>
                   <td className="px-6 py-4 flex gap-3 text-sm">
-                    <Link href={`/employees/${emp.id}`} className="text-indigo-600 hover:underline">
+                    <Link href={`/employees/${emp.id}`} className="text-[#CC2229] hover:underline">
                       View
                     </Link>
                     <Link href={`/employees/${emp.id}/edit`} className="text-gray-500 hover:underline">
