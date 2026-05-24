@@ -59,13 +59,13 @@ async function totalCollectionsWithoutGst(employeeId: number) {
   return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
 }
 
-async function avgGrossProfit(employeeId: number) {
+/** Total gross profit in ₹L = sum of (dealValueLakhs × grossProfitPct / 100) for Closed Won */
+async function totalGrossProfit(employeeId: number) {
   const rows = await prisma.salesFunnel.findMany({
     where: { employeeId, stage: "Closed Won" },
-    select: { grossProfitPct: true },
+    select: { dealValueLakhs: true, grossProfitPct: true },
   });
-  if (!rows.length) return 0;
-  return rows.reduce((s, r) => s + r.grossProfitPct, 0) / rows.length;
+  return rows.reduce((s, r) => s + (r.dealValueLakhs * r.grossProfitPct) / 100, 0);
 }
 
 /**
@@ -230,13 +230,13 @@ async function teamBilling() {
   return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
 }
 
-async function teamAvgGrossProfit() {
+/** Total team gross profit in ₹L = sum of (dealValueLakhs × grossProfitPct / 100) */
+async function teamTotalGrossProfit() {
   const rows = await prisma.salesFunnel.findMany({
     where: { stage: "Closed Won" },
-    select: { grossProfitPct: true },
+    select: { dealValueLakhs: true, grossProfitPct: true },
   });
-  if (!rows.length) return 0;
-  return rows.reduce((s, r) => s + r.grossProfitPct, 0) / rows.length;
+  return rows.reduce((s, r) => s + (r.dealValueLakhs * r.grossProfitPct) / 100, 0);
 }
 
 async function teamCollectionsEfficiency() {
@@ -355,15 +355,17 @@ export async function computeKRAProgress(
       const billingTarget = targets["total sales revenue - billing"] ?? (bookingTarget * 0.9);
       const booking       = await closedWonBooking(employeeId);
       const billing       = await totalCollectionsWithoutGst(employeeId);
-      const gpTarget      = targets["average gross profit margin"] ?? 10;
-      const gp            = await avgGrossProfit(employeeId);
+      // GP target from Excel is %; convert to absolute ₹L using booking target
+      const gpPctTarget   = targets["average gross profit margin"] ?? 10;
+      const gpLakhTarget  = bookingTarget * gpPctTarget / 100;  // e.g. 70 × 6.5% = 4.55L
+      const gp            = await totalGrossProfit(employeeId); // absolute ₹L achieved
       const collTarget    = targets["payment collections within due dates & credit days reduction"] ?? 0.9;
       const collData      = await onTimeCollectionRate(employeeId);
       const coll          = collData.rate;
 
       const bookPct = clamp((booking / bookingTarget) * 100);
       const billPct = clamp((billing / billingTarget) * 100);
-      const gpPct   = clamp((gp     / gpTarget)      * 100);
+      const gpPct   = gpLakhTarget > 0 ? clamp((gp / gpLakhTarget) * 100) : 0;
       const collPct = clamp((coll   / collTarget)     * 100);
 
       // Weights from Excel: booking=0.375, billing=0.375, GP=0.125, collections=0.125
@@ -372,7 +374,7 @@ export async function computeKRAProgress(
         `Booking (Closed Won): ₹${booking.toFixed(1)}L / ₹${bookingTarget}L (${bookPct.toFixed(0)}%)`,
         `Billing (ex-GST): ₹${billing.toFixed(1)}L / ₹${billingTarget.toFixed(1)}L (${billPct.toFixed(0)}%)`,
         `On-time Collections: ₹${collData.fullyReceived.toFixed(1)}L / ₹${collData.total.toFixed(1)}L (${(coll * 100).toFixed(0)}%)`,
-        `Gross Profit: ${gp.toFixed(1)}% / ${gpTarget}% (${gpPct.toFixed(0)}%)`,
+        `Gross Profit: ₹${gp.toFixed(2)}L / ₹${gpLakhTarget.toFixed(2)}L (${gpPct.toFixed(0)}%)`,
       ].join(" | ");
     }
 
@@ -587,25 +589,27 @@ export async function computeKRAProgress(
     else if (t.includes("revenue & profitability")) {
       const bookTarget = targets["total team booking target achievement (₹ lakhs)"] ?? 500;
       const billTarget = targets["total team billing achievement"] ?? 450;
-      const gpTarget   = targets["gross profit margin (%)"] ?? 12;
-      const collTarget = targets["collections efficiency (% within due dates)"] ?? 0.9;
+      // GP target is % of booking target → convert to absolute ₹L
+      const gpPctTarget = targets["gross profit margin (%)"] ?? 12;
+      const gpLakhTarget = bookTarget * gpPctTarget / 100; // e.g. 500 × 12% = 60L
+      const collTarget  = targets["collections efficiency (% within due dates)"] ?? 0.9;
 
       const booking = await teamBooking();
       const billing = await teamBilling();
-      const gp      = await teamAvgGrossProfit();
+      const gp      = await teamTotalGrossProfit(); // absolute ₹L
       const coll    = await teamCollectionsEfficiency();
 
-      const bookPct = clamp((booking / bookTarget) * 100);
-      const billPct = clamp((billing / billTarget) * 100);
-      const gpPct   = clamp((gp     / gpTarget)   * 100);
-      const collPct = clamp((coll   / collTarget)  * 100);
+      const bookPct = clamp((booking / bookTarget)  * 100);
+      const billPct = clamp((billing / billTarget)  * 100);
+      const gpPct   = gpLakhTarget > 0 ? clamp((gp / gpLakhTarget) * 100) : 0;
+      const collPct = clamp((coll   / collTarget)   * 100);
 
       // Weights from Excel: booking=0.375, billing=0.325, GP=0.200, coll=0.100
       progress = clamp(Math.round(bookPct * 0.375 + billPct * 0.325 + gpPct * 0.2 + collPct * 0.1));
       notes = [
         `Team booking: ₹${booking.toFixed(1)}L / ₹${bookTarget}L (${bookPct.toFixed(0)}%)`,
         `Team billing: ₹${billing.toFixed(1)}L / ₹${billTarget}L (${billPct.toFixed(0)}%)`,
-        `Team GP: ${gp.toFixed(1)}% / ${gpTarget}% (${gpPct.toFixed(0)}%)`,
+        `Team GP: ₹${gp.toFixed(2)}L / ₹${gpLakhTarget.toFixed(2)}L (${gpPct.toFixed(0)}%)`,
         `Collections efficiency: ${(coll * 100).toFixed(0)}% / ${(collTarget * 100).toFixed(0)}%`,
       ].join(" | ");
     }

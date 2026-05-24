@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
-import ProgressBar from "@/components/ProgressBar";
 import Badge from "@/components/Badge";
+import ProgressBar from "@/components/ProgressBar";
+import TeamSummaryClient from "./TeamSummaryClient";
 
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -18,6 +19,10 @@ export default async function DashboardPage() {
     redirect(`/employees/${session.user.employeeId}`);
   }
 
+  const now         = new Date();
+  const currentWeek = getWeekNumber(now);
+  const currentYear = now.getFullYear();
+
   const employees = await prisma.employee.findMany({
     include: {
       kras: {
@@ -28,25 +33,19 @@ export default async function DashboardPage() {
     orderBy: { name: "asc" },
   });
 
-  const now = new Date();
-  const currentWeek = getWeekNumber(now);
-  const currentYear = now.getFullYear();
-
   const reviewedThisWeekCount = await prisma.weeklyReview.count({
     where: { week: currentWeek, year: currentYear },
   });
 
   const totalKRAs = employees.reduce((s, e) => s + e.kras.length, 0);
 
-  // ── Collection overdue / upcoming per employee ────────────────────────────
+  // ── Collections ───────────────────────────────────────────────────────────
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const in30 = new Date(today);
   in30.setDate(today.getDate() + 30);
 
-  const allCollections = await prisma.collection.findMany({
-    orderBy: { invoiceDate: "desc" },
-  });
+  const allCollections = await prisma.collection.findMany({ orderBy: { invoiceDate: "desc" } });
   const pendingCollections = allCollections.filter((c) => c.collectionStatus !== "Fully Received");
 
   const overdueMap: Record<number, number>  = {};
@@ -54,43 +53,95 @@ export default async function DashboardPage() {
   for (const c of pendingCollections) {
     const due = new Date(c.dueDate);
     due.setHours(0, 0, 0, 0);
-    if (due < today) {
-      overdueMap[c.employeeId] = (overdueMap[c.employeeId] ?? 0) + 1;
-    } else if (due <= in30) {
-      upcomingMap[c.employeeId] = (upcomingMap[c.employeeId] ?? 0) + 1;
-    }
+    if (due < today)       overdueMap[c.employeeId]  = (overdueMap[c.employeeId]  ?? 0) + 1;
+    else if (due <= in30)  upcomingMap[c.employeeId] = (upcomingMap[c.employeeId] ?? 0) + 1;
   }
 
-  // Billing revenue per employee (all invoices, not just pending)
-  type EmpBilling = { billed: number; withoutGst: number };
-  const billingMap: Record<number, EmpBilling> = {};
+  const billingMap: Record<number, { billed: number; withoutGst: number }> = {};
   for (const c of allCollections) {
     if (!billingMap[c.employeeId]) billingMap[c.employeeId] = { billed: 0, withoutGst: 0 };
     billingMap[c.employeeId].billed     += c.invoiceValueLakhs ?? 0;
     billingMap[c.employeeId].withoutGst += c.amountWithoutGstLakhs ?? 0;
   }
 
-  // ── Sales Funnel: Closed Won booking per employee + category breakdown ────
-  const closedWonDeals = await prisma.salesFunnel.findMany({
-    where: { stage: "Closed Won" },
-    select: { employeeId: true, dealValueLakhs: true, solutionCategory: true },
+  const totalOverdue    = Object.values(overdueMap).reduce((s, v) => s + v, 0);
+  const totalUpcoming   = Object.values(upcomingMap).reduce((s, v) => s + v, 0);
+  const totalBilled     = Object.values(billingMap).reduce((s, v) => s + v.billed, 0);
+  const totalWithoutGst = Object.values(billingMap).reduce((s, v) => s + v.withoutGst, 0);
+
+  // ── Sales Funnel: Closed Won + pipeline ───────────────────────────────────
+  const allFunnel = await prisma.salesFunnel.findMany({
+    select: { employeeId: true, dealValueLakhs: true, solutionCategory: true, stage: true, status: true },
   });
 
-  const bookingMap: Record<number, number> = {};
+  const closedWonDeals = allFunnel.filter((d) => d.stage === "Closed Won");
+  const bookingMap: Record<number, number>    = {};
   const categoryTotals: Record<string, number> = {};
   for (const d of closedWonDeals) {
     bookingMap[d.employeeId] = (bookingMap[d.employeeId] ?? 0) + d.dealValueLakhs;
     const cat = d.solutionCategory?.trim() || "Other";
     categoryTotals[cat] = (categoryTotals[cat] ?? 0) + d.dealValueLakhs;
   }
-  const totalBooking    = closedWonDeals.reduce((s, d) => s + d.dealValueLakhs, 0);
-  const sortedCategories = Object.entries(categoryTotals)
-    .sort((a, b) => b[1] - a[1]);
+  const totalBooking     = closedWonDeals.reduce((s, d) => s + d.dealValueLakhs, 0);
+  const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
 
-  const totalOverdue  = Object.values(overdueMap).reduce((s, v) => s + v, 0);
-  const totalUpcoming = Object.values(upcomingMap).reduce((s, v) => s + v, 0);
-  const totalBilled   = Object.values(billingMap).reduce((s, v) => s + v.billed, 0);
-  const totalWithoutGst = Object.values(billingMap).reduce((s, v) => s + v.withoutGst, 0);
+  // Active pipeline per employee
+  const activeFunnel = allFunnel.filter((d) => d.stage !== "Closed Won" && d.stage !== "Closed Lost");
+  const pipelineMap: Record<number, number> = {};
+  const stageMap: Record<string, number>    = {};
+  for (const d of activeFunnel) {
+    pipelineMap[d.employeeId] = (pipelineMap[d.employeeId] ?? 0) + d.dealValueLakhs;
+    stageMap[d.stage]         = (stageMap[d.stage]         ?? 0) + d.dealValueLakhs;
+  }
+  const totalPipeline = Object.values(pipelineMap).reduce((s, v) => s + v, 0);
+
+  // ── Lead Gen counts per employee ──────────────────────────────────────────
+  const leadRows = await prisma.leadGeneration.findMany({
+    select: { employeeId: true, qualifiedFlag: true, activityType: true, leadStatus: true },
+  });
+  const qualifiedMap: Record<number, number>  = {};
+  const proposalMap: Record<number, number>   = {};
+  for (const l of leadRows) {
+    if (l.qualifiedFlag) qualifiedMap[l.employeeId] = (qualifiedMap[l.employeeId] ?? 0) + 1;
+  }
+  // Proposals Sent = funnel deals at "Proposal Sent" stage
+  const proposalDeals = allFunnel.filter((d) => d.stage === "Proposal Sent");
+  for (const d of proposalDeals) {
+    proposalMap[d.employeeId] = (proposalMap[d.employeeId] ?? 0) + 1;
+  }
+  const totalQualified = Object.values(qualifiedMap).reduce((s, v) => s + v, 0);
+  const totalProposals = Object.values(proposalMap).reduce((s, v) => s + v, 0);
+
+  // ── Team Summary data ─────────────────────────────────────────────────────
+  const nonManagerEmps = employees.filter((e) => !e.isManager);
+  const avgKraScore = nonManagerEmps.length > 0
+    ? nonManagerEmps.reduce((sum, emp) => {
+        const avg = emp.kras.length > 0
+          ? emp.kras.reduce((s, k) => s + (k.reviews[0]?.progress ?? 0), 0) / emp.kras.length
+          : 0;
+        return sum + avg;
+      }, 0) / nonManagerEmps.length
+    : 0;
+
+  const teamSummaryEmps = employees.map((emp) => ({
+    id:             emp.id,
+    name:           emp.name,
+    role:           emp.role,
+    avgProgress:    emp.kras.length > 0
+      ? emp.kras.reduce((s, k) => s + (k.reviews[0]?.progress ?? 0), 0) / emp.kras.length
+      : 0,
+    pipelineLakhs:  pipelineMap[emp.id]  ?? 0,
+    qualifiedLeads: qualifiedMap[emp.id] ?? 0,
+    proposalCount:  proposalMap[emp.id]  ?? 0,
+  }));
+
+  const stageData = Object.entries(stageMap)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([stage, value]) => ({ stage, value }));
+
+  // Period label
+  const periodLabel = "Q1 2026-27";
 
   return (
     <div className="space-y-8">
@@ -118,17 +169,11 @@ export default async function DashboardPage() {
           <p className="text-3xl font-bold text-[#CC2229]">{totalKRAs}</p>
           <p className="text-sm text-gray-500 mt-1">Active KRAs</p>
         </div>
-        <Link
-          href="/collections?view=overdue"
-          className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition"
-        >
+        <Link href="/collections?view=overdue" className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition">
           <p className="text-3xl font-bold text-red-600">{totalOverdue}</p>
           <p className="text-sm text-gray-500 mt-1">Overdue Invoices</p>
         </Link>
-        <Link
-          href="/collections?view=upcoming"
-          className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition"
-        >
+        <Link href="/collections?view=upcoming" className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition">
           <p className="text-3xl font-bold text-amber-600">{totalUpcoming}</p>
           <p className="text-sm text-gray-500 mt-1">Due in 30 Days</p>
         </Link>
@@ -140,21 +185,18 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between px-5 py-4 border-b">
             <div>
               <h2 className="font-semibold text-gray-800">Sales Revenue Summary</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Booking from Closed Won deals · Billing from Collections</p>
+              <p className="text-xs text-gray-500 mt-0.5">Booking from Closed Won · Billing from Collections</p>
             </div>
-            <Link href="/collections?view=revenue"
-              className="text-xs text-[#CC2229] hover:underline font-medium">
+            <Link href="/collections?view=revenue" className="text-xs text-[#CC2229] hover:underline font-medium">
               Billing breakdown →
             </Link>
           </div>
-
-          {/* Top stats row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100 border-b">
             {[
-              { label: "Total Booking (Closed Won)", value: `₹${totalBooking.toFixed(2)}L`,      color: "text-[#CC2229]" },
-              { label: "Total Billed (Invoiced)",    value: `₹${totalBilled.toFixed(2)}L`,       color: "text-gray-800" },
+              { label: "Total Booking (Closed Won)", value: `₹${totalBooking.toFixed(2)}L`, color: "text-[#CC2229]" },
+              { label: "Total Billed (Invoiced)",    value: `₹${totalBilled.toFixed(2)}L`,  color: "text-gray-800" },
               { label: "Total (Without GST)",        value: totalWithoutGst > 0 ? `₹${totalWithoutGst.toFixed(2)}L` : "—", color: "text-indigo-700" },
-              { label: "Reviews This Week",          value: String(reviewedThisWeekCount),        color: "text-[#CC2229]" },
+              { label: "Reviews This Week",          value: String(reviewedThisWeekCount),   color: "text-[#CC2229]" },
             ].map((s) => (
               <div key={s.label} className="p-4 text-center">
                 <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
@@ -162,8 +204,6 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
-
-          {/* Category breakdown */}
           {sortedCategories.length > 0 && (
             <div className="px-5 py-3">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -177,10 +217,7 @@ export default async function DashboardPage() {
                       <p className="text-xs text-gray-500 truncate">{cat}</p>
                       <p className="text-sm font-bold text-[#CC2229]">₹{val.toFixed(2)}L</p>
                       <div className="mt-1 bg-gray-200 rounded-full h-1">
-                        <div
-                          className="bg-[#CC2229] h-1 rounded-full"
-                          style={{ width: `${Math.min(100, pct)}%` }}
-                        />
+                        <div className="bg-[#CC2229] h-1 rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
                       </div>
                       <p className="text-[10px] text-gray-400 mt-0.5">{pct.toFixed(1)}% of total</p>
                     </div>
@@ -192,158 +229,73 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Employee KRA Overview */}
+      {/* Team Summary (charts + table) */}
+      <TeamSummaryClient
+        period={periodLabel}
+        activePipeline={totalPipeline}
+        qualifiedLeads={totalQualified}
+        proposalsSent={totalProposals}
+        avgKraScore={avgKraScore}
+        employees={teamSummaryEmps}
+        stageData={stageData}
+      />
+
+      {/* Employee KRA Overview — overall achievement % only */}
       <div>
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Employee KRA Overview</h2>
         {employees.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border text-gray-400">
             <p className="font-medium">No employees yet.</p>
-            <Link href="/employees/new" className="mt-2 inline-block text-[#CC2229] text-sm hover:underline">
-              Add your first employee
-            </Link>
+            <Link href="/employees/new" className="mt-2 inline-block text-[#CC2229] text-sm hover:underline">Add your first employee</Link>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {employees.map((emp) => {
-              const avgProgress =
-                emp.kras.length > 0
-                  ? Math.round(
-                      emp.kras.reduce((sum, k) => sum + (k.reviews[0]?.progress ?? 0), 0) /
-                        emp.kras.length
-                    )
-                  : 0;
-
-              const avgScore =
-                emp.kras.length > 0
-                  ? (
-                      emp.kras.reduce((sum, k) => sum + (k.reviews[0]?.score ?? 0), 0) /
-                      emp.kras.length
-                    ).toFixed(1)
-                  : "—";
-
-              const reviewedThisWeek = emp.kras.some(
-                (k) => k.reviews[0]?.week === currentWeek && k.reviews[0]?.year === currentYear
-              );
-
-              const empOverdue    = overdueMap[emp.id]  ?? 0;
-              const empUpcoming   = upcomingMap[emp.id] ?? 0;
-              const empBilling    = billingMap[emp.id];
-              const empBilled     = empBilling?.billed     ?? 0;
-              const empWithoutGst = empBilling?.withoutGst ?? 0;
-              const empBooking    = bookingMap[emp.id]  ?? 0;
+              const avgProgress = emp.kras.length > 0
+                ? Math.round(emp.kras.reduce((s, k) => s + (k.reviews[0]?.progress ?? 0), 0) / emp.kras.length)
+                : 0;
+              const empOverdue  = overdueMap[emp.id]  ?? 0;
+              const empUpcoming = upcomingMap[emp.id] ?? 0;
+              const statusColor = avgProgress >= 75 ? "text-green-600" : avgProgress >= 40 ? "text-amber-600" : "text-[#CC2229]";
 
               return (
-                <div
+                <Link
                   key={emp.id}
-                  className="relative bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition"
+                  href={`/employees/${emp.id}`}
+                  className="bg-white rounded-xl border shadow-sm p-4 hover:shadow-md transition flex items-center gap-4"
                 >
-                  {/* Invisible full-area link to employee page (sits behind content) */}
-                  <Link
-                    href={`/employees/${emp.id}`}
-                    className="absolute inset-0 rounded-xl z-0"
-                    aria-label={`View ${emp.name} KRAs`}
-                  />
-
-                  {/* Content sits above the link overlay */}
-                  <div className="relative z-10 pointer-events-none">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-gray-900">{emp.name}</h3>
-                          <Badge label={emp.department} variant="info" />
-                          <Badge label={emp.role} variant="neutral" />
-                          {reviewedThisWeek && <Badge label="Reviewed" variant="success" />}
-                        </div>
-                        <p className="text-sm text-gray-500 mt-0.5">{emp.email}</p>
-
-                        {/* Per-employee collection badges — re-enable pointer events so they are clickable */}
-                        {(empOverdue > 0 || empUpcoming > 0) && (
-                          <div className="flex gap-2 mt-1.5 pointer-events-auto">
-                            {empOverdue > 0 && (
-                              <Link
-                                href={`/collections?view=overdue&emp=${emp.id}`}
-                                className="text-xs font-medium bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full hover:bg-red-200 transition"
-                              >
-                                {empOverdue} overdue
-                              </Link>
-                            )}
-                            {empUpcoming > 0 && (
-                              <Link
-                                href={`/collections?view=upcoming&emp=${emp.id}`}
-                                className="text-xs font-medium bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full hover:bg-amber-200 transition"
-                              >
-                                {empUpcoming} upcoming
-                              </Link>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-1 text-sm text-gray-600">
-                        <div className="flex items-center gap-4">
-                          <span>{emp.kras.length} KRA{emp.kras.length !== 1 ? "s" : ""}</span>
-                          <span>Avg Score: <strong>{avgScore}</strong>/10</span>
-                        </div>
-                        {/* Booking (Closed Won) */}
-                        {empBooking > 0 && (
-                          <div className="flex items-center gap-2 text-xs pointer-events-auto">
-                            <span className="text-gray-400">Booking:</span>
-                            <Link href={`/sales-funnel?emp=${emp.id}`}
-                              className="font-bold text-[#CC2229] hover:underline">
-                              ₹{empBooking.toFixed(2)}L
-                            </Link>
-                            <span className="text-gray-300">|</span>
-                            <span className="text-gray-400">Billing:</span>
-                            <Link href={`/collections?emp=${emp.id}`}
-                              className="font-semibold text-gray-700 hover:underline">
-                              ₹{empBilled.toFixed(2)}L
-                            </Link>
-                            {empWithoutGst > 0 && (
-                              <span className="text-indigo-600 font-medium">
-                                (w/o GST: ₹{empWithoutGst.toFixed(2)}L)
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        {/* Billing only (no booking yet) */}
-                        {empBooking === 0 && empBilled > 0 && (
-                          <div className="flex items-center gap-2 text-xs pointer-events-auto">
-                            <span className="text-gray-400">Billing:</span>
-                            <Link href={`/collections?emp=${emp.id}`}
-                              className="font-bold text-[#CC2229] hover:underline">
-                              ₹{empBilled.toFixed(2)}L
-                            </Link>
-                            {empWithoutGst > 0 && (
-                              <span className="text-indigo-600 font-medium">
-                                (w/o GST: ₹{empWithoutGst.toFixed(2)}L)
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                  {/* Name + role */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900">{emp.name}</span>
+                      <Badge label={emp.role} variant="neutral" />
+                      {empOverdue > 0 && (
+                        <span className="text-xs font-medium bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                          {empOverdue} overdue
+                        </span>
+                      )}
+                      {empUpcoming > 0 && (
+                        <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                          {empUpcoming} due soon
+                        </span>
+                      )}
                     </div>
-                    {emp.kras.length > 0 && (
-                      <div className="mt-3 space-y-1.5">
-                        {emp.kras.map((kra) => {
-                          const prog = kra.reviews[0]?.progress ?? 0;
-                          return (
-                            <div key={kra.id} className="flex items-center gap-3">
-                              <span className="text-xs text-gray-500 w-40 truncate">{kra.title}</span>
-                              <div className="flex-1"><ProgressBar value={prog} /></div>
-                              <span className="text-xs text-gray-500 w-8 text-right">{prog}%</span>
-                            </div>
-                          );
-                        })}
-                        <div className="mt-2 pt-2 border-t">
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs font-medium text-gray-600 w-40">Overall</span>
-                            <div className="flex-1"><ProgressBar value={avgProgress} /></div>
-                            <span className="text-xs font-medium text-gray-600 w-8 text-right">{avgProgress}%</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <p className="text-xs text-gray-400 mt-0.5">{emp.kras.length} active KRA{emp.kras.length !== 1 ? "s" : ""}</p>
                   </div>
-                </div>
+
+                  {/* Progress bar + % */}
+                  <div className="flex items-center gap-3 w-52 flex-shrink-0">
+                    <div className="flex-1">
+                      <ProgressBar value={avgProgress} />
+                    </div>
+                    <span className={`text-sm font-bold w-12 text-right ${statusColor}`}>
+                      {avgProgress}%
+                    </span>
+                  </div>
+
+                  {/* Dashboard arrow */}
+                  <span className="text-gray-300 text-lg flex-shrink-0">›</span>
+                </Link>
               );
             })}
           </div>
