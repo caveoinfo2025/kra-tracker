@@ -5,6 +5,7 @@ import { getSession } from "@/lib/dev-session";
 const MANAGER_LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/employees", label: "Employees" },
+  { href: "/kras", label: "KRAs" },
   { href: "/lead-generation", label: "Leads" },
   { href: "/sales-funnel", label: "Funnel" },
   { href: "/collections", label: "Collections" },
@@ -13,6 +14,7 @@ const MANAGER_LINKS = [
 ];
 
 const EMPLOYEE_LINKS = [
+  { href: "/kras", label: "My KRAs" },
   { href: "/lead-generation", label: "Leads" },
   { href: "/sales-funnel", label: "Funnel" },
   { href: "/collections", label: "Collections" },

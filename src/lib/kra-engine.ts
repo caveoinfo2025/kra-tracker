@@ -252,9 +252,16 @@ export async function computeKRAProgress(
       const pocTarget = targets["non-obligatory\" proof of concept (poc)"] ?? 4;
       const ncTarget = targets["new customers or upsell closure"] ?? 8;
       const pipTarget = targets["pipeline"] ?? 2;
+      // Get booking target from the employee's Sales Revenue KRA (pipeline target is a multiplier)
+      const salesKraForPip = await prisma.kRA.findFirst({
+        where: { employeeId, status: "active", title: { contains: "sales revenue" } },
+        select: { target: true },
+      });
+      const salesTargetsForPip = salesKraForPip ? parseTargets(salesKraForPip.target) : {};
+      const bookingTargetForPip = salesTargetsForPip["total sales revenue - booking"] ?? 70;
       const poc = await pocCount(employeeId);
       const nc = await newCustomersClosed(employeeId);
-      const pipRatio = await activePipelineRatio(employeeId, pipTarget * 70);
+      const pipRatio = await activePipelineRatio(employeeId, pipTarget * bookingTargetForPip);
 
       const pocPct = pocTarget > 0 ? (poc / pocTarget) * 100 : 0;
       const ncPct = ncTarget > 0 ? (nc / ncTarget) * 100 : 0;
@@ -265,22 +272,34 @@ export async function computeKRAProgress(
 
     // ── Focus area revenue achievement (Closed Won from Sales Funnel) ────
     else if (t.includes("focus area")) {
-      const nsTarget   = targets["network & security"]      ?? 0;
-      const ssTarget   = targets["server & storage"]        ?? 0;
-      const msspTarget = targets["mssp services"]            ?? 0;
-      const cloudTarget = targets["cloud security & services"] ?? 0;
+      // Targets are proportions of the booking target (e.g. 0.35 = 35%)
+      // Get booking target from the employee's Sales Revenue KRA
+      const salesKra = await prisma.kRA.findFirst({
+        where: { employeeId, status: "active", title: { contains: "sales revenue" } },
+        select: { target: true },
+      });
+      const salesTargets = salesKra ? parseTargets(salesKra.target) : {};
+      const bookingTarget = salesTargets["total sales revenue - booking"] ?? 70;
 
-      // Pull all category bookings in one query
+      const nsProp    = targets["network & security"]         ?? 0;
+      const ssProp    = targets["server & storage"]           ?? 0;
+      const msspProp  = targets["mssp services"]              ?? 0;
+      const cloudProp = targets["cloud security & services"]  ?? 0;
+
+      // Actual lakh targets = proportion × booking target
+      const nsTarget    = bookingTarget * nsProp;
+      const ssTarget    = bookingTarget * ssProp;
+      const msspTarget  = bookingTarget * msspProp;
+      const cloudTarget = bookingTarget * cloudProp;
+
       const catMap = await bookingByCategory(employeeId);
-      const ns    = catMap["Network & Security"] ?? catMap["Network"]  ?? 0;
-      const ss    = catMap["Server & Storage"]   ?? catMap["Server"]   ?? 0;
-      const mssp  = catMap["MSSP Services"]      ?? catMap["MSSP"]     ?? 0;
+      const ns    = catMap["Network & Security"] ?? catMap["Network"] ?? 0;
+      const ss    = catMap["Server & Storage"]   ?? catMap["Server"]  ?? 0;
+      const mssp  = catMap["MSSP Services"]      ?? catMap["MSSP"]    ?? 0;
       const cloud = catMap["Cloud Security & Services"] ?? catMap["Cloud"] ?? 0;
 
-      // For categories with no target set, treat their contribution as 100% if any value exists
       const catScores: number[] = [];
       const catNotes: string[]  = [];
-
       const addCat = (label: string, achieved: number, target: number) => {
         if (target > 0) {
           const pct = clamp((achieved / target) * 100);
@@ -291,7 +310,6 @@ export async function computeKRAProgress(
           catNotes.push(`${label}: ₹${achieved.toFixed(1)}L`);
         }
       };
-
       addCat("N&S",   ns,    nsTarget);
       addCat("S&S",   ss,    ssTarget);
       addCat("MSSP",  mssp,  msspTarget);
@@ -301,8 +319,8 @@ export async function computeKRAProgress(
         ? clamp(Math.round(catScores.reduce((a, b) => a + b, 0) / catScores.length))
         : 0;
       notes = catNotes.length > 0
-        ? catNotes.join(" | ")
-        : "No Closed Won deals yet in any focus category.";
+        ? `(Booking target: ₹${bookingTarget}L) ` + catNotes.join(" | ")
+        : "No Closed Won deals in any focus category yet.";
     }
 
     // ── Lead Generation Activity (Akshayah) ──────────────────────────────

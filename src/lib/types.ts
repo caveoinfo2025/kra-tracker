@@ -1,5 +1,16 @@
 /** Serialized types (Date fields become strings after JSON.parse(JSON.stringify(...))) */
 
+export type WeeklyCommitSerialized = {
+  id: number;
+  kraId: number;
+  employeeId: number;
+  week: number;
+  year: number;
+  commitText: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ReviewSerialized = {
   id: number;
   kraId: number;

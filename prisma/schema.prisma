@@ -18,12 +18,13 @@ model Employee {
   msId        String?  @unique
   createdAt   DateTime @default(now())
 
-  kras         KRA[]
-  reviews      WeeklyReview[]
-  leads        LeadGeneration[]
-  funnel       SalesFunnel[]
-  collections  Collection[]
-  dailyUpdates DailyUpdate[]
+  kras           KRA[]
+  reviews        WeeklyReview[]
+  leads          LeadGeneration[]
+  funnel         SalesFunnel[]
+  collections    Collection[]
+  dailyUpdates   DailyUpdate[]
+  weeklyCommits  WeeklyCommit[]
 }
 
 model KRA {
@@ -37,7 +38,8 @@ model KRA {
   createdAt   DateTime @default(now())
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId  Int
-  reviews     WeeklyReview[]
+  reviews       WeeklyReview[]
+  weeklyCommits WeeklyCommit[]
 }
 
 model WeeklyReview {
@@ -126,4 +128,17 @@ model DailyUpdate {
   managerSupportRequired Boolean  @default(false)
   updateStatus           String   @default("On Track")
   createdAt              DateTime @default(now())
+}
+
+model WeeklyCommit {
+  id         Int      @id @default(autoincrement())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId Int
+  kra        KRA      @relation(fields: [kraId], references: [id], onDelete: Cascade)
+  kraId      Int
+  week       Int
+  year       Int
+  commitText String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
