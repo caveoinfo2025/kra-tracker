@@ -24,7 +24,10 @@ const EMPLOYEE_LINKS = [
 export default async function Navbar() {
   const session = await getSession();
   const user = session?.user;
-  const navLinks = user?.isManager ? MANAGER_LINKS : EMPLOYEE_LINKS;
+  const employeeDashboardHref = `/employees/${user?.employeeId ?? ""}`;
+  const navLinks = user?.isManager
+    ? MANAGER_LINKS
+    : [{ href: employeeDashboardHref, label: "Dashboard" }, ...EMPLOYEE_LINKS];
 
   return (
     <nav className="bg-[#1E1E1E] text-white shadow-lg">

@@ -260,14 +260,15 @@ export default async function EmployeeDetailPage({
                   Overdue Collections ({overdueCollectionsSer.length})
                 </p>
                 <ul className="space-y-1">
-                  {overdueCollectionsSer.map((c: { id: number; customerName: string; dueDate: string; invoiceValueLakhs: number }) => {
+                  {overdueCollectionsSer.map((c: { id: number; customerName: string; dueDate: string; invoiceValueLakhs: number; amountReceivedLakhs: number }) => {
                     const daysOverdue = Math.floor(
                       (Date.now() - new Date(c.dueDate).getTime()) / 86400000
                     );
+                    const balance = c.invoiceValueLakhs - (c.amountReceivedLakhs ?? 0);
                     return (
                       <li key={c.id} className="text-sm flex items-center justify-between text-red-700 bg-red-50 rounded px-2 py-1">
                         <span>{c.customerName}</span>
-                        <span className="text-xs">{daysOverdue}d overdue · ₹{c.invoiceValueLakhs}L</span>
+                        <span className="text-xs">{daysOverdue}d overdue · ₹{balance.toFixed(2)}L due</span>
                       </li>
                     );
                   })}
@@ -282,14 +283,17 @@ export default async function EmployeeDetailPage({
                   Collections Due in 7 Days ({upcomingCollectionsSer.length})
                 </p>
                 <ul className="space-y-1">
-                  {upcomingCollectionsSer.map((c: { id: number; customerName: string; dueDate: string; invoiceValueLakhs: number }) => (
-                    <li key={c.id} className="text-sm flex items-center justify-between text-amber-700 bg-amber-50 rounded px-2 py-1">
-                      <span>{c.customerName}</span>
-                      <span className="text-xs">
-                        {new Date(c.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ₹{c.invoiceValueLakhs}L
-                      </span>
-                    </li>
-                  ))}
+                  {upcomingCollectionsSer.map((c: { id: number; customerName: string; dueDate: string; invoiceValueLakhs: number; amountReceivedLakhs: number }) => {
+                    const balance = c.invoiceValueLakhs - (c.amountReceivedLakhs ?? 0);
+                    return (
+                      <li key={c.id} className="text-sm flex items-center justify-between text-amber-700 bg-amber-50 rounded px-2 py-1">
+                        <span>{c.customerName}</span>
+                        <span className="text-xs">
+                          {new Date(c.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ₹{balance.toFixed(2)}L due
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
