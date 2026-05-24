@@ -21,15 +21,16 @@ const SALES_FIELDS: Record<string, { label: string; required?: boolean; aliases:
 };
 
 const COLLECTION_FIELDS: Record<string, { label: string; required?: boolean; aliases: string[] }> = {
-  customerName:          { label: "Customer Name",         required: true,  aliases: ["customer","customer name","client","client name","account","party","company"] },
-  invoiceNo:             { label: "Invoice No",                             aliases: ["invoice no","invoice number","invoice #","bill no","bill number","invoice id"] },
-  invoiceDate:           { label: "Invoice Date",                          aliases: ["invoice date","bill date","date","raised date"] },
-  invoiceValueLakhs:     { label: "Invoice Value (₹L)",   required: true,  aliases: ["invoice value","amount","total","invoice amount","billed amount","invoice total","bill amount"] },
-  dueDate:               { label: "Due Date",              required: true,  aliases: ["due date","payment due","due by","payment due date","due"] },
-  amountReceivedLakhs:   { label: "Amount Received (₹L)",                 aliases: ["amount received","received","payment received","collection amount","paid amount","amount paid"] },
-  collectionStatus:      { label: "Collection Status",                     aliases: ["status","collection status","payment status","collection"] },
-  employeeName:          { label: "Salesperson",                           aliases: ["salesperson","sales rep","owner","employee","rep","account manager"] },
-  remarks:               { label: "Remarks",                               aliases: ["remarks","notes","comment"] },
+  customerName:          { label: "Customer Name",            required: true,  aliases: ["customer","customer name","client","client name","account","party","company"] },
+  invoiceNo:             { label: "Invoice No",                               aliases: ["invoice no","invoice number","invoice #","bill no","bill number","invoice id"] },
+  invoiceDate:           { label: "Invoice Date",                             aliases: ["invoice date","bill date","date","raised date"] },
+  invoiceValueLakhs:     { label: "Invoice Value (₹L)",       required: true,  aliases: ["invoice value","amount","total","invoice amount","billed amount","invoice total","bill amount","invoice value (lakhs)","invoice value (₹l)"] },
+  amountWithoutGstLakhs: { label: "Total (Without GST) (₹L)",                aliases: ["total without gst","without gst","amount without gst","taxable value","taxable amount","net amount","base amount","amount ex-gst","ex-gst","excl gst","excluding gst","amount excl gst","pre-gst amount","amount (without gst)","total (without gst)","without gst (₹l)","net value"] },
+  dueDate:               { label: "Due Date",                 required: true,  aliases: ["due date","payment due","due by","payment due date","due"] },
+  amountReceivedLakhs:   { label: "Amount Received (₹L)",                    aliases: ["amount received","received","payment received","collection amount","paid amount","amount paid"] },
+  collectionStatus:      { label: "Collection Status",                        aliases: ["status","collection status","payment status","collection"] },
+  employeeName:          { label: "Salesperson",                              aliases: ["salesperson","sales rep","owner","employee","rep","account manager"] },
+  remarks:               { label: "Remarks",                                  aliases: ["remarks","notes","comment"] },
 };
 
 // ─── Auto-detect column mapping ───────────────────────────────────────────────
@@ -393,7 +394,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
           <>
             <p className="text-xs text-blue-700">
               <strong>Required:</strong> Customer Name, Invoice Value, Due Date ·
-              <strong> Optional:</strong> Invoice No, Invoice Date, Amount Received, Status, Salesperson, Remarks
+              <strong> Optional:</strong> Invoice No, Invoice Date, Total (Without GST), Amount Received, Status, Salesperson, Remarks
             </p>
             <p className="text-xs text-blue-600 mt-1">
               Re-uploading is safe — existing records are matched by <strong>Invoice No</strong> and updated in place (rows without an Invoice No are always inserted as new).
