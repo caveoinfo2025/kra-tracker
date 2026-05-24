@@ -7,6 +7,10 @@ import type { NextAuthConfig } from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 
 export const authConfig = {
+  // Required when running behind Hostinger's reverse proxy (SSL terminator).
+  // Trusts X-Forwarded-Host / X-Forwarded-Proto so NextAuth builds the correct
+  // callback URL and sets cookies against the right domain.
+  trustHost: true,
   providers: [
     MicrosoftEntraID({
       clientId: process.env.AZURE_AD_CLIENT_ID!,
