@@ -245,7 +245,7 @@ export default function DailyUpdatesClient({ initialRows, employees, isManager, 
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold text-gray-700">{r.date.slice(0, 10)}</span>
-                {isManager && <span className="text-sm text-[#CC2229] font-medium">{r.employee.name}</span>}
+                {isManager && <span className="text-sm text-[#CC2229] font-medium">{r.employee?.name ?? "—"}</span>}
                 <Badge label={r.updateStatus} variant={statusVariant(r.updateStatus)} />
                 {r.managerSupportRequired && <Badge label="Manager Support" variant="danger" />}
               </div>

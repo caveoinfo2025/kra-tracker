@@ -51,7 +51,7 @@ function buildRevenueTable(rows: Row[]): RevRow[] {
   for (const r of rows) {
     if (!map[r.employeeId]) {
       map[r.employeeId] = {
-        empId: r.employeeId, empName: r.employee.name,
+        empId: r.employeeId, empName: r.employee?.name ?? "Unknown",
         invoiceCount: 0, totalBilled: 0, totalWithoutGst: 0,
         totalGst: 0, totalCollected: 0, outstanding: 0,
       };
@@ -499,7 +499,7 @@ export default function CollectionsClient({
                     return (
                       <tr key={r.id} className={`hover:bg-gray-50 ${overdue ? "bg-red-50/40" : ""}`}>
                         <td className="px-4 py-3 text-gray-500">{r.invoiceNo || "—"}</td>
-                        {isManager && <td className="px-4 py-3 font-medium">{r.employee.name}</td>}
+                        {isManager && <td className="px-4 py-3 font-medium">{r.employee?.name ?? "—"}</td>}
                         <td className="px-4 py-3 font-medium">{r.customerName}</td>
                         <td className="px-4 py-3 text-gray-500">{r.invoiceDate.slice(0, 10)}</td>
                         <td className="px-4 py-3 font-semibold">{r.invoiceValueLakhs.toFixed(2)}</td>

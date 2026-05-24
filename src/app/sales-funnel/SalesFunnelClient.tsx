@@ -309,7 +309,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
               {filtered.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-400 text-xs">{r.opportunityId}</td>
-                  {isManager && <td className="px-4 py-3 font-medium">{r.employee.name}</td>}
+                  {isManager && <td className="px-4 py-3 font-medium">{r.employee?.name ?? "—"}</td>}
                   <td className="px-4 py-3 font-medium">{r.customerName}</td>
                   <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate">{r.opportunityName}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.solutionCategory}</td>
