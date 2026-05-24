@@ -70,6 +70,23 @@ export default async function DashboardPage() {
     billingMap[c.employeeId].withoutGst += c.amountWithoutGstLakhs ?? 0;
   }
 
+  // ── Sales Funnel: Closed Won booking per employee + category breakdown ────
+  const closedWonDeals = await prisma.salesFunnel.findMany({
+    where: { stage: "Closed Won" },
+    select: { employeeId: true, dealValueLakhs: true, solutionCategory: true },
+  });
+
+  const bookingMap: Record<number, number> = {};
+  const categoryTotals: Record<string, number> = {};
+  for (const d of closedWonDeals) {
+    bookingMap[d.employeeId] = (bookingMap[d.employeeId] ?? 0) + d.dealValueLakhs;
+    const cat = d.solutionCategory?.trim() || "Other";
+    categoryTotals[cat] = (categoryTotals[cat] ?? 0) + d.dealValueLakhs;
+  }
+  const totalBooking    = closedWonDeals.reduce((s, d) => s + d.dealValueLakhs, 0);
+  const sortedCategories = Object.entries(categoryTotals)
+    .sort((a, b) => b[1] - a[1]);
+
   const totalOverdue  = Object.values(overdueMap).reduce((s, v) => s + v, 0);
   const totalUpcoming = Object.values(upcomingMap).reduce((s, v) => s + v, 0);
   const totalBilled   = Object.values(billingMap).reduce((s, v) => s + v.billed, 0);
@@ -117,25 +134,27 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Billing Revenue Summary */}
-      {totalBilled > 0 && (
+      {/* Sales Revenue Summary */}
+      {(totalBooking > 0 || totalBilled > 0) && (
         <div className="bg-white rounded-xl border shadow-sm">
           <div className="flex items-center justify-between px-5 py-4 border-b">
             <div>
-              <h2 className="font-semibold text-gray-800">Billing Revenue</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Total across all salespersons from billing records</p>
+              <h2 className="font-semibold text-gray-800">Sales Revenue Summary</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Booking from Closed Won deals · Billing from Collections</p>
             </div>
             <Link href="/collections?view=revenue"
               className="text-xs text-[#CC2229] hover:underline font-medium">
-              Full breakdown
+              Billing breakdown →
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100">
+
+          {/* Top stats row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100 border-b">
             {[
-              { label: "Total Billed", value: `₹${totalBilled.toFixed(2)}L`, color: "text-[#CC2229]" },
-              { label: "Without GST",  value: totalWithoutGst > 0 ? `₹${totalWithoutGst.toFixed(2)}L` : "—", color: "text-indigo-700" },
-              { label: "GST Amount",   value: totalWithoutGst > 0 ? `₹${(totalBilled - totalWithoutGst).toFixed(2)}L` : "—", color: "text-gray-600" },
-              { label: "Reviews This Week", value: reviewedThisWeekCount, color: "text-[#CC2229]" },
+              { label: "Total Booking (Closed Won)", value: `₹${totalBooking.toFixed(2)}L`,      color: "text-[#CC2229]" },
+              { label: "Total Billed (Invoiced)",    value: `₹${totalBilled.toFixed(2)}L`,       color: "text-gray-800" },
+              { label: "Total (Without GST)",        value: totalWithoutGst > 0 ? `₹${totalWithoutGst.toFixed(2)}L` : "—", color: "text-indigo-700" },
+              { label: "Reviews This Week",          value: String(reviewedThisWeekCount),        color: "text-[#CC2229]" },
             ].map((s) => (
               <div key={s.label} className="p-4 text-center">
                 <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
@@ -143,6 +162,33 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
+
+          {/* Category breakdown */}
+          {sortedCategories.length > 0 && (
+            <div className="px-5 py-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Booking by Category (Closed Won)
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {sortedCategories.map(([cat, val]) => {
+                  const pct = totalBooking > 0 ? (val / totalBooking) * 100 : 0;
+                  return (
+                    <div key={cat} className="bg-gray-50 rounded-lg px-3 py-2">
+                      <p className="text-xs text-gray-500 truncate">{cat}</p>
+                      <p className="text-sm font-bold text-[#CC2229]">₹{val.toFixed(2)}L</p>
+                      <div className="mt-1 bg-gray-200 rounded-full h-1">
+                        <div
+                          className="bg-[#CC2229] h-1 rounded-full"
+                          style={{ width: `${Math.min(100, pct)}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{pct.toFixed(1)}% of total</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -179,11 +225,12 @@ export default async function DashboardPage() {
                 (k) => k.reviews[0]?.week === currentWeek && k.reviews[0]?.year === currentYear
               );
 
-              const empOverdue   = overdueMap[emp.id]  ?? 0;
-              const empUpcoming  = upcomingMap[emp.id] ?? 0;
-              const empBilling   = billingMap[emp.id];
-              const empBilled    = empBilling?.billed    ?? 0;
+              const empOverdue    = overdueMap[emp.id]  ?? 0;
+              const empUpcoming   = upcomingMap[emp.id] ?? 0;
+              const empBilling    = billingMap[emp.id];
+              const empBilled     = empBilling?.billed     ?? 0;
               const empWithoutGst = empBilling?.withoutGst ?? 0;
+              const empBooking    = bookingMap[emp.id]  ?? 0;
 
               return (
                 <div
@@ -236,8 +283,30 @@ export default async function DashboardPage() {
                           <span>{emp.kras.length} KRA{emp.kras.length !== 1 ? "s" : ""}</span>
                           <span>Avg Score: <strong>{avgScore}</strong>/10</span>
                         </div>
-                        {empBilled > 0 && (
-                          <div className="flex items-center gap-3 text-xs">
+                        {/* Booking (Closed Won) */}
+                        {empBooking > 0 && (
+                          <div className="flex items-center gap-2 text-xs pointer-events-auto">
+                            <span className="text-gray-400">Booking:</span>
+                            <Link href={`/sales-funnel?emp=${emp.id}`}
+                              className="font-bold text-[#CC2229] hover:underline">
+                              ₹{empBooking.toFixed(2)}L
+                            </Link>
+                            <span className="text-gray-300">|</span>
+                            <span className="text-gray-400">Billing:</span>
+                            <Link href={`/collections?emp=${emp.id}`}
+                              className="font-semibold text-gray-700 hover:underline">
+                              ₹{empBilled.toFixed(2)}L
+                            </Link>
+                            {empWithoutGst > 0 && (
+                              <span className="text-indigo-600 font-medium">
+                                (w/o GST: ₹{empWithoutGst.toFixed(2)}L)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* Billing only (no booking yet) */}
+                        {empBooking === 0 && empBilled > 0 && (
+                          <div className="flex items-center gap-2 text-xs pointer-events-auto">
                             <span className="text-gray-400">Billing:</span>
                             <Link href={`/collections?emp=${emp.id}`}
                               className="font-bold text-[#CC2229] hover:underline">
@@ -245,7 +314,7 @@ export default async function DashboardPage() {
                             </Link>
                             {empWithoutGst > 0 && (
                               <span className="text-indigo-600 font-medium">
-                                (ex-GST: ₹{empWithoutGst.toFixed(2)}L)
+                                (w/o GST: ₹{empWithoutGst.toFixed(2)}L)
                               </span>
                             )}
                           </div>

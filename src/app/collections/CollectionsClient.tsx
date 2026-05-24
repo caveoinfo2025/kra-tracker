@@ -197,10 +197,10 @@ export default function CollectionsClient({
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Invoiced (filtered)",    value: `₹${totalInvoiced.toFixed(2)}L` },
-          { label: "Without GST (filtered)", value: `₹${totalWithoutGst.toFixed(2)}L` },
-          { label: "Collected (filtered)",   value: `₹${totalReceived.toFixed(2)}L` },
-          { label: "Collection Rate",        value: `${collRate}%` },
+          { label: "Invoiced (filtered)",        value: `₹${totalInvoiced.toFixed(2)}L` },
+          { label: "Total (Without GST)",        value: `₹${totalWithoutGst.toFixed(2)}L` },
+          { label: "Collected (filtered)",       value: `₹${totalReceived.toFixed(2)}L` },
+          { label: "Collection Rate",            value: `${collRate}%` },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
             <p className="text-xl font-bold text-[#CC2229]">{s.value}</p>
@@ -245,7 +245,7 @@ export default function CollectionsClient({
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    {["Salesperson", "Invoices", "Total Billed (₹L)", "Without GST (₹L)", "GST Amount (₹L)", "Collected (₹L)", "Outstanding (₹L)", "Collection %"].map((h) => (
+                    {["Salesperson", "Invoices", "Total Billed (₹L)", "Total (Without GST) (₹L)", "GST Amount (₹L)", "Collected (₹L)", "Outstanding (₹L)", "Collection %"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -406,7 +406,7 @@ export default function CollectionsClient({
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Without GST (₹L)
+                        Total (Without GST) (₹L)
                         <button type="button" onClick={calcWithoutGst}
                           className="ml-2 text-[10px] text-[#CC2229] underline hover:text-[#A81B21]">
                           Auto (18%)
@@ -481,8 +481,7 @@ export default function CollectionsClient({
                       "Customer",
                       "Invoice Date",
                       "Invoice (₹L)",
-                      "Without GST (₹L)",
-                      "GST (₹L)",
+                      "Total (Without GST) (₹L)",
                       "Received (₹L)",
                       "Balance",
                       "Due Date",
@@ -496,7 +495,6 @@ export default function CollectionsClient({
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map((r) => {
                     const balance = r.invoiceValueLakhs - r.amountReceivedLakhs;
-                    const gst     = r.invoiceValueLakhs - r.amountWithoutGstLakhs;
                     const overdue = isOverdue(r);
                     return (
                       <tr key={r.id} className={`hover:bg-gray-50 ${overdue ? "bg-red-50/40" : ""}`}>
@@ -507,9 +505,6 @@ export default function CollectionsClient({
                         <td className="px-4 py-3 font-semibold">{r.invoiceValueLakhs.toFixed(2)}</td>
                         <td className="px-4 py-3 font-semibold text-indigo-700">
                           {r.amountWithoutGstLakhs > 0 ? r.amountWithoutGstLakhs.toFixed(2) : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-gray-400 text-xs">
-                          {gst > 0 && r.amountWithoutGstLakhs > 0 ? gst.toFixed(2) : "—"}
                         </td>
                         <td className="px-4 py-3 text-green-700">{r.amountReceivedLakhs.toFixed(2)}</td>
                         <td className={`px-4 py-3 font-semibold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>{balance.toFixed(2)}</td>

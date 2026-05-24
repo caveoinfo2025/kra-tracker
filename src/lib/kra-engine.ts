@@ -51,12 +51,12 @@ async function closedWonBooking(employeeId: number) {
   return rows.reduce((s, r) => s + r.dealValueLakhs, 0);
 }
 
-async function closedWonBilling(employeeId: number) {
-  const rows = await prisma.salesFunnel.findMany({
-    where: { employeeId, stage: "Closed Won" },
-    select: { billingValueLakhs: true },
+async function totalCollectionsWithoutGst(employeeId: number) {
+  const rows = await prisma.collection.findMany({
+    where: { employeeId },
+    select: { amountWithoutGstLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.billingValueLakhs, 0);
+  return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
 }
 
 async function avgGrossProfit(employeeId: number) {
@@ -68,14 +68,40 @@ async function avgGrossProfit(employeeId: number) {
   return rows.reduce((s, r) => s + r.grossProfitPct, 0) / rows.length;
 }
 
-async function collectionRate(employeeId: number) {
+/**
+ * On-time collection rate = invoice value of "Fully Received" records
+ * divided by total invoice value.  "Overdue" / "Pending" / "Partially Received"
+ * records all count as NOT collected within the due date.
+ */
+async function onTimeCollectionRate(employeeId: number) {
   const rows = await prisma.collection.findMany({
     where: { employeeId },
-    select: { invoiceValueLakhs: true, amountReceivedLakhs: true },
+    select: { collectionStatus: true, invoiceValueLakhs: true },
   });
-  const total = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
-  const received = rows.reduce((s, r) => s + r.amountReceivedLakhs, 0);
-  return total > 0 ? received / total : 0;
+  if (!rows.length) return { rate: 0, fullyReceived: 0, total: 0 };
+  const totalValue       = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
+  const fullyReceivedVal = rows
+    .filter((r) => r.collectionStatus === "Fully Received")
+    .reduce((s, r) => s + r.invoiceValueLakhs, 0);
+  return {
+    rate: totalValue > 0 ? fullyReceivedVal / totalValue : 0,
+    fullyReceived: fullyReceivedVal,
+    total: totalValue,
+  };
+}
+
+/** Category-wise Closed Won booking from Sales Funnel */
+async function bookingByCategory(employeeId: number) {
+  const rows = await prisma.salesFunnel.findMany({
+    where: { employeeId, stage: "Closed Won" },
+    select: { solutionCategory: true, dealValueLakhs: true },
+  });
+  const map: Record<string, number> = {};
+  for (const r of rows) {
+    const cat = r.solutionCategory?.trim() || "Other";
+    map[cat] = (map[cat] ?? 0) + r.dealValueLakhs;
+  }
+  return map;
 }
 
 async function qualifiedLeads(employeeId: number) {
@@ -181,21 +207,31 @@ export async function computeKRAProgress(
     // ── Sales Revenue targets ─────────────────────────────────────────────
     if (t.includes("sales revenue")) {
       const bookingTarget = targets["total sales revenue - booking"] ?? 70;
-      const booking = await closedWonBooking(employeeId);
-      const billingTarget = targets["total sales revenue - billing"] ?? 0.9;
-      const billing = await closedWonBilling(employeeId);
-      const gpTarget = targets["average gross profit margin"] ?? 10;
-      const gp = await avgGrossProfit(employeeId);
-      const collTarget = targets["payment collections within due dates & credit days reduction"] ?? 0.9;
-      const coll = await collectionRate(employeeId);
+      // Booking = Closed Won deal value from Sales Funnel
+      const booking       = await closedWonBooking(employeeId);
+      // Billing KRA target = 90% of closed-won booking (dynamic)
+      const billingTarget = booking * 0.9;
+      // Billing achieved = Total (Without GST) from Collections
+      const billing       = await totalCollectionsWithoutGst(employeeId);
+      const gpTarget      = targets["average gross profit margin"] ?? 10;
+      const gp            = await avgGrossProfit(employeeId);
+      // Collection KRA = % of invoice value Fully Received within due date
+      const collTarget    = targets["payment collections within due dates & credit days reduction"] ?? 0.9;
+      const collData      = await onTimeCollectionRate(employeeId);
+      const coll          = collData.rate;
 
       const bookPct = bookingTarget > 0 ? (booking / bookingTarget) * 100 : 0;
       const billPct = billingTarget > 0 ? (billing / billingTarget) * 100 : 0;
-      const gpPct = gpTarget > 0 ? (gp / gpTarget) * 100 : 0;
-      const collPct = collTarget > 0 ? (coll / collTarget) * 100 : 0;
+      const gpPct   = gpTarget      > 0 ? (gp      / gpTarget)      * 100 : 0;
+      const collPct = collTarget    > 0 ? (coll     / collTarget)    * 100 : 0;
 
       progress = clamp(Math.round((bookPct * 0.375 + billPct * 0.375 + gpPct * 0.125 + collPct * 0.125)));
-      notes = `Booking: ₹${booking.toFixed(1)}L/${bookingTarget}L (${bookPct.toFixed(0)}%) | Collections: ${(coll * 100).toFixed(0)}%`;
+      notes = [
+        `Booking (Closed Won): ₹${booking.toFixed(1)}L / ₹${bookingTarget}L (${bookPct.toFixed(0)}%)`,
+        `Billing (ex-GST): ₹${billing.toFixed(1)}L / ₹${billingTarget.toFixed(1)}L (${billPct.toFixed(0)}%)`,
+        `On-time Collections: ₹${collData.fullyReceived.toFixed(1)}L / ₹${collData.total.toFixed(1)}L (${(coll * 100).toFixed(0)}%)`,
+        `Gross Profit: ${gp.toFixed(1)}% / ${gpTarget}% (${gpPct.toFixed(0)}%)`,
+      ].join(" | ");
     }
 
     // ── Customer & Business Development ──────────────────────────────────
@@ -227,26 +263,46 @@ export async function computeKRAProgress(
       notes = `PoC: ${poc}/${pocTarget} | New customers/upsell: ${nc}/${ncTarget}`;
     }
 
-    // ── Focus area revenue achievement ───────────────────────────────────
+    // ── Focus area revenue achievement (Closed Won from Sales Funnel) ────
     else if (t.includes("focus area")) {
-      const nsTarget = targets["network & security"] ?? 0.35;
-      const ssTarget = targets["server & storage"] ?? 0.2;
-      const msspTarget = targets["mssp services"] ?? 0.2;
-      const cloudTarget = targets["cloud security & services"] ?? 0.1;
+      const nsTarget   = targets["network & security"]      ?? 0;
+      const ssTarget   = targets["server & storage"]        ?? 0;
+      const msspTarget = targets["mssp services"]            ?? 0;
+      const cloudTarget = targets["cloud security & services"] ?? 0;
 
-      const ns = await focusAreaRevenue(employeeId, "Network");
-      const ss = await focusAreaRevenue(employeeId, "Server");
-      const mssp = await focusAreaRevenue(employeeId, "MSSP");
-      const cloud = await focusAreaRevenue(employeeId, "Cloud");
+      // Pull all category bookings in one query
+      const catMap = await bookingByCategory(employeeId);
+      const ns    = catMap["Network & Security"] ?? catMap["Network"]  ?? 0;
+      const ss    = catMap["Server & Storage"]   ?? catMap["Server"]   ?? 0;
+      const mssp  = catMap["MSSP Services"]      ?? catMap["MSSP"]     ?? 0;
+      const cloud = catMap["Cloud Security & Services"] ?? catMap["Cloud"] ?? 0;
 
-      const pcts = [
-        nsTarget > 0 ? ns / nsTarget : 0,
-        ssTarget > 0 ? ss / ssTarget : 0,
-        msspTarget > 0 ? mssp / msspTarget : 0,
-        cloudTarget > 0 ? cloud / cloudTarget : 0,
-      ];
-      progress = clamp(Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 100));
-      notes = `N&S: ₹${ns.toFixed(2)}L | S&S: ₹${ss.toFixed(2)}L | MSSP: ₹${mssp.toFixed(2)}L | Cloud: ₹${cloud.toFixed(2)}L`;
+      // For categories with no target set, treat their contribution as 100% if any value exists
+      const catScores: number[] = [];
+      const catNotes: string[]  = [];
+
+      const addCat = (label: string, achieved: number, target: number) => {
+        if (target > 0) {
+          const pct = clamp((achieved / target) * 100);
+          catScores.push(pct);
+          catNotes.push(`${label}: ₹${achieved.toFixed(1)}L / ₹${target.toFixed(1)}L (${pct.toFixed(0)}%)`);
+        } else if (achieved > 0) {
+          catScores.push(100);
+          catNotes.push(`${label}: ₹${achieved.toFixed(1)}L`);
+        }
+      };
+
+      addCat("N&S",   ns,    nsTarget);
+      addCat("S&S",   ss,    ssTarget);
+      addCat("MSSP",  mssp,  msspTarget);
+      addCat("Cloud", cloud, cloudTarget);
+
+      progress = catScores.length > 0
+        ? clamp(Math.round(catScores.reduce((a, b) => a + b, 0) / catScores.length))
+        : 0;
+      notes = catNotes.length > 0
+        ? catNotes.join(" | ")
+        : "No Closed Won deals yet in any focus category.";
     }
 
     // ── Lead Generation Activity (Akshayah) ──────────────────────────────
