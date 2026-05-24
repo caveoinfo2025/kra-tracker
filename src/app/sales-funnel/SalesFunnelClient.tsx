@@ -300,7 +300,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {["ID", isManager ? "Employee" : null, "Customer", "Opportunity", "Solution", "Stage", "Deal (₹L)", "GP%", "Close Date", "Flags", ""].filter(Boolean).map((h) => (
+                {["ID", isManager ? "Employee" : null, "Customer", "Opportunity", "Solution", "Stage", "Deal (₹L)", "Gross Profit (₹L)", "Close Date", "Flags", ""].filter(Boolean).map((h) => (
                   <th key={h!} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -315,7 +315,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.solutionCategory}</td>
                   <td className="px-4 py-3"><Badge label={r.stage} variant={stageVariant(r.stage)} /></td>
                   <td className="px-4 py-3 font-semibold text-[#CC2229]">{r.dealValueLakhs.toFixed(1)}</td>
-                  <td className="px-4 py-3 text-gray-600">{r.grossProfitPct}%</td>
+                  <td className="px-4 py-3 text-gray-600">{(r.dealValueLakhs * r.grossProfitPct / 100).toFixed(2)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.expectedCloseDate?.slice(0, 10)}</td>
                   <td className="px-4 py-3 text-center text-sm">
                     {r.newCustomerFlag && <span title="New Customer" className="mr-1">New</span>}
