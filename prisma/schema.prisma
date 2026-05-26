@@ -25,6 +25,7 @@ model Employee {
   collections    Collection[]
   dailyUpdates   DailyUpdate[]
   weeklyCommits  WeeklyCommit[]
+  certifications Certification[]
 }
 
 model KRA {
@@ -38,8 +39,9 @@ model KRA {
   createdAt   DateTime @default(now())
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId  Int
-  reviews       WeeklyReview[]
-  weeklyCommits WeeklyCommit[]
+  reviews        WeeklyReview[]
+  weeklyCommits  WeeklyCommit[]
+  certifications Certification[]
 }
 
 model WeeklyReview {
@@ -92,6 +94,7 @@ model SalesFunnel {
   grossProfitPct    Float     @default(0)
   proposalDate      DateTime?
   expectedCloseDate DateTime?
+  closedDate        DateTime?
   probabilityPct    Float     @default(0)
   status            String    @default("Active")
   newCustomerFlag   Boolean   @default(false)
@@ -141,4 +144,22 @@ model WeeklyCommit {
   commitText String   @default("")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model Certification {
+  id            Int       @id @default(autoincrement())
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId    Int
+  kra           KRA       @relation(fields: [kraId], references: [id], onDelete: Cascade)
+  kraId         Int
+  certName      String
+  issuingBody   String    @default("")
+  dateObtained  DateTime
+  expiryDate    DateTime?
+  attachmentUrl String    @default("")
+  status        String    @default("pending")
+  approvedBy    Int?
+  approvedAt    DateTime?
+  remarks       String    @default("")
+  createdAt     DateTime  @default(now())
 }

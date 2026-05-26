@@ -41,6 +41,26 @@ function toScore(progress: number): number {
   return progress > 0 ? 2 : 1;
 }
 
+// ── Week date helper ──────────────────────────────────────────────────────────
+
+/** Convert ISO week number + year to {start, end} UTC date range (Mon–Sun). */
+function getWeekDates(week: number, year: number): { start: Date; end: Date } {
+  // ISO week 1 = week containing Jan 4
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dow = jan4.getUTCDay() || 7; // Mon=1 … Sun=7
+  const week1Mon = new Date(jan4);
+  week1Mon.setUTCDate(jan4.getUTCDate() - (dow - 1));
+
+  const start = new Date(week1Mon);
+  start.setUTCDate(week1Mon.getUTCDate() + (week - 1) * 7);
+
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  end.setUTCHours(23, 59, 59, 999);
+
+  return { start, end };
+}
+
 // ── Per-employee helpers ──────────────────────────────────────────────────────
 
 async function closedWonBooking(employeeId: number) {
@@ -108,17 +128,43 @@ async function customerRetentionRate(employeeId: number) {
 }
 
 /**
- * Forecast accuracy = % of deals with expectedCloseDate in the past that are Closed Won.
- * Proxy: measures how well the team forecast their close dates.
+ * Forecast accuracy = avg(min(1, closedWon₹L for week / committed₹L for week))
+ * across all weeks where the employee made a numeric commit on this Sales Ops KRA.
  */
-async function forecastAccuracy(employeeId: number) {
-  const pastDue = await prisma.salesFunnel.findMany({
-    where: { employeeId, expectedCloseDate: { lt: new Date() } },
-    select: { stage: true },
+async function forecastAccuracy(employeeId: number, kraId: number): Promise<number> {
+  const commits = await prisma.weeklyCommit.findMany({
+    where: { employeeId, kraId },
   });
-  if (!pastDue.length) return 0;
-  const closed = pastDue.filter((d) => d.stage === "Closed Won").length;
-  return closed / pastDue.length;
+  if (!commits.length) return 0;
+
+  let total = 0;
+  let count = 0;
+
+  for (const commit of commits) {
+    const committed = parseFloat(commit.commitText) || 0;
+    if (committed <= 0) continue;
+
+    const { start, end } = getWeekDates(commit.week, commit.year);
+    const rows = await prisma.salesFunnel.findMany({
+      where: { employeeId, stage: "Closed Won", closedDate: { gte: start, lte: end } },
+      select: { dealValueLakhs: true },
+    });
+    const achieved = rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+    total += Math.min(1, achieved / committed);
+    count++;
+  }
+
+  return count > 0 ? total / count : 0;
+}
+
+/**
+ * Certification score = approved certifications / target count (capped at 1).
+ */
+async function certificationScore(employeeId: number, kraId: number, target: number): Promise<number> {
+  const approved = await prisma.certification.count({
+    where: { employeeId, kraId, status: "approved" },
+  });
+  return target > 0 ? Math.min(1, approved / target) : 0;
 }
 
 /**
@@ -503,15 +549,15 @@ export async function computeKRAProgress(
 
     // ── Sales Operations Excellence ───────────────────────────────────────
     else if (t.includes("sales operations")) {
-      const forecastTarget = targets["forecast accuracy"];
+      const forecastTarget = targets["forecast accuracy"];          // e.g. 0.9 = 90%
       const crmTarget      = targets["crm data accuracy & timely lead updates"];
-      // Certification is manual — cannot auto-compute
+      const certTarget     = targets["certification and product training"]; // e.g. 2 certs
 
       const scores: number[]    = [];
       const noteParts: string[] = [];
 
       if (forecastTarget !== undefined) {
-        const fc  = await forecastAccuracy(employeeId);
+        const fc  = await forecastAccuracy(employeeId, kra.id);
         const pct = clamp((fc / forecastTarget) * 100);
         scores.push(pct);
         noteParts.push(`Forecast: ${(fc * 100).toFixed(0)}% / ${(forecastTarget * 100).toFixed(0)}%`);
@@ -524,16 +570,27 @@ export async function computeKRAProgress(
         noteParts.push(`CRM accuracy: ${(crm * 100).toFixed(0)}% / ${(crmTarget * 100).toFixed(0)}%`);
       }
 
-      const certTarget = targets["certification and product training"];
       if (certTarget !== undefined) {
-        noteParts.push(`Certifications: target ${certTarget} (enter manually)`);
+        const cs  = await certificationScore(employeeId, kra.id, certTarget);
+        const pct = clamp(cs * 100);
+        scores.push(pct);
+        const approved = await prisma.certification.count({
+          where: { employeeId, kraId: kra.id, status: "approved" },
+        });
+        const pending = await prisma.certification.count({
+          where: { employeeId, kraId: kra.id, status: "pending" },
+        });
+        noteParts.push(
+          `Certifications: ${approved}/${certTarget} approved` +
+          (pending > 0 ? ` (${pending} pending approval)` : "")
+        );
       }
 
       if (scores.length > 0) {
         progress = clamp(Math.round(scores.reduce((a, b) => a + b, 0) / scores.length));
         notes = noteParts.join(" | ");
       } else {
-        results.push({ kraId: kra.id, kraTitle: kra.title, progress: 0, score: 1, notes: "Enter manually via Weekly Review." });
+        results.push({ kraId: kra.id, kraTitle: kra.title, progress: 0, score: 1, notes: "No targets configured. Enter manually via Weekly Review." });
         continue;
       }
     }

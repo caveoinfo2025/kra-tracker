@@ -7,8 +7,8 @@ type Row = {
   id: number; opportunityId: string; employeeId: number; employee: { name: string };
   customerName: string; solutionCategory: string; opportunityName: string;
   stage: string; dealValueLakhs: number; billingValueLakhs: number;
-  grossProfitPct: number; expectedCloseDate: string | null; probabilityPct: number;
-  status: string; newCustomerFlag: boolean; pocFlag: boolean; remarks: string;
+  grossProfitPct: number; expectedCloseDate: string | null; closedDate: string | null;
+  probabilityPct: number; status: string; newCustomerFlag: boolean; pocFlag: boolean; remarks: string;
 };
 type Employee = { id: number; name: string };
 
@@ -22,7 +22,7 @@ const stageVariant = (s: string) =>
 const empty = {
   employeeId: "", customerName: "", solutionCategory: "", opportunityName: "",
   stage: "Lead", dealValueLakhs: "0", billingValueLakhs: "0", grossProfitPct: "0",
-  expectedCloseDate: "", probabilityPct: "50", status: "Active",
+  expectedCloseDate: "", closedDate: "", probabilityPct: "50", status: "Active",
   newCustomerFlag: false, pocFlag: false, remarks: "",
 };
 
@@ -53,6 +53,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
       stage: r.stage, dealValueLakhs: String(r.dealValueLakhs),
       billingValueLakhs: String(r.billingValueLakhs), grossProfitPct: String(r.grossProfitPct),
       expectedCloseDate: r.expectedCloseDate?.slice(0, 10) ?? "",
+      closedDate: r.closedDate?.slice(0, 10) ?? "",
       probabilityPct: String(r.probabilityPct), status: r.status,
       newCustomerFlag: r.newCustomerFlag, pocFlag: r.pocFlag, remarks: r.remarks,
     });
@@ -72,6 +73,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
           billingValueLakhs: Number(form.billingValueLakhs),
           grossProfitPct: Number(form.grossProfitPct),
           probabilityPct: Number(form.probabilityPct),
+          closedDate: form.closedDate || null,
         }),
       });
       if (!res.ok) { setError("Failed to save."); return; }
@@ -261,6 +263,16 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                     className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
+              {form.stage === "Closed Won" && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Actual Close Date <span className="text-gray-400">(for forecast accuracy)</span>
+                  </label>
+                  <input type="date" value={form.closedDate}
+                    onChange={(e) => f("closedDate", e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+                </div>
+              )}
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={form.newCustomerFlag as boolean} onChange={(e) => f("newCustomerFlag", e.target.checked)} className="accent-[#CC2229]" />
@@ -302,7 +314,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {["ID", isManager ? "Employee" : null, "Customer", "Opportunity", "Solution", "Stage", "Deal (₹L)", "Gross Profit (₹L)", "Close Date", "Flags", ""].filter(Boolean).map((h) => (
+                {["ID", isManager ? "Employee" : null, "Customer", "Opportunity", "Solution", "Stage", "Deal (₹L)", "Gross Profit (₹L)", "Exp. Close", "Closed On", "Flags", ""].filter(Boolean).map((h) => (
                   <th key={h!} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -319,6 +331,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                   <td className="px-4 py-3 font-semibold text-[#CC2229]">{r.dealValueLakhs.toFixed(1)}</td>
                   <td className="px-4 py-3 text-gray-600">{(r.dealValueLakhs * r.grossProfitPct / 100).toFixed(2)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.expectedCloseDate?.slice(0, 10)}</td>
+                  <td className="px-4 py-3 text-xs font-medium text-emerald-700">{r.closedDate?.slice(0, 10) ?? "—"}</td>
                   <td className="px-4 py-3 text-center text-sm">
                     {r.newCustomerFlag && <span title="New Customer" className="mr-1">New</span>}
                     {r.pocFlag && <span title="PoC">PoC</span>}

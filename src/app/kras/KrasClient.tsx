@@ -21,6 +21,21 @@ type WeeklyCommitSerialized = {
   commitText: string;
 };
 
+type CertificationSerialized = {
+  id: number;
+  kraId: number;
+  employeeId: number;
+  certName: string;
+  issuingBody: string;
+  dateObtained: string;
+  expiryDate: string | null;
+  attachmentUrl: string;
+  status: string;
+  approvedAt: string | null;
+  remarks: string;
+  createdAt: string;
+};
+
 type KRASerialized = {
   id: number;
   title: string;
@@ -31,6 +46,7 @@ type KRASerialized = {
   status: string;
   reviews: ReviewSerialized[];
   weeklyCommits: WeeklyCommitSerialized[];
+  certifications: CertificationSerialized[];
 };
 
 type EmployeeData = {
@@ -508,16 +524,36 @@ function CommitInput({
     router.refresh();
   }
 
+  const isSalesOps = kra.title.toLowerCase().includes("sales operations");
+
   return (
     <div className="mt-3 flex gap-2 items-start">
-      <textarea
-        rows={2}
-        value={text}
-        onChange={(e) => { setText(e.target.value); setSaved(false); }}
-        onBlur={save}
-        placeholder="My commit this week…"
-        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229] resize-none"
-      />
+      {isSalesOps ? (
+        <div className="flex-1">
+          <label className="block text-xs text-gray-500 mb-1">
+            Weekly commit — deal value you plan to close this week (₹L)
+          </label>
+          <input
+            type="number"
+            step="0.1"
+            min={0}
+            value={text}
+            onChange={(e) => { setText(e.target.value); setSaved(false); }}
+            onBlur={save}
+            placeholder="e.g. 25.5"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+          />
+        </div>
+      ) : (
+        <textarea
+          rows={2}
+          value={text}
+          onChange={(e) => { setText(e.target.value); setSaved(false); }}
+          onBlur={save}
+          placeholder="My commit this week…"
+          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229] resize-none"
+        />
+      )}
       <button
         onClick={save}
         disabled={saving}
@@ -525,6 +561,197 @@ function CommitInput({
       >
         {saving ? "Saving…" : saved ? "Saved!" : "Save"}
       </button>
+    </div>
+  );
+}
+
+// ── Certification Section ─────────────────────────────────────────────────────
+
+const CERT_STATUS_COLORS: Record<string, string> = {
+  pending:  "bg-amber-100 text-amber-700 border-amber-200",
+  approved: "bg-green-100 text-green-700 border-green-200",
+  rejected: "bg-red-100 text-red-700 border-red-200",
+};
+
+function CertificationSection({
+  kra,
+  employeeId,
+  isManager,
+  isOwnProfile,
+}: {
+  kra: KRASerialized;
+  employeeId: number;
+  isManager: boolean;
+  isOwnProfile: boolean;
+}) {
+  const router = useRouter();
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [actingId, setActingId] = useState<number | null>(null);
+  const [form, setForm] = useState({
+    certName: "", issuingBody: "", dateObtained: "", expiryDate: "", attachmentUrl: "",
+  });
+
+  function f(k: keyof typeof form, v: string) { setForm((p) => ({ ...p, [k]: v })); }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    await fetch("/api/certifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employeeId,
+        kraId: kra.id,
+        certName: form.certName,
+        issuingBody: form.issuingBody,
+        dateObtained: form.dateObtained,
+        expiryDate: form.expiryDate || null,
+        attachmentUrl: form.attachmentUrl,
+      }),
+    });
+    setSaving(false);
+    setShowForm(false);
+    setForm({ certName: "", issuingBody: "", dateObtained: "", expiryDate: "", attachmentUrl: "" });
+    router.refresh();
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Delete this certification?")) return;
+    await fetch(`/api/certifications/${id}`, { method: "DELETE" });
+    router.refresh();
+  }
+
+  async function handleApprove(id: number, action: "approved" | "rejected") {
+    setActingId(id);
+    await fetch(`/api/certifications/${id}/approve`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    setActingId(null);
+    router.refresh();
+  }
+
+  const certs = kra.certifications ?? [];
+  const pendingCerts = certs.filter((c) => c.status === "pending");
+  const hasCerts = certs.length > 0;
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+          Certifications
+          {pendingCerts.length > 0 && isManager && (
+            <span className="ml-2 bg-amber-100 text-amber-700 border border-amber-200 text-xs px-1.5 py-0.5 rounded-full">
+              {pendingCerts.length} pending
+            </span>
+          )}
+        </p>
+        {isOwnProfile && !isManager && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="text-xs text-[#CC2229] hover:underline"
+          >
+            {showForm ? "Cancel" : "+ Add Certification"}
+          </button>
+        )}
+      </div>
+
+      {/* Add form — employee only */}
+      {showForm && isOwnProfile && !isManager && (
+        <form onSubmit={handleAdd} className="bg-blue-50 border border-blue-100 rounded-lg p-3 space-y-2 mb-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-0.5">Certification Name *</label>
+              <input required value={form.certName} onChange={(e) => f("certName", e.target.value)}
+                className="w-full border rounded px-2 py-1.5 text-sm" placeholder="e.g. AWS Solutions Architect" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-0.5">Issuing Body *</label>
+              <input required value={form.issuingBody} onChange={(e) => f("issuingBody", e.target.value)}
+                className="w-full border rounded px-2 py-1.5 text-sm" placeholder="e.g. Amazon Web Services" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-0.5">Date Obtained *</label>
+              <input required type="date" value={form.dateObtained} onChange={(e) => f("dateObtained", e.target.value)}
+                className="w-full border rounded px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-0.5">Expiry Date</label>
+              <input type="date" value={form.expiryDate} onChange={(e) => f("expiryDate", e.target.value)}
+                className="w-full border rounded px-2 py-1.5 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-0.5">SharePoint / Certificate URL</label>
+            <input type="url" value={form.attachmentUrl} onChange={(e) => f("attachmentUrl", e.target.value)}
+              className="w-full border rounded px-2 py-1.5 text-sm" placeholder="https://..." />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button type="submit" disabled={saving}
+              className="flex-1 bg-[#CC2229] text-white text-xs font-medium py-1.5 rounded hover:bg-[#A81B21] disabled:opacity-50">
+              {saving ? "Submitting…" : "Submit for Approval"}
+            </button>
+            <button type="button" onClick={() => setShowForm(false)}
+              className="flex-1 border text-gray-600 text-xs font-medium py-1.5 rounded hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Certification list */}
+      {hasCerts ? (
+        <div className="space-y-2">
+          {certs.map((cert) => (
+            <div key={cert.id} className="flex items-start gap-2 bg-white border rounded-lg px-3 py-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">{cert.certName}</p>
+                <p className="text-xs text-gray-500">{cert.issuingBody} · {cert.dateObtained.slice(0, 10)}</p>
+                {cert.expiryDate && (
+                  <p className="text-xs text-gray-400">Expires: {cert.expiryDate.slice(0, 10)}</p>
+                )}
+                {cert.attachmentUrl && (
+                  <a href={cert.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:underline">View certificate →</a>
+                )}
+              </div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <span className={`text-xs border px-2 py-0.5 rounded-full capitalize ${CERT_STATUS_COLORS[cert.status] ?? "bg-gray-100 text-gray-600"}`}>
+                  {cert.status}
+                </span>
+                {isManager && cert.status === "pending" && (
+                  <div className="flex gap-1 mt-1">
+                    <button
+                      onClick={() => handleApprove(cert.id, "approved")}
+                      disabled={actingId === cert.id}
+                      className="text-xs bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {actingId === cert.id ? "…" : "Approve"}
+                    </button>
+                    <button
+                      onClick={() => handleApprove(cert.id, "rejected")}
+                      disabled={actingId === cert.id}
+                      className="text-xs bg-red-500 text-white px-2 py-0.5 rounded hover:bg-red-600 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+                {isOwnProfile && !isManager && cert.status === "pending" && (
+                  <button onClick={() => handleDelete(cert.id)}
+                    className="text-xs text-red-400 hover:text-red-600 mt-1">Delete</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400">No certifications logged yet.</p>
+      )}
     </div>
   );
 }
@@ -697,11 +924,25 @@ function EmployeeKRACard({
                     />
                   )}
 
+                  {/* Certification section — Sales Operations KRA only */}
+                  {kra.title.toLowerCase().includes("sales operations") && (
+                    <CertificationSection
+                      kra={kra}
+                      employeeId={employee.id}
+                      isManager={isManager}
+                      isOwnProfile={isOwnProfile}
+                    />
+                  )}
+
                   {/* Manager sees commits read-only */}
                   {isManager && kra.weeklyCommits.length > 0 && (
                     <div className="mt-2 bg-blue-50 border border-blue-100 rounded px-3 py-2">
                       <p className="text-xs text-blue-600 font-medium mb-0.5">Week {currentWeek} Commit:</p>
-                      <p className="text-sm text-blue-800">{kra.weeklyCommits[0].commitText}</p>
+                      <p className="text-sm text-blue-800">
+                        {kra.title.toLowerCase().includes("sales operations")
+                          ? `₹${kra.weeklyCommits[0].commitText}L target`
+                          : kra.weeklyCommits[0].commitText}
+                      </p>
                     </div>
                   )}
                 </div>

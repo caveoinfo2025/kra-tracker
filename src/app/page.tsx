@@ -112,6 +112,16 @@ export default async function DashboardPage() {
   const totalQualified = Object.values(qualifiedMap).reduce((s, v) => s + v, 0);
   const totalProposals = Object.values(proposalMap).reduce((s, v) => s + v, 0);
 
+  // ── Pending certifications ────────────────────────────────────────────────
+  const pendingCertifications = await prisma.certification.findMany({
+    where: { status: "pending" },
+    include: {
+      employee: { select: { name: true } },
+      kra: { select: { title: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
   // ── Team Summary data ─────────────────────────────────────────────────────
   const nonManagerEmps = employees.filter((e) => !e.isManager);
   const avgKraScore = nonManagerEmps.length > 0
@@ -226,6 +236,44 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Pending Certifications */}
+      {pendingCertifications.length > 0 && (
+        <div className="bg-white rounded-xl border shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b">
+            <div>
+              <h2 className="font-semibold text-gray-800">Pending Certifications</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Awaiting your approval — approving auto-updates the KRA score</p>
+            </div>
+            <Link href="/kras" className="text-xs text-[#CC2229] hover:underline font-medium">
+              Review in KRA Dashboard →
+            </Link>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {pendingCertifications.map((cert) => (
+              <div key={cert.id} className="px-5 py-3 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{cert.certName}</p>
+                  <p className="text-xs text-gray-500">
+                    {cert.employee.name} · {cert.issuingBody || "—"} · obtained {new Date(cert.dateObtained).toLocaleDateString()}
+                  </p>
+                  {cert.attachmentUrl && (
+                    <a href={cert.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline">View certificate →</a>
+                  )}
+                </div>
+                <span className="text-xs text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+                  Pending
+                </span>
+                <Link href="/kras"
+                  className="text-xs text-[#CC2229] hover:underline font-medium whitespace-nowrap">
+                  Approve →
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

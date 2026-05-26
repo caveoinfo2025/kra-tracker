@@ -36,6 +36,9 @@ export default async function KrasPage() {
             weeklyCommits: {
               where: { week: currentWeek, year: currentYear },
             },
+            certifications: {
+              orderBy: { createdAt: "desc" },
+            },
           },
         },
       },
@@ -69,6 +72,9 @@ export default async function KrasPage() {
             },
             weeklyCommits: {
               where: { week: currentWeek, year: currentYear },
+            },
+            certifications: {
+              orderBy: { createdAt: "desc" },
             },
           },
         },

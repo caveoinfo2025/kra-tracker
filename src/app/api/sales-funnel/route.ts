@@ -44,6 +44,9 @@ export async function POST(req: Request) {
       grossProfitPct: Number(body.grossProfitPct ?? 0),
       proposalDate: body.proposalDate ? new Date(body.proposalDate) : null,
       expectedCloseDate: body.expectedCloseDate ? new Date(body.expectedCloseDate) : null,
+      closedDate: body.closedDate
+        ? new Date(body.closedDate)
+        : (body.stage === "Closed Won" ? new Date() : null),
       probabilityPct: Number(body.probabilityPct ?? 0),
       status: body.status ?? "Active",
       newCustomerFlag: Boolean(body.newCustomerFlag),

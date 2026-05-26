@@ -4,6 +4,19 @@ import prisma from "@/lib/prisma";
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json();
+
+  // Auto-set closedDate when moving to Closed Won (if not already set)
+  const existing = await prisma.salesFunnel.findUnique({
+    where: { id: Number(id) },
+    select: { closedDate: true },
+  });
+  let closedDate: Date | null | undefined = undefined;
+  if (body.closedDate !== undefined) {
+    closedDate = body.closedDate ? new Date(body.closedDate) : null;
+  } else if (body.stage === "Closed Won" && !existing?.closedDate) {
+    closedDate = new Date();
+  }
+
   const row = await prisma.salesFunnel.update({
     where: { id: Number(id) },
     data: {
@@ -16,6 +29,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       grossProfitPct: body.grossProfitPct !== undefined ? Number(body.grossProfitPct) : undefined,
       proposalDate: body.proposalDate ? new Date(body.proposalDate) : undefined,
       expectedCloseDate: body.expectedCloseDate ? new Date(body.expectedCloseDate) : undefined,
+      closedDate: closedDate,
       probabilityPct: body.probabilityPct !== undefined ? Number(body.probabilityPct) : undefined,
       status: body.status,
       newCustomerFlag: body.newCustomerFlag !== undefined ? Boolean(body.newCustomerFlag) : undefined,
