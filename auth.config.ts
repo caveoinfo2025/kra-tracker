@@ -13,10 +13,19 @@ export const authConfig = {
   trustHost: true,
   providers: [
     MicrosoftEntraID({
-      clientId: process.env.AZURE_AD_CLIENT_ID!,
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      ...(process.env.AZURE_AD_TENANT_ID && {
-        issuer: `https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID}/v2.0`,
+      // Support both local-dev names (AZURE_AD_*) and Hostinger/NextAuth-v5 names (AUTH_MICROSOFT_ENTRA_ID_*)
+      clientId:
+        process.env.AZURE_AD_CLIENT_ID ??
+        process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+      clientSecret:
+        process.env.AZURE_AD_CLIENT_SECRET ??
+        process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
+      ...((process.env.AZURE_AD_TENANT_ID ??
+        process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID) && {
+        issuer: `https://login.microsoftonline.com/${
+          process.env.AZURE_AD_TENANT_ID ??
+          process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID
+        }/v2.0`,
       }),
     }),
   ],
