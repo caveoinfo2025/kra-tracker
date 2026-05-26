@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "WeeklyCommit" (
+CREATE TABLE IF NOT EXISTS "WeeklyCommit" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "employeeId" INTEGER NOT NULL,
     "kraId" INTEGER NOT NULL,
