@@ -21,12 +21,20 @@ const EMPLOYEE_LINKS = [
   { href: "/daily-updates", label: "Daily Updates" },
 ];
 
+const ACCOUNTS_LINKS = [
+  { href: "/accounts", label: "Payment Tracker" },
+  { href: "/collections", label: "All Collections" },
+];
+
 export default async function Navbar() {
   const session = await getSession();
   const user = session?.user;
   const employeeDashboardHref = `/employees/${user?.employeeId ?? ""}`;
+  const isAccounts = !user?.isManager && user?.role === "Accounts";
   const navLinks = user?.isManager
     ? MANAGER_LINKS
+    : isAccounts
+    ? ACCOUNTS_LINKS
     : [{ href: employeeDashboardHref, label: "Dashboard" }, ...EMPLOYEE_LINKS];
 
   return (
@@ -36,7 +44,7 @@ export default async function Navbar() {
         {/* Logo */}
         <div className="flex items-center flex-shrink-0">
           <Link
-            href={user?.isManager ? "/" : `/employees/${user?.employeeId ?? ""}`}
+            href={user?.isManager ? "/" : isAccounts ? "/accounts" : `/employees/${user?.employeeId ?? ""}`}
             className="flex items-center hover:opacity-90 transition-opacity"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -104,19 +104,20 @@ model SalesFunnel {
 }
 
 model Collection {
-  id                    Int      @id @default(autoincrement())
-  invoiceDate           DateTime @default(now())
-  invoiceNo             String   @default("")
-  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                    Int       @id @default(autoincrement())
+  invoiceDate           DateTime  @default(now())
+  invoiceNo             String    @default("")
+  employee              Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId            Int
   customerName          String
   invoiceValueLakhs     Float
-  amountWithoutGstLakhs Float    @default(0)
+  amountWithoutGstLakhs Float     @default(0)
   dueDate               DateTime
-  amountReceivedLakhs   Float    @default(0)
-  collectionStatus      String   @default("Pending")
-  remarks               String   @default("")
-  createdAt             DateTime @default(now())
+  paymentReceivedDate   DateTime?
+  amountReceivedLakhs   Float     @default(0)
+  collectionStatus      String    @default("Pending")
+  remarks               String    @default("")
+  createdAt             DateTime  @default(now())
 }
 
 model DailyUpdate {

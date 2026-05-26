@@ -13,6 +13,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       invoiceValueLakhs: body.invoiceValueLakhs !== undefined ? Number(body.invoiceValueLakhs) : undefined,
       amountWithoutGstLakhs: body.amountWithoutGstLakhs !== undefined ? Number(body.amountWithoutGstLakhs) : undefined,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+      paymentReceivedDate: body.paymentReceivedDate !== undefined
+        ? (body.paymentReceivedDate ? new Date(body.paymentReceivedDate) : null)
+        : undefined,
       amountReceivedLakhs: body.amountReceivedLakhs !== undefined ? Number(body.amountReceivedLakhs) : undefined,
       collectionStatus: body.collectionStatus,
       remarks: body.remarks,

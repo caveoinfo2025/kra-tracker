@@ -89,21 +89,38 @@ async function totalGrossProfit(employeeId: number) {
 }
 
 /**
- * On-time collection rate = invoice value of "Fully Received" / total invoice value.
+ * On-time collection rate = invoice value collected on or before dueDate / total invoice value.
+ * Uses paymentReceivedDate if set; falls back to collectionStatus === "Fully Received" for old records.
  */
 async function onTimeCollectionRate(employeeId: number) {
   const rows = await prisma.collection.findMany({
     where: { employeeId },
-    select: { collectionStatus: true, invoiceValueLakhs: true },
+    select: { collectionStatus: true, invoiceValueLakhs: true, dueDate: true, paymentReceivedDate: true },
   });
-  if (!rows.length) return { rate: 0, fullyReceived: 0, total: 0 };
-  const totalValue       = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
-  const fullyReceivedVal = rows
-    .filter((r) => r.collectionStatus === "Fully Received")
-    .reduce((s, r) => s + r.invoiceValueLakhs, 0);
+  if (!rows.length) return { rate: 0, onTime: 0, late: 0, total: 0 };
+  const totalValue = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
+
+  let onTimeVal = 0;
+  let lateVal   = 0;
+  for (const r of rows) {
+    if (r.paymentReceivedDate) {
+      // Use actual payment date vs due date
+      if (r.paymentReceivedDate <= r.dueDate) {
+        onTimeVal += r.invoiceValueLakhs;
+      } else {
+        lateVal += r.invoiceValueLakhs;
+      }
+    } else if (r.collectionStatus === "Fully Received") {
+      // Legacy record without paymentReceivedDate — count as on-time
+      onTimeVal += r.invoiceValueLakhs;
+    }
+    // Pending / Partially Received with no payment date → excluded from both buckets
+  }
+
   return {
-    rate: totalValue > 0 ? fullyReceivedVal / totalValue : 0,
-    fullyReceived: fullyReceivedVal,
+    rate: totalValue > 0 ? onTimeVal / totalValue : 0,
+    onTime: onTimeVal,
+    late: lateVal,
     total: totalValue,
   };
 }
@@ -419,7 +436,7 @@ export async function computeKRAProgress(
       notes = [
         `Booking (Closed Won): ₹${booking.toFixed(1)}L / ₹${bookingTarget}L (${bookPct.toFixed(0)}%)`,
         `Billing (ex-GST): ₹${billing.toFixed(1)}L / ₹${billingTarget.toFixed(1)}L (${billPct.toFixed(0)}%)`,
-        `On-time Collections: ₹${collData.fullyReceived.toFixed(1)}L / ₹${collData.total.toFixed(1)}L (${(coll * 100).toFixed(0)}%)`,
+        `On-time Collections: ₹${collData.onTime.toFixed(1)}L / ₹${collData.total.toFixed(1)}L (${(coll * 100).toFixed(0)}%)`,
         `Gross Profit: ₹${gp.toFixed(2)}L / ₹${gpLakhTarget.toFixed(2)}L (${gpPct.toFixed(0)}%)`,
       ].join(" | ");
     }

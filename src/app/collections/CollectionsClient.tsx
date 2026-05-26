@@ -6,8 +6,8 @@ import Badge from "@/components/Badge";
 type Row = {
   id: number; invoiceDate: string; invoiceNo: string; employeeId: number;
   employee: { name: string }; customerName: string; invoiceValueLakhs: number;
-  amountWithoutGstLakhs: number; dueDate: string; amountReceivedLakhs: number;
-  collectionStatus: string; remarks: string;
+  amountWithoutGstLakhs: number; dueDate: string; paymentReceivedDate: string | null;
+  amountReceivedLakhs: number; collectionStatus: string; remarks: string;
 };
 type Employee = { id: number; name: string };
 
@@ -20,7 +20,7 @@ const GST_RATE = 0.18; // 18 % — used for auto-fill helper
 const empty = {
   employeeId: "", invoiceDate: "", invoiceNo: "", customerName: "",
   invoiceValueLakhs: "0", amountWithoutGstLakhs: "0", dueDate: "",
-  amountReceivedLakhs: "0", collectionStatus: "Pending", remarks: "",
+  paymentReceivedDate: "", amountReceivedLakhs: "0", collectionStatus: "Pending", remarks: "",
 };
 
 // ─── Filter / date helpers ─────────────────────────────────────────────────────
@@ -119,6 +119,7 @@ export default function CollectionsClient({
       invoiceValueLakhs: String(r.invoiceValueLakhs),
       amountWithoutGstLakhs: String(r.amountWithoutGstLakhs),
       dueDate: r.dueDate.slice(0, 10),
+      paymentReceivedDate: r.paymentReceivedDate ? r.paymentReceivedDate.slice(0, 10) : "",
       amountReceivedLakhs: String(r.amountReceivedLakhs),
       collectionStatus: r.collectionStatus, remarks: r.remarks,
     });
@@ -137,6 +138,7 @@ export default function CollectionsClient({
           invoiceValueLakhs: Number(form.invoiceValueLakhs),
           amountWithoutGstLakhs: Number(form.amountWithoutGstLakhs),
           amountReceivedLakhs: Number(form.amountReceivedLakhs),
+          paymentReceivedDate: form.paymentReceivedDate || null,
         }),
       });
       if (!res.ok) { setError("Failed to save."); return; }
@@ -439,6 +441,21 @@ export default function CollectionsClient({
                     </div>
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Payment Received Date
+                      <span className="ml-1 text-gray-400 font-normal">(actual date payment was received)</span>
+                    </label>
+                    <input type="date" value={form.paymentReceivedDate} onChange={(e) => f("paymentReceivedDate", e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm" />
+                    {form.paymentReceivedDate && form.dueDate && (
+                      <p className={`text-xs mt-1 font-medium ${form.paymentReceivedDate > form.dueDate ? "text-red-600" : "text-green-600"}`}>
+                        {form.paymentReceivedDate > form.dueDate
+                          ? `⚠ Late by ${Math.ceil((new Date(form.paymentReceivedDate).getTime() - new Date(form.dueDate).getTime()) / 86400000)} day(s)`
+                          : "✓ On-time payment"}
+                      </p>
+                    )}
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
                     <select value={form.collectionStatus} onChange={(e) => f("collectionStatus", e.target.value)}
                       className="w-full border rounded-lg px-3 py-2 text-sm">
@@ -485,6 +502,7 @@ export default function CollectionsClient({
                       "Received (₹L)",
                       "Balance",
                       "Due Date",
+                      "Paid On",
                       "Status",
                       "",
                     ].filter(Boolean).map((h) => (
@@ -509,6 +527,20 @@ export default function CollectionsClient({
                         <td className="px-4 py-3 text-green-700">{r.amountReceivedLakhs.toFixed(2)}</td>
                         <td className={`px-4 py-3 font-semibold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>{balance.toFixed(2)}</td>
                         <td className={`px-4 py-3 ${overdue ? "text-red-600 font-semibold" : "text-gray-500"}`}>{r.dueDate.slice(0, 10)}</td>
+                        <td className="px-4 py-3">
+                          {r.paymentReceivedDate ? (
+                            <span className={`text-xs font-semibold ${r.paymentReceivedDate > r.dueDate ? "text-red-600" : "text-green-600"}`}>
+                              {r.paymentReceivedDate.slice(0, 10)}
+                              {r.paymentReceivedDate > r.dueDate && (
+                                <span className="ml-1 text-red-400 font-normal">
+                                  (+{Math.ceil((new Date(r.paymentReceivedDate).getTime() - new Date(r.dueDate).getTime()) / 86400000)}d late)
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3"><Badge label={r.collectionStatus} variant={statusVariant(r.collectionStatus)} /></td>
                         <td className="px-4 py-3 flex gap-2">
                           <button onClick={() => openEdit(r)} className="text-xs text-[#CC2229] hover:underline">Edit</button>
