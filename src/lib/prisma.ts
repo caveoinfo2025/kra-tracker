@@ -3,8 +3,15 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-// Prisma places dev.db at the project root OR in prisma/ depending on config
+// Resolve the SQLite file path from DATABASE_URL env var (strips "file:" prefix),
+// or fall back to dev.db locations for local development.
 function resolveDbPath(): string {
+  const dbUrl = process.env.DATABASE_URL;
+  if (dbUrl) {
+    // DATABASE_URL is "file:/absolute/path" or "file:./relative/path"
+    return dbUrl.replace(/^file:/, "");
+  }
+  // Local dev fallback
   const candidates = [
     path.resolve(process.cwd(), "prisma", "dev.db"),
     path.resolve(process.cwd(), "dev.db"),
