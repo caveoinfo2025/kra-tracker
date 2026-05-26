@@ -109,7 +109,9 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
   const hasFilter = !!(search || empFilter || stageFilter || solutionFilter);
 
   // Stats always over all rows
-  const totalPipeline = rows.filter((r) => r.status === "Active").reduce((s, r) => s + r.dealValueLakhs, 0);
+  const totalPipeline = rows
+    .filter((r) => r.status === "Active" && r.stage !== "Closed Won" && r.stage !== "Closed Lost")
+    .reduce((s, r) => s + r.dealValueLakhs, 0);
   const closedWon = rows.filter((r) => r.stage === "Closed Won").reduce((s, r) => s + r.dealValueLakhs, 0);
 
   return (

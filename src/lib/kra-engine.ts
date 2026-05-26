@@ -162,7 +162,7 @@ async function pocCount(employeeId: number) {
 
 async function activePipelineRatio(employeeId: number, targetLakhs: number) {
   const rows = await prisma.salesFunnel.findMany({
-    where: { employeeId, status: "Active" },
+    where: { employeeId, status: "Active", stage: { notIn: ["Closed Won", "Closed Lost"] } },
     select: { dealValueLakhs: true },
   });
   const total = rows.reduce((s, r) => s + r.dealValueLakhs, 0);
