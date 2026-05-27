@@ -208,6 +208,7 @@ export async function POST(req: Request) {
         amountWithoutGstLakhs: parseNum(field("amountWithoutGstLakhs", row)),
         dueDate: dueDate!, // non-null: guarded by missing-fields check above
         amountReceivedLakhs: parseNum(field("amountReceivedLakhs", row)),
+        paymentReceivedDate: parseDate(field("paymentReceivedDate", row)),
         collectionStatus: parseStr(field("collectionStatus", row)) || "Pending",
         remarks: parseStr(field("remarks", row)),
       };

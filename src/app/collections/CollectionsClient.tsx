@@ -82,6 +82,8 @@ export default function CollectionsClient({
   const [form, setForm] = useState({ ...empty, employeeId: String(currentEmployeeId ?? "") });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // ── Filter state ─────────────────────────────────────────────────────────────
   const [view, setView]           = useState(initialView ?? "all");
@@ -154,6 +156,54 @@ export default function CollectionsClient({
     if (!confirm("Delete this billing record?")) return;
     await fetch(`/api/collections/${id}`, { method: "DELETE" });
     setRows((prev) => prev.filter((r) => r.id !== id));
+    setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (filtered.every((r) => selectedIds.has(r.id))) {
+      // Deselect all visible
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((r) => next.delete(r.id));
+        return next;
+      });
+    } else {
+      // Select all visible
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((r) => next.add(r.id));
+        return next;
+      });
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected record${ids.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/collections", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error("Bulk delete failed");
+      setRows((prev) => prev.filter((r) => !selectedIds.has(r.id)));
+      setSelectedIds(new Set());
+    } catch {
+      alert("Failed to delete selected records. Please try again.");
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   // ── Filtered rows ─────────────────────────────────────────────────────────────
@@ -337,13 +387,22 @@ export default function CollectionsClient({
             )}
             {(search || empFilter || view !== "all") && (
               <button
-                onClick={() => { setSearch(""); setEmpFilter(""); setView("all"); }}
+                onClick={() => { setSearch(""); setEmpFilter(""); setView("all"); setSelectedIds(new Set()); }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline"
               >
                 Clear filters
               </button>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              {isManager && selectedIds.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                  className="bg-red-50 border border-red-300 text-red-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-red-100 transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {bulkDeleting ? "Deleting…" : `🗑 Delete ${selectedIds.size} selected`}
+                </button>
+              )}
               <button
                 onClick={() => {
                   setEditId(null);
@@ -492,6 +551,17 @@ export default function CollectionsClient({
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
+                    {isManager && (
+                      <th className="px-3 py-3 w-8">
+                        <input
+                          type="checkbox"
+                          checked={filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id))}
+                          onChange={toggleSelectAll}
+                          className="rounded border-gray-300 text-[#CC2229] focus:ring-[#CC2229] cursor-pointer"
+                          title="Select all visible"
+                        />
+                      </th>
+                    )}
                     {[
                       "Invoice No",
                       isManager ? "Employee" : null,
@@ -514,8 +584,19 @@ export default function CollectionsClient({
                   {filtered.map((r) => {
                     const balance = r.invoiceValueLakhs - r.amountReceivedLakhs;
                     const overdue = isOverdue(r);
+                    const isSelected = selectedIds.has(r.id);
                     return (
-                      <tr key={r.id} className={`hover:bg-gray-50 ${overdue ? "bg-red-50/40" : ""}`}>
+                      <tr key={r.id} className={`hover:bg-gray-50 ${overdue ? "bg-red-50/40" : ""} ${isSelected ? "bg-red-50/60" : ""}`}>
+                        {isManager && (
+                          <td className="px-3 py-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelect(r.id)}
+                              className="rounded border-gray-300 text-[#CC2229] focus:ring-[#CC2229] cursor-pointer"
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-gray-500">{r.invoiceNo || "—"}</td>
                         {isManager && <td className="px-4 py-3 font-medium">{r.employee?.name ?? "—"}</td>}
                         <td className="px-4 py-3 font-medium">{r.customerName}</td>

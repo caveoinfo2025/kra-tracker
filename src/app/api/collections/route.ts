@@ -2,6 +2,19 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 
+export async function DELETE(req: Request) {
+  const session = await getSession();
+  if (!session?.user?.isManager) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { ids } = await req.json() as { ids: number[] };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json({ error: "No ids provided" }, { status: 400 });
+  }
+  await prisma.collection.deleteMany({ where: { id: { in: ids } } });
+  return NextResponse.json({ success: true, deleted: ids.length });
+}
+
 export async function GET(req: Request) {
   const session = await getSession();
   const { searchParams } = new URL(req.url);

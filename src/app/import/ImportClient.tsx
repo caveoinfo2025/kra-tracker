@@ -28,6 +28,7 @@ const COLLECTION_FIELDS: Record<string, { label: string; required?: boolean; ali
   amountWithoutGstLakhs: { label: "Total (Without GST) (₹L)",                aliases: ["total without gst","without gst","amount without gst","taxable value","taxable amount","net amount","base amount","amount ex-gst","ex-gst","excl gst","excluding gst","amount excl gst","pre-gst amount","amount (without gst)","total (without gst)","without gst (₹l)","net value"] },
   dueDate:               { label: "Due Date",                 required: true,  aliases: ["due date","payment due","due by","payment due date","due"] },
   amountReceivedLakhs:   { label: "Amount Received (₹L)",                    aliases: ["amount received","received","payment received","collection amount","paid amount","amount paid"] },
+  paymentReceivedDate:   { label: "Payment Received Date",                    aliases: ["paid on","paid date","payment date","payment received date","date received","received date","date paid","settlement date","receipt date","payment on"] },
   collectionStatus:      { label: "Collection Status",                        aliases: ["status","collection status","payment status","collection"] },
   employeeName:          { label: "Salesperson",                              aliases: ["salesperson","sales rep","owner","employee","rep","account manager"] },
   remarks:               { label: "Remarks",                                  aliases: ["remarks","notes","comment"] },
@@ -394,7 +395,7 @@ export default function ImportClient({ employees }: { employees: Employee[] }) {
           <>
             <p className="text-xs text-blue-700">
               <strong>Required:</strong> Customer Name, Invoice Value, Due Date ·
-              <strong> Optional:</strong> Invoice No, Invoice Date, Total (Without GST), Amount Received, Status, Salesperson, Remarks
+              <strong> Optional:</strong> Invoice No, Invoice Date, Total (Without GST), Amount Received, Payment Received Date, Status, Salesperson, Remarks
             </p>
             <p className="text-xs text-blue-600 mt-1">
               Re-uploading is safe — existing records are matched by <strong>Invoice No</strong> and updated in place (rows without an Invoice No are always inserted as new).
