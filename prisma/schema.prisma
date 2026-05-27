@@ -26,6 +26,14 @@ model Employee {
   dailyUpdates   DailyUpdate[]
   weeklyCommits  WeeklyCommit[]
   certifications Certification[]
+
+  // Pipeline module relations
+  assignedLeads  CrmLead[]        @relation("LeadAssignedTo")
+  createdLeads   CrmLead[]        @relation("LeadCreatedBy")
+  pipelineTasks  CrmTask[]        @relation("TaskAssignedTo")
+  pipelineMeetings CrmMeeting[]   @relation("MeetingEmployee")
+  pipelineActivities CrmActivity[] @relation("ActivityPerformedBy")
+  pipelineNotes  CrmNote[]        @relation("NoteAuthor")
 }
 
 model KRA {
@@ -163,4 +171,124 @@ model Certification {
   approvedAt    DateTime?
   remarks       String    @default("")
   createdAt     DateTime  @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline module — Lead Qualification & Opportunity Funnel
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Stages: NEW_LEAD | CONTACTED | QUALIFIED | REQUIREMENT_GATHERED |
+//         SOLUTION_PROPOSED | POC_DEMO | PROPOSAL_SENT (triggers opportunity)
+model CrmLead {
+  id              Int       @id @default(autoincrement())
+  title           String
+  companyName     String
+  contactPerson   String
+  email           String    @default("")
+  phone           String    @default("")
+  source          String    @default("Direct")
+  // External-CRM references (IDs from external system; names cached for display)
+  categoryId      String?
+  categoryName    String    @default("")
+  oemId           String?
+  oemName         String    @default("")
+  productId       String?
+  productName     String    @default("")
+  customerId      String?
+  customerName    String    @default("")
+  // Pipeline
+  stage           String    @default("NEW_LEAD")
+  expectedValue   Float     @default(0)
+  remarks         String    @default("")
+  // Ownership
+  assignedTo      Employee  @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  assignedToId    Int
+  createdBy       Employee  @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  createdById     Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  opportunity     CrmOpportunity?
+  tasks           CrmTask[]
+  meetings        CrmMeeting[]
+  activities      CrmActivity[]
+  notes           CrmNote[]
+}
+
+// Stages: PROPOSAL_SENT | FOLLOW_UP | NEGOTIATION | WON | LOST | ON_HOLD
+model CrmOpportunity {
+  id                  Int       @id @default(autoincrement())
+  lead                CrmLead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId              Int       @unique
+  stage               String    @default("PROPOSAL_SENT")
+  value               Float     @default(0)
+  expectedClosureDate DateTime?
+  probability         Int       @default(50)
+  lostReason          String    @default("")
+  status              String    @default("active")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tasks      CrmTask[]
+  meetings   CrmMeeting[]
+  activities CrmActivity[]
+}
+
+model CrmTask {
+  id            Int              @id @default(autoincrement())
+  title         String
+  description   String           @default("")
+  dueDate       DateTime
+  assignedTo    Employee         @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  assignedToId  Int
+  status        String           @default("pending")
+  priority      String           @default("medium")
+  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId        Int?
+  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunityId Int?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model CrmMeeting {
+  id            Int              @id @default(autoincrement())
+  title         String
+  meetingDate   DateTime
+  notes         String           @default("")
+  attendees     String           @default("")
+  location      String           @default("")
+  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId        Int?
+  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunityId Int?
+  employee      Employee         @relation("MeetingEmployee", fields: [employeeId], references: [id])
+  employeeId    Int
+  createdAt     DateTime         @default(now())
+}
+
+model CrmActivity {
+  id            Int              @id @default(autoincrement())
+  entityType    String           // lead | opportunity | task | meeting
+  entityId      Int
+  action        String           // created | stage_changed | task_completed | note_added | …
+  description   String           @default("")
+  meta          String           @default("")   // JSON string for extra data
+  performedBy   Employee         @relation("ActivityPerformedBy", fields: [performedById], references: [id])
+  performedById Int
+  timestamp     DateTime         @default(now())
+  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId        Int?
+  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunityId Int?
+}
+
+model CrmNote {
+  id        Int      @id @default(autoincrement())
+  content   String
+  lead      CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    Int
+  author    Employee @relation("NoteAuthor", fields: [authorId], references: [id])
+  authorId  Int
+  createdAt DateTime @default(now())
 }
