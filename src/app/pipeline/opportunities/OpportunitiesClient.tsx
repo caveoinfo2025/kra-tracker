@@ -8,7 +8,6 @@ import {
   OPP_STAGE_LABELS,
 } from "@/types/pipeline";
 import { OppStageBadge } from "@/components/pipeline/StageBadge";
-import { OpportunityCard } from "@/components/pipeline/OpportunityCard";
 import { KanbanBoard, KanbanColumn } from "@/components/pipeline/KanbanBoard";
 
 // ── Legacy funnel types & constants ───────────────────────────────────────────
@@ -23,6 +22,7 @@ type LegacyFunnelRow = {
 
 const FUNNEL_STAGES    = ["Lead","Qualified","Solutioning","Proposal Sent","Negotiation","Closed Won","Closed Lost"];
 const FUNNEL_SOLUTIONS = ["Network & Security","Server & Storage","MSSP services","Cloud Security & Services","Other"];
+
 const funnelEmpty = {
   employeeId: "", customerName: "", solutionCategory: "", opportunityName: "",
   stage: "Lead", dealValueLakhs: "0", billingValueLakhs: "0", grossProfitPct: "0",
@@ -30,137 +30,417 @@ const funnelEmpty = {
   newCustomerFlag: false, pocFlag: false, remarks: "",
 };
 
-// ── Embedded legacy funnel section ────────────────────────────────────────────
+function sfStageToOppStage(sfStage: string): string {
+  switch (sfStage) {
+    case "Closed Won":    return "WON";
+    case "Closed Lost":   return "LOST";
+    case "Negotiation":   return "NEGOTIATION";
+    case "Proposal Sent": return "PROPOSAL_SENT";
+    default:              return "FOLLOW_UP";
+  }
+}
 
-function LegacyFunnelSection({
-  initialRows, employees, isManager, currentEmployeeId,
+function oppStageToSfStage(oppStage: string): string {
+  switch (oppStage) {
+    case "WON":           return "Closed Won";
+    case "LOST":          return "Closed Lost";
+    case "NEGOTIATION":   return "Negotiation";
+    case "PROPOSAL_SENT": return "Proposal Sent";
+    default:              return "Solutioning";
+  }
+}
+
+// ── Unified merged opportunity type ──────────────────────────────────────────
+
+type MergedOpp = {
+  uid: string;        // "crm-{id}" | "sf-{id}"
+  isLegacy: boolean;
+  stage: string;      // CRM OppStage enum value
+  companyName: string;
+  opportunityName: string;
+  value: number;      // in Lakhs
+  probability: number;
+  expectedClosureDate?: string | null;
+  ownerName: string;
+  ownerId?: number;
+  // CRM-specific
+  crmId?: number;
+  leadTitle?: string;
+  // Legacy-specific
+  sfId?: number;
+  legacyStage?: string;
+  solutionCategory?: string;
+  grossProfitPct?: number;
+  newCustomerFlag?: boolean;
+  pocFlag?: boolean;
+};
+
+// ── Merged Kanban card ────────────────────────────────────────────────────────
+
+function MergedCard({ item, onEdit }: { item: MergedOpp; onEdit?: (sfId: number) => void }) {
+  const days = item.expectedClosureDate
+    ? Math.ceil((new Date(item.expectedClosureDate).getTime() - Date.now()) / 86400000)
+    : null;
+
+  const inner = (
+    <div className={`bg-white rounded-lg p-3 shadow-sm border transition-all ${
+      item.isLegacy
+        ? "border-amber-200 hover:border-amber-400"
+        : "border-gray-200 hover:shadow-md hover:border-[#CC2229]/30"
+    }`}>
+      <div className="flex items-start justify-between mb-0.5">
+        <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1 flex-1">
+          {item.companyName}
+        </p>
+        {item.isLegacy && (
+          <span className="ml-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded shrink-0">
+            Legacy
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mb-2 line-clamp-1">
+        {item.isLegacy ? item.opportunityName : item.leadTitle}
+      </p>
+
+      <div className="flex items-center justify-between mb-2">
+        {item.isLegacy ? (
+          <span className="text-[10px] font-medium bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
+            {item.legacyStage}
+          </span>
+        ) : (
+          <OppStageBadge stage={item.stage} />
+        )}
+        <span className="text-sm font-bold text-[#CC2229]">₹{item.value.toFixed(1)}L</span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>{item.probability}% prob.</span>
+        {days !== null && (
+          <span className={days < 0 ? "text-red-600 font-semibold" : days <= 7 ? "text-amber-600" : ""}>
+            {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+        <p className="text-xs text-gray-400 truncate flex-1">{item.ownerName}</p>
+        {item.isLegacy && onEdit && (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(item.sfId!); }}
+            className="text-[10px] text-[#CC2229] hover:underline ml-2 shrink-0"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  if (!item.isLegacy && item.crmId) {
+    return <Link href={`/pipeline/opportunities/${item.crmId}`}>{inner}</Link>;
+  }
+  return inner;
+}
+
+// ── Column colour map ─────────────────────────────────────────────────────────
+
+const OPP_COL_COLORS: Record<string, string> = {
+  PROPOSAL_SENT: "bg-amber-200 text-amber-800",
+  FOLLOW_UP:     "bg-cyan-200 text-cyan-700",
+  NEGOTIATION:   "bg-yellow-200 text-yellow-800",
+  WON:           "bg-green-200 text-green-800",
+  LOST:          "bg-red-200 text-red-700",
+  ON_HOLD:       "bg-gray-200 text-gray-600",
+};
+
+// ── CRM opp type ──────────────────────────────────────────────────────────────
+
+type OppWithLead = OpportunitySerialized & {
+  lead: {
+    id: number; title: string; companyName: string;
+    assignedTo: { id: number; name: string };
+    createdBy:  { id: number; name: string };
+  };
+  _count?: { tasks: number; meetings: number };
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function OpportunitiesClient({
+  initialOpps,
+  employees,
+  isManager,
+  initialView,
+  initialFunnelRows,
+  currentEmployeeId,
 }: {
-  initialRows: LegacyFunnelRow[]; employees: { id: number; name: string }[];
-  isManager: boolean; currentEmployeeId?: number;
+  initialOpps: OppWithLead[];
+  employees: { id: number; name: string }[];
+  isManager: boolean;
+  initialView: "table" | "kanban";
+  initialFunnelRows: LegacyFunnelRow[];
+  currentEmployeeId?: number;
 }) {
   const router = useRouter();
-  const [rows, setRows]         = useState(initialRows);
+
+  const [opps,       setOpps]       = useState(initialOpps);
+  const [funnelRows, setFunnelRows] = useState(initialFunnelRows);
+  const [view,       setView]       = useState<"table" | "kanban">(initialView);
+  const [empF,       setEmpF]       = useState("");
+  const [search,     setSearch]     = useState("");
+
+  // ── Legacy entry form state ─────────────────────────────────────────────────
   const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId]     = useState<number | null>(null);
-  const [form, setForm]         = useState({ ...funnelEmpty, employeeId: String(currentEmployeeId ?? "") });
-  const [loading, setLoading]   = useState(false);
-  const [search, setSearch]     = useState("");
-  const [empF, setEmpF]         = useState("");
-  const [stageF, setStageF]     = useState("");
-  const [solF, setSolF]         = useState("");
+  const [editSfId, setEditSfId] = useState<number | null>(null);
+  const [form,     setForm]     = useState({ ...funnelEmpty, employeeId: String(currentEmployeeId ?? "") });
+  const [saving,   setSaving]   = useState(false);
 
   function ff(k: string, v: string | boolean) { setForm((p) => ({ ...p, [k]: v })); }
 
-  function openEdit(r: LegacyFunnelRow) {
-    setEditId(r.id);
+  function openAddLegacy() {
+    setEditSfId(null);
+    setForm({ ...funnelEmpty, employeeId: String(currentEmployeeId ?? "") });
+    setShowForm(true);
+  }
+
+  function openEditLegacy(sfId: number) {
+    const r = funnelRows.find((row) => row.id === sfId);
+    if (!r) return;
+    setEditSfId(sfId);
     setForm({
-      employeeId: String(r.employeeId), customerName: r.customerName,
-      solutionCategory: r.solutionCategory, opportunityName: r.opportunityName,
-      stage: r.stage, dealValueLakhs: String(r.dealValueLakhs),
-      billingValueLakhs: String(r.billingValueLakhs), grossProfitPct: String(r.grossProfitPct),
-      expectedCloseDate: r.expectedCloseDate?.slice(0, 10) ?? "",
-      closedDate: r.closedDate?.slice(0, 10) ?? "",
-      probabilityPct: String(r.probabilityPct), status: r.status,
-      newCustomerFlag: r.newCustomerFlag, pocFlag: r.pocFlag, remarks: r.remarks,
+      employeeId:       String(r.employeeId),
+      customerName:     r.customerName,
+      solutionCategory: r.solutionCategory,
+      opportunityName:  r.opportunityName,
+      stage:            r.stage,
+      dealValueLakhs:   String(r.dealValueLakhs),
+      billingValueLakhs:String(r.billingValueLakhs),
+      grossProfitPct:   String(r.grossProfitPct),
+      expectedCloseDate:r.expectedCloseDate?.slice(0, 10) ?? "",
+      closedDate:       r.closedDate?.slice(0, 10) ?? "",
+      probabilityPct:   String(r.probabilityPct),
+      status:           r.status,
+      newCustomerFlag:  r.newCustomerFlag,
+      pocFlag:          r.pocFlag,
+      remarks:          r.remarks,
     });
     setShowForm(true);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setLoading(true);
-    const method = editId ? "PUT" : "POST";
-    const url    = editId ? `/api/sales-funnel/${editId}` : "/api/sales-funnel";
+  async function handleLegacySubmit(e: React.FormEvent) {
+    e.preventDefault(); setSaving(true);
+    const method = editSfId ? "PUT" : "POST";
+    const url    = editSfId ? `/api/sales-funnel/${editSfId}` : "/api/sales-funnel";
     const res    = await fetch(url, {
       method, headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
-        dealValueLakhs: Number(form.dealValueLakhs),
+        dealValueLakhs:    Number(form.dealValueLakhs),
         billingValueLakhs: Number(form.billingValueLakhs),
-        grossProfitPct: Number(form.grossProfitPct),
-        probabilityPct: Number(form.probabilityPct),
-        closedDate: form.closedDate || null,
+        grossProfitPct:    Number(form.grossProfitPct),
+        probabilityPct:    Number(form.probabilityPct),
+        closedDate:        form.closedDate || null,
       }),
     });
     if (res.ok) {
       const saved = await res.json();
-      setRows((p) => editId ? p.map((r) => r.id === editId ? saved : r) : [saved, ...p]);
-      setShowForm(false); setEditId(null); router.refresh();
+      setFunnelRows((p) => editSfId ? p.map((r) => r.id === editSfId ? saved : r) : [saved, ...p]);
+      setShowForm(false); setEditSfId(null); router.refresh();
     }
-    setLoading(false);
+    setSaving(false);
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Delete this opportunity?")) return;
-    await fetch(`/api/sales-funnel/${id}`, { method: "DELETE" });
-    setRows((p) => p.filter((r) => r.id !== id));
+  async function handleLegacyDelete(sfId: number) {
+    if (!confirm("Delete this legacy opportunity?")) return;
+    await fetch(`/api/sales-funnel/${sfId}`, { method: "DELETE" });
+    setFunnelRows((p) => p.filter((r) => r.id !== sfId));
   }
 
-  const filtered = useMemo(() => rows.filter((r) => {
-    if (empF   && String(r.employeeId) !== empF) return false;
-    if (stageF && r.stage !== stageF)            return false;
-    if (solF   && r.solutionCategory !== solF)   return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!r.customerName.toLowerCase().includes(q) && !r.opportunityName.toLowerCase().includes(q)) return false;
-    }
-    return true;
-  }), [rows, empF, stageF, solF, search]);
+  // ── Merged dataset ──────────────────────────────────────────────────────────
 
-  const pipeline  = rows.filter((r) => r.status === "Active" && !["Closed Won","Closed Lost"].includes(r.stage)).reduce((s, r) => s + r.dealValueLakhs, 0);
-  const closedWon = rows.filter((r) => r.stage === "Closed Won").reduce((s, r) => s + r.dealValueLakhs, 0);
+  const merged = useMemo<MergedOpp[]>(() => {
+    const crmItems: MergedOpp[] = opps
+      .filter((o) => {
+        if (empF && String(o.lead.assignedTo.id) !== empF) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          if (!o.lead.companyName.toLowerCase().includes(q) && !o.lead.title.toLowerCase().includes(q)) return false;
+        }
+        return true;
+      })
+      .map((o) => ({
+        uid:                 `crm-${o.id}`,
+        isLegacy:            false,
+        stage:               o.stage,
+        companyName:         o.lead.companyName,
+        opportunityName:     o.lead.title,
+        value:               o.value,
+        probability:         o.probability,
+        expectedClosureDate: o.expectedClosureDate,
+        ownerName:           o.lead.assignedTo.name,
+        ownerId:             o.lead.assignedTo.id,
+        crmId:               o.id,
+        leadTitle:           o.lead.title,
+      }));
+
+    const sfItems: MergedOpp[] = funnelRows
+      .filter((r) => {
+        if (empF && String(r.employeeId) !== empF) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          if (!r.customerName.toLowerCase().includes(q) && !r.opportunityName.toLowerCase().includes(q)) return false;
+        }
+        return true;
+      })
+      .map((r) => ({
+        uid:                 `sf-${r.id}`,
+        isLegacy:            true,
+        stage:               sfStageToOppStage(r.stage),
+        companyName:         r.customerName,
+        opportunityName:     r.opportunityName,
+        value:               r.dealValueLakhs,
+        probability:         r.probabilityPct,
+        expectedClosureDate: r.expectedCloseDate,
+        ownerName:           r.employee?.name ?? "—",
+        ownerId:             r.employeeId,
+        sfId:                r.id,
+        legacyStage:         r.stage,
+        solutionCategory:    r.solutionCategory,
+        grossProfitPct:      r.grossProfitPct,
+        newCustomerFlag:     r.newCustomerFlag,
+        pocFlag:             r.pocFlag,
+      }));
+
+    return [...crmItems, ...sfItems];
+  }, [opps, funnelRows, empF, search]);
+
+  // ── Stats ───────────────────────────────────────────────────────────────────
+
+  const totalValue = merged
+    .filter((o) => !["WON", "LOST"].includes(o.stage))
+    .reduce((s, o) => s + o.value, 0);
+  const wonValue   = merged
+    .filter((o) => o.stage === "WON")
+    .reduce((s, o) => s + o.value, 0);
+  const weighted   = merged
+    .filter((o) => !["WON", "LOST"].includes(o.stage))
+    .reduce((s, o) => s + o.value * (o.probability / 100), 0);
+
+  // ── Kanban columns ──────────────────────────────────────────────────────────
+
+  const kanbanCols: KanbanColumn<MergedOpp>[] = OPP_STAGES.map((s) => ({
+    key:   s,
+    label: OPP_STAGE_LABELS[s],
+    color: OPP_COL_COLORS[s] ?? "bg-gray-200 text-gray-600",
+    items: merged.filter((o) => o.stage === s),
+  }));
+
+  async function handleKanbanMove(uid: number | string, _from: string, toStage: string) {
+    const uidStr = String(uid);
+
+    if (uidStr.startsWith("crm-")) {
+      const crmId = Number(uidStr.replace("crm-", ""));
+      const res   = await fetch(`/api/pipeline/opportunities/${crmId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: toStage }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setOpps((p) => p.map((o) => o.id === updated.id ? { ...o, stage: updated.stage } : o));
+        router.refresh();
+      }
+    } else if (uidStr.startsWith("sf-")) {
+      const sfId  = Number(uidStr.replace("sf-", ""));
+      const row   = funnelRows.find((r) => r.id === sfId);
+      if (!row) return;
+      const res   = await fetch(`/api/sales-funnel/${sfId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId:        String(row.employeeId),
+          customerName:      row.customerName,
+          solutionCategory:  row.solutionCategory,
+          opportunityName:   row.opportunityName,
+          stage:             oppStageToSfStage(toStage),
+          dealValueLakhs:    row.dealValueLakhs,
+          billingValueLakhs: row.billingValueLakhs,
+          grossProfitPct:    row.grossProfitPct,
+          expectedCloseDate: row.expectedCloseDate?.slice(0, 10) ?? "",
+          closedDate:        row.closedDate?.slice(0, 10) ?? null,
+          probabilityPct:    row.probabilityPct,
+          status:            row.status,
+          newCustomerFlag:   row.newCustomerFlag,
+          pocFlag:           row.pocFlag,
+          remarks:           row.remarks,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setFunnelRows((p) => p.map((r) => r.id === sfId ? updated : r));
+        router.refresh();
+      }
+    }
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Active Pipeline",    value: `₹${pipeline.toFixed(1)}L` },
-          { label: "Closed Won",         value: `₹${closedWon.toFixed(1)}L` },
-          { label: "Total Opportunities",value: String(rows.length) },
-          { label: "New Customers",      value: String(rows.filter((r) => r.newCustomerFlag && r.stage === "Closed Won").length) },
+          { label: "Active Pipeline",   value: `₹${totalValue.toFixed(1)}L` },
+          { label: "Weighted Forecast", value: `₹${weighted.toFixed(1)}L`,   color: "text-blue-700" },
+          { label: "Won Value",         value: `₹${wonValue.toFixed(1)}L`,    color: "text-green-700" },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
-            <p className="text-xl font-bold text-[#CC2229]">{s.value}</p>
+            <p className={`text-xl font-bold ${s.color ?? "text-[#CC2229]"}`}>{s.value}</p>
             <p className="text-xs text-gray-500">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <input type="text" placeholder="Search customer / opportunity…" value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[180px] focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
-        {isManager && (
-          <select value={empF} onChange={(e) => setEmpF(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
-            <option value="">All Employees</option>
-            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        )}
-        <select value={stageF} onChange={(e) => setStageF(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
-          <option value="">All Stages</option>
-          {FUNNEL_STAGES.map((s) => <option key={s}>{s}</option>)}
-        </select>
-        <select value={solF} onChange={(e) => setSolF(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
-          <option value="">All Solutions</option>
-          {FUNNEL_SOLUTIONS.map((s) => <option key={s}>{s}</option>)}
-        </select>
-        <button
-          onClick={() => { setEditId(null); setForm({ ...funnelEmpty, employeeId: String(currentEmployeeId ?? "") }); setShowForm(true); }}
-          className="ml-auto bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
-          + Add Opportunity
-        </button>
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            type="text" placeholder="Search company…" value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+          />
+          {isManager && (
+            <select value={empF} onChange={(e) => setEmpF(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
+              <option value="">All Owners</option>
+              {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          )}
+          <button
+            onClick={openAddLegacy}
+            className="bg-amber-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-amber-600 transition whitespace-nowrap"
+          >
+            + Legacy Entry
+          </button>
+        </div>
+        <div className="flex bg-gray-100 p-1 rounded-lg gap-1">
+          <button onClick={() => setView("kanban")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition ${view === "kanban" ? "bg-white shadow text-[#CC2229]" : "text-gray-600"}`}>
+            ⊞ Kanban
+          </button>
+          <button onClick={() => setView("table")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition ${view === "table" ? "bg-white shadow text-[#CC2229]" : "text-gray-600"}`}>
+            ☰ Table
+          </button>
+        </div>
       </div>
 
-      {/* Modal */}
+      {/* Legacy entry modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">{editId ? "Edit" : "Add"} Opportunity</h3>
-            <form onSubmit={handleSubmit} className="space-y-3">
+            <h3 className="text-lg font-semibold mb-4">{editSfId ? "Edit" : "Add"} Legacy Opportunity</h3>
+            <form onSubmit={handleLegacySubmit} className="space-y-3">
               {isManager && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Employee</label>
@@ -250,199 +530,34 @@ function LegacyFunnelSection({
                   className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={loading}
+                <button type="submit" disabled={saving}
                   className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
-                  {loading ? "Saving…" : editId ? "Update" : "Add"}
+                  {saving ? "Saving…" : editSfId ? "Update" : "Add"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">Cancel</button>
+                  className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border shadow-sm overflow-auto">
-        {filtered.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <p className="font-medium">No funnel entries yet.</p>
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                {["ID", isManager ? "Employee" : null, "Customer", "Opportunity", "Solution", "Stage", "Deal (₹L)", "GP (₹L)", "Exp. Close", "Closed On", "Flags", ""].filter(Boolean).map((h) => (
-                  <th key={h!} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-400 text-xs">{r.opportunityId}</td>
-                  {isManager && <td className="px-4 py-3 font-medium">{r.employee?.name ?? "—"}</td>}
-                  <td className="px-4 py-3 font-medium">{r.customerName}</td>
-                  <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate">{r.opportunityName}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{r.solutionCategory}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      r.stage === "Closed Won" ? "bg-green-100 text-green-700" :
-                      r.stage === "Closed Lost" ? "bg-red-100 text-red-700" :
-                      ["Proposal Sent","Negotiation"].includes(r.stage) ? "bg-amber-100 text-amber-700" :
-                      "bg-gray-100 text-gray-600"
-                    }`}>{r.stage}</span>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-[#CC2229]">{r.dealValueLakhs.toFixed(1)}</td>
-                  <td className="px-4 py-3 text-gray-600">{(r.dealValueLakhs * r.grossProfitPct / 100).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{r.expectedCloseDate?.slice(0, 10) ?? "—"}</td>
-                  <td className="px-4 py-3 text-xs font-medium text-emerald-700">{r.closedDate?.slice(0, 10) ?? "—"}</td>
-                  <td className="px-4 py-3 text-center text-xs">
-                    {r.newCustomerFlag && <span className="mr-1">New</span>}
-                    {r.pocFlag && <span>PoC</span>}
-                  </td>
-                  <td className="px-4 py-3 flex gap-2">
-                    <button onClick={() => openEdit(r)} className="text-xs text-[#CC2229] hover:underline">Edit</button>
-                    <button onClick={() => handleDelete(r.id)} className="text-xs text-red-500 hover:underline">Del</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-type OppWithLead = OpportunitySerialized & {
-  lead: { id: number; title: string; companyName: string; assignedTo: { id: number; name: string }; createdBy: { id: number; name: string } };
-  _count?: { tasks: number; meetings: number };
-};
-
-const OPP_COL_COLORS: Record<string, string> = {
-  PROPOSAL_SENT: "bg-amber-200 text-amber-800",
-  FOLLOW_UP:     "bg-cyan-200 text-cyan-700",
-  NEGOTIATION:   "bg-yellow-200 text-yellow-800",
-  WON:           "bg-green-200 text-green-800",
-  LOST:          "bg-red-200 text-red-700",
-  ON_HOLD:       "bg-gray-200 text-gray-600",
-};
-
-export default function OpportunitiesClient({
-  initialOpps,
-  employees,
-  isManager,
-  initialView,
-  initialFunnelRows,
-  currentEmployeeId,
-}: {
-  initialOpps: OppWithLead[];
-  employees: { id: number; name: string }[];
-  isManager: boolean;
-  initialView: "table" | "kanban";
-  initialFunnelRows: LegacyFunnelRow[];
-  currentEmployeeId?: number;
-}) {
-  const router = useRouter();
-  const [opps, setOpps] = useState(initialOpps);
-  const [view, setView] = useState<"table" | "kanban" | "funnel">(initialView);
-  const [empF,  setEmpF]  = useState("");
-  const [search, setSearch] = useState("");
-
-  const filtered = useMemo(() =>
-    opps.filter((o) => {
-      if (empF && String(o.lead.assignedTo.id) !== empF) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        if (!o.lead.companyName.toLowerCase().includes(q) && !o.lead.title.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    }),
-  [opps, empF, search]);
-
-  // Stats
-  const totalValue    = filtered.filter((o) => !["WON","LOST"].includes(o.stage)).reduce((s, o) => s + o.value, 0);
-  const wonValue      = filtered.filter((o) => o.stage === "WON").reduce((s, o) => s + o.value, 0);
-  const weighted      = filtered.filter((o) => !["WON","LOST"].includes(o.stage)).reduce((s, o) => s + o.value * (o.probability / 100), 0);
-
-  // Kanban
-  const kanbanCols: KanbanColumn<OppWithLead>[] = OPP_STAGES.map((s) => ({
-    key: s, label: OPP_STAGE_LABELS[s], color: OPP_COL_COLORS[s] ?? "bg-gray-200 text-gray-600",
-    items: filtered.filter((o) => o.stage === s),
-  }));
-
-  async function handleKanbanMove(oppId: number | string, _from: string, toStage: string) {
-    const res = await fetch(`/api/pipeline/opportunities/${oppId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: toStage }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setOpps((p) => p.map((o) => o.id === updated.id ? { ...o, stage: updated.stage } : o));
-      router.refresh();
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Active Pipeline",    value: `₹${totalValue.toFixed(1)}L` },
-          { label: "Weighted Forecast",  value: `₹${weighted.toFixed(1)}L`,  color: "text-blue-700" },
-          { label: "Won Value",          value: `₹${wonValue.toFixed(1)}L`,   color: "text-green-700" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
-            <p className={`text-xl font-bold ${s.color ?? "text-[#CC2229]"}`}>{s.value}</p>
-            <p className="text-xs text-gray-500">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex gap-2">
-          <input type="text" placeholder="Search company…" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
-          {isManager && (
-            <select value={empF} onChange={(e) => setEmpF(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
-              <option value="">All Owners</option>
-              {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          )}
-        </div>
-        <div className="flex bg-gray-100 p-1 rounded-lg gap-1">
-          <button onClick={() => setView("kanban")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition ${view === "kanban" ? "bg-white shadow text-[#CC2229]" : "text-gray-600"}`}>
-            ⊞ Kanban
-          </button>
-          <button onClick={() => setView("table")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition ${view === "table" ? "bg-white shadow text-[#CC2229]" : "text-gray-600"}`}>
-            ☰ Table
-          </button>
-          <button onClick={() => setView("funnel")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition ${view === "funnel" ? "bg-white shadow text-[#CC2229]" : "text-gray-600"}`}>
-            📋 Funnel
-          </button>
-        </div>
-      </div>
-
+      {/* Kanban */}
       {view === "kanban" && (
-        <KanbanBoard<OppWithLead>
+        <KanbanBoard<MergedOpp>
           columns={kanbanCols}
-          getId={(o) => o.id}
-          renderCard={(o) => <OpportunityCard opp={o} />}
+          getId={(o) => o.uid}
+          renderCard={(o) => <MergedCard item={o} onEdit={openEditLegacy} />}
           onMove={handleKanbanMove}
         />
       )}
 
+      {/* Table */}
       {view === "table" && (
         <div className="bg-white rounded-xl border shadow-sm overflow-auto">
-          {filtered.length === 0 ? (
+          {merged.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <p>No opportunities yet.</p>
               <Link href="/pipeline/leads" className="mt-2 text-sm text-[#CC2229] hover:underline block">
@@ -453,37 +568,73 @@ export default function OpportunitiesClient({
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Company", "Stage", "Value (₹L)", "Prob %", "Close Date", "Owner", ""].map((h) => (
+                  {["Company / Opportunity", "Stage", "Value (₹L)", "Prob %", "Close Date", "Owner", ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((o) => {
+                {merged.map((o) => {
                   const days = o.expectedClosureDate
                     ? Math.ceil((new Date(o.expectedClosureDate).getTime() - Date.now()) / 86400000)
                     : null;
                   return (
-                    <tr key={o.id} className="hover:bg-gray-50">
+                    <tr key={o.uid} className={`hover:bg-gray-50 ${o.isLegacy ? "bg-amber-50/30" : ""}`}>
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{o.lead.companyName}</p>
-                        <p className="text-xs text-gray-400 truncate max-w-[180px]">{o.lead.title}</p>
+                        <p className="font-semibold text-gray-900 flex items-center gap-1.5">
+                          {o.companyName}
+                          {o.isLegacy && (
+                            <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">Legacy</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate max-w-[200px]">{o.opportunityName}</p>
                       </td>
-                      <td className="px-4 py-3"><OppStageBadge stage={o.stage} /></td>
+                      <td className="px-4 py-3">
+                        {o.isLegacy ? (
+                          <span className="text-xs font-medium bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
+                            {o.legacyStage}
+                          </span>
+                        ) : (
+                          <OppStageBadge stage={o.stage} />
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-bold text-[#CC2229]">₹{o.value.toFixed(1)}L</td>
                       <td className="px-4 py-3 text-gray-600">{o.probability}%</td>
                       <td className="px-4 py-3">
                         {o.expectedClosureDate ? (
-                          <span className={days !== null && days < 0 ? "text-red-600 font-semibold" : days !== null && days <= 7 ? "text-amber-600" : "text-gray-600"}>
+                          <span className={
+                            days !== null && days < 0
+                              ? "text-red-600 font-semibold"
+                              : days !== null && days <= 7
+                              ? "text-amber-600"
+                              : "text-gray-600"
+                          }>
                             {o.expectedClosureDate.slice(0, 10)}
-                            {days !== null && days < 0 && <span className="text-xs ml-1">({Math.abs(days)}d late)</span>}
+                            {days !== null && days < 0 && (
+                              <span className="text-xs ml-1">({Math.abs(days)}d late)</span>
+                            )}
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{o.lead.assignedTo.name}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600">{o.ownerName}</td>
                       <td className="px-4 py-3">
-                        <Link href={`/pipeline/opportunities/${o.id}`}
-                          className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
+                        {o.isLegacy ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openEditLegacy(o.sfId!)}
+                              className="text-xs text-[#CC2229] hover:underline font-medium"
+                            >Edit</button>
+                            <button
+                              onClick={() => handleLegacyDelete(o.sfId!)}
+                              className="text-xs text-red-500 hover:underline"
+                            >Del</button>
+                          </div>
+                        ) : (
+                          <Link
+                            href={`/pipeline/opportunities/${o.crmId}`}
+                            className="text-xs text-[#CC2229] hover:underline font-medium"
+                          >View →</Link>
+                        )}
                       </td>
                     </tr>
                   );
@@ -492,16 +643,6 @@ export default function OpportunitiesClient({
             </table>
           )}
         </div>
-      )}
-
-      {/* ── Legacy funnel view ───────────────────────────────────────────────── */}
-      {view === "funnel" && (
-        <LegacyFunnelSection
-          initialRows={initialFunnelRows}
-          employees={employees}
-          isManager={isManager}
-          currentEmployeeId={currentEmployeeId}
-        />
       )}
     </div>
   );

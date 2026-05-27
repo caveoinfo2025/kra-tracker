@@ -39,6 +39,17 @@ export const authConfig = {
         request.nextUrl.pathname.startsWith("/login") ||
         request.nextUrl.pathname.startsWith("/api/auth");
       if (isPublic) return true;
+
+      // Development-only bypass: if dev_employee_id cookie is set, let the
+      // request through. The server component's getSession() will resolve the
+      // actual synthetic session from the cookie value.
+      // NOTE: process.env.NODE_ENV is "production" on Hostinger, so this
+      //       code path is completely dead in production builds.
+      if (process.env.NODE_ENV === "development") {
+        const devId = request.cookies.get("dev_employee_id")?.value;
+        if (devId) return true;
+      }
+
       return !!auth;
     },
   },
