@@ -16,7 +16,7 @@ function getWeekNumber(date: Date): number {
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session?.user?.isManager && session?.user?.employeeId) {
-    redirect(`/employees/${session.user.employeeId}`);
+    redirect("/dashboard");
   }
 
   const now         = new Date();
