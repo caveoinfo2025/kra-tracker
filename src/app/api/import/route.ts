@@ -50,16 +50,21 @@ type ErrorRow = {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session?.user?.isManager) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { type, mapping, rows, defaultEmployeeName } = await req.json() as {
-    type: "sales" | "collections";
+    type: "sales" | "collections" | "leads";
     mapping: Record<string, string>;
     rows: Record<string, unknown>[];
     defaultEmployeeName?: string;
   };
+
+  // leads import is open to all authenticated users; others require manager
+  if (type !== "leads" && !session.user.isManager) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const employees = await prisma.employee.findMany({
     select: { id: true, name: true, email: true },
@@ -153,7 +158,7 @@ export async function POST(req: Request) {
     }
 
   // ─── Collections ──────────────────────────────────────────────────────────
-  } else {
+  } else if (type === "collections") {
     for (const [idx, row] of rows.entries()) {
       const rowNum = idx + 1;
       const customerName    = parseStr(field("customerName", row));
@@ -221,6 +226,76 @@ export async function POST(req: Request) {
 
       await prisma.collection.create({ data });
       inserted++;
+    }
+
+  // ─── CRM Leads ────────────────────────────────────────────────────────────
+  } else if (type === "leads") {
+    const empId = session.user.employeeId!;
+    const isManager = !!session.user.isManager;
+
+    for (const [idx, row] of rows.entries()) {
+      const rowNum      = idx + 1;
+      const title       = parseStr(field("title",         row));
+      const companyName = parseStr(field("companyName",   row));
+      const contactPerson = parseStr(field("contactPerson", row));
+
+      const missing: string[] = [];
+      if (!title)         missing.push("Lead Title");
+      if (!companyName)   missing.push("Company Name");
+      if (!contactPerson) missing.push("Contact Person");
+
+      if (missing.length > 0) {
+        skipped++;
+        errors.push({ row: rowNum, reason: `Missing required: ${missing.join(", ")}`, customer: companyName || "—", ref: title || "—" });
+        continue;
+      }
+
+      // Resolve assigned employee
+      let assignedToId = empId; // default: self
+      if (isManager) {
+        const empName = parseStr(field("assignedTo", row));
+        const resolved = empName ? matchEmployee(empName, employees) : null;
+        assignedToId = resolved ?? (defaultEmployeeName ? matchEmployee(defaultEmployeeName, employees) : null) ?? empId;
+      }
+
+      const data = {
+        title,
+        companyName,
+        contactPerson,
+        email:         parseStr(field("email",         row)),
+        phone:         parseStr(field("phone",         row)),
+        source:        parseStr(field("source",        row)) || "Direct",
+        expectedValue: parseNum(field("expectedValue", row)),
+        remarks:       parseStr(field("remarks",       row)),
+        stage:         "NEW_LEAD" as const,
+        assignedToId,
+        createdById:   empId,
+      };
+
+      // Upsert: match on company + contact + title
+      const existing = await prisma.crmLead.findFirst({
+        where: { companyName, contactPerson, title, assignedToId },
+      });
+
+      if (existing) {
+        await prisma.crmLead.update({ where: { id: existing.id }, data: { ...data, stage: existing.stage } });
+        updated++;
+      } else {
+        const lead = await prisma.crmLead.create({ data });
+        // Auto-create follow-up task
+        await prisma.crmTask.create({
+          data: {
+            title:        `First call with ${companyName}`,
+            description:  "Initial qualification call — auto-created on lead import.",
+            dueDate:      new Date(Date.now() + 60 * 60 * 1000),
+            assignedToId,
+            status:       "pending",
+            priority:     "high",
+            leadId:       lead.id,
+          },
+        });
+        inserted++;
+      }
     }
   }
 

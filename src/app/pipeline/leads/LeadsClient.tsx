@@ -1,7 +1,8 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 import {
   LeadSerialized,
   LEAD_STAGES,
@@ -274,6 +275,265 @@ function ActivityCard({ item, onEdit }: { item: MergedLead; onEdit: (id: number)
   );
 }
 
+// ── Bulk import ───────────────────────────────────────────────────────────────
+
+const LEAD_IMPORT_FIELDS: Record<string, { label: string; required?: boolean; aliases: string[] }> = {
+  title:          { label: "Lead Title *",        required: true,  aliases: ["lead title","title","subject","lead name","opportunity","deal","project"] },
+  companyName:    { label: "Company *",           required: true,  aliases: ["company","company name","account","client","customer","organization","firm"] },
+  contactPerson:  { label: "Contact Person *",    required: true,  aliases: ["contact person","contact","contact name","name","person","full name"] },
+  email:          { label: "Email",                                aliases: ["email","email address","e-mail","mail"] },
+  phone:          { label: "Phone",                                aliases: ["phone","phone number","mobile","contact number","tel","telephone","mobile number"] },
+  source:         { label: "Source",                               aliases: ["source","lead source","origin","channel"] },
+  expectedValue:  { label: "Expected Value (₹L)",                 aliases: ["expected value","value","deal value","opportunity value","expected value (₹l)","value (₹l)","amount","est. value"] },
+  remarks:        { label: "Remarks",                              aliases: ["remarks","notes","comment","comments","description"] },
+  assignedTo:     { label: "Assigned To",                         aliases: ["assigned to","salesperson","owner","employee","sales rep","representative"] },
+};
+
+function autoMapLeads(headers: string[]): Record<string, string> {
+  const mapping: Record<string, string> = {};
+  for (const [field, def] of Object.entries(LEAD_IMPORT_FIELDS)) {
+    const match = headers.find((h) => def.aliases.some((a) => h.toLowerCase().trim() === a));
+    if (match) mapping[match] = field;
+  }
+  return mapping;
+}
+
+function BulkImportModal({
+  employees, isManager, currentEmployeeId, onClose, onImported,
+}: {
+  employees: { id: number; name: string }[];
+  isManager: boolean;
+  currentEmployeeId?: number;
+  onClose: () => void;
+  onImported: (inserted: number) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [headers,  setHeaders]  = useState<string[]>([]);
+  const [rows,     setRows]     = useState<Record<string, unknown>[]>([]);
+  const [mapping,  setMapping]  = useState<Record<string, string>>({});
+  const [fileName, setFileName] = useState("");
+  const [defaultEmp, setDefaultEmp] = useState("");
+  const [importing, setImporting]   = useState(false);
+  const [result, setResult]         = useState<{ inserted: number; updated: number; skipped: number; errors: { row: number; reason: string; customer: string; ref: string }[] } | null>(null);
+  const [err, setErr]               = useState("");
+
+  function handleFile(file: File) {
+    setFileName(file.name); setResult(null); setErr("");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb   = XLSX.read(e.target!.result, { type: "array" });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+        if (!data.length) { setErr("File is empty."); return; }
+        const hdrs = Object.keys(data[0]);
+        setHeaders(hdrs);
+        setRows(data);
+        setMapping(autoMapLeads(hdrs));
+      } catch { setErr("Could not parse file. Use CSV or XLSX."); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function handleImport() {
+    setImporting(true); setErr("");
+    try {
+      const res = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "leads", mapping, rows, defaultEmployeeName: defaultEmp }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error ?? "Import failed."); return; }
+      setResult(data);
+      if (data.inserted > 0) onImported(data.inserted);
+    } catch { setErr("Network error."); }
+    finally { setImporting(false); }
+  }
+
+  const requiredMapped = ["title","companyName","contactPerson"].every(
+    (f) => Object.values(mapping).includes(f)
+  );
+
+  // Sample CSV download
+  function downloadTemplate() {
+    const ws  = XLSX.utils.aoa_to_sheet([
+      ["Lead Title","Company Name","Contact Person","Email","Phone","Source","Expected Value (₹L)","Remarks","Assigned To"],
+      ["NGFW Replacement","Acme Corp","John Smith","john@acme.com","9876543210","Referral","5","Demo scheduled","Vijesh"],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leads");
+    XLSX.writeFile(wb, "leads_import_template.xlsx");
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-4 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">Bulk Import Leads</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+        </div>
+
+        {!rows.length ? (
+          /* Step 1: file upload */
+          <div className="space-y-4">
+            <div
+              className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-[#CC2229] transition"
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+            >
+              <p className="text-4xl mb-2">📂</p>
+              <p className="font-medium text-gray-700">Drop a CSV or XLSX file here</p>
+              <p className="text-xs text-gray-400 mt-1">or click to browse</p>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">Need a template?</p>
+              <button onClick={downloadTemplate}
+                className="text-xs text-[#CC2229] hover:underline font-medium">
+                ⬇ Download sample XLSX
+              </button>
+            </div>
+            {err && <p className="text-red-600 text-sm">{err}</p>}
+          </div>
+        ) : result ? (
+          /* Step 3: results */
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { label: "Imported",  value: result.inserted, color: "text-green-700" },
+                { label: "Updated",   value: result.updated,  color: "text-blue-700" },
+                { label: "Skipped",   value: result.skipped,  color: "text-amber-700" },
+              ].map((s) => (
+                <div key={s.label} className="bg-gray-50 rounded-lg p-4 border">
+                  <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+                </div>
+              ))}
+            </div>
+            {result.errors.length > 0 && (
+              <details className="text-sm">
+                <summary className="cursor-pointer text-amber-700 font-medium">
+                  {result.errors.length} row(s) had issues — click to expand
+                </summary>
+                <div className="mt-2 max-h-40 overflow-y-auto border rounded-lg divide-y text-xs">
+                  {result.errors.map((e) => (
+                    <div key={e.row} className="px-3 py-2">
+                      <span className="font-semibold text-gray-700">Row {e.row}</span>
+                      {e.customer !== "—" && <span className="text-gray-500"> · {e.customer}</span>}
+                      <span className="text-red-600 block">{e.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+            <button onClick={onClose}
+              className="w-full bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21]">
+              Done
+            </button>
+          </div>
+        ) : (
+          /* Step 2: column mapping + preview */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-sm">
+              <p className="text-gray-600 font-medium">{fileName}</p>
+              <p className="text-gray-400">{rows.length} rows detected</p>
+            </div>
+
+            {/* Column mapping */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Map Columns</p>
+              <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                {headers.map((h) => (
+                  <div key={h} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-600 truncate flex-1 font-medium">{h}</span>
+                    <select
+                      value={mapping[h] ?? ""}
+                      onChange={(e) => setMapping((p) => { const n = { ...p }; delete n[h]; if (e.target.value) n[h] = e.target.value; return n; })}
+                      className="text-xs border rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#CC2229] bg-white"
+                    >
+                      <option value="">— ignore —</option>
+                      {Object.entries(LEAD_IMPORT_FIELDS).map(([k, v]) => (
+                        <option key={k} value={k}>{v.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {!requiredMapped && (
+                <p className="text-xs text-amber-600 mt-2">
+                  ⚠ Map <strong>Lead Title</strong>, <strong>Company</strong>, and <strong>Contact Person</strong> to continue.
+                </p>
+              )}
+            </div>
+
+            {/* Default assignee for managers */}
+            {isManager && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Default Assigned To <span className="text-gray-400">(used when row has no "Assigned To" value)</span>
+                </label>
+                <select value={defaultEmp} onChange={(e) => setDefaultEmp(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
+                  <option value="">— none —</option>
+                  {employees.map((e) => <option key={e.id} value={e.name}>{e.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Preview */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Preview (first 3 rows)</p>
+              <div className="overflow-auto rounded-lg border text-xs">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {Object.entries(mapping).map(([h, f]) => (
+                        <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">
+                          {LEAD_IMPORT_FIELDS[f]?.label ?? f}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {rows.slice(0, 3).map((row, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        {Object.entries(mapping).map(([h]) => (
+                          <td key={h} className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[120px] truncate">
+                            {String(row[h] ?? "")}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {err && <p className="text-red-600 text-sm">{err}</p>}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleImport}
+                disabled={!requiredMapped || importing}
+                className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50"
+              >
+                {importing ? "Importing…" : `Import ${rows.length} Leads`}
+              </button>
+              <button onClick={() => { setRows([]); setHeaders([]); setMapping({}); setFileName(""); setErr(""); }}
+                className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+                ← Back
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function LeadsClient({
@@ -296,7 +556,8 @@ export default function LeadsClient({
   const [leads,      setLeads]      = useState(initialLeads);
   const [activities, setActivities] = useState(initialActivities);
   const [view,       setView]       = useState<"table" | "kanban">(initialView);
-  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [showLeadForm,   setShowLeadForm]   = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Filters
   const [search,  setSearch]  = useState("");
@@ -588,6 +849,10 @@ export default function LeadsClient({
               ⊞ Kanban
             </button>
           </div>
+          <button onClick={() => setShowImportModal(true)}
+            className="border border-[#CC2229] text-[#CC2229] text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-[#CC2229] hover:text-white transition whitespace-nowrap">
+            ⬆ Import
+          </button>
           <button onClick={() => setShowLeadForm(true)}
             className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
             + New Lead
@@ -704,6 +969,20 @@ export default function LeadsClient({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Bulk import modal */}
+      {showImportModal && (
+        <BulkImportModal
+          employees={employees}
+          isManager={isManager}
+          currentEmployeeId={currentEmployeeId}
+          onClose={() => setShowImportModal(false)}
+          onImported={(count) => {
+            router.refresh();
+            setShowImportModal(false);
+          }}
+        />
       )}
 
       {/* Kanban */}
