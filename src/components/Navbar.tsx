@@ -9,8 +9,6 @@ const MANAGER_LINKS = [
   { href: "/pipeline/leads", label: "Lead Pipeline" },
   { href: "/pipeline/opportunities", label: "Opportunities" },
   { href: "/pipeline/analytics", label: "Pipeline Analytics" },
-  { href: "/lead-generation", label: "Activity" },
-  { href: "/sales-funnel", label: "Funnel" },
   { href: "/collections", label: "Collections" },
   { href: "/daily-updates", label: "Daily Updates" },
   { href: "/import", label: "Import" },
@@ -21,8 +19,6 @@ const EMPLOYEE_LINKS = [
   { href: "/pipeline/leads", label: "My Leads" },
   { href: "/pipeline/opportunities", label: "My Deals" },
   { href: "/pipeline/tasks", label: "My Tasks" },
-  { href: "/lead-generation", label: "Activity" },
-  { href: "/sales-funnel", label: "Funnel" },
   { href: "/collections", label: "Collections" },
   { href: "/daily-updates", label: "Daily Updates" },
 ];

@@ -47,6 +47,14 @@ export default async function OpportunitiesPage({
       })
     : [];
 
+  const funnelWhere = isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 };
+  const legacyFunnel = await prisma.salesFunnel.findMany({
+    where: funnelWhere,
+    include: { employee: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+
   return (
     <SheetLayout
       title="Opportunity Funnel"
@@ -57,6 +65,8 @@ export default async function OpportunitiesPage({
         employees={employees}
         isManager={isManager}
         initialView={(view as "table" | "kanban") ?? "kanban"}
+        initialFunnelRows={JSON.parse(JSON.stringify(legacyFunnel))}
+        currentEmployeeId={empId}
       />
     </SheetLayout>
   );

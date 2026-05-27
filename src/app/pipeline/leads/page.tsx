@@ -48,6 +48,14 @@ export default async function LeadsPage({
       })
     : [];
 
+  const activityWhere = isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 };
+  const legacyActivities = await prisma.leadGeneration.findMany({
+    where: activityWhere,
+    include: { employee: { select: { name: true } } },
+    orderBy: { date: "desc" },
+    take: 500,
+  });
+
   return (
     <SheetLayout
       title="Lead Pipeline"
@@ -59,6 +67,7 @@ export default async function LeadsPage({
         isManager={isManager}
         currentEmployeeId={empId}
         initialView={(view as "table" | "kanban") ?? "table"}
+        initialActivities={JSON.parse(JSON.stringify(legacyActivities))}
       />
     </SheetLayout>
   );
