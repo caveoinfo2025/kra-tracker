@@ -35,9 +35,14 @@ export const authConfig = {
   },
   callbacks: {
     authorized({ auth, request }) {
+      const { pathname } = request.nextUrl;
       const isPublic =
-        request.nextUrl.pathname.startsWith("/login") ||
-        request.nextUrl.pathname.startsWith("/api/auth");
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/api/auth") ||
+        // Dev impersonation switch must be callable without a session
+        // (it IS the endpoint that establishes the session).
+        // Returns 404 in production so there is no attack surface there.
+        (process.env.NODE_ENV === "development" && pathname === "/api/dev/switch");
       if (isPublic) return true;
 
       // Development-only bypass: if dev_employee_id cookie is set with a

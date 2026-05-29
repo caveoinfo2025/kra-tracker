@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
+import CustomerNameCombobox from "@/components/CustomerNameCombobox";
 
 type Row = {
   id: number; invoiceDate: string; invoiceNo: string; employeeId: number;
@@ -453,8 +454,12 @@ export default function CollectionsClient({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Customer Name *</label>
-                    <input required type="text" value={form.customerName} onChange={(e) => f("customerName", e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 text-sm" />
+                    <CustomerNameCombobox
+                      value={form.customerName}
+                      onChange={(v) => f("customerName", v)}
+                      required
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                    />
                   </div>
 
                   {/* Invoice Value + Without GST side by side */}

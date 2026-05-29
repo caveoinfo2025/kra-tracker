@@ -1,6 +1,8 @@
-﻿import { signIn } from "@/../auth";
+import { signIn } from "@/../auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/../auth";
+import DevQuickLogin from "./DevQuickLogin";
+import prisma from "@/lib/prisma";
 
 export default async function LoginPage({
   searchParams,
@@ -13,6 +15,15 @@ export default async function LoginPage({
   if (session?.user?.employeeId) {
     redirect(callbackUrl ?? "/");
   }
+
+  // Dev-only: fetch employee list for the quick-login widget
+  const devEmployees =
+    process.env.NODE_ENV === "development"
+      ? await prisma.employee.findMany({
+          select: { id: true, name: true, isManager: true },
+          orderBy: { name: "asc" },
+        })
+      : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white flex items-center justify-center p-4">
@@ -55,6 +66,11 @@ export default async function LoginPage({
         <p className="text-xs text-gray-400 mt-6">
           Use your <strong>@caveoinfosystems.com</strong> Microsoft account
         </p>
+
+        {/* ── Dev-only quick-login ── */}
+        {devEmployees.length > 0 && (
+          <DevQuickLogin employees={devEmployees} redirectTo={callbackUrl ?? "/"} />
+        )}
       </div>
     </div>
   );

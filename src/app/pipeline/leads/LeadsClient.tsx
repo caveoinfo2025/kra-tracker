@@ -3,6 +3,7 @@ import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import CustomerNameCombobox from "@/components/CustomerNameCombobox";
 import {
   LeadSerialized,
   LEAD_STAGES,
@@ -75,8 +76,12 @@ function LeadFormModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Company *</label>
-              <input required value={form.companyName} onChange={(e) => f("companyName", e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              <CustomerNameCombobox
+                value={form.companyName}
+                onChange={(v) => f("companyName", v)}
+                required
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Contact Person *</label>
@@ -903,8 +908,12 @@ export default function LeadsClient({
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Customer Name *</label>
-                <input required type="text" value={actForm.customerName} onChange={(e) => fa("customerName", e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm" />
+                <CustomerNameCombobox
+                  value={actForm.customerName}
+                  onChange={(v) => fa("customerName", v)}
+                  required
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
