@@ -292,3 +292,18 @@ model CrmNote {
   authorId  Int
   createdAt DateTime @default(now())
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin configuration store
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AppSetting {
+  id          Int      @id @default(autoincrement())
+  category    String                          // e.g. "pipeline", "kra", "system"
+  key         String   @unique               // e.g. "pipeline.lead_stages"
+  label       String                          // Human-readable name shown in admin UI
+  value       String                          // JSON-encoded value
+  description String   @default("")           // Helper text shown in admin UI
+  updatedAt   DateTime @updatedAt
+  updatedById Int?                            // Last editor (employee id)
+}

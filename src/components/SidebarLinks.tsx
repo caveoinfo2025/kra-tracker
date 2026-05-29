@@ -16,6 +16,7 @@ import {
   BarChart3,
   Building2,
   Smartphone,
+  ShieldCheck,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ export default function SidebarLinks({ isManager, isAccounts }: SidebarLinksProp
           </nav>
         </div>
       ))}
-      {/* Mobile app shortcut */}
+      {/* Bottom shortcuts */}
       <div className="sidebar-section" style={{ marginTop: "auto", paddingTop: 8 }}>
         <nav className="sidebar-nav">
           <Link
@@ -152,6 +153,15 @@ export default function SidebarLinks({ isManager, isAccounts }: SidebarLinksProp
             <Smartphone size={15} className="nav-icon" strokeWidth={1.6} />
             <span>Mobile App</span>
           </Link>
+          {isManager && (
+            <Link
+              href="/admin"
+              className={"nav-link" + (pathname.startsWith("/admin") ? " is-active" : "")}
+            >
+              <ShieldCheck size={15} className="nav-icon" strokeWidth={1.6} />
+              <span>Admin Panel</span>
+            </Link>
+          )}
         </nav>
       </div>
     </div>
