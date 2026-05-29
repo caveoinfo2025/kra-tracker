@@ -8,7 +8,13 @@ import prisma from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    // 8-hour sessions — matches a standard work day.
+    // After this, the JWT is considered expired and the user is redirected
+    // to re-authenticate via Microsoft Entra ID.
+    maxAge: 8 * 60 * 60, // 28 800 seconds
+  },
   callbacks: {
     async jwt({ token, account, profile }) {
       // On first sign-in, resolve the employee record from the DB

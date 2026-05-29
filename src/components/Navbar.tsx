@@ -1,5 +1,6 @@
 import { signOut } from "@/../auth";
 import { getSession } from "@/lib/dev-session";
+import { cookies } from "next/headers";
 import SidebarLinks from "./SidebarLinks";
 import { LogOut } from "lucide-react";
 
@@ -70,6 +71,10 @@ export default async function Navbar() {
         <form
           action={async () => {
             "use server";
+            // Clear the dev impersonation cookie so the dev bypass in
+            // getSession() doesn't silently re-authenticate after sign-out.
+            // In production this cookie never exists, so this is a no-op.
+            (await cookies()).delete("dev_employee_id");
             await signOut({ redirectTo: "/login" });
           }}
         >

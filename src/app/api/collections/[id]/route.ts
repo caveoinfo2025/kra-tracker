@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/dev-session";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
+  const existing = await prisma.collection.findUnique({ where: { id: Number(id) }, select: { employeeId: true } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (!session.user.isManager && existing.employeeId !== session.user.employeeId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json();
   const row = await prisma.collection.update({
     where: { id: Number(id) },
@@ -26,7 +37,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
+  const existing = await prisma.collection.findUnique({ where: { id: Number(id) }, select: { employeeId: true } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (!session.user.isManager && existing.employeeId !== session.user.employeeId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   await prisma.collection.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

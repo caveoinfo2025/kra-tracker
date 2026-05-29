@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/dev-session";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const body = await req.json();
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Auto-set closedDate when moving to Closed Won (if not already set)
+  const { id } = await params;
   const existing = await prisma.salesFunnel.findUnique({
     where: { id: Number(id) },
-    select: { closedDate: true },
+    select: { closedDate: true, employeeId: true },
   });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (!session.user.isManager && existing.employeeId !== session.user.employeeId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json();
   let closedDate: Date | null | undefined = undefined;
   if (body.closedDate !== undefined) {
     closedDate = body.closedDate ? new Date(body.closedDate) : null;
-  } else if (body.stage === "Closed Won" && !existing?.closedDate) {
+  } else if (body.stage === "Closed Won" && !existing.closedDate) {
     closedDate = new Date();
   }
 
@@ -41,7 +49,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
+  const existing = await prisma.salesFunnel.findUnique({ where: { id: Number(id) }, select: { employeeId: true } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (!session.user.isManager && existing.employeeId !== session.user.employeeId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   await prisma.salesFunnel.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

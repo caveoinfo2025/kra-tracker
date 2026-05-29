@@ -15,6 +15,7 @@ import {
   Upload,
   BarChart3,
   Building2,
+  Smartphone,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -141,6 +142,18 @@ export default function SidebarLinks({ isManager, isAccounts }: SidebarLinksProp
           </nav>
         </div>
       ))}
+      {/* Mobile app shortcut */}
+      <div className="sidebar-section" style={{ marginTop: "auto", paddingTop: 8 }}>
+        <nav className="sidebar-nav">
+          <Link
+            href="/mobile"
+            className={"nav-link" + (pathname === "/mobile" ? " is-active" : "")}
+          >
+            <Smartphone size={15} className="nav-icon" strokeWidth={1.6} />
+            <span>Mobile App</span>
+          </Link>
+        </nav>
+      </div>
     </div>
   );
 }

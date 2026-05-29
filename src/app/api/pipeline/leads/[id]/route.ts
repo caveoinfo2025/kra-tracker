@@ -86,6 +86,42 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   return NextResponse.json(updated);
 }
 
+/** PATCH /api/pipeline/leads/[id] — lightweight stage update (used by mobile) */
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const lead = await prisma.crmLead.findUnique({ where: { id: Number(id) } });
+  if (!lead) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!session.user.isManager && lead.assignedToId !== session.user.employeeId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const empId = session.user.employeeId!;
+
+  const updated = await prisma.crmLead.update({
+    where: { id: Number(id) },
+    data: { ...(body.stage ? { stage: body.stage } : {}) },
+    include: { assignedTo: { select: { id: true, name: true } } },
+  });
+
+  if (body.stage && body.stage !== lead.stage) {
+    await prisma.crmActivity.create({
+      data: {
+        entityType: "lead", entityId: lead.id,
+        action: "stage_changed",
+        description: `Stage updated: ${lead.stage} → ${body.stage} (via mobile)`,
+        performedById: empId,
+        leadId: lead.id,
+      },
+    });
+  }
+
+  return NextResponse.json(updated);
+}
+
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
