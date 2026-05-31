@@ -77,14 +77,14 @@ export default function OpportunitiesClient({
   isManager,
   initialView,
   initialSearch = "",
-  legacyKraCounts = { proposals: 0, negotiations: 0, won: 0 },
+  legacyKraCounts = { proposals: 0, negotiations: 0, won: 0, wonValue: 0 },
 }: {
   initialOpps: OppWithLead[];
   employees: { id: number; name: string }[];
   isManager: boolean;
   initialView: "table" | "kanban";
   initialSearch?: string;
-  legacyKraCounts?: { proposals: number; negotiations: number; won: number };
+  legacyKraCounts?: { proposals: number; negotiations: number; won: number; wonValue: number };
 }) {
   const router = useRouter();
 
@@ -126,9 +126,11 @@ export default function OpportunitiesClient({
   const totalValue = filtered
     .filter((o) => !["WON", "LOST"].includes(o.stage))
     .reduce((s, o) => s + o.value, 0);
-  const wonValue = filtered
+  const crmWonValue = filtered
     .filter((o) => o.stage === "WON")
     .reduce((s, o) => s + o.value, 0);
+  // Include legacy SalesFunnel Closed Won (zeroed when filtered to one owner)
+  const wonValue = crmWonValue + legacyScale * legacyKraCounts.wonValue;
   const weighted = filtered
     .filter((o) => !["WON", "LOST"].includes(o.stage))
     .reduce((s, o) => s + o.value * (o.probability / 100), 0);

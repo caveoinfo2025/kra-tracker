@@ -118,12 +118,11 @@ export default async function DashboardPage({
           orderBy: { createdAt: "asc" },
           take: 10,
         }),
+        // Legacy Closed Won: closedDate is unpopulated across all records so we
+        // cannot period-filter it — show the all-time total instead.
         prisma.salesFunnel.aggregate({
           _sum: { dealValueLakhs: true },
-          where: {
-            stage: "Closed Won",
-            closedDate: { gte: periodStart, lt: periodEnd },
-          },
+          where: { stage: "Closed Won" },
         }),
       ]);
 
@@ -294,6 +293,8 @@ export default async function DashboardPage({
           opportunity: { select: { id: true, stage: true, value: true } },
         },
       }),
+      // No take limit — all wins needed for accurate wonValue total;
+      // display is sliced to 3 later in legacyWinsData
       prisma.salesFunnel.findMany({
         where: { employeeId: empId, stage: "Closed Won" },
         select: {
@@ -303,7 +304,6 @@ export default async function DashboardPage({
           solutionCategory: true,
         },
         orderBy: { createdAt: "desc" },
-        take: 5,
       }),
     ]);
 

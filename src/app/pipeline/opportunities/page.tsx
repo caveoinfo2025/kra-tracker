@@ -35,7 +35,9 @@ export default async function OpportunitiesPage({
     take: 200,
   });
 
-  const [employees, legacyAgg] = await Promise.all([
+  const legacyWhere = isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 };
+
+  const [employees, legacyAgg, legacyWonAgg] = await Promise.all([
     isManager
       ? prisma.employee.findMany({
           where: { isManager: false },
@@ -45,8 +47,13 @@ export default async function OpportunitiesPage({
       : Promise.resolve([]),
     prisma.salesFunnel.groupBy({
       by: ["stage"],
-      where: isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 },
+      where: legacyWhere,
       _count: { id: true },
+    }),
+    // Monetary total of legacy Closed Won (closedDate unpopulated — no period filter)
+    prisma.salesFunnel.aggregate({
+      _sum: { dealValueLakhs: true },
+      where: { ...legacyWhere, stage: "Closed Won" },
     }),
   ]);
 
@@ -54,6 +61,7 @@ export default async function OpportunitiesPage({
     proposals:    legacyAgg.find((r) => r.stage === "Proposal Sent")?._count.id ?? 0,
     negotiations: legacyAgg.find((r) => r.stage === "Negotiation")?._count.id ?? 0,
     won:          legacyAgg.find((r) => r.stage === "Closed Won")?._count.id ?? 0,
+    wonValue:     legacyWonAgg._sum.dealValueLakhs ?? 0,
   };
 
   return (
