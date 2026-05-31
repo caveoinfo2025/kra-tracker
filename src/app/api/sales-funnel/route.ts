@@ -28,6 +28,13 @@ export async function POST(req: Request) {
 
   if (!employeeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // PO Date is mandatory for Closed Won orders
+  if (body.stage === "Closed Won" && !body.poDate) {
+    return NextResponse.json({ error: "PO Date is required for Closed Won orders" }, { status: 400 });
+  }
+
+  const poDate = body.poDate ? new Date(body.poDate) : null;
+
   const count = await prisma.salesFunnel.count();
   const row = await prisma.salesFunnel.create({
     data: {
@@ -44,9 +51,11 @@ export async function POST(req: Request) {
       grossProfitPct: Number(body.grossProfitPct ?? 0),
       proposalDate: body.proposalDate ? new Date(body.proposalDate) : null,
       expectedCloseDate: body.expectedCloseDate ? new Date(body.expectedCloseDate) : null,
-      closedDate: body.closedDate
-        ? new Date(body.closedDate)
-        : (body.stage === "Closed Won" ? new Date() : null),
+      poDate,
+      // For Closed Won, closedDate mirrors the PO date; otherwise honour explicit closedDate
+      closedDate: body.stage === "Closed Won"
+        ? poDate
+        : (body.closedDate ? new Date(body.closedDate) : null),
       probabilityPct: Number(body.probabilityPct ?? 0),
       status: body.status ?? "Active",
       newCustomerFlag: Boolean(body.newCustomerFlag),

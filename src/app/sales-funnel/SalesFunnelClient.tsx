@@ -8,7 +8,7 @@ type Row = {
   id: number; opportunityId: string; employeeId: number; employee: { name: string };
   customerName: string; solutionCategory: string; opportunityName: string;
   stage: string; dealValueLakhs: number; billingValueLakhs: number;
-  grossProfitPct: number; expectedCloseDate: string | null; closedDate: string | null;
+  grossProfitPct: number; expectedCloseDate: string | null; poDate: string | null; closedDate: string | null;
   probabilityPct: number; status: string; newCustomerFlag: boolean; pocFlag: boolean; remarks: string;
 };
 type Employee = { id: number; name: string };
@@ -23,7 +23,7 @@ const stageVariant = (s: string) =>
 const empty = {
   employeeId: "", customerName: "", solutionCategory: "", opportunityName: "",
   stage: "Lead", dealValueLakhs: "0", billingValueLakhs: "0", grossProfitPct: "0",
-  expectedCloseDate: "", closedDate: "", probabilityPct: "50", status: "Active",
+  expectedCloseDate: "", poDate: "", closedDate: "", probabilityPct: "50", status: "Active",
   newCustomerFlag: false, pocFlag: false, remarks: "",
 };
 
@@ -54,6 +54,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
       stage: r.stage, dealValueLakhs: String(r.dealValueLakhs),
       billingValueLakhs: String(r.billingValueLakhs), grossProfitPct: String(r.grossProfitPct),
       expectedCloseDate: r.expectedCloseDate?.slice(0, 10) ?? "",
+      poDate: r.poDate?.slice(0, 10) ?? "",
       closedDate: r.closedDate?.slice(0, 10) ?? "",
       probabilityPct: String(r.probabilityPct), status: r.status,
       newCustomerFlag: r.newCustomerFlag, pocFlag: r.pocFlag, remarks: r.remarks,
@@ -62,7 +63,15 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError(""); setLoading(true);
+    e.preventDefault(); setError("");
+
+    // PO Date is mandatory for Closed Won orders
+    if (form.stage === "Closed Won" && !form.poDate) {
+      setError("PO Date is required for Closed Won orders.");
+      return;
+    }
+
+    setLoading(true);
     try {
       const method = editId ? "PUT" : "POST";
       const url = editId ? `/api/sales-funnel/${editId}` : "/api/sales-funnel";
@@ -74,10 +83,15 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
           billingValueLakhs: Number(form.billingValueLakhs),
           grossProfitPct: Number(form.grossProfitPct),
           probabilityPct: Number(form.probabilityPct),
+          poDate: form.poDate || null,
           closedDate: form.closedDate || null,
         }),
       });
-      if (!res.ok) { setError("Failed to save."); return; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Failed to save.");
+        return;
+      }
       setShowForm(false); setEditId(null);
       const saved = await res.json();
       setRows((prev) => editId ? prev.map((r) => r.id === editId ? saved : r) : [saved, ...prev]);
@@ -271,10 +285,11 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
               {form.stage === "Closed Won" && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Actual Close Date <span className="text-gray-400">(for forecast accuracy)</span>
+                    PO Date <span className="text-red-500">*</span>
+                    <span className="text-gray-400 ml-1">(Purchase Order date — used as the close date)</span>
                   </label>
-                  <input type="date" value={form.closedDate}
-                    onChange={(e) => f("closedDate", e.target.value)}
+                  <input type="date" required value={form.poDate}
+                    onChange={(e) => f("poDate", e.target.value)}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
                 </div>
               )}

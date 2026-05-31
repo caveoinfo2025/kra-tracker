@@ -57,6 +57,8 @@ export default async function OpportunitiesPage({
         dealValueLakhs: true,
         probabilityPct: true,
         expectedCloseDate: true,
+        poDate: true,
+        closedDate: true,
         employeeId: true,
         employee: { select: { id: true, name: true } },
       },
@@ -84,6 +86,10 @@ export default async function OpportunitiesPage({
     .map((r) => ({
       id: -r.id,
       isLegacy: true,
+      legacyId: r.id,                 // original SalesFunnel id for editing
+      legacyStage: r.stage,           // original stage label
+      poDate: r.poDate ? r.poDate.toISOString() : null,
+      closedDate: r.closedDate ? r.closedDate.toISOString() : null,
       stage: LEGACY_STAGE_MAP[r.stage] ?? "PROPOSAL_SENT",
       value: r.dealValueLakhs,
       probability: Math.round(r.probabilityPct),
