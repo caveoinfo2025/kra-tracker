@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Clock, Users, Target, DollarSign, ChevronRight,
@@ -87,6 +88,7 @@ type RecentWin = {
 export type DashboardProps = {
   isManager: boolean;
   employeeName: string;
+  period?: string;
   currentWeek: number;
   currentYear: number;
   hour: number;
@@ -287,14 +289,15 @@ function Sparkline({ data, color = "var(--caveo-red)" }: { data: number[]; color
 // ─── KPI Tile ─────────────────────────────────────────────────────────────────
 
 function KpiTile({
-  label, value, unit, delta, deltaDir = "up", sub, spark, sparkColor, accent,
+  label, value, unit, delta, deltaDir = "up", sub, spark, sparkColor, accent, href,
 }: {
   label: string; value: string | number; unit?: string;
   delta?: string; deltaDir?: "up" | "down"; sub?: string;
   spark?: number[]; sparkColor?: string; accent?: boolean;
+  href?: string;
 }) {
-  return (
-    <div className={"kpi" + (accent ? " kpi-accent" : "")}>
+  const inner = (
+    <>
       <div className="kpi-label">{label}</div>
       <div className="kpi-value">
         {value}{unit && <span className="unit"> {unit}</span>}
@@ -313,8 +316,22 @@ function KpiTile({
           {spark && <Sparkline data={spark} color={sparkColor ?? "var(--caveo-red)"} />}
         </div>
       )}
-    </div>
+      {href && (
+        <div style={{ marginTop: 6, fontSize: 10.5, color: "var(--caveo-red)", display: "flex", alignItems: "center", gap: 3, opacity: 0.7 }}>
+          View details <ArrowRight size={10} />
+        </div>
+      )}
+    </>
   );
+  const cls = "kpi" + (accent ? " kpi-accent" : "") + (href ? " kpi-link" : "");
+  if (href) {
+    return (
+      <Link href={href} className={cls} style={{ textDecoration: "none", display: "block" }}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={cls}>{inner}</div>;
 }
 
 // ─── Task Card ────────────────────────────────────────────────────────────────
@@ -421,6 +438,45 @@ function Avatar({ name, size = 28 }: { name: string; size?: number }) {
   );
 }
 
+// ─── Period Filter ────────────────────────────────────────────────────────────
+
+const PERIODS = ["Today", "Week", "Month", "Quarter"] as const;
+
+function PeriodFilter({ active }: { active: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  return (
+    <div style={{ display: "flex", gap: 4, background: "var(--bg-elev)", border: "1px solid var(--border)", borderRadius: 8, padding: 3 }}>
+      {PERIODS.map(p => {
+        const isActive = p === active;
+        return (
+          <button
+            key={p}
+            onClick={() => {
+              const params = new URLSearchParams(searchParams.toString());
+              params.set("period", p);
+              router.push(`/dashboard?${params.toString()}`);
+            }}
+            style={{
+              padding: "4px 12px",
+              borderRadius: 6,
+              border: "none",
+              fontSize: 12,
+              fontWeight: isActive ? 700 : 400,
+              cursor: "pointer",
+              background: isActive ? "var(--caveo-red)" : "transparent",
+              color: isActive ? "#fff" : "var(--fg-3)",
+              transition: "background 0.15s, color 0.15s",
+            }}
+          >
+            {p}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function DashboardClient(props: DashboardProps) {
@@ -431,7 +487,10 @@ export default function DashboardClient(props: DashboardProps) {
     myKras, weeklyCommits, recentWins, legacyWins,
     teamTaskHealth, teamKra, teamPipeline, pendingCerts,
     currentWeek, currentYear,
+    period = "Week",
   } = props;
+
+  const router = useRouter();
 
   const [allTasks, setAllTasks] = useState<DashTask[]>([
     ...props.todayTasks,
@@ -440,6 +499,12 @@ export default function DashboardClient(props: DashboardProps) {
   ]);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && search.trim()) {
+      router.push(`/pipeline/tasks?q=${encodeURIComponent(search.trim())}`);
+    }
+  }
 
   const today = useMemo(() => {
     const d = new Date();
@@ -551,15 +616,18 @@ export default function DashboardClient(props: DashboardProps) {
               {totalFunnel} active leads · ₹{fmtShort(pipelineValue)} pipeline · {activeOverdueTasks.length > 0 && <span style={{ color: "var(--caveo-red)", fontWeight: 600 }}>{activeOverdueTasks.length} overdue tasks</span>}
             </p>
           </div>
-          {/* Search */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-elev)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", minWidth: 240 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search tasks, leads, teams…"
-              style={{ border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--fg-1)", fontFamily: "var(--font-sans)", width: 200 }}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {/* Search */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-elev)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", minWidth: 240 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={handleSearchKey}
+                placeholder="Search tasks… (Enter to go)"
+                style={{ border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--fg-1)", fontFamily: "var(--font-sans)", width: 200 }}
+              />
+            </div>
           </div>
         </div>
 
@@ -570,28 +638,32 @@ export default function DashboardClient(props: DashboardProps) {
             sub={`${completedToday} done`}
             delta={completedToday > 0 ? `+${completedToday} done` : undefined} deltaDir="up"
             spark={[2,3,4,3,5,4,activeTodayTasks.length]} sparkColor="var(--infra-blue)"
+            href="/pipeline/tasks?filter=today"
           />
           <KpiTile
             label="Overdue Tasks" value={activeOverdueTasks.length}
             delta={activeOverdueTasks.length > 0 ? `${activeOverdueTasks.length} pending` : "All clear"} deltaDir="down"
             spark={[1,2,2,3,3,2,activeOverdueTasks.length]} sparkColor="var(--caveo-red)"
+            href="/pipeline/tasks?filter=overdue"
           />
           <KpiTile
             label="Active Pipeline" value={fmtShort(pipelineValue)}
             delta={`${totalOpps} deals`} deltaDir="up"
             spark={[8,10,12,9,11,13,pipelineValue/100]} sparkColor="var(--ot-orange)"
-            accent
+            accent href="/pipeline/leads"
           />
           <KpiTile
             label="Closed Won (CRM)" value={fmtShort(wonValue)}
             delta={`${totalOpps > 0 ? Math.round(wonValue/(wonValue+pipelineValue)*100) : 0}% rate`} deltaDir="up"
             spark={[10,15,20,18,22,wonValue/10,wonValue/5]} sparkColor="var(--success)"
+            href="/pipeline/opportunities?stage=WON"
           />
           <KpiTile
             label="Overdue Collections" value={overdueCollections.length}
             sub={`₹${fmtShort(overdueCollTotal)} o/s`}
             delta={overdueCollections.length > 0 ? `₹${fmtShort(overdueCollTotal)}` : "Clear"} deltaDir={overdueCollections.length > 0 ? "down" : "up"}
             spark={[5,6,8,9,overdueCollections.length+5,overdueCollections.length+3,overdueCollections.length]} sparkColor="var(--caveo-red)"
+            href="/collections?view=overdue"
           />
         </div>
 
@@ -900,15 +972,18 @@ export default function DashboardClient(props: DashboardProps) {
             {` · ₹${fmtShort(pipelineValue)} in pipeline`}
           </p>
         </div>
-        {/* Search */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-elev)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", minWidth: 220 }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search tasks, leads…"
-            style={{ border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--fg-1)", fontFamily: "var(--font-sans)", width: 180 }}
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Search */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-elev)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", minWidth: 220 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={handleSearchKey}
+              placeholder="Search tasks… (Enter to go)"
+              style={{ border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--fg-1)", fontFamily: "var(--font-sans)", width: 180 }}
+            />
+          </div>
         </div>
       </div>
 
@@ -918,22 +993,25 @@ export default function DashboardClient(props: DashboardProps) {
           label="Tasks Today" value={activeTodayTasks.length}
           delta={`${activeOverdueTasks.length} overdue`} deltaDir={activeOverdueTasks.length > 0 ? "down" : "up"}
           spark={[1,2,2,3,3,2,activeTodayTasks.length]} sparkColor="var(--infra-blue)"
+          href="/pipeline/tasks?filter=today"
         />
         <KpiTile
           label="Active Pipeline" value={fmtShort(pipelineValue)}
           delta={`${totalOpps} deals`} deltaDir="up"
           spark={[4,5,6,8,9,pipelineValue/20,pipelineValue/10]} sparkColor="var(--ot-orange)"
-          accent
+          accent href="/pipeline/leads"
         />
         <KpiTile
           label="Won Value" value={fmtShort(wonValue)}
           delta={totalOpps > 0 ? `${Math.round(wonValue/(wonValue+pipelineValue+0.01)*100)}% rate` : "—"} deltaDir="up"
           spark={[2,4,6,5,8,wonValue/5,wonValue/3]} sparkColor="var(--success)"
+          href="/pipeline/opportunities?stage=WON"
         />
         <KpiTile
           label="KRA Progress" value={avgKraProgress} unit="%"
           delta={`${myKras.length} KRA${myKras.length !== 1 ? "s" : ""}`} deltaDir={avgKraProgress >= 50 ? "up" : "down"}
           spark={[20,30,35,40,45,avgKraProgress-5,avgKraProgress]} sparkColor={avgKraProgress >= 50 ? "var(--success)" : "var(--caveo-red)"}
+          href="/kras"
         />
       </div>
 

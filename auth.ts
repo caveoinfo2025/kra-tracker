@@ -44,6 +44,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.msEmail = msEmail;
         if (msId) token.msId = msId;
       }
+
+      // Re-hydrate isManager on every token refresh in case it was missing
+      // from an old JWT or changed in the DB since last login
+      if (token.employeeId && token.isManager === undefined) {
+        const emp = await prisma.employee.findUnique({
+          where: { id: token.employeeId as number },
+          select: { isManager: true, role: true },
+        });
+        if (emp) {
+          token.isManager = emp.isManager;
+          token.role = emp.role;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {

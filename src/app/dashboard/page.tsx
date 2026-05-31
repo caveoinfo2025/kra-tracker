@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
 import DashboardClient from "./DashboardClient";
@@ -11,17 +12,48 @@ function getWeekNumber(date: Date): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+
+  const { period = "Week" } = await searchParams;
 
   const now = new Date();
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  const in7 = new Date(today);
-  in7.setDate(today.getDate() + 7);
+
+  // ── Period date range ─────────────────────────────────────────────────────
+  // periodStart: beginning of the selected window
+  // periodEnd:   end of the selected window (exclusive)
+  const periodStart = new Date(today);
+  const periodEnd   = new Date(today);
+
+  if (period === "Today") {
+    periodEnd.setDate(today.getDate() + 1);
+  } else if (period === "Month") {
+    periodStart.setDate(1);                 // 1st of this month
+    periodEnd.setMonth(today.getMonth() + 1, 1); // 1st of next month
+  } else if (period === "Quarter") {
+    const qStart = Math.floor(today.getMonth() / 3) * 3;
+    periodStart.setMonth(qStart, 1);
+    periodEnd.setMonth(qStart + 3, 1);
+  } else {
+    // Week (default) — Mon … Sun of current week
+    const day = today.getDay() === 0 ? 7 : today.getDay(); // 1=Mon…7=Sun
+    periodStart.setDate(today.getDate() - day + 1);
+    periodEnd.setDate(periodStart.getDate() + 7);
+  }
+
+  // For "upcoming" cards, always show 30 days forward
   const in30 = new Date(today);
   in30.setDate(today.getDate() + 30);
+
+  const in7 = new Date(today);
+  in7.setDate(today.getDate() + 7);
 
   const currentWeek = getWeekNumber(now);
   const currentYear = now.getFullYear();
@@ -63,7 +95,7 @@ export default async function DashboardPage() {
           },
         }),
         prisma.crmOpportunity.findMany({
-          select: { id: true, stage: true, value: true },
+          select: { id: true, stage: true, value: true, updatedAt: true },
         }),
         prisma.collection.findMany({
           where: { collectionStatus: { not: "Fully Received" } },
@@ -88,7 +120,10 @@ export default async function DashboardPage() {
         }),
         prisma.salesFunnel.aggregate({
           _sum: { dealValueLakhs: true },
-          where: { stage: "Closed Won" },
+          where: {
+            stage: "Closed Won",
+            closedDate: { gte: periodStart, lt: periodEnd },
+          },
         }),
       ]);
 
@@ -157,7 +192,12 @@ export default async function DashboardPage() {
 
     // ── Pipeline stats ────────────────────────────────────────────────────
     const activeOpps = allOpps.filter((o) => !["WON", "LOST"].includes(o.stage));
-    const wonOpps = allOpps.filter((o) => o.stage === "WON");
+    // Won deals closed within the selected period (by updatedAt = won timestamp)
+    const wonOpps = allOpps.filter((o) => {
+      if (o.stage !== "WON") return false;
+      const d = new Date(o.updatedAt);
+      return d >= periodStart && d < periodEnd;
+    });
     const pipelineValue = activeOpps.reduce((s, o) => s + (o.value ?? 0), 0);
     const wonValue =
       wonOpps.reduce((s, o) => s + (o.value ?? 0), 0) +
@@ -179,6 +219,7 @@ export default async function DashboardPage() {
     const props: DashboardProps = {
       isManager: true,
       employeeName: session.user.employeeName ?? session.user.name ?? "Manager",
+      period,
       currentWeek,
       currentYear,
       hour,
@@ -202,7 +243,7 @@ export default async function DashboardPage() {
       totalOpps: allOpps.length,
     };
 
-    return <DashboardClient {...props} />;
+    return <Suspense><DashboardClient {...props} /></Suspense>;
   }
 
   // ─── Employee Dashboard Data ──────────────────────────────────────────────
@@ -334,6 +375,7 @@ export default async function DashboardPage() {
   const props: DashboardProps = {
     isManager: false,
     employeeName: session.user.employeeName ?? session.user.name ?? "there",
+    period,
     currentWeek,
     currentYear,
     hour,
@@ -357,5 +399,5 @@ export default async function DashboardPage() {
     totalOpps: allMyLeads.filter((l) => l.opportunity).length,
   };
 
-  return <DashboardClient {...props} />;
+  return <Suspense><DashboardClient {...props} /></Suspense>;
 }

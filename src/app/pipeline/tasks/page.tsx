@@ -4,12 +4,17 @@ import { redirect } from "next/navigation";
 import SheetLayout from "@/components/SheetLayout";
 import TasksClient from "./TasksClient";
 
-export default async function TasksPage() {
+export default async function TasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string; q?: string }>;
+}) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
 
   const isManager = !!session.user.isManager;
   const empId     = session.user.employeeId;
+  const { filter, q } = await searchParams;
 
   const tasks = await prisma.crmTask.findMany({
     where: isManager ? {} : { assignedToId: empId },
@@ -30,6 +35,8 @@ export default async function TasksPage() {
       <TasksClient
         initialTasks={JSON.parse(JSON.stringify(tasks))}
         isManager={isManager}
+        initialFilter={(filter as "all" | "pending" | "overdue" | "today" | "completed") ?? "pending"}
+        initialSearch={q ?? ""}
       />
     </SheetLayout>
   );

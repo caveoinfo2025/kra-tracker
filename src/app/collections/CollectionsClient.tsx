@@ -71,10 +71,10 @@ function buildRevenueTable(rows: Row[]): RevRow[] {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CollectionsClient({
-  initialRows, employees, isManager, currentEmployeeId, initialView, initialEmpId,
+  initialRows, employees, isManager, currentEmployeeId, initialView, initialEmpId, initialSearch,
 }: {
   initialRows: Row[]; employees: Employee[]; isManager: boolean;
-  currentEmployeeId?: number; initialView?: string; initialEmpId?: string;
+  currentEmployeeId?: number; initialView?: string; initialEmpId?: string; initialSearch?: string;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
@@ -88,7 +88,7 @@ export default function CollectionsClient({
 
   // ── Filter state ─────────────────────────────────────────────────────────────
   const [view, setView]           = useState(initialView ?? "all");
-  const [search, setSearch]       = useState("");
+  const [search, setSearch]       = useState(initialSearch ?? "");
   const [empFilter, setEmpFilter] = useState(initialEmpId ?? "");
 
   function f(k: string, v: string) { setForm((p) => ({ ...p, [k]: v })); }

@@ -68,6 +68,7 @@ export default async function LeadsPage({
         currentEmployeeId={empId}
         initialView={(view as "table" | "kanban") ?? "table"}
         initialActivities={JSON.parse(JSON.stringify(legacyActivities))}
+        initialSearch={q ?? ""}
       />
     </SheetLayout>
   );

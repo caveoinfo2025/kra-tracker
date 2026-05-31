@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 // ─── Path → label ─────────────────────────────────────────────────────────────
 
@@ -37,6 +37,19 @@ type Period = (typeof PERIODS)[number];
 
 // ─── Inner component (uses useSearchParams — must be inside Suspense) ─────────
 
+// Route the search query to the most relevant page based on current location
+function searchDestination(pathname: string, q: string): string {
+  const encoded = encodeURIComponent(q);
+  if (pathname.startsWith("/pipeline/leads"))         return `/pipeline/leads?q=${encoded}`;
+  if (pathname.startsWith("/pipeline/opportunities")) return `/pipeline/opportunities?q=${encoded}`;
+  if (pathname.startsWith("/pipeline/tasks"))         return `/pipeline/tasks?q=${encoded}`;
+  if (pathname.startsWith("/collections"))            return `/collections?q=${encoded}`;
+  if (pathname.startsWith("/employees"))              return `/employees?q=${encoded}`;
+  if (pathname.startsWith("/kras"))                   return `/kras?q=${encoded}`;
+  // Dashboard and everything else → tasks search
+  return `/pipeline/tasks?q=${encoded}`;
+}
+
 function TopbarInner() {
   const pathname = usePathname();
   const router = useRouter();
@@ -44,11 +57,20 @@ function TopbarInner() {
   const label = getLabel(pathname);
   const isDashboard = pathname === "/dashboard";
   const activePeriod = (searchParams.get("period") as Period) ?? "Week";
+  const [query, setQuery] = useState("");
 
   function setPeriod(p: Period) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("period", p);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    router.push(searchDestination(pathname, q));
+    setQuery("");
   }
 
   return (
@@ -61,14 +83,18 @@ function TopbarInner() {
       </div>
 
       {/* Search bar */}
-      <div className="tb-search">
-        <Search size={13} className="tb-search-icon" />
-        <input
-          className="tb-search-input"
-          placeholder="Search deals, leads, tasks…"
-          type="search"
-        />
-      </div>
+      <form onSubmit={handleSearch} style={{ display: "contents" }}>
+        <div className="tb-search">
+          <Search size={13} className="tb-search-icon" />
+          <input
+            className="tb-search-input"
+            placeholder="Search deals, leads, tasks…"
+            type="search"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+        </div>
+      </form>
 
       <div className="tb-spacer" />
 

@@ -20,27 +20,45 @@ function timeUntil(date: string) {
 export default function TasksClient({
   initialTasks,
   isManager,
+  initialFilter = "pending",
+  initialSearch = "",
 }: {
   initialTasks: TaskSerialized[];
   isManager: boolean;
+  initialFilter?: "all" | "pending" | "overdue" | "today" | "completed";
+  initialSearch?: string;
 }) {
   const router = useRouter();
-  const [tasks, setTasks]  = useState(initialTasks);
-  const [filter, setFilter] = useState<"all" | "pending" | "overdue" | "completed">("pending");
+  const [tasks, setTasks]   = useState(initialTasks);
+  const [filter, setFilter] = useState<"all" | "pending" | "overdue" | "today" | "completed">(initialFilter);
   const [priority, setPriority] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+
+  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const todayEnd   = useMemo(() => { const d = new Date(); d.setHours(23,59,59,999); return d; }, []);
 
   const filtered = useMemo(() =>
     tasks.filter((t) => {
-      const overdue = t.status !== "completed" && new Date(t.dueDate) < new Date();
+      const due    = new Date(t.dueDate);
+      const overdue = t.status !== "completed" && due < todayStart;
+      const isToday = due >= todayStart && due <= todayEnd;
       if (filter === "pending"   && t.status === "completed") return false;
-      if (filter === "overdue"   && !overdue)                  return false;
-      if (filter === "completed" && t.status !== "completed")  return false;
-      if (priority && t.priority !== priority) return false;
+      if (filter === "overdue"   && !overdue)   return false;
+      if (filter === "today"     && (!isToday || t.status === "completed")) return false;
+      if (filter === "completed" && t.status !== "completed") return false;
+      if (priority && t.priority !== priority)  return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!t.title.toLowerCase().includes(q) &&
+            !(t.lead?.companyName ?? "").toLowerCase().includes(q) &&
+            !(t.assignedTo?.name ?? "").toLowerCase().includes(q)) return false;
+      }
       return true;
     }),
-  [tasks, filter, priority]);
+  [tasks, filter, priority, search, todayStart, todayEnd]);
 
-  const overdueCount    = tasks.filter((t) => t.status !== "completed" && new Date(t.dueDate) < new Date()).length;
+  const todayCount      = tasks.filter((t) => { const d = new Date(t.dueDate); return d >= todayStart && d <= todayEnd && t.status !== "completed"; }).length;
+  const overdueCount    = tasks.filter((t) => t.status !== "completed" && new Date(t.dueDate) < todayStart).length;
   const pendingCount    = tasks.filter((t) => t.status !== "completed").length;
   const completedCount  = tasks.filter((t) => t.status === "completed").length;
 
@@ -58,6 +76,7 @@ export default function TasksClient({
 
   const TABS = [
     { key: "pending",   label: "Open",      count: pendingCount },
+    { key: "today",     label: "Today",     count: todayCount,     color: "text-blue-600" },
     { key: "overdue",   label: "Overdue",   count: overdueCount,   color: "text-red-600" },
     { key: "completed", label: "Completed", count: completedCount, color: "text-green-600" },
     { key: "all",       label: "All",       count: tasks.length },
@@ -65,7 +84,8 @@ export default function TasksClient({
 
   return (
     <div className="space-y-4">
-      {/* Tabs */}
+      {/* Tabs + search */}
+      <div className="flex flex-wrap gap-3 items-center justify-between">
       <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl w-fit">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setFilter(t.key)}
@@ -80,14 +100,22 @@ export default function TasksClient({
         ))}
       </div>
 
-      {/* Priority filter */}
-      <div className="flex gap-2 items-center">
+      {/* Search + Priority filter */}
+      <div className="flex gap-2 items-center flex-wrap">
+        <input
+          type="search"
+          placeholder="Search tasks, leads…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+        />
         <select value={priority} onChange={(e) => setPriority(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
           <option value="">All Priorities</option>
           <option>high</option><option>medium</option><option>low</option>
         </select>
         <span className="text-xs text-gray-500">{filtered.length} tasks</span>
+      </div>
       </div>
 
       {/* Task list */}

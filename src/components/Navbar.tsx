@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import { cookies } from "next/headers";
 import SidebarLinks from "./SidebarLinks";
 import { LogOut } from "lucide-react";
+import prisma from "@/lib/prisma";
 
 export default async function Navbar() {
   const session = await getSession();
@@ -10,7 +11,17 @@ export default async function Navbar() {
 
   if (!user) return null;
 
-  const isAccounts = !user.isManager && user.role === "Accounts";
+  // Always read isManager fresh from DB — JWT may be stale or missing the field
+  let isManager = user.isManager ?? false;
+  if (user.employeeId) {
+    const emp = await prisma.employee.findUnique({
+      where: { id: user.employeeId },
+      select: { isManager: true },
+    });
+    if (emp) isManager = emp.isManager;
+  }
+
+  const isAccounts = !isManager && user.role === "Accounts";
 
   // Compute initials from name
   const displayName: string = (user.employeeName ?? user.name ?? "?") as string;
@@ -21,7 +32,7 @@ export default async function Navbar() {
     .map((n) => n[0]?.toUpperCase() ?? "")
     .join("");
 
-  const roleLabel = user.isManager
+  const roleLabel = isManager
     ? "Manager"
     : isAccounts
     ? "Accounts"
@@ -44,7 +55,7 @@ export default async function Navbar() {
 
       {/* ── Navigation (client — needs usePathname) ── */}
       <SidebarLinks
-        isManager={user.isManager ?? false}
+        isManager={isManager}
         isAccounts={isAccounts}
       />
 

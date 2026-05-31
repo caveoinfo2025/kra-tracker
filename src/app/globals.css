@@ -444,6 +444,8 @@ html, body {
   gap: 6px;
 }
 .kpi.kpi-accent { border-left: 3px solid var(--caveo-red); }
+.kpi.kpi-link { cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s; }
+.kpi.kpi-link:hover { border-color: var(--caveo-red); box-shadow: 0 4px 14px rgba(200,16,46,0.12); transform: translateY(-1px); }
 .kpi-label {
   font-size: 11px;
   color: var(--fg-3);

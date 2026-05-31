@@ -7,25 +7,21 @@ import OpportunitiesClient from "./OpportunitiesClient";
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; stage?: string }>;
+  searchParams: Promise<{ view?: string; stage?: string; q?: string }>;
 }) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
 
-  const { view, stage } = await searchParams;
+  const { view, stage, q } = await searchParams;
   const isManager = !!session.user.isManager;
   const empId     = session.user.employeeId;
 
-  const where = {
-    status: "active",
-    lead: {
-      ...(isManager ? {} : { assignedToId: empId }),
-    },
-    ...(stage ? { stage } : {}),
-  };
-
   const rawOpps = await prisma.crmOpportunity.findMany({
-    where,
+    where: {
+      status: "active",
+      lead: { ...(isManager ? {} : { assignedToId: empId }) },
+      ...(stage ? { stage } : {}),
+    },
     include: {
       lead: {
         include: {
@@ -39,21 +35,26 @@ export default async function OpportunitiesPage({
     take: 200,
   });
 
-  const employees = isManager
-    ? await prisma.employee.findMany({
-        where: { isManager: false },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
+  const [employees, legacyAgg] = await Promise.all([
+    isManager
+      ? prisma.employee.findMany({
+          where: { isManager: false },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    prisma.salesFunnel.groupBy({
+      by: ["stage"],
+      where: isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 },
+      _count: { id: true },
+    }),
+  ]);
 
-  const funnelWhere = isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 };
-  const legacyFunnel = await prisma.salesFunnel.findMany({
-    where: funnelWhere,
-    include: { employee: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  });
+  const legacyKraCounts = {
+    proposals:    legacyAgg.find((r) => r.stage === "Proposal Sent")?._count.id ?? 0,
+    negotiations: legacyAgg.find((r) => r.stage === "Negotiation")?._count.id ?? 0,
+    won:          legacyAgg.find((r) => r.stage === "Closed Won")?._count.id ?? 0,
+  };
 
   return (
     <SheetLayout
@@ -65,8 +66,8 @@ export default async function OpportunitiesPage({
         employees={employees}
         isManager={isManager}
         initialView={(view as "table" | "kanban") ?? "kanban"}
-        initialFunnelRows={JSON.parse(JSON.stringify(legacyFunnel))}
-        currentEmployeeId={empId}
+        initialSearch={q ?? ""}
+        legacyKraCounts={legacyKraCounts}
       />
     </SheetLayout>
   );

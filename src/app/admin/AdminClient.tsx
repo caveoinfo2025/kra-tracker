@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import {
   Settings, GitBranch, Target, Database,
   List, Sliders, ShieldCheck, Save, RotateCcw,
-  ChevronRight, Info, CheckCircle, AlertCircle
+  ChevronRight, Info, CheckCircle, AlertCircle, Users
 } from "lucide-react";
+import RolesClient from "./RolesClient";
 
 type Setting = {
   key: string;
@@ -16,13 +17,14 @@ type Setting = {
 };
 
 const TABS = [
-  { id: "pipeline",     label: "Pipeline",         icon: GitBranch  },
-  { id: "sales_funnel", label: "Sales Funnel",      icon: Sliders    },
-  { id: "collections",  label: "Collections",       icon: Database   },
-  { id: "lead_gen",     label: "Lead Generation",   icon: List       },
-  { id: "tasks",        label: "Tasks",             icon: CheckCircle},
-  { id: "daily_updates",label: "Daily Updates",     icon: List       },
-  { id: "crm",          label: "CRM Master Data",   icon: Database   },
+  { id: "roles",        label: "Roles & Access",    icon: Users      },
+  { id: "pipeline",     label: "Pipeline",          icon: GitBranch  },
+  { id: "sales_funnel", label: "Sales Funnel",       icon: Sliders    },
+  { id: "collections",  label: "Collections",        icon: Database   },
+  { id: "lead_gen",     label: "Lead Generation",    icon: List       },
+  { id: "tasks",        label: "Tasks",              icon: CheckCircle},
+  { id: "daily_updates",label: "Daily Updates",      icon: List       },
+  { id: "crm",          label: "CRM Master Data",    icon: Database   },
   { id: "kra",          label: "KRA Weights",       icon: Target     },
   { id: "kra_targets",  label: "KRA Targets",       icon: Target     },
   { id: "system",       label: "System",            icon: Settings   },
@@ -196,7 +198,7 @@ function ValueEditor({ setting, onChange }: { setting: Setting; onChange: (k: st
 
 export default function AdminClient({ settings }: { settings: Setting[] }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("pipeline");
+  const [activeTab, setActiveTab] = useState("roles");
   const [dirty, setDirty] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
@@ -339,7 +341,9 @@ export default function AdminClient({ settings }: { settings: Setting[] }) {
 
         {/* ── Settings panel ── */}
         <main style={{ flex: 1, minWidth: 0 }}>
-          {tabSettings.length === 0 ? (
+          {activeTab === "roles" ? (
+            <RolesClient />
+          ) : tabSettings.length === 0 ? (
             <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 40, textAlign: "center", color: "#9ca3af" }}>
               No settings in this category yet.
             </div>

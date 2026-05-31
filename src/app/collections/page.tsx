@@ -6,12 +6,12 @@ import CollectionsClient from "./CollectionsClient";
 export default async function CollectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; emp?: string }>;
+  searchParams: Promise<{ view?: string; emp?: string; q?: string }>;
 }) {
   const session = await getSession();
   const empId = session?.user?.employeeId;
   const isManager = session?.user?.isManager ?? false;
-  const { view, emp } = await searchParams;
+  const { view, emp, q } = await searchParams;
 
   const employees = await prisma.employee.findMany({
     where: isManager ? {} : empId ? { id: empId } : { id: -1 },
@@ -38,6 +38,7 @@ export default async function CollectionsPage({
         currentEmployeeId={empId}
         initialView={view ?? "all"}
         initialEmpId={emp ?? ""}
+        initialSearch={q ?? ""}
       />
     </SheetLayout>
   );

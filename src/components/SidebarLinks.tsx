@@ -7,7 +7,6 @@ import {
   FileText,
   Briefcase,
   CheckSquare,
-  TrendingUp,
   Receipt,
   Activity,
   Target,
@@ -44,12 +43,12 @@ const MANAGER_GROUPS: NavGroup[] = [
   {
     label: "Sell",
     items: [
-      { href: "/dashboard",               label: "Dashboard",         icon: LayoutDashboard },
-      { href: "/pipeline/leads",          label: "Leads",             icon: FileText },
-      { href: "/pipeline/opportunities",  label: "Opportunities",     icon: Briefcase },
-      { href: "/pipeline/tasks",          label: "Pipeline Tasks",    icon: CheckSquare },
-      { href: "/pipeline/analytics",      label: "Analytics",         icon: BarChart3 },
-      { href: "/",                        label: "Team Overview",     icon: BarChart3 },
+      { href: "/dashboard",               label: "Dashboard",      icon: LayoutDashboard },
+      { href: "/pipeline/leads",          label: "Leads",          icon: FileText },
+      { href: "/pipeline/opportunities",  label: "Opportunities",  icon: Briefcase },
+      { href: "/pipeline/tasks",          label: "Pipeline Tasks", icon: CheckSquare },
+      { href: "/pipeline/analytics",      label: "Analytics",      icon: BarChart3 },
+      { href: "/",                        label: "Team Overview",  icon: BarChart3 },
     ],
   },
   {
@@ -73,10 +72,10 @@ const EMPLOYEE_GROUPS: NavGroup[] = [
   {
     label: "Sell",
     items: [
-      { href: "/dashboard",               label: "Dashboard",   icon: LayoutDashboard },
-      { href: "/pipeline/leads",          label: "My Leads",    icon: FileText },
-      { href: "/pipeline/opportunities",  label: "My Deals",    icon: Briefcase },
-      { href: "/pipeline/tasks",          label: "My Tasks",    icon: CheckSquare },
+      { href: "/dashboard",               label: "Dashboard", icon: LayoutDashboard },
+      { href: "/pipeline/leads",          label: "My Leads",  icon: FileText },
+      { href: "/pipeline/opportunities",  label: "My Deals",  icon: Briefcase },
+      { href: "/pipeline/tasks",          label: "My Tasks",  icon: CheckSquare },
     ],
   },
   {
@@ -98,8 +97,8 @@ const ACCOUNTS_GROUPS: NavGroup[] = [
   {
     label: "Finance",
     items: [
-      { href: "/accounts",     label: "Payment Tracker",  icon: Receipt },
-      { href: "/collections",  label: "All Collections",  icon: Building2 },
+      { href: "/accounts",    label: "Payment Tracker", icon: Receipt },
+      { href: "/collections", label: "All Collections", icon: Building2 },
     ],
   },
 ];
@@ -143,12 +142,13 @@ export default function SidebarLinks({ isManager, isAccounts }: SidebarLinksProp
           </nav>
         </div>
       ))}
-      {/* Bottom shortcuts */}
+
+      {/* Bottom shortcuts — pushed to bottom via marginTop:auto in flex column */}
       <div className="sidebar-section" style={{ marginTop: "auto", paddingTop: 8 }}>
         <nav className="sidebar-nav">
           <Link
             href="/mobile"
-            className={"nav-link" + (pathname === "/mobile" ? " is-active" : "")}
+            className={"nav-link" + (isActive("/mobile") ? " is-active" : "")}
           >
             <Smartphone size={15} className="nav-icon" strokeWidth={1.6} />
             <span>Mobile App</span>
@@ -156,7 +156,7 @@ export default function SidebarLinks({ isManager, isAccounts }: SidebarLinksProp
           {isManager && (
             <Link
               href="/admin"
-              className={"nav-link" + (pathname.startsWith("/admin") ? " is-active" : "")}
+              className={"nav-link" + (isActive("/admin") ? " is-active" : "")}
             >
               <ShieldCheck size={15} className="nav-icon" strokeWidth={1.6} />
               <span>Admin Panel</span>

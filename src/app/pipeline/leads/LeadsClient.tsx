@@ -160,7 +160,7 @@ function LeadFormModal({
   );
 }
 
-// ── Legacy activity types & constants ─────────────────────────────────────────
+// ── Legacy activity types (kept only for prop type — not rendered) ────────────
 
 type LegacyActivity = {
   id: number; date: string; employeeId: number; employee: { name: string };
@@ -169,116 +169,21 @@ type LegacyActivity = {
   qualifiedFlag: boolean; remarks: string;
 };
 
-const ACT_SOURCES  = ["Outbound Calls","Existing Customer","Referral","OEM Lead","Website","Event","Partner"];
-const ACT_TYPES    = ["Call","Connect","Meeting","Demo","Follow-up","Proposal Discussion","Collection Follow-up"];
-const ACT_STATUSES = ["New","Contacted","Qualified","Disqualified","Converted","Nurture"];
-
-const actEmpty = {
-  employeeId: "", date: "", territory: "", leadSource: "", customerName: "",
-  contactPerson: "", activityType: "", activityCount: "1",
-  leadStatus: "New", qualifiedFlag: false, remarks: "",
-};
-
-/** Map legacy leadStatus → CRM LEAD_STAGE enum */
-function actStatusToLeadStage(status: string): string {
-  switch (status) {
-    case "Converted":     return "PROPOSAL_SENT";
-    case "Qualified":     return "QUALIFIED";
-    case "Contacted":     return "CONTACTED";
-    case "Disqualified":  return "CONTACTED";   // no DISQUALIFIED stage; park in Contacted
-    case "Nurture":       return "NEW_LEAD";
-    default:              return "NEW_LEAD";     // "New"
-  }
-}
-
-/** Map CRM LEAD_STAGE enum → legacy leadStatus */
-function leadStageToActStatus(stage: string): string {
-  switch (stage) {
-    case "PROPOSAL_SENT":        return "Converted";
-    case "QUALIFIED":
-    case "REQUIREMENT_GATHERED":
-    case "SOLUTION_PROPOSED":
-    case "POC_DEMO":             return "Qualified";
-    case "CONTACTED":            return "Contacted";
-    default:                     return "New";
-  }
-}
-
-// ── Unified merged-lead type ──────────────────────────────────────────────────
+// ── Unified lead type ─────────────────────────────────────────────────────────
 
 type MergedLead = {
-  uid: string;        // "crm-{id}" | "act-{id}"
-  isLegacy: boolean;
-  stage: string;      // LEAD_STAGE enum value
+  uid: string;
+  stage: string;
   companyName: string;
   contactPerson: string;
   ownerName: string;
   ownerId?: number;
-  // CRM-specific
   crmId?: number;
   leadTitle?: string;
   expectedValue?: number;
   source?: string;
   updatedAt?: string;
-  // Legacy-specific
-  actId?: number;
-  activityType?: string;
-  activityCount?: number;
-  legacyStatus?: string;
-  qualifiedFlag?: boolean;
-  date?: string;
-  leadSource?: string;
 };
-
-// ── Legacy activity card for Kanban ──────────────────────────────────────────
-
-function ActivityCard({ item, onEdit }: { item: MergedLead; onEdit: (id: number) => void }) {
-  const actColor =
-    item.activityType === "Call"    ? "bg-blue-50 text-blue-700 border-blue-200"
-    : item.activityType === "Meeting" ? "bg-violet-50 text-violet-700 border-violet-200"
-    : item.activityType === "Connect" ? "bg-cyan-50 text-cyan-700 border-cyan-200"
-    : "bg-gray-50 text-gray-700 border-gray-200";
-
-  return (
-    <div className="bg-white rounded-lg p-3 shadow-sm border border-amber-200 hover:border-amber-400 transition-all">
-      <div className="flex items-start justify-between mb-1">
-        <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1 flex-1">
-          {item.companyName}
-        </p>
-        <span className="ml-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded shrink-0">
-          Legacy
-        </span>
-      </div>
-      {item.contactPerson && (
-        <p className="text-xs text-gray-500 mb-2 line-clamp-1">{item.contactPerson}</p>
-      )}
-
-      <div className="flex items-center justify-between mb-1">
-        {item.activityType ? (
-          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${actColor}`}>
-            {item.activityType} {item.activityCount && item.activityCount > 1 ? `×${item.activityCount}` : ""}
-          </span>
-        ) : (
-          <span className="text-[10px] text-gray-400">—</span>
-        )}
-        {item.qualifiedFlag && (
-          <span className="text-[9px] font-bold bg-green-100 text-green-700 px-1 py-0.5 rounded">✓ Qualified</span>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        <div>
-          <p className="text-xs text-gray-400 truncate max-w-[100px]">{item.ownerName}</p>
-          {item.date && <p className="text-[10px] text-gray-300">{item.date.slice(0, 10)}</p>}
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onEdit(item.actId!); }}
-          className="text-[10px] text-[#CC2229] hover:underline shrink-0 ml-2"
-        >Edit</button>
-      </div>
-    </div>
-  );
-}
 
 // ── Bulk import ───────────────────────────────────────────────────────────────
 
@@ -548,6 +453,7 @@ export default function LeadsClient({
   currentEmployeeId,
   initialView,
   initialActivities,
+  initialSearch = "",
 }: {
   initialLeads: LeadSerialized[];
   employees: { id: number; name: string }[];
@@ -555,76 +461,20 @@ export default function LeadsClient({
   currentEmployeeId?: number;
   initialView: "table" | "kanban";
   initialActivities: LegacyActivity[];
+  initialSearch?: string;
 }) {
   const router = useRouter();
 
-  const [leads,      setLeads]      = useState(initialLeads);
-  const [activities, setActivities] = useState(initialActivities);
-  const [view,       setView]       = useState<"table" | "kanban">(initialView);
-  const [showLeadForm,   setShowLeadForm]   = useState(false);
+  const [leads,           setLeads]           = useState(initialLeads);
+  const [view,            setView]            = useState<"table" | "kanban">(initialView);
+  const [showLeadForm,    setShowLeadForm]    = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
 
   // Filters
-  const [search,  setSearch]  = useState("");
+  const [search,  setSearch]  = useState(initialSearch);
   const [stageF,  setStageF]  = useState("");
   const [sourceF, setSourceF] = useState("");
   const [empF,    setEmpF]    = useState("");
-
-  // Legacy activity form
-  const [showActForm, setShowActForm] = useState(false);
-  const [editActId,   setEditActId]   = useState<number | null>(null);
-  const [actForm,     setActForm]     = useState({ ...actEmpty, employeeId: String(currentEmployeeId ?? "") });
-  const [savingAct,   setSavingAct]   = useState(false);
-
-  function fa(k: string, v: string | boolean) { setActForm((p) => ({ ...p, [k]: v })); }
-
-  function openAddActivity() {
-    setEditActId(null);
-    setActForm({ ...actEmpty, employeeId: String(currentEmployeeId ?? "") });
-    setShowActForm(true);
-  }
-
-  function openEditActivity(actId: number) {
-    const a = activities.find((x) => x.id === actId);
-    if (!a) return;
-    setEditActId(actId);
-    setActForm({
-      employeeId:    String(a.employeeId),
-      date:          a.date.slice(0, 10),
-      territory:     a.territory,
-      leadSource:    a.leadSource,
-      customerName:  a.customerName,
-      contactPerson: a.contactPerson,
-      activityType:  a.activityType,
-      activityCount: String(a.activityCount),
-      leadStatus:    a.leadStatus,
-      qualifiedFlag: a.qualifiedFlag,
-      remarks:       a.remarks,
-    });
-    setShowActForm(true);
-  }
-
-  async function handleActivitySubmit(e: React.FormEvent) {
-    e.preventDefault(); setSavingAct(true);
-    const method = editActId ? "PUT" : "POST";
-    const url    = editActId ? `/api/lead-generation/${editActId}` : "/api/lead-generation";
-    const res    = await fetch(url, {
-      method, headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...actForm, activityCount: Number(actForm.activityCount) }),
-    });
-    if (res.ok) {
-      const saved = await res.json();
-      setActivities((p) => editActId ? p.map((a) => a.id === editActId ? saved : a) : [saved, ...p]);
-      setShowActForm(false); setEditActId(null); router.refresh();
-    }
-    setSavingAct(false);
-  }
-
-  async function handleActivityDelete(actId: number) {
-    if (!confirm("Delete this activity entry?")) return;
-    await fetch(`/api/lead-generation/${actId}`, { method: "DELETE" });
-    setActivities((p) => p.filter((a) => a.id !== actId));
-  }
 
   function handleLeadCreated(l: LeadSerialized) {
     setLeads((p) => [l, ...p]);
@@ -649,7 +499,6 @@ export default function LeadsClient({
       })
       .map((l) => ({
         uid:           `crm-${l.id}`,
-        isLegacy:      false,
         stage:         l.stage,
         companyName:   l.companyName,
         contactPerson: l.contactPerson,
@@ -662,54 +511,28 @@ export default function LeadsClient({
         updatedAt:     l.updatedAt,
       }));
 
-    const actItems: MergedLead[] = activities
-      .filter((a) => {
-        if (empF && String(a.employeeId) !== empF) return false;
-        if (search) {
-          const q = search.toLowerCase();
-          if (!a.customerName.toLowerCase().includes(q) &&
-              !a.contactPerson.toLowerCase().includes(q)) return false;
-        }
-        return true;
-      })
-      .map((a) => ({
-        uid:           `act-${a.id}`,
-        isLegacy:      true,
-        stage:         actStatusToLeadStage(a.leadStatus),
-        companyName:   a.customerName,
-        contactPerson: a.contactPerson,
-        ownerName:     a.employee?.name ?? "—",
-        ownerId:       a.employeeId,
-        actId:         a.id,
-        activityType:  a.activityType,
-        activityCount: a.activityCount,
-        legacyStatus:  a.leadStatus,
-        qualifiedFlag: a.qualifiedFlag,
-        date:          a.date,
-        leadSource:    a.leadSource,
-      }));
+    return crmItems;
+  }, [leads, stageF, sourceF, empF, search]);
 
-    return [...crmItems, ...actItems];
-  }, [leads, activities, stageF, sourceF, empF, search]);
+  // ── KRA-aligned stats mapped from CRM lead stages ─────────────────────────
+  // Outbound Calls  → all leads (each lead = an outreach attempt)
+  // Connects        → leads that progressed past NEW_LEAD (CONTACTED+)
+  // Qualified Leads → leads in QUALIFIED or later stages
+  // Appointments    → leads in POC_DEMO stage
 
-  // ── KRA-aligned stats (computed from full unfiltered scope) ─────────────────
-  // KRA engine reads: activityType=Call (outbound), Connect (connects),
-  // Meeting (appointments), qualifiedFlag (qualified leads)
+  const QUALIFIED_STAGES = ["QUALIFIED", "REQUIREMENT_GATHERED", "SOLUTION_PROPOSED", "POC_DEMO", "PROPOSAL_SENT"];
 
-  const scopedActs = empF
-    ? activities.filter((a) => String(a.employeeId) === empF)
-    : activities;
-
-  const kraOutbound    = scopedActs.filter((a) => a.activityType === "Call").reduce((s, a) => s + a.activityCount, 0);
-  const kraConnects    = scopedActs.filter((a) => a.activityType === "Connect").reduce((s, a) => s + a.activityCount, 0);
-  const kraQualified   = scopedActs.filter((a) => a.qualifiedFlag).length;
-  const kraAppointments= scopedActs.filter((a) => a.activityType === "Meeting").reduce((s, a) => s + a.activityCount, 0);
+  const scopedLeads     = empF ? leads.filter((l) => String(l.assignedToId) === empF) : leads;
+  const kraOutbound     = scopedLeads.length;
+  const kraConnects     = scopedLeads.filter((l) => l.stage !== "NEW_LEAD").length;
+  const kraQualified    = scopedLeads.filter((l) => QUALIFIED_STAGES.includes(l.stage)).length;
+  const kraAppointments = scopedLeads.filter((l) => l.stage === "POC_DEMO").length;
 
   // CRM stats from filtered merged set
-  const crmLeads    = merged.filter((m) => !m.isLegacy).length;
-  const crmQual     = merged.filter((m) => !m.isLegacy &&
+  const crmLeads    = merged.length;
+  const crmQual     = merged.filter((m) =>
     ["QUALIFIED","REQUIREMENT_GATHERED","SOLUTION_PROPOSED","POC_DEMO","PROPOSAL_SENT"].includes(m.stage)).length;
-  const crmProposal = merged.filter((m) => !m.isLegacy && m.stage === "PROPOSAL_SENT").length;
+  const crmProposal = merged.filter((m) => m.stage === "PROPOSAL_SENT").length;
 
   // ── Kanban columns ─────────────────────────────────────────────────────────
 
@@ -731,48 +554,17 @@ export default function LeadsClient({
   }));
 
   async function handleKanbanMove(uid: number | string, _from: string, toStage: string) {
-    const uidStr = String(uid);
-
-    if (uidStr.startsWith("crm-")) {
-      const crmId = Number(uidStr.replace("crm-", ""));
-      const res   = await fetch(`/api/pipeline/leads/${crmId}/stage`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: toStage }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setLeads((p) => p.map((l) => l.id === updated.id
-          ? { ...l, stage: updated.stage, opportunity: updated.opportunity } : l));
-        router.refresh();
-      }
-    } else if (uidStr.startsWith("act-")) {
-      const actId   = Number(uidStr.replace("act-", ""));
-      const row     = activities.find((a) => a.id === actId);
-      if (!row) return;
-      const newStatus = leadStageToActStatus(toStage);
-      const res = await fetch(`/api/lead-generation/${actId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeId:    String(row.employeeId),
-          date:          row.date.slice(0, 10),
-          territory:     row.territory,
-          leadSource:    row.leadSource,
-          customerName:  row.customerName,
-          contactPerson: row.contactPerson,
-          activityType:  row.activityType,
-          activityCount: row.activityCount,
-          leadStatus:    newStatus,
-          qualifiedFlag: row.qualifiedFlag,
-          remarks:       row.remarks,
-        }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setActivities((p) => p.map((a) => a.id === actId ? updated : a));
-        router.refresh();
-      }
+    const crmId = Number(String(uid).replace("crm-", ""));
+    const res = await fetch(`/api/pipeline/leads/${crmId}/stage`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: toStage }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setLeads((p) => p.map((l) => l.id === updated.id
+        ? { ...l, stage: updated.stage, opportunity: updated.opportunity } : l));
+      router.refresh();
     }
   }
 
@@ -794,21 +586,22 @@ export default function LeadsClient({
         ))}
       </div>
 
-      {/* KRA activity metrics */}
+      {/* KRA activity metrics (from CRM pipeline) */}
       <div>
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">
-          KRA Activity Metrics (Legacy)
+          KRA Activity Metrics
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Outbound Calls",   value: kraOutbound,     color: "text-blue-700" },
-            { label: "Connects",         value: kraConnects,     color: "text-cyan-700" },
-            { label: "Qualified Leads",  value: kraQualified,    color: "text-green-700" },
-            { label: "Appointments",     value: kraAppointments, color: "text-violet-700" },
+            { label: "Outbound Calls",  value: kraOutbound,     color: "text-blue-700",   hint: "Total leads" },
+            { label: "Connects",        value: kraConnects,     color: "text-cyan-700",   hint: "Contacted+" },
+            { label: "Qualified Leads", value: kraQualified,    color: "text-green-700",  hint: "Qualified+" },
+            { label: "Appointments",    value: kraAppointments, color: "text-violet-700", hint: "POC / Demo" },
           ].map((s) => (
-            <div key={s.label} className="bg-white border border-amber-100 rounded-xl p-3 text-center">
+            <div key={s.label} className="bg-white border border-blue-50 rounded-xl p-3 text-center">
               <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
               <p className="text-xs text-gray-500">{s.label}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{s.hint}</p>
             </div>
           ))}
         </div>
@@ -837,10 +630,6 @@ export default function LeadsClient({
               {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           )}
-          <button onClick={openAddActivity}
-            className="bg-amber-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-amber-600 transition whitespace-nowrap">
-            + Activity
-          </button>
         </div>
 
         <div className="flex gap-2 items-center shrink-0">
@@ -865,7 +654,7 @@ export default function LeadsClient({
         </div>
       </div>
 
-      <p className="text-xs text-gray-500">{merged.filter((m) => !m.isLegacy).length} CRM leads · {merged.filter((m) => m.isLegacy).length} legacy activities</p>
+      <p className="text-xs text-gray-500">{merged.length} CRM leads</p>
 
       {/* New lead modal */}
       {showLeadForm && (
@@ -876,108 +665,6 @@ export default function LeadsClient({
           onClose={() => setShowLeadForm(false)}
           onCreated={handleLeadCreated}
         />
-      )}
-
-      {/* Activity form modal */}
-      {showActForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">{editActId ? "Edit" : "Add"} Activity Entry</h3>
-            <form onSubmit={handleActivitySubmit} className="space-y-3">
-              {isManager && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Employee</label>
-                  <select required value={actForm.employeeId} onChange={(e) => fa("employeeId", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm">
-                    <option value="">Select employee</option>
-                    {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                  </select>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                  <input type="date" value={actForm.date} onChange={(e) => fa("date", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Territory</label>
-                  <input type="text" value={actForm.territory} onChange={(e) => fa("territory", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Customer Name *</label>
-                <CustomerNameCombobox
-                  value={actForm.customerName}
-                  onChange={(v) => fa("customerName", v)}
-                  required
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Contact Person</label>
-                  <input type="text" value={actForm.contactPerson} onChange={(e) => fa("contactPerson", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Lead Source</label>
-                  <select value={actForm.leadSource} onChange={(e) => fa("leadSource", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm">
-                    <option value="">Select</option>
-                    {ACT_SOURCES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Activity Type</label>
-                  <select value={actForm.activityType} onChange={(e) => fa("activityType", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm">
-                    <option value="">Select</option>
-                    {ACT_TYPES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Activity Count</label>
-                  <input type="number" min={1} value={actForm.activityCount} onChange={(e) => fa("activityCount", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Lead Status</label>
-                  <select value={actForm.leadStatus} onChange={(e) => fa("leadStatus", e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm">
-                    {ACT_STATUSES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="flex items-center gap-2 pt-5">
-                  <input type="checkbox" id="qf-act" checked={actForm.qualifiedFlag as boolean}
-                    onChange={(e) => fa("qualifiedFlag", e.target.checked)}
-                    className="w-4 h-4 accent-[#CC2229]" />
-                  <label htmlFor="qf-act" className="text-sm text-gray-700 font-medium">Qualified Lead</label>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Remarks</label>
-                <textarea rows={2} value={actForm.remarks} onChange={(e) => fa("remarks", e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={savingAct}
-                  className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
-                  {savingAct ? "Saving…" : editActId ? "Update" : "Add Entry"}
-                </button>
-                <button type="button" onClick={() => setShowActForm(false)}
-                  className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       {/* Bulk import modal */}
@@ -999,11 +686,7 @@ export default function LeadsClient({
         <KanbanBoard<MergedLead>
           columns={kanbanCols}
           getId={(m) => m.uid}
-          renderCard={(m) =>
-            m.isLegacy
-              ? <ActivityCard item={m} onEdit={openEditActivity} />
-              : <LeadCard lead={leads.find((l) => l.id === m.crmId)!} />
-          }
+          renderCard={(m) => <LeadCard lead={leads.find((l) => l.id === m.crmId)!} />}
           onMove={handleKanbanMove}
         />
       )}
@@ -1021,75 +704,33 @@ export default function LeadsClient({
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Company / Contact", "Stage / Activity", "Value / Count", "Source", "Owner", "Date", ""].map((h) => (
+                  {["Company / Contact", "Stage", "Value", "Source", "Owner", "Updated", ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {merged.map((m) => (
-                  <tr key={m.uid} className={`hover:bg-gray-50 ${m.isLegacy ? "bg-amber-50/30" : ""}`}>
+                  <tr key={m.uid} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900 flex items-center gap-1.5">
-                        {m.companyName}
-                        {m.isLegacy && (
-                          <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">Legacy</span>
-                        )}
-                      </p>
+                      <p className="font-semibold text-gray-900">{m.companyName}</p>
                       <p className="text-xs text-gray-400">{m.contactPerson}</p>
-                      {!m.isLegacy && m.leadTitle && (
-                        <p className="text-xs text-gray-500 italic">{m.leadTitle}</p>
-                      )}
+                      {m.leadTitle && <p className="text-xs text-gray-500 italic">{m.leadTitle}</p>}
                     </td>
                     <td className="px-4 py-3">
-                      {m.isLegacy ? (
-                        <div className="space-y-1">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
-                            m.legacyStatus === "Qualified" || m.legacyStatus === "Converted"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : m.legacyStatus === "Disqualified"
-                              ? "bg-red-50 text-red-700 border-red-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}>{m.legacyStatus}</span>
-                          {m.activityType && (
-                            <p className="text-[11px] text-gray-500">{m.activityType}</p>
-                          )}
-                          {m.qualifiedFlag && (
-                            <span className="text-[9px] bg-green-100 text-green-700 px-1 py-0.5 rounded font-bold">✓ Qualified</span>
-                          )}
-                        </div>
-                      ) : (
-                        <LeadStageBadge stage={m.stage} />
-                      )}
+                      <LeadStageBadge stage={m.stage} />
                     </td>
                     <td className="px-4 py-3">
-                      {m.isLegacy ? (
-                        <span className="text-gray-600 text-sm">{m.activityCount ?? "—"}</span>
-                      ) : (
-                        <span className="font-semibold text-[#CC2229]">
-                          {(m.expectedValue ?? 0) > 0 ? `₹${(m.expectedValue ?? 0).toFixed(1)}L` : "—"}
-                        </span>
-                      )}
+                      <span className="font-semibold text-[#CC2229]">
+                        {(m.expectedValue ?? 0) > 0 ? `₹${(m.expectedValue ?? 0).toFixed(1)}L` : "—"}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {m.isLegacy ? m.leadSource : m.source}
-                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{m.source}</td>
                     <td className="px-4 py-3 text-xs text-gray-600">{m.ownerName}</td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
-                      {m.isLegacy ? m.date?.slice(0, 10) : m.updatedAt?.slice(0, 10)}
-                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-400">{m.updatedAt?.slice(0, 10)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {m.isLegacy ? (
-                        <div className="flex gap-2">
-                          <button onClick={() => openEditActivity(m.actId!)}
-                            className="text-xs text-[#CC2229] hover:underline font-medium">Edit</button>
-                          <button onClick={() => handleActivityDelete(m.actId!)}
-                            className="text-xs text-red-500 hover:underline">Del</button>
-                        </div>
-                      ) : (
-                        <Link href={`/pipeline/leads/${m.crmId}`}
-                          className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
-                      )}
+                      <Link href={`/pipeline/leads/${m.crmId}`}
+                        className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
                     </td>
                   </tr>
                 ))}

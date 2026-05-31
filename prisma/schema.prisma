@@ -307,3 +307,34 @@ model AppSetting {
   updatedAt   DateTime @updatedAt
   updatedById Int?                            // Last editor (employee id)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Role-based access control
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AppRole {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique          // Matches Employee.role string
+  label       String                    // Display name in admin UI
+  level       Int                       // Hierarchy: 100 = top, lower = less access
+  color       String   @default("#6b7280") // Badge color hex
+  isSystem    Boolean  @default(false)  // Built-in roles cannot be deleted
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pageAccess  RolePageAccess[]
+}
+
+model RolePageAccess {
+  id        Int     @id @default(autoincrement())
+  role      AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId    Int
+  pageKey   String  // e.g. "dashboard", "pipeline.leads", "collections"
+  canView   Boolean @default(false)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  @@unique([roleId, pageKey])
+}

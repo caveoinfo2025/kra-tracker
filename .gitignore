@@ -54,3 +54,6 @@ next-env.d.ts
 *.db-journal
 *.db-shm
 *.db-wal
+
+# Design handoff assets (not part of app build)
+design-handoff/
