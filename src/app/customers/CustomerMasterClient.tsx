@@ -277,7 +277,7 @@ export default function CustomerMasterClient({
     const rows: Customer[] = [];
     for (const c of customers) {
       rows.push(c);
-      for (const b of c.branches) rows.push({ ...b, branches: [] });
+      for (const b of c.branches) rows.push({ ...b, branches: [], parentId: c.id });
     }
     return rows;
   }, [customers]);
