@@ -13,6 +13,7 @@ import { KanbanBoard, KanbanColumn } from "@/components/pipeline/KanbanBoard";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type OppWithLead = OpportunitySerialized & {
+  isLegacy?: boolean;
   lead: {
     id: number; title: string; companyName: string;
     assignedTo: { id: number; name: string };
@@ -39,32 +40,50 @@ function OppCard({ opp }: { opp: OppWithLead }) {
     ? Math.ceil((new Date(opp.expectedClosureDate).getTime() - Date.now()) / 86400000)
     : null;
 
-  return (
-    <Link href={`/pipeline/opportunities/${opp.id}`} style={{ textDecoration: "none" }}>
-      <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md hover:border-[#CC2229]/30 transition-all">
-        <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1 mb-0.5">
+  const body = (
+    <div className={`bg-white rounded-lg p-3 shadow-sm border transition-all ${
+      opp.isLegacy
+        ? "border-gray-200 border-dashed"
+        : "border-gray-200 hover:shadow-md hover:border-[#CC2229]/30"
+    }`}>
+      <div className="flex items-start justify-between gap-1 mb-0.5">
+        <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1">
           {opp.lead.companyName}
         </p>
-        <p className="text-xs text-gray-500 mb-2 line-clamp-1">{opp.lead.title}</p>
-
-        <div className="flex items-center justify-between mb-2">
-          <OppStageBadge stage={opp.stage} />
-          <span className="text-sm font-bold text-[#CC2229]">₹{opp.value.toFixed(1)}L</span>
-        </div>
-
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>{opp.probability}% prob.</span>
-          {days !== null && !["WON", "LOST"].includes(opp.stage) && (
-            <span className={days < 0 ? "text-red-600 font-semibold" : days <= 7 ? "text-amber-600" : ""}>
-              {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-          <p className="text-xs text-gray-400 truncate flex-1">{opp.lead.assignedTo.name}</p>
-        </div>
+        {opp.isLegacy && (
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+            Legacy
+          </span>
+        )}
       </div>
+      <p className="text-xs text-gray-500 mb-2 line-clamp-1">{opp.lead.title}</p>
+
+      <div className="flex items-center justify-between mb-2">
+        <OppStageBadge stage={opp.stage} />
+        <span className="text-sm font-bold text-[#CC2229]">₹{opp.value.toFixed(1)}L</span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>{opp.probability}% prob.</span>
+        {days !== null && !["WON", "LOST"].includes(opp.stage) && (
+          <span className={days < 0 ? "text-red-600 font-semibold" : days <= 7 ? "text-amber-600" : ""}>
+            {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+        <p className="text-xs text-gray-400 truncate flex-1">{opp.lead.assignedTo.name}</p>
+      </div>
+    </div>
+  );
+
+  // Legacy SalesFunnel rows have no detail page — render as a static card.
+  if (opp.isLegacy) return body;
+
+  return (
+    <Link href={`/pipeline/opportunities/${opp.id}`} style={{ textDecoration: "none" }}>
+      {body}
     </Link>
   );
 }
@@ -77,14 +96,12 @@ export default function OpportunitiesClient({
   isManager,
   initialView,
   initialSearch = "",
-  legacyKraCounts = { proposals: 0, negotiations: 0, won: 0, wonValue: 0 },
 }: {
   initialOpps: OppWithLead[];
   employees: { id: number; name: string }[];
   isManager: boolean;
   initialView: "table" | "kanban";
   initialSearch?: string;
-  legacyKraCounts?: { proposals: number; negotiations: number; won: number; wonValue: number };
 }) {
   const router = useRouter();
 
@@ -100,12 +117,13 @@ export default function OpportunitiesClient({
   //   Negotiations    → NEGOTIATION (advanced deals)
   //   Won deals       → WON (closed revenue)
 
+  // Legacy SalesFunnel rows are merged into `opps` (negative ids, isLegacy flag),
+  // so every count and total derives from the single unified list.
   const scopedOpps      = empF ? opps.filter((o) => String(o.lead.assignedTo.id) === empF) : opps;
-  const legacyScale     = empF ? 0 : 1; // legacy counts are team-wide; zero out when filtered to one person
-  const kraProposals    = scopedOpps.filter((o) => o.stage === "PROPOSAL_SENT").length + legacyScale * legacyKraCounts.proposals;
+  const kraProposals    = scopedOpps.filter((o) => o.stage === "PROPOSAL_SENT").length;
   const kraFollowUps    = scopedOpps.filter((o) => o.stage === "FOLLOW_UP").length;
-  const kraNegotiations = scopedOpps.filter((o) => o.stage === "NEGOTIATION").length + legacyScale * legacyKraCounts.negotiations;
-  const kraWon          = scopedOpps.filter((o) => o.stage === "WON").length + legacyScale * legacyKraCounts.won;
+  const kraNegotiations = scopedOpps.filter((o) => o.stage === "NEGOTIATION").length;
+  const kraWon          = scopedOpps.filter((o) => o.stage === "WON").length;
 
   // ── Filtered dataset ───────────────────────────────────────────────────────
 
@@ -126,11 +144,9 @@ export default function OpportunitiesClient({
   const totalValue = filtered
     .filter((o) => !["WON", "LOST"].includes(o.stage))
     .reduce((s, o) => s + o.value, 0);
-  const crmWonValue = filtered
+  const wonValue = filtered
     .filter((o) => o.stage === "WON")
     .reduce((s, o) => s + o.value, 0);
-  // Include legacy SalesFunnel Closed Won (zeroed when filtered to one owner)
-  const wonValue = crmWonValue + legacyScale * legacyKraCounts.wonValue;
   const weighted = filtered
     .filter((o) => !["WON", "LOST"].includes(o.stage))
     .reduce((s, o) => s + o.value * (o.probability / 100), 0);
@@ -146,6 +162,8 @@ export default function OpportunitiesClient({
 
   async function handleKanbanMove(uid: number | string, _from: string, toStage: string) {
     const crmId = Number(String(uid));
+    // Legacy SalesFunnel rows use negative ids and are read-only — ignore moves.
+    if (crmId < 0) { router.refresh(); return; }
     const res = await fetch(`/api/pipeline/opportunities/${crmId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -263,7 +281,12 @@ export default function OpportunitiesClient({
                   return (
                     <tr key={o.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{o.lead.companyName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900">{o.lead.companyName}</p>
+                          {o.isLegacy && (
+                            <span className="text-[9px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Legacy</span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-400 truncate max-w-[200px]">{o.lead.title}</p>
                       </td>
                       <td className="px-4 py-3"><OppStageBadge stage={o.stage} /></td>
@@ -282,8 +305,12 @@ export default function OpportunitiesClient({
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600">{o.lead.assignedTo.name}</td>
                       <td className="px-4 py-3">
-                        <Link href={`/pipeline/opportunities/${o.id}`}
-                          className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
+                        {o.isLegacy ? (
+                          <span className="text-xs text-gray-300">—</span>
+                        ) : (
+                          <Link href={`/pipeline/opportunities/${o.id}`}
+                            className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
+                        )}
                       </td>
                     </tr>
                   );

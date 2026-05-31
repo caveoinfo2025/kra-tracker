@@ -37,7 +37,7 @@ export default async function OpportunitiesPage({
 
   const legacyWhere = isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 };
 
-  const [employees, legacyAgg, legacyWonAgg] = await Promise.all([
+  const [employees, legacyRows] = await Promise.all([
     isManager
       ? prisma.employee.findMany({
           where: { isManager: false },
@@ -45,24 +45,64 @@ export default async function OpportunitiesPage({
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
-    prisma.salesFunnel.groupBy({
-      by: ["stage"],
+    // Pull the actual legacy SalesFunnel rows so they render as opportunities
+    prisma.salesFunnel.findMany({
       where: legacyWhere,
-      _count: { id: true },
-    }),
-    // Monetary total of legacy Closed Won (closedDate unpopulated — no period filter)
-    prisma.salesFunnel.aggregate({
-      _sum: { dealValueLakhs: true },
-      where: { ...legacyWhere, stage: "Closed Won" },
+      select: {
+        id: true,
+        customerName: true,
+        opportunityName: true,
+        solutionCategory: true,
+        stage: true,
+        dealValueLakhs: true,
+        probabilityPct: true,
+        expectedCloseDate: true,
+        employeeId: true,
+        employee: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 500,
     }),
   ]);
 
-  const legacyKraCounts = {
-    proposals:    legacyAgg.find((r) => r.stage === "Proposal Sent")?._count.id ?? 0,
-    negotiations: legacyAgg.find((r) => r.stage === "Negotiation")?._count.id ?? 0,
-    won:          legacyAgg.find((r) => r.stage === "Closed Won")?._count.id ?? 0,
-    wonValue:     legacyWonAgg._sum.dealValueLakhs ?? 0,
+  // Map legacy SalesFunnel stage labels → CRM opportunity stage keys
+  const LEGACY_STAGE_MAP: Record<string, string> = {
+    "Lead":          "PROPOSAL_SENT",
+    "Qualified":     "PROPOSAL_SENT",
+    "Solutioning":   "PROPOSAL_SENT",
+    "Proposal Sent": "PROPOSAL_SENT",
+    "Negotiation":   "NEGOTIATION",
+    "Closed Won":    "WON",
+    "Closed Lost":   "LOST",
   };
+
+  // Shape legacy rows to match the CRM opportunity object the client renders.
+  // Negative ids avoid collision with real CrmOpportunity ids and let the
+  // client flag them as read-only (no detail page / no drag-to-move).
+  const legacyOpps = legacyRows
+    .filter((r) => !stage || LEGACY_STAGE_MAP[r.stage] === stage)
+    .map((r) => ({
+      id: -r.id,
+      isLegacy: true,
+      stage: LEGACY_STAGE_MAP[r.stage] ?? "PROPOSAL_SENT",
+      value: r.dealValueLakhs,
+      probability: Math.round(r.probabilityPct),
+      expectedClosureDate: r.expectedCloseDate ? r.expectedCloseDate.toISOString() : null,
+      lostReason: "",
+      status: "active",
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      leadId: -r.id,
+      lead: {
+        id: -r.id,
+        title: r.opportunityName || r.solutionCategory || "Legacy opportunity",
+        companyName: r.customerName,
+        assignedTo: { id: r.employee?.id ?? r.employeeId, name: r.employee?.name ?? "—" },
+        createdBy:  { id: r.employee?.id ?? r.employeeId, name: r.employee?.name ?? "—" },
+      },
+    }));
+
+  const allOpps = [...JSON.parse(JSON.stringify(rawOpps)), ...legacyOpps];
 
   return (
     <SheetLayout
@@ -70,12 +110,11 @@ export default async function OpportunitiesPage({
       description="Track proposals through negotiation to close."
     >
       <OpportunitiesClient
-        initialOpps={JSON.parse(JSON.stringify(rawOpps))}
+        initialOpps={allOpps}
         employees={employees}
         isManager={isManager}
         initialView={(view as "table" | "kanban") ?? "kanban"}
         initialSearch={q ?? ""}
-        legacyKraCounts={legacyKraCounts}
       />
     </SheetLayout>
   );
