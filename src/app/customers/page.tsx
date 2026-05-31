@@ -3,10 +3,19 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import SheetLayout from "@/components/SheetLayout";
 import CustomerMasterClient from "./CustomerMasterClient";
+import { importCustomersFromCrm } from "@/lib/customer-import";
 
 export default async function CustomerMasterPage() {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+
+  // Auto-seed the master table from CRM the first time it is opened on a fresh
+  // database (e.g. production right after the migration). This makes existing
+  // customers reflect immediately without needing a manual "Import from CRM".
+  const existingCount = await prisma.customer.count();
+  if (existingCount === 0) {
+    await importCustomersFromCrm();
+  }
 
   const customers = await prisma.customer.findMany({
     where: { parentId: null },
