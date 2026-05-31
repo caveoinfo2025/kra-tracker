@@ -13,6 +13,7 @@ const PATH_LABELS: { prefix: string; label: string }[] = [
   { prefix: "/pipeline/opportunities", label: "Opportunities" },
   { prefix: "/pipeline/tasks",         label: "Pipeline Tasks" },
   { prefix: "/collections",            label: "Collections" },
+  { prefix: "/customers",              label: "Customer Master" },
   { prefix: "/daily-updates",          label: "Daily Updates" },
   { prefix: "/employees",              label: "Team" },
   { prefix: "/kras",                   label: "KRAs" },

@@ -294,6 +294,30 @@ model CrmNote {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Customer Master
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id         Int      @id @default(autoincrement())
+  name       String
+  // Address
+  address    String   @default("")
+  district   String   @default("")
+  state      String   @default("")
+  pincode    String   @default("")
+  gstNo      String   @default("")
+  // HO = Head Office  |  Branch
+  officeType String   @default("HO")
+  parentId   Int?                          // null for HO; branch → HO id
+  parent     Customer?  @relation("CustomerBranches", fields: [parentId], references: [id])
+  branches   Customer[] @relation("CustomerBranches")
+  // Audit
+  crmSource  String   @default("")         // leads | collections | sales_funnel | manual
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Admin configuration store
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -16,6 +16,7 @@ import {
   Building2,
   Smartphone,
   ShieldCheck,
+  BookUser,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,8 +55,9 @@ const MANAGER_GROUPS: NavGroup[] = [
   {
     label: "Operate",
     items: [
-      { href: "/collections",   label: "Collections",   icon: Receipt },
-      { href: "/daily-updates", label: "Daily Updates", icon: Activity },
+      { href: "/collections",   label: "Collections",      icon: Receipt },
+      { href: "/customers",     label: "Customer Master",  icon: BookUser },
+      { href: "/daily-updates", label: "Daily Updates",    icon: Activity },
     ],
   },
   {
@@ -81,8 +83,9 @@ const EMPLOYEE_GROUPS: NavGroup[] = [
   {
     label: "Operate",
     items: [
-      { href: "/collections",   label: "Collections",   icon: Receipt },
-      { href: "/daily-updates", label: "Daily Updates", icon: Activity },
+      { href: "/collections",   label: "Collections",     icon: Receipt },
+      { href: "/customers",     label: "Customer Master", icon: BookUser },
+      { href: "/daily-updates", label: "Daily Updates",   icon: Activity },
     ],
   },
   {
