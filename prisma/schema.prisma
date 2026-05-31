@@ -1,0 +1,340 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Employee {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  department  String
+  role        String
+  isManager   Boolean  @default(false)
+  msEmail     String?  @unique
+  msId        String?  @unique
+  createdAt   DateTime @default(now())
+
+  kras           KRA[]
+  reviews        WeeklyReview[]
+  leads          LeadGeneration[]
+  funnel         SalesFunnel[]
+  collections    Collection[]
+  dailyUpdates   DailyUpdate[]
+  weeklyCommits  WeeklyCommit[]
+  certifications Certification[]
+
+  // Pipeline module relations
+  assignedLeads  CrmLead[]        @relation("LeadAssignedTo")
+  createdLeads   CrmLead[]        @relation("LeadCreatedBy")
+  pipelineTasks  CrmTask[]        @relation("TaskAssignedTo")
+  pipelineMeetings CrmMeeting[]   @relation("MeetingEmployee")
+  pipelineActivities CrmActivity[] @relation("ActivityPerformedBy")
+  pipelineNotes  CrmNote[]        @relation("NoteAuthor")
+}
+
+model KRA {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  target      String
+  deadline    DateTime
+  weight      Int      @default(100)
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId  Int
+  reviews        WeeklyReview[]
+  weeklyCommits  WeeklyCommit[]
+  certifications Certification[]
+}
+
+model WeeklyReview {
+  id         Int      @id @default(autoincrement())
+  week       Int
+  year       Int
+  progress   Int
+  score      Int
+  notes      String
+  blockers   String   @default("")
+  createdAt  DateTime @default(now())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId Int
+  kra        KRA      @relation(fields: [kraId], references: [id], onDelete: Cascade)
+  kraId      Int
+}
+
+model LeadGeneration {
+  id             Int       @id @default(autoincrement())
+  date           DateTime  @default(now())
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     Int
+  territory      String    @default("")
+  leadSource     String    @default("")
+  customerName   String
+  contactPerson  String    @default("")
+  phoneEmail     String    @default("")
+  activityType   String    @default("")
+  activityCount  Int       @default(1)
+  leadStatus     String    @default("New")
+  qualifiedFlag  Boolean   @default(false)
+  nextActionDate DateTime?
+  remarks        String    @default("")
+  createdAt      DateTime  @default(now())
+}
+
+model SalesFunnel {
+  id                Int       @id @default(autoincrement())
+  opportunityId     String    @default("")
+  createdDate       DateTime  @default(now())
+  employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId        Int
+  territory         String    @default("")
+  customerName      String
+  solutionCategory  String    @default("")
+  opportunityName   String
+  stage             String    @default("Lead")
+  dealValueLakhs    Float     @default(0)
+  billingValueLakhs Float     @default(0)
+  grossProfitPct    Float     @default(0)
+  proposalDate      DateTime?
+  expectedCloseDate DateTime?
+  closedDate        DateTime?
+  probabilityPct    Float     @default(0)
+  status            String    @default("Active")
+  newCustomerFlag   Boolean   @default(false)
+  pocFlag           Boolean   @default(false)
+  remarks           String    @default("")
+  createdAt         DateTime  @default(now())
+}
+
+model Collection {
+  id                    Int       @id @default(autoincrement())
+  invoiceDate           DateTime  @default(now())
+  invoiceNo             String    @default("")
+  employee              Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId            Int
+  customerName          String
+  invoiceValueLakhs     Float
+  amountWithoutGstLakhs Float     @default(0)
+  dueDate               DateTime
+  paymentReceivedDate   DateTime?
+  amountReceivedLakhs   Float     @default(0)
+  collectionStatus      String    @default("Pending")
+  remarks               String    @default("")
+  createdAt             DateTime  @default(now())
+}
+
+model DailyUpdate {
+  id                     Int      @id @default(autoincrement())
+  date                   DateTime @default(now())
+  employee               Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId             Int
+  topUpdates             String
+  keyMovement            String   @default("")
+  blockers               String   @default("")
+  topDealThisWeek        String   @default("")
+  managerSupportRequired Boolean  @default(false)
+  updateStatus           String   @default("On Track")
+  createdAt              DateTime @default(now())
+}
+
+model WeeklyCommit {
+  id         Int      @id @default(autoincrement())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId Int
+  kra        KRA      @relation(fields: [kraId], references: [id], onDelete: Cascade)
+  kraId      Int
+  week       Int
+  year       Int
+  commitText String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Certification {
+  id            Int       @id @default(autoincrement())
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId    Int
+  kra           KRA       @relation(fields: [kraId], references: [id], onDelete: Cascade)
+  kraId         Int
+  certName      String
+  issuingBody   String    @default("")
+  dateObtained  DateTime
+  expiryDate    DateTime?
+  attachmentUrl String    @default("")
+  status        String    @default("pending")
+  approvedBy    Int?
+  approvedAt    DateTime?
+  remarks       String    @default("")
+  createdAt     DateTime  @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline module — Lead Qualification & Opportunity Funnel
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Stages: NEW_LEAD | CONTACTED | QUALIFIED | REQUIREMENT_GATHERED |
+//         SOLUTION_PROPOSED | POC_DEMO | PROPOSAL_SENT (triggers opportunity)
+model CrmLead {
+  id              Int       @id @default(autoincrement())
+  title           String
+  companyName     String
+  contactPerson   String
+  email           String    @default("")
+  phone           String    @default("")
+  source          String    @default("Direct")
+  // External-CRM references (IDs from external system; names cached for display)
+  categoryId      String?
+  categoryName    String    @default("")
+  oemId           String?
+  oemName         String    @default("")
+  productId       String?
+  productName     String    @default("")
+  customerId      String?
+  customerName    String    @default("")
+  // Pipeline
+  stage           String    @default("NEW_LEAD")
+  expectedValue   Float     @default(0)
+  remarks         String    @default("")
+  // Ownership
+  assignedTo      Employee  @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  assignedToId    Int
+  createdBy       Employee  @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  createdById     Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  opportunity     CrmOpportunity?
+  tasks           CrmTask[]
+  meetings        CrmMeeting[]
+  activities      CrmActivity[]
+  notes           CrmNote[]
+}
+
+// Stages: PROPOSAL_SENT | FOLLOW_UP | NEGOTIATION | WON | LOST | ON_HOLD
+model CrmOpportunity {
+  id                  Int       @id @default(autoincrement())
+  lead                CrmLead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId              Int       @unique
+  stage               String    @default("PROPOSAL_SENT")
+  value               Float     @default(0)
+  expectedClosureDate DateTime?
+  probability         Int       @default(50)
+  lostReason          String    @default("")
+  status              String    @default("active")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tasks      CrmTask[]
+  meetings   CrmMeeting[]
+  activities CrmActivity[]
+}
+
+model CrmTask {
+  id            Int              @id @default(autoincrement())
+  title         String
+  description   String           @default("")
+  dueDate       DateTime
+  assignedTo    Employee         @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  assignedToId  Int
+  status        String           @default("pending")
+  priority      String           @default("medium")
+  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId        Int?
+  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunityId Int?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model CrmMeeting {
+  id            Int              @id @default(autoincrement())
+  title         String
+  meetingDate   DateTime
+  notes         String           @default("")
+  attendees     String           @default("")
+  location      String           @default("")
+  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId        Int?
+  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunityId Int?
+  employee      Employee         @relation("MeetingEmployee", fields: [employeeId], references: [id])
+  employeeId    Int
+  createdAt     DateTime         @default(now())
+}
+
+model CrmActivity {
+  id            Int              @id @default(autoincrement())
+  entityType    String           // lead | opportunity | task | meeting
+  entityId      Int
+  action        String           // created | stage_changed | task_completed | note_added | …
+  description   String           @default("")
+  meta          String           @default("")   // JSON string for extra data
+  performedBy   Employee         @relation("ActivityPerformedBy", fields: [performedById], references: [id])
+  performedById Int
+  timestamp     DateTime         @default(now())
+  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId        Int?
+  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunityId Int?
+}
+
+model CrmNote {
+  id        Int      @id @default(autoincrement())
+  content   String
+  lead      CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    Int
+  author    Employee @relation("NoteAuthor", fields: [authorId], references: [id])
+  authorId  Int
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin configuration store
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AppSetting {
+  id          Int      @id @default(autoincrement())
+  category    String                          // e.g. "pipeline", "kra", "system"
+  key         String   @unique               // e.g. "pipeline.lead_stages"
+  label       String                          // Human-readable name shown in admin UI
+  value       String                          // JSON-encoded value
+  description String   @default("")           // Helper text shown in admin UI
+  updatedAt   DateTime @updatedAt
+  updatedById Int?                            // Last editor (employee id)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Role-based access control
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AppRole {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique          // Matches Employee.role string
+  label       String                    // Display name in admin UI
+  level       Int                       // Hierarchy: 100 = top, lower = less access
+  color       String   @default("#6b7280") // Badge color hex
+  isSystem    Boolean  @default(false)  // Built-in roles cannot be deleted
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pageAccess  RolePageAccess[]
+}
+
+model RolePageAccess {
+  id        Int     @id @default(autoincrement())
+  role      AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId    Int
+  pageKey   String  // e.g. "dashboard", "pipeline.leads", "collections"
+  canView   Boolean @default(false)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  @@unique([roleId, pageKey])
+}
