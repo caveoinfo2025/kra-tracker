@@ -19,6 +19,7 @@ interface TodayScreenProps {
   onQuickLog: (type: string) => void;
   onKRAs: () => void;
   onUpdates: () => void;
+  onViewPipeline: () => void;
 }
 
 const AVATAR_COLORS = ["#5B626C", "#0046B0", "#B05000", "#1F7A3F", "#2A2A55", "#702D5B"];
@@ -65,6 +66,7 @@ export default function TodayScreen({
   onQuickLog,
   onKRAs,
   onUpdates,
+  onViewPipeline,
 }: TodayScreenProps) {
   const [leads, setLeads] = useState<MobileLead[]>([]);
   const [kras, setKras] = useState<KRA[]>([]);
@@ -162,7 +164,7 @@ export default function TodayScreen({
         <div className="m-section">
           <div className="m-section-label">
             Today's Focus
-            <span className="more" onClick={() => {}}>View all →</span>
+            <span className="more" onClick={onViewPipeline} style={{ cursor: "pointer" }}>View all →</span>
           </div>
           {loading ? (
             <>

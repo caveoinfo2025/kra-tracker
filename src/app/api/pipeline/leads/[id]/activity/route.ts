@@ -1,6 +1,6 @@
 /**
- * GET /api/pipeline/leads/[id]/activity
- * Returns activity timeline for a specific lead.
+ * GET  /api/pipeline/leads/[id]/activity — activity timeline for a lead
+ * POST /api/pipeline/leads/[id]/activity — log a new activity (call / note / meeting)
  * Used by the mobile Deal Detail screen.
  */
 import { NextResponse } from "next/server";
@@ -40,4 +40,70 @@ export async function GET(
       performedBy: a.performedBy,
     }))
   );
+}
+
+/**
+ * POST — log a call / note / meeting against a lead.
+ * Body: { action: "call" | "note" | "meeting", description: string }
+ * Calls & meetings additionally create the corresponding CrmMeeting record so
+ * they surface in the desktop lead detail too.
+ */
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const leadId = Number(id);
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const lead = await prisma.crmLead.findUnique({
+    where: { id: leadId },
+    select: { assignedToId: true },
+  });
+  if (!lead) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!session.user.isManager && lead.assignedToId !== session.user.employeeId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const action: string = body.action ?? "note";
+  const description: string = (body.description ?? "").toString().trim();
+  if (!description) {
+    return NextResponse.json({ error: "Description is required" }, { status: 400 });
+  }
+  const empId = session.user.employeeId!;
+
+  // For meetings, also create a CrmMeeting so it appears in the desktop view
+  if (action === "meeting") {
+    await prisma.crmMeeting.create({
+      data: {
+        title: description.slice(0, 120),
+        meetingDate: body.meetingDate ? new Date(body.meetingDate) : new Date(),
+        notes: description,
+        leadId,
+        employeeId: empId,
+      },
+    });
+  }
+
+  const activity = await prisma.crmActivity.create({
+    data: {
+      entityType: "lead",
+      entityId: leadId,
+      action,
+      description,
+      performedById: empId,
+      leadId,
+    },
+    include: { performedBy: { select: { id: true, name: true } } },
+  });
+
+  return NextResponse.json({
+    id: activity.id,
+    action: activity.action,
+    description: activity.description,
+    createdAt: activity.timestamp,
+    performedBy: activity.performedBy,
+  }, { status: 201 });
 }

@@ -7,6 +7,8 @@ interface Props {
   isManager: boolean;
   employeeId: number;
   onKRAs: () => void;
+  onTeam: (mode: "pipeline" | "kra") => void;
+  onTasks: () => void;
 }
 
 const AVATAR_COLORS = ["#5B626C","#0046B0","#B05000","#1F7A3F","#2A2A55","#702D5B"];
@@ -15,17 +17,15 @@ function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export default function MeScreen({ userName, userEmail, isManager, employeeId, onKRAs }: Props) {
+export default function MeScreen({ userName, userEmail, isManager, employeeId, onKRAs, onTeam, onTasks }: Props) {
   const menuItems = [
     { icon: "target", label: "My KRAs", sub: "Targets & progress tracking", action: onKRAs, show: !isManager },
-    { icon: "calendar", label: "My Schedule", sub: "Today's calls & meetings", action: () => {} },
-    { icon: "doc", label: "Proposals & Quotes", sub: "Docs you've sent this month", action: () => {} },
-    { icon: "shield", label: "Pipeline Tasks", sub: "Open follow-ups & actions", action: () => {} },
+    { icon: "shield", label: "Pipeline Tasks", sub: "Open follow-ups & actions", action: onTasks },
   ].filter(m => m.show !== false);
 
   const managerItems = isManager ? [
-    { icon: "user", label: "Team Overview", sub: "View team pipeline & KRAs", action: () => {} },
-    { icon: "trend-up", label: "Team KRAs", sub: "Review team performance", action: () => {} },
+    { icon: "user", label: "Team Overview", sub: "Team pipeline, won & open leads", action: () => onTeam("pipeline") },
+    { icon: "trend-up", label: "Team KRAs", sub: "Review team performance", action: () => onTeam("kra") },
   ] : [];
 
   return (

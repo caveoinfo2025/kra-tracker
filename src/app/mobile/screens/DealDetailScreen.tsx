@@ -14,6 +14,7 @@ type Activity = {
 interface Props {
   lead: MobileLead;
   onBack: () => void;
+  onLogCall: (lead: MobileLead) => void;
 }
 
 const STAGES = ["NEW_LEAD", "CONTACTED", "QUALIFIED", "PROPOSAL_SENT", "NEGOTIATION", "CLOSED_WON"];
@@ -42,7 +43,7 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
 
-export default function DealDetailScreen({ lead, onBack }: Props) {
+export default function DealDetailScreen({ lead, onBack, onLogCall }: Props) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMoveStage, setShowMoveStage] = useState(false);
@@ -51,7 +52,7 @@ export default function DealDetailScreen({ lead, onBack }: Props) {
 
   const currIdx = STAGES.indexOf(currentStage);
 
-  useEffect(() => {
+  function loadActivities() {
     fetch(`/api/pipeline/leads/${lead.id}/activity`)
       .then(r => r.json())
       .then(data => {
@@ -59,6 +60,10 @@ export default function DealDetailScreen({ lead, onBack }: Props) {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    loadActivities();
   }, [lead.id]);
 
   async function moveStage(newStage: string) {
@@ -242,7 +247,7 @@ export default function DealDetailScreen({ lead, onBack }: Props) {
         <div className="m-section">
           <div className="m-section-label">
             Activity
-            <span className="more">+ Log new</span>
+            <span className="more" onClick={() => onLogCall(lead)} style={{ cursor: "pointer" }}>+ Log new</span>
           </div>
           <div className="m-card">
             {loading ? (
@@ -284,7 +289,7 @@ export default function DealDetailScreen({ lead, onBack }: Props) {
         gap: 8,
         zIndex: 5,
       }}>
-        <button className="m-btn m-btn-secondary">
+        <button className="m-btn m-btn-secondary" onClick={() => onLogCall(lead)}>
           <MIcon name="phone" size={15} /> Log call
         </button>
         <button className="m-btn" onClick={() => setShowMoveStage(true)}>
