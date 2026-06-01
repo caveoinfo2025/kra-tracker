@@ -4,32 +4,39 @@
 
 ## Current development status
 **Stable, all committed + pushed.** All core modules live in production (`master` /
-`sales.caveoinfosystems.com`). Working tree clean. No feature work in progress.
+`sales.caveoinfosystems.com`). **Database migrated SQLite → MariaDB 11.8 and verified live.**
+Working tree clean apart from untracked `scripts/` helpers (see security note). No feature work in progress.
 
 ## Last completed task
-- **Fixed Operations Head / Accounts access** (`1ab4f7d`): root cause was a **stale JWT
-  role** — the old `auth.ts` didn't refresh `role` from the DB for existing sessions, so
-  Priyadharshini's Billing page was empty (no rows → no "Record Payment" button) and
-  Deepak couldn't see finance. `auth.ts` now always re-hydrates `isManager`+`role`;
-  `roles.ts` matches Operations Head flexibly; `Navbar` reads live role.
-- Refreshed all memory docs at session end (`ab49d81` + this update).
+- **Migrated production DB from SQLite to Hostinger MariaDB 11.8** (commits `59c34d5`→`7d6500a`).
+  All 22 tables copied, row counts verified identical, app live on the MariaDB driver adapter.
+  See the `2026-06-02 — SQLite → MySQL/MariaDB migration` entry in `CHANGELOG.md` for the full
+  play-by-play and every gotcha (TCP vs socket, middleware/proxy conflict, Passenger `%`-escaping).
 
-## ⚠️ FIRST THING NEXT SESSION — verify the production fix
-The fix is deployed, but JWTs minted by the *old* `auth.ts` still carry the stale role.
-**Action:** have Priyadharshini (Accounts) and Deepak (Operations Head) **sign out + sign
-in once** on production, then confirm:
-- Priyadharshini → Billing & Collections shows all invoices + "Record Payment" buttons.
-- Deepak → all collections + Payment Tracker (set his role to contain "Operations Head" and
-  his `Reports To` = Vijesh on the Team page; set Priyadharshini's `Reports To` = Deepak).
-If still broken after a fresh login, inspect the live session's `role` value first.
+## ⚠️ FIRST THINGS NEXT SESSION
+1. **Post-migration smoke test:** log in via Microsoft, check dashboard totals, record a test
+   payment, create a test lead, open notifications — confirm reads + writes on MariaDB.
+2. **Rotate the SSH + MySQL passwords** (shared in chat) and **delete the untracked credential
+   scripts** under `scripts/` (`ssh-run.mjs`, `ssh-upload.mjs`, `server-migrate.cjs`,
+   `test-*.cjs`, `*conn*.cjs`, `inspect-proc-env.cjs`, `commitmsg.txt`). Never commit them.
+3. Still pending from before: Priyadharshini + Deepak one-time re-login for the stale-JWT role
+   fix (`1ab4f7d`); set Deepak's role + `Reports To` on the Team page.
+
+## How the production app connects to the DB (MySQL/MariaDB)
+- Host **`127.0.0.1`** (TCP), NOT `localhost` (the `mariadb` driver maps localhost → unix socket).
+- Env lives in `…/public_html/.builds/config/.env` (Passenger reads it at app start).
+- **Passenger escapes `%` → `\%`** in injected env values; `src/lib/prisma.ts` strips stray
+  backslash-escapes before parsing `DATABASE_URL`. Restart the app with
+  `touch …/nodejs/tmp/restart.txt`. Node on the server: `/opt/alt/alt-nodejs22/root/usr/bin`.
 
 ## Files to watch (central to recent work)
 | File | Why it matters |
 |---|---|
+| `src/lib/prisma.ts` | Builds the MariaDB driver adapter; unescapes Passenger's `\%` in DATABASE_URL |
+| `prisma/schema.prisma` | provider=mysql, `@db.Text` fields, indexes (URL lives in `prisma.config.ts`) |
+| `prisma/migrations/20260601000000_init_mysql/` | The single MySQL baseline migration |
 | `auth.ts` | JWT/session role hydration — the access-control linchpin |
 | `src/lib/roles.ts` | All finance/manager-reach predicates (flexible role match) |
-| `src/components/Navbar.tsx` | Live role read + role-aware sidebar |
-| `src/app/collections/page.tsx`, `src/app/accounts/page.tsx` | Finance pages gated by `canSeeAllCollections` |
 | `src/lib/payments.ts` | Ledger sync + opening-balance reconciliation |
 
 ## Current bugs / open issues

@@ -9,28 +9,59 @@ Dates from git history (branch `master`).
   certifications, collections + payments + advances + notifications, customer master,
   manager & employee dashboards (period filter + clickable KPIs), admin panel
   (settings + RBAC), mobile app (incl. business-card OCR), bulk import, org hierarchy.
+- **Database is now MySQL/MariaDB** (Hostinger MariaDB 11.8), migrated from SQLite.
+  Prisma uses the `@prisma/adapter-mariadb` driver adapter. Production verified live.
 - **Working tree:** clean; documentation refreshed this session.
-- **Latest commit:** `ab49d81` (docs) on top of `1ab4f7d` — Operations Head live role
-  re-hydration + flexible role match.
+- **Latest commit:** `7d6500a` — strip Passenger backslash-escaping from DATABASE_URL.
 - **Open production caveat:** users whose JWT was minted by the *old* `auth.ts` (before
   `1ab4f7d`) need **one** sign-out + sign-in to pick up live role; afterwards role changes
   apply automatically.
 
 ## Next Actions
-1. Have Priyadharshini (Accounts) and Deepak (Operations Head) **log out + back in once** on
-   production, then confirm: Priyadharshini sees Billing & Collections + Record Payment;
-   Deepak sees all collections/payment tracker. Set Deepak's role + reporting line on the
-   Team page (`Reports To`).
-2. Decide the authoritative RBAC path (DB `hasPermission` vs `roles.ts` predicates) and
-   enforce `RolePageAccess` at the route/page layer.
-3. Wire the Topbar global search to real results.
-4. Address the `xlsx@0.18.5` advisory (replace or sandbox imports).
-5. Surface the notifications feed on desktop.
-6. (Optional) introduce a real `middleware.ts` to centralize auth.
+1. **Post-MySQL smoke test on production:** log in via Microsoft and spot-check dashboard
+   totals, record a test payment, create a test lead, open the notifications feed — confirm
+   reads + writes against MariaDB. Keep the SQLite `db/prod.db` backup for ~2 weeks before deleting.
+2. **Rotate credentials** shared in chat (SSH `u686730471`, MySQL `u686730471_caveoadmincrm`).
+   Delete the local `scripts/ssh-*.mjs`, `scripts/server-migrate.cjs`, `scripts/*conn*.cjs`,
+   `scripts/test-*.cjs`, `scripts/commitmsg.txt` — they contain plaintext passwords and are
+   untracked (never commit them).
+3. Have Priyadharshini (Accounts) and Deepak (Operations Head) **log out + back in once** on
+   production (stale-JWT role fix from `1ab4f7d`); set Deepak's role + `Reports To` on Team page.
+4. Decide the authoritative RBAC path (DB `hasPermission` vs `roles.ts`) and enforce
+   `RolePageAccess` at the route/page layer.
+5. Wire the Topbar global search to real results.
+6. Address the `xlsx@0.18.5` advisory (replace or sandbox imports).
+7. Surface the notifications feed on desktop.
 
 ---
 
-## 2026-06-02
+## 2026-06-02 — SQLite → MySQL/MariaDB migration
+- **Migrated the live production database from SQLite to Hostinger MariaDB 11.8** with zero
+  data loss (all 22 tables, row counts verified identical). Process:
+  - Switched Prisma datasource `provider` to `mysql`; URL now lives in `prisma.config.ts`
+    only (Prisma 7 forbids `url` in `schema.prisma`).
+  - Added `@db.Text` to all long-text fields (KRA, WeeklyReview, DailyUpdate, CrmActivity,
+    CrmNote, AppSetting.value, etc.) to avoid MySQL's `VARCHAR(191)` truncation.
+  - Added 18 indexes on FK / filter columns (Payment.collectionId, Collection.employeeId,
+    SalesFunnel.stage+status, CrmLead.assignedToId, etc.).
+  - Replaced the SQLite adapter with `@prisma/adapter-mariadb` (+ `mariadb` driver). Prisma 7's
+    `prisma-client` generator has no binary engine — a driver adapter is **mandatory**.
+    `src/lib/prisma.ts` builds the adapter from `DATABASE_URL`.
+  - Data copied on the server (better-sqlite3 read → `mysql` CLI load), AUTO_INCREMENT
+    counters reset to `MAX(id)+1`, `_prisma_migrations` baselined so `migrate deploy` is a no-op.
+  - Single baseline migration `prisma/migrations/20260601000000_init_mysql`; old SQLite
+    migrations removed; `migration_lock.toml` provider → `mysql`.
+- **Gotchas hit & fixed (all resolved):**
+  - Prisma connects over TCP — use `127.0.0.1`, not `localhost` (which the driver maps to a
+    unix socket). Hostinger user grant covers `@127.0.0.1`.
+  - Removed `src/middleware.ts` — Next.js 16 uses `src/proxy.ts`; the two cannot coexist.
+  - **Hostinger/Passenger escapes `%` → `\%` when injecting env vars**, corrupting the
+    URL-encoded DB password (`Crm%40…` → `Crm\%40…`). `prisma.ts` now strips stray
+    backslash-escapes before parsing `DATABASE_URL` (and accepts `DB_*` vars as override).
+- Files: `prisma/schema.prisma`, `prisma.config.ts`, `src/lib/prisma.ts`, `package.json`,
+  `prisma/migrations/20260601000000_init_mysql/`. Commits `59c34d5`→`7d6500a`.
+
+## 2026-06-02 — earlier
 - **Fix — Operations Head / Accounts access (root cause: stale JWT role).** Two production
   symptoms — Priyadharshini's Billing & Collections page empty (incl. no "Record Payment"
   button) and Deepak unable to see collections/payment tracker — traced to one cause: the
