@@ -695,31 +695,8 @@ export default function DashboardClient(props: DashboardProps) {
             </div>
           </div>
 
-          {/* Pipeline by Stage (Donut) */}
-          <div className="card">
-            <CardHeader title="Pipeline by Stage" sub="Lead distribution" />
-            <div className="card-body" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-              {donutSlices.length > 0 ? (
-                <>
-                  <DonutChart slices={donutSlices} size={120} strokeW={18} />
-                  <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 4 }}>
-                    {donutSlices.map(sl => (
-                      <div key={sl.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 2, background: sl.color, flexShrink: 0 }} />
-                        <span style={{ flex: 1, color: "var(--fg-2)" }}>{sl.label}</span>
-                        <span style={{ fontWeight: 600, color: "var(--fg-1)" }}>{sl.value}</span>
-                        <span style={{ color: "var(--fg-4)", width: 32, textAlign: "right" }}>
-                          {((sl.value / totalFunnel) * 100).toFixed(0)}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p style={{ color: "var(--fg-4)", fontSize: 13 }}>No stage data</p>
-              )}
-            </div>
-          </div>
+          {/* Collections Today — company-wide payments (moved here from below) */}
+          <PaymentsTodayWidget title="Collections Today" />
         </div>
 
         {/* ── Team Pipeline Bar Chart + Team KRA ──────────────────────────── */}
@@ -924,9 +901,6 @@ export default function DashboardClient(props: DashboardProps) {
             </div>
           </div>
         </div>
-
-        {/* ── Collections Today (company-wide) ─────────────────────────────── */}
-        <PaymentsTodayWidget title="Collections Today" />
 
         {/* ── Pending Certs ────────────────────────────────────────────────── */}
         {pendingCerts.length > 0 && (
