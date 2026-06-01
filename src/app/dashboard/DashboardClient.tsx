@@ -1055,27 +1055,10 @@ export default function DashboardClient(props: DashboardProps) {
           </div>
         </div>
 
-        {/* Pipeline snapshot */}
+        {/* Right column: My Collections Today (above) + Collections */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div className="card">
-            <CardHeader title="Pipeline Snapshot" sub={`${totalLeads} leads`} href="/pipeline/leads" />
-            <div className="card-body">
-              {donutSlices.length > 0 ? (
-                <>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-                    <DonutChart slices={donutSlices} size={100} strokeW={16} />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {funnelStages.slice(0, 5).map(s => (
-                      <FunnelBar key={s.stage} label={s.label} count={s.count} max={maxCount} color={s.color} total={totalFunnel} />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p style={{ color: "var(--fg-4)", fontSize: 13, textAlign: "center", padding: 16 }}>No leads yet</p>
-              )}
-            </div>
-          </div>
+          {/* My Collections Today — moved above the Collections widget */}
+          <PaymentsTodayWidget title="My Collections Today" />
 
           {/* Collections */}
           {(overdueCollections.length > 0 || upcomingCollections.length > 0) && (
@@ -1097,6 +1080,25 @@ export default function DashboardClient(props: DashboardProps) {
                 })}
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Pipeline Snapshot — below My Tasks (full width) ──────────────── */}
+      <div className="card">
+        <CardHeader title="Pipeline Snapshot" sub={`${totalLeads} leads`} href="/pipeline/leads" />
+        <div className="card-body">
+          {donutSlices.length > 0 ? (
+            <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+              <DonutChart slices={donutSlices} size={120} strokeW={18} />
+              <div style={{ flex: 1, minWidth: 240, display: "flex", flexDirection: "column", gap: 4 }}>
+                {funnelStages.slice(0, 7).map(s => (
+                  <FunnelBar key={s.stage} label={s.label} count={s.count} max={maxCount} color={s.color} total={totalFunnel} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p style={{ color: "var(--fg-4)", fontSize: 13, textAlign: "center", padding: 16 }}>No leads yet</p>
           )}
         </div>
       </div>
@@ -1157,9 +1159,6 @@ export default function DashboardClient(props: DashboardProps) {
           </div>
         </div>
       )}
-
-      {/* ── My Collections Today ─────────────────────────────────────────── */}
-      <PaymentsTodayWidget title="My Collections Today" />
 
       {/* ── Recent Wins ──────────────────────────────────────────────────── */}
       {allWins.length > 0 && (
