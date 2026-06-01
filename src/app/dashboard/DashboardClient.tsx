@@ -925,8 +925,8 @@ export default function DashboardClient(props: DashboardProps) {
           </div>
         </div>
 
-        {/* ── Payments Today ───────────────────────────────────────────────── */}
-        <PaymentsTodayWidget />
+        {/* ── Collections Today (company-wide) ─────────────────────────────── */}
+        <PaymentsTodayWidget title="Collections Today" />
 
         {/* ── Pending Certs ────────────────────────────────────────────────── */}
         {pendingCerts.length > 0 && (
@@ -1157,6 +1157,9 @@ export default function DashboardClient(props: DashboardProps) {
           </div>
         </div>
       )}
+
+      {/* ── My Collections Today ─────────────────────────────────────────── */}
+      <PaymentsTodayWidget title="My Collections Today" />
 
       {/* ── Recent Wins ──────────────────────────────────────────────────── */}
       {allWins.length > 0 && (

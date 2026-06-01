@@ -146,21 +146,30 @@ export async function applyAdvance(advanceId: number, collectionId: number, reco
   return result;
 }
 
-/** Total payments received today (across the company). */
-export async function paymentsToday() {
+/**
+ * Total payments received today.
+ * Pass `employeeId` to scope to a single sales rep's own invoices
+ * (Collection.employeeId); omit for a company-wide total.
+ */
+export async function paymentsToday(employeeId?: number) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setDate(start.getDate() + 1);
 
+  const where = {
+    paymentDate: { gte: start, lt: end },
+    ...(employeeId ? { collection: { employeeId } } : {}),
+  };
+
   const [agg, list] = await Promise.all([
     prisma.payment.aggregate({
-      where: { paymentDate: { gte: start, lt: end } },
+      where,
       _sum: { amountLakhs: true },
       _count: { id: true },
     }),
     prisma.payment.findMany({
-      where: { paymentDate: { gte: start, lt: end } },
+      where,
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
