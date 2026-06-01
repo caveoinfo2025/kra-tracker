@@ -42,13 +42,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     redirect("/pipeline/leads");
   }
 
-  const employees = session.user.isManager
-    ? await prisma.employee.findMany({
-        where: { isManager: false },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
+  // Always load the roster (with role/department) so reps can assign meetings
+  // and tasks — e.g. POC/Demo to presales. Used for reassign (manager-only) too.
+  const employees = await prisma.employee.findMany({
+    select: { id: true, name: true, role: true, department: true, isManager: true },
+    orderBy: { name: "asc" },
+  });
 
   return (
     <div className="space-y-6">

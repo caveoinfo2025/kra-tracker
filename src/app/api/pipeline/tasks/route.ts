@@ -65,9 +65,22 @@ export async function POST(req: Request) {
         entityType:    "task",
         entityId:      task.id,
         action:        "task_created",
-        description:   `Task created: ${task.title}`,
+        description:   `Task created: ${task.title} (${task.assignedTo.name})`,
         performedById: empId,
         leadId:        Number(body.leadId),
+      },
+    });
+  }
+
+  // Notify the assignee when a task is assigned to someone else
+  if (task.assignedToId !== empId) {
+    await prisma.notification.create({
+      data: {
+        recipientId: task.assignedToId,
+        type: "system",
+        title: `Task assigned: ${task.title}`,
+        body: `Due ${new Date(task.dueDate).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+        link: body.leadId ? `/pipeline/leads/${body.leadId}` : "/pipeline/tasks",
       },
     });
   }
