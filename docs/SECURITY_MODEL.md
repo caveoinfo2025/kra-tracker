@@ -9,9 +9,11 @@
   `AZURE_AD_CLIENT_ID/SECRET/TENANT_ID` or `AUTH_MICROSOFT_ENTRA_ID_ID/SECRET/TENANT_ID`,
   plus `AUTH_SECRET`, `AUTH_URL`.
 - **JWT callback** resolves the `Employee` row by `msEmail`/`email` on first login,
-  persists `msEmail`/`msId`, and writes `employeeId/employeeName/isManager/role`. It
-  **re-reads `isManager` + `role` from the DB on every refresh** so role changes apply
-  without re-login.
+  persists `msEmail`/`msId`, and writes `employeeId/employeeName/isManager/role`. As of
+  `1ab4f7d` it **unconditionally re-reads `isManager` + `role` from the DB on every token
+  refresh** (previously only when `isManager` was undefined — which left stale roles).
+  ⚠️ A token minted by the *old* callback keeps its stale role until that user signs out +
+  in once; after that refresh, role changes apply automatically.
 - **`getSession()`** (`src/lib/dev-session.ts`) is the universal accessor. In development a
   `dev_employee_id` cookie returns a synthetic session for any employee (DevBar /
   `/login` quick-login). In production it delegates to NextAuth `auth()`.
@@ -19,7 +21,10 @@
 ## Roles
 `Head of Sales` (manager), `Business Development Manager`, `BDE`, `Inside Sales`, `ISR`,
 `Sales Coordinator`, `Accounts`, `Operations Head`. The role string lives on
-`Employee.role`; `Employee.isManager` is the master override flag.
+`Employee.role` (free-text, set on the Team page); `Employee.isManager` is the master
+override flag; `Employee.reportsToId` records the reporting line (Accounts → Operations
+Head → Head of Sales). Role checks in `roles.ts` are **substring/case-insensitive**, so
+free-text variants ("HR & Operations Head") still resolve correctly.
 
 ## Permissions (two coexisting systems)
 1. **`src/lib/roles.ts` predicates** (authoritative today): `isAccounts`,

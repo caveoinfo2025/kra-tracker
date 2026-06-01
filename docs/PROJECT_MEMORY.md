@@ -48,7 +48,11 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Mobile app** (`/mobile`) — 12 screens incl. business-card OCR (`/api/ocr/business-card`),
   team views, quick activity/call/meeting logging.
 - **Bulk import** — CSV/XLSX lead import; printable employee user guide at `/user-guide.html`.
-- **Org hierarchy** — `Employee.reportsTo` self-relation; Operations Head role.
+- **Org hierarchy** — `Employee.reportsTo` self-relation; Operations Head role with
+  manager-like finance reach; editable `Reports To` + `Manager access` on the Team page.
+- **Live role hydration** — `auth.ts` re-reads `isManager`+`role` from the DB on every
+  token refresh, and `roles.ts` matches the Operations Head role flexibly, so Team-page
+  role changes apply without code edits (and, after one re-login, without sign-out).
 - **Security hardening** — ownership checks on `[id]` routes, API returns 401 JSON,
   signOut clears the dev cookie, mandatory PO date for Closed Won.
 
@@ -64,14 +68,33 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Notifications UI** — surface the `Notification` feed more prominently on desktop.
 - **Add a real `middleware.ts`** (optional) to centralize auth instead of per-page checks.
 
+## 4b. In-progress / Decisions this session
+- **No feature work in progress** — working tree clean, all committed + pushed.
+- **Key decisions (2026-06-01/02):**
+  - Operations Head gets **manager-like finance reach via `roles.ts` predicates**, NOT the
+    `isManager` flag (keeps "manager" meaning sales-management).
+  - Role matching is **flexible/substring** (`isOperationsHead`, `isAccounts`) so free-text
+    role names entered on the Team page ("HR & Operations Head", etc.) still gate correctly.
+  - `auth.ts` re-hydrates role/isManager on **every** refresh (was: only when undefined) —
+    chosen over forcing re-login on role change.
+  - Reporting hierarchy stored as `Employee.reportsToId` (data), not just role-based access.
+  - Partial payments preserved via an **"Opening Balance"** synthetic ledger entry rather
+    than schema change, so already-imported invoices reconcile on first new payment.
+
 ## 5. Known Issues / Watch-list
-1. **No `middleware.ts`** — `auth.config.ts`'s `authorized` callback is dead code;
+1. **Stale-JWT re-login (technical debt).** Role/manager changes apply live going forward,
+   but any session whose token predates `1ab4f7d` still carries the old role until that user
+   signs out + in once. Affected now: verify Priyadharshini + Deepak after a fresh login.
+2. **No `middleware.ts`** — `auth.config.ts`'s `authorized` callback is dead code;
    protection is per-page/route via `getSession()`. Don't rely on middleware.
-2. **Dual RBAC** — `hasPermission()` (DB) and `roles.ts` predicates can disagree.
-3. **`xlsx@0.18.5`** — HIGH-severity advisory, no upstream fix.
-4. Loose root scripts (`seed.js`, `setup_manager.*`, `fix_roles.js`, `read_xls.js`) are
+3. **Dual RBAC** — `hasPermission()` (DB) and `roles.ts` predicates can disagree.
+4. **`xlsx@0.18.5`** — HIGH-severity advisory, no upstream fix.
+5. **Dev vs prod type-checking gap** — Turbopack dev mode does NOT type-check the whole
+   project; `next build` (and Hostinger) does. Always `next build` before pushing. A type
+   error inside `.next/dev/types/*` usually means a stale cache → `rm -rf .next` and rebuild.
+6. Loose root scripts (`seed.js`, `setup_manager.*`, `fix_roles.js`, `read_xls.js`) are
    one-off utilities, not part of the build.
-5. Turbopack caches the Prisma client — always restart dev after `prisma generate`.
+7. Turbopack caches the Prisma client — always restart dev after `prisma generate`.
 
 ## 6. Business Rules
 - **Money** is in ₹ Lakhs everywhere (1 Cr = 100 L).

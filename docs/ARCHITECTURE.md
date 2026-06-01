@@ -20,7 +20,7 @@ auth.ts                  NextAuth (Node): JWT/session callbacks + DB lookups
 auth.config.ts           Edge-safe: provider + (dead) authorized callback
 prisma.config.ts         Prisma datasource (reads DATABASE_URL)
 prisma/
-  schema.prisma          16 models
+  schema.prisma          22 models
   migrations/            16 migrations
 src/
   app/
@@ -74,8 +74,9 @@ independently auth-checked.
    reverse proxy. Supports both `AZURE_AD_*` and `AUTH_MICROSOFT_ENTRA_ID_*` env names.
 3. **JWT callback** (`auth.ts`): on first login, resolves the `Employee` by `msEmail`/`email`,
    persists `msEmail`/`msId`, and writes `employeeId/employeeName/isManager/role` into the
-   token. On **every** refresh it re-reads `isManager` + `role` from the DB so role changes
-   on the Team page apply without re-login.
+   token. On **every** refresh it **unconditionally** re-reads `isManager` + `role` from the
+   DB (`1ab4f7d`) so Team-page role changes apply without code edits. (A token minted by the
+   pre-`1ab4f7d` callback still needs one sign-out + in to flush a stale role.)
 4. **Session callback** exposes those fields on `session.user`.
 5. **Development:** if `dev_employee_id` cookie is set, `getSession()` returns a synthetic
    session for that employee (DevBar / `/login` quick-login). `/api/dev/switch` sets the

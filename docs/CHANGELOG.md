@@ -9,23 +9,44 @@ Dates from git history (branch `master`).
   certifications, collections + payments + advances + notifications, customer master,
   manager & employee dashboards (period filter + clickable KPIs), admin panel
   (settings + RBAC), mobile app (incl. business-card OCR), bulk import, org hierarchy.
-- **Working tree:** documentation bootstrap only; no pending app code.
-- **Latest commit:** `7d156b2` — Accounts collections visibility + Operations Head role.
+- **Working tree:** clean; documentation refreshed this session.
+- **Latest commit:** `ab49d81` (docs) on top of `1ab4f7d` — Operations Head live role
+  re-hydration + flexible role match.
+- **Open production caveat:** users whose JWT was minted by the *old* `auth.ts` (before
+  `1ab4f7d`) need **one** sign-out + sign-in to pick up live role; afterwards role changes
+  apply automatically.
 
 ## Next Actions
-1. Decide the authoritative RBAC path (DB `hasPermission` vs `roles.ts` predicates) and
+1. Have Priyadharshini (Accounts) and Deepak (Operations Head) **log out + back in once** on
+   production, then confirm: Priyadharshini sees Billing & Collections + Record Payment;
+   Deepak sees all collections/payment tracker. Set Deepak's role + reporting line on the
+   Team page (`Reports To`).
+2. Decide the authoritative RBAC path (DB `hasPermission` vs `roles.ts` predicates) and
    enforce `RolePageAccess` at the route/page layer.
-2. Wire the Topbar global search to real results.
-3. Address the `xlsx@0.18.5` advisory (replace or sandbox imports).
-4. Surface the notifications feed on desktop.
-5. (Optional) introduce a real `middleware.ts` to centralize auth.
+3. Wire the Topbar global search to real results.
+4. Address the `xlsx@0.18.5` advisory (replace or sandbox imports).
+5. Surface the notifications feed on desktop.
+6. (Optional) introduce a real `middleware.ts` to centralize auth.
 
 ---
 
 ## 2026-06-02
+- **Fix — Operations Head / Accounts access (root cause: stale JWT role).** Two production
+  symptoms — Priyadharshini's Billing & Collections page empty (incl. no "Record Payment"
+  button) and Deepak unable to see collections/payment tracker — traced to one cause: the
+  old `auth.ts` only re-read `role` from the DB when `isManager` was undefined, so a
+  Team-page role change never took effect on an existing session. Fixes (`1ab4f7d`):
+  - `auth.ts`: **always** re-hydrate `isManager` + `role` from the DB on every token refresh.
+  - `src/lib/roles.ts`: match Operations Head **flexibly** (case-insensitive contains) so
+    `Operations Head`, `HR & Operations Head`, `Head of Operations` all qualify; Accounts
+    matches any role containing `accounts`.
+  - `Navbar.tsx`: re-fetch `role` fresh from the DB (was only fetching `isManager`); use the
+    central `roles.ts` helpers instead of hardcoded string equality.
+  - Verified: blank/stale role reproduces the empty page (0 rows, 0 buttons); correct role →
+    all rows + buttons. Files: `auth.ts`, `src/lib/roles.ts`, `src/components/Navbar.tsx`.
 - **docs:** Generated the permanent memory set — `CLAUDE.md` + `docs/{PROJECT_MEMORY,
-  ARCHITECTURE,DATABASE,API,DESIGN_SYSTEM,CHANGELOG}.md` — from a full read-only analysis.
-  No application code changed.
+  ARCHITECTURE,DATABASE,API,DESIGN_SYSTEM,BUSINESS_RULES,SECURITY_MODEL,UI_COMPONENT_LIBRARY,
+  NEXT_SESSION,CHANGELOG}.md` — then refreshed at session end. (`ab49d81`)
 
 ## 2026-06-01
 - Accounts collections visibility fix + **Operations Head** role & reporting hierarchy

@@ -29,6 +29,11 @@ Head of Sales).
 4. **Activity capture:** reps log `LeadGeneration`, `SalesFunnel`, `Collection`,
    `DailyUpdate`. The **KRA engine** reads these to compute progress.
 5. **Weekly cadence:** reps file weekly commits + reviews; managers monitor via dashboards.
+6. **POC/Demo → Presales:** moving a lead to the `POC_DEMO` stage opens a prompt that
+   schedules a POC/Demo **meeting** AND creates a follow-up **task**, both assigned to a
+   presales owner (any employee whose role/department contains "presales"; falls back to
+   free pick). The assignee is notified. Meetings can also be scheduled ad-hoc and assigned
+   to self or anyone.
 
 ## Approval processes
 - **Certifications:** submitted `status=pending` → manager approves
@@ -73,8 +78,14 @@ Head of Sales).
 - Customer master **auto-seeds** from CRM names when empty; dedupes case-insensitively.
 - First payment on an imported invoice inserts an "Opening Balance" ledger entry so the
   new payment **adds** to the pre-existing amount instead of overwriting it.
-- JWT re-hydrates `isManager` + `role` from the DB on every refresh (role changes apply
-  without re-login).
+- JWT re-hydrates `isManager` + `role` from the DB on **every** refresh, so role/hierarchy
+  changes made on the Team page apply without code edits (and, after one re-login to flush a
+  pre-existing token, without sign-out).
+- Assigning a meeting or task to someone other than the creator fires a `Notification` to
+  the assignee.
+- Role gating uses **flexible matching**: "Operations Head" matches any role containing
+  "operations" + "head" (e.g. "HR & Operations Head"); "Accounts" matches any role
+  containing "accounts".
 
 ## Restrictions
 - **Closed Won without a PO date is rejected** (`400`).

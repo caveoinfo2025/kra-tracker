@@ -51,6 +51,13 @@ type. Information-dense but calm — KPI tiles, cards, and tables dominate.
   Tasks, Daily Updates, CRM Master, KRA Weights, KRA Targets, System).
 - `RolesClient` — role list + permission matrix (View/Create/Edit/Delete toggles per page).
 
+### Team / Employee (`src/app/employees/`)
+- `EditEmployeeForm` — name/email/department/**role (free-text)** + **`Reports To`** picker
+  (org hierarchy, self-cycle-guarded) + **`Manager access`** toggle (`isManager`). This is
+  how Operations Head / reporting lines are configured in the UI. `LeadDetailClient` adds
+  Edit-lead, Schedule-Meeting (with assignee + presales group), and a POC/Demo-→-presales
+  prompt (creates a meeting **and** a task on entering the `POC_DEMO` stage).
+
 ## Usage rules
 - **Reuse before building.** A header → `SheetLayout`; a status pill → `Badge`/`StageBadge`;
   a progress meter → `ProgressBar`; a customer field → `CustomerNameCombobox`; a CRM

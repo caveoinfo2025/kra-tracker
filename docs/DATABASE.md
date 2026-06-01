@@ -1,7 +1,7 @@
 # Database
 
 **Engine:** SQLite · **ORM:** Prisma 7.8 · **Schema:** `prisma/schema.prisma` ·
-**Client output:** `src/generated/prisma` · **16 models, 16 migrations.**
+**Client output:** `src/generated/prisma` · **22 models, 16 migrations.**
 
 > Money fields ending in `Lakhs` are ₹ Lakhs (Float). Status/stage/role fields are
 > free-form strings validated in app code, not DB enums.

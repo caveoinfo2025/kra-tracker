@@ -42,12 +42,12 @@ and return JSON.
 | `/api/pipeline/leads` | GET, POST | List (`q`, filters, pagination) / create lead |
 | `/api/pipeline/leads/[id]` | GET, PUT, PATCH, DELETE | Detail / full update / partial (mobile) / delete |
 | `/api/pipeline/leads/[id]/stage` | PATCH | Move stage; auto-creates opportunity at PROPOSAL_SENT |
-| `/api/pipeline/leads/[id]/activity` | GET, POST | Lead activity feed |
+| `/api/pipeline/leads/[id]/activity` | GET, POST | Lead activity feed; POST logs a call/note/meeting (meetings also create a `CrmMeeting`) |
 | `/api/pipeline/opportunities` | GET | List opportunities |
 | `/api/pipeline/opportunities/[id]` | GET, PATCH | Detail / update stage |
 | `/api/pipeline/tasks` | GET, POST | List / create task |
 | `/api/pipeline/tasks/[id]` | PATCH, DELETE | Update (complete) / delete |
-| `/api/pipeline/meetings` | GET, POST | Meetings |
+| `/api/pipeline/meetings` | GET, POST | Schedule/list meetings; POST assigns to self or another (e.g. presales) and notifies the assignee |
 | `/api/pipeline/notes` `/[id]` | POST / DELETE | Add / delete note |
 | `/api/pipeline/analytics` | GET | Pipeline analytics (manager) |
 | `/api/pipeline/crm-data` | GET | External CRM master data |
@@ -83,7 +83,7 @@ and return JSON.
 | `/api/customers/master/import` | POST | Import/dedupe from CRM |
 | `/api/customers/master/deduplicate` | GET, POST | Find / merge duplicates |
 | `/api/customers/suggestions` | GET | Autocomplete `?q=` across CRM name sources |
-| `/api/employees` `/[id]` | GET,POST / GET,PUT,DELETE | Employee CRUD (manager) |
+| `/api/employees` `/[id]` | GET,POST / GET,PUT,DELETE | Employee CRUD (manager). PUT accepts `reportsToId` (org hierarchy, self-cycle-guarded) + `isManager` |
 | `/api/import` | POST | Bulk CSV/XLSX import |
 
 ### Misc
@@ -101,4 +101,8 @@ and return JSON.
 - **Roles DELETE:** rejects `isSystem` roles.
 - **Ownership:** `[id]` mutation routes fetch the row's `employeeId` and `403` on mismatch
   for non-managers (finance roles may see all collections/payments via `roles.ts`).
+- **Finance scope** (collections, payments, advances, `payments/today`): gated by
+  `canSeeAllCollections` / `canManagePayments` from `src/lib/roles.ts` — includes managers,
+  Accounts, and Operations Head. `GET /api/payments/today` auto-scopes: privileged roles see
+  company-wide, reps see only their own (`?scope=mine` forces own-only).
 - Always prefer `getSession()` over `auth()` so dev impersonation works.
