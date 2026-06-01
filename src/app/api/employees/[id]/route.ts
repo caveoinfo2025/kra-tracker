@@ -35,7 +35,14 @@ export async function PUT(
   if (!session?.user?.isManager) return forbidden();
 
   const body = await req.json();
-  const { name, email, department, role, isManager, msEmail } = body;
+  const { name, email, department, role, isManager, msEmail, reportsToId } = body;
+
+  // Guard against self-reporting cycles
+  const reportsTo =
+    reportsToId === undefined ? undefined
+    : reportsToId && Number(reportsToId) !== Number(id) ? Number(reportsToId)
+    : null;
+
   const employee = await prisma.employee.update({
     where: { id: Number(id) },
     data: {
@@ -45,6 +52,7 @@ export async function PUT(
       role,
       ...(isManager !== undefined && { isManager }),
       ...(msEmail !== undefined && { msEmail: msEmail || null }),
+      ...(reportsToId !== undefined && { reportsToId: reportsTo }),
     },
   });
   return NextResponse.json(employee);

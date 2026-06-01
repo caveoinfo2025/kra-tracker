@@ -18,6 +18,11 @@ model Employee {
   msId        String?  @unique
   createdAt   DateTime @default(now())
 
+  // Reporting hierarchy (e.g. Accounts → Operations Head → Head of Sales)
+  reportsToId Int?
+  reportsTo   Employee?  @relation("OrgChart", fields: [reportsToId], references: [id], onDelete: SetNull)
+  reports     Employee[] @relation("OrgChart")
+
   kras           KRA[]
   reviews        WeeklyReview[]
   leads          LeadGeneration[]

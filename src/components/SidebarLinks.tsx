@@ -98,10 +98,25 @@ const EMPLOYEE_GROUPS: NavGroup[] = [
 
 const ACCOUNTS_GROUPS: NavGroup[] = [
   {
+    label: "Overview",
+    items: [
+      { href: "/dashboard", label: "Dashboard",     icon: LayoutDashboard },
+      { href: "/",          label: "Team Overview",  icon: BarChart3 },
+    ],
+  },
+  {
     label: "Finance",
     items: [
-      { href: "/accounts",    label: "Payment Tracker", icon: Receipt },
-      { href: "/collections", label: "All Collections", icon: Building2 },
+      { href: "/accounts",    label: "Payment Tracker",  icon: Receipt },
+      { href: "/collections", label: "All Collections",  icon: Building2 },
+      { href: "/customers",   label: "Customer Master",  icon: BookUser },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { href: "/daily-updates", label: "Daily Updates", icon: Activity },
+      { href: "/import",        label: "Import",        icon: Upload },
     ],
   },
 ];

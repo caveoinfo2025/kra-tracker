@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { canSeeAllCollections } from "@/lib/roles";
 
 export async function DELETE(req: Request) {
   const session = await getSession();
-  if (!session?.user?.isManager) {
+  if (!canSeeAllCollections(session?.user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { ids } = await req.json() as { ids: number[] };
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const empId = searchParams.get("employeeId");
 
-  const isManagerOrAccounts = session?.user?.isManager || session?.user?.role === "Accounts";
+  const isManagerOrAccounts = canSeeAllCollections(session?.user);
 
   const where = isManagerOrAccounts
     ? empId ? { employeeId: Number(empId) } : {}
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getSession();
   const body = await req.json();
-  const isManagerOrAccounts = session?.user?.isManager || session?.user?.role === "Accounts";
+  const isManagerOrAccounts = canSeeAllCollections(session?.user);
   const employeeId = isManagerOrAccounts
     ? Number(body.employeeId ?? session?.user?.employeeId)
     : session?.user?.employeeId;

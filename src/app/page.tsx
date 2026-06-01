@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import Badge from "@/components/Badge";
 import ProgressBar from "@/components/ProgressBar";
 import TeamSummaryClient from "./TeamSummaryClient";
+import { hasManagerReach } from "@/lib/roles";
 
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -15,7 +16,8 @@ function getWeekNumber(date: Date): number {
 
 export default async function DashboardPage() {
   const session = await getSession();
-  if (!session?.user?.isManager && session?.user?.employeeId) {
+  // Managers and Operations Head get the team overview; everyone else → dashboard
+  if (!hasManagerReach(session?.user) && session?.user?.employeeId) {
     redirect("/dashboard");
   }
 

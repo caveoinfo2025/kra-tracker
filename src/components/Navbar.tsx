@@ -21,7 +21,9 @@ export default async function Navbar() {
     if (emp) isManager = emp.isManager;
   }
 
-  const isAccounts = !isManager && user.role === "Accounts";
+  // Accounts and Operations Head both use the finance-focused sidebar.
+  const isOpsHead = !isManager && user.role === "Operations Head";
+  const isAccounts = !isManager && (user.role === "Accounts" || isOpsHead);
 
   // Compute initials from name
   const displayName: string = (user.employeeName ?? user.name ?? "?") as string;
@@ -34,7 +36,9 @@ export default async function Navbar() {
 
   const roleLabel = isManager
     ? "Manager"
-    : isAccounts
+    : isOpsHead
+    ? "Operations Head"
+    : user.role === "Accounts"
     ? "Accounts"
     : (user.role as string | undefined) ?? "Employee";
 

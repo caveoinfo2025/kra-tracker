@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
 import { paymentsToday } from "@/lib/payments";
+import { canSeeAllCollections } from "@/lib/roles";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const scope = searchParams.get("scope"); // "mine" | "all" | null
-  const isPrivileged = !!session.user.isManager || session.user.role === "Accounts";
+  const isPrivileged = canSeeAllCollections(session.user);
 
   // Reps are always scoped to their own; privileged users are company-wide
   // unless they explicitly ask for ?scope=mine.

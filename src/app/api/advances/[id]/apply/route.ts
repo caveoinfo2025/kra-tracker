@@ -8,10 +8,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
 import { applyAdvance } from "@/lib/payments";
 import prisma from "@/lib/prisma";
-
-function canManagePayments(user: { isManager?: boolean; role?: string }) {
-  return !!user.isManager || user.role === "Accounts";
-}
+import { canManagePayments } from "@/lib/roles";
 
 export async function POST(
   req: Request,

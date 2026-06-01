@@ -6,10 +6,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { recordPayment } from "@/lib/payments";
-
-function canManagePayments(user: { isManager?: boolean; role?: string }) {
-  return !!user.isManager || user.role === "Accounts";
-}
+import { canManagePayments } from "@/lib/roles";
 
 export async function GET(req: Request) {
   const session = await getSession();

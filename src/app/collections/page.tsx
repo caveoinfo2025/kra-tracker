@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import CollectionsClient from "./CollectionsClient";
+import { canSeeAllCollections } from "@/lib/roles";
 
 export default async function CollectionsPage({
   searchParams,
@@ -10,17 +11,19 @@ export default async function CollectionsPage({
 }) {
   const session = await getSession();
   const empId = session?.user?.employeeId;
-  const isManager = session?.user?.isManager ?? false;
+  // Managers, Accounts, and Operations Head see every collection (they don't own
+  // any rows themselves). Sales reps see only their own.
+  const seeAll = canSeeAllCollections(session?.user);
   const { view, emp, q } = await searchParams;
 
   const employees = await prisma.employee.findMany({
-    where: isManager ? {} : empId ? { id: empId } : { id: -1 },
+    where: seeAll ? {} : empId ? { id: empId } : { id: -1 },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
 
   const rows = await prisma.collection.findMany({
-    where: isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 },
+    where: seeAll ? {} : empId ? { employeeId: empId } : { employeeId: -1 },
     include: { employee: { select: { name: true } } },
     orderBy: { dueDate: "asc" },
     take: 500,
@@ -34,7 +37,9 @@ export default async function CollectionsPage({
       <CollectionsClient
         initialRows={JSON.parse(JSON.stringify(rows))}
         employees={employees}
-        isManager={isManager}
+        /* Finance roles (Accounts / Operations Head) get the full all-employee
+           view & filters, same as managers. */
+        isManager={seeAll}
         currentEmployeeId={empId}
         initialView={view ?? "all"}
         initialEmpId={emp ?? ""}

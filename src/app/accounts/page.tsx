@@ -3,16 +3,16 @@ import { getSession } from "@/lib/dev-session";
 import { redirect } from "next/navigation";
 import SheetLayout from "@/components/SheetLayout";
 import AccountsClient from "./AccountsClient";
+import { canManagePayments, canSeeAllCollections } from "@/lib/roles";
 
 export default async function AccountsPage() {
   const session = await getSession();
   if (!session?.user) redirect("/login");
 
-  const isAccounts = session.user.role === "Accounts";
   const isManager  = session.user.isManager;
 
-  // Only managers and accounts team can access this page
-  if (!isAccounts && !isManager) redirect("/");
+  // Managers, Accounts, and Operations Head can access the payment tracker.
+  if (!canSeeAllCollections(session.user)) redirect("/");
 
   const employees = await prisma.employee.findMany({
     select: { id: true, name: true },
@@ -45,7 +45,7 @@ export default async function AccountsPage() {
         initialAdvances={advances}
         employees={employees}
         isManager={!!isManager}
-        canManage={!!isManager || isAccounts}
+        canManage={canManagePayments(session.user)}
       />
     </SheetLayout>
   );
