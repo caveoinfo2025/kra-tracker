@@ -6,6 +6,7 @@ import type { MobileLead } from "../types";
 interface Props {
   isManager: boolean;
   onDealClick: (lead: MobileLead) => void;
+  onScanCard: () => void;
 }
 
 const STAGE_GROUPS = [
@@ -37,7 +38,7 @@ function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export default function PipelineScreen({ isManager, onDealClick }: Props) {
+export default function PipelineScreen({ isManager, onDealClick, onScanCard }: Props) {
   const [leads, setLeads] = useState<MobileLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [seg, setSeg] = useState<"all" | "mine" | "open">("all");
@@ -74,8 +75,8 @@ export default function PipelineScreen({ isManager, onDealClick }: Props) {
             <MIcon name="search" size={17} />
           </button>
           <div className="m-nav-title">Pipeline</div>
-          <button className="m-nav-icon">
-            <MIcon name="filter" size={16} />
+          <button className="m-nav-icon" onClick={onScanCard} aria-label="Scan business card">
+            <MIcon name="doc" size={17} color="var(--caveo-red)" />
           </button>
         </div>
 

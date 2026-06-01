@@ -13,6 +13,7 @@ import TeamScreen from "./screens/TeamScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
 import QuickLogSheet from "./screens/QuickLogSheet";
 import LogActivitySheet from "./screens/LogActivitySheet";
+import ScanCardScreen from "./screens/ScanCardScreen";
 import type { MobileLead } from "./types";
 
 type Tab = "home" | "pipeline" | "updates" | "me";
@@ -23,6 +24,7 @@ type Screen =
   | { type: "notifications" }
   | { type: "kras" }
   | { type: "team"; mode: "pipeline" | "kra" }
+  | { type: "scan" }
   | { type: "compose" };
 
 type LogSheet = { kind: "call" | "meeting"; lead: MobileLead | null } | null;
@@ -79,13 +81,19 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
     setShowQuickLog(false);
   }
 
+  function pushScan() {
+    setScreen({ type: "scan" });
+    setShowQuickLog(false);
+  }
+
   function handleQuickLogAction(type: string) {
     setShowQuickLog(false);
     if (type === "update") {
       setActiveTab("updates");
       setScreen({ type: "compose" });
     } else if (type === "lead" || type === "deal") {
-      switchTab("pipeline");
+      // New lead → scan a business card
+      setScreen({ type: "scan" });
     } else if (type === "call" || type === "meeting") {
       // Open the log sheet; lead is chosen inside it
       setLogSheet({ kind: type, lead: null });
@@ -113,6 +121,17 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
     }
     if (screen.type === "team") {
       return <TeamScreen mode={screen.mode} onBack={popScreen} />;
+    }
+    if (screen.type === "scan") {
+      return (
+        <ScanCardScreen
+          onBack={() => switchTab("pipeline")}
+          onCreated={() => {
+            switchTab("pipeline");
+            showToast("Lead created from card");
+          }}
+        />
+      );
     }
     if (screen.type === "kras") {
       return (
@@ -157,6 +176,7 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
         <PipelineScreen
           isManager={isManager}
           onDealClick={pushDeal}
+          onScanCard={pushScan}
         />
       );
     }

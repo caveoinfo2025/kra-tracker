@@ -561,6 +561,19 @@ body:has(.mobile-root) {
 }
 .m-btn-secondary:active { background: var(--cloud-white-2); }
 
+/* ───── Spinner ───── */
+.m-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--bg-muted);
+  border-top-color: var(--caveo-red);
+  animation: m-spin 0.7s linear infinite;
+}
+@keyframes m-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ───── Segmented control ───── */
 .m-seg {
   display: flex;
