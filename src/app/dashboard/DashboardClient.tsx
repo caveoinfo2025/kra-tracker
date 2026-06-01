@@ -8,6 +8,7 @@ import {
   Clock, Users, Target, DollarSign, ChevronRight,
   CheckSquare, Trophy, ArrowRight,
 } from "lucide-react";
+import PaymentsTodayWidget from "@/components/PaymentsTodayWidget";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -923,6 +924,9 @@ export default function DashboardClient(props: DashboardProps) {
             </div>
           </div>
         </div>
+
+        {/* ── Payments Today ───────────────────────────────────────────────── */}
+        <PaymentsTodayWidget />
 
         {/* ── Pending Certs ────────────────────────────────────────────────── */}
         {pendingCerts.length > 0 && (

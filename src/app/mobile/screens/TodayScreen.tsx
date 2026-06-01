@@ -71,6 +71,7 @@ export default function TodayScreen({
   const [leads, setLeads] = useState<MobileLead[]>([]);
   const [kras, setKras] = useState<KRA[]>([]);
   const [loading, setLoading] = useState(true);
+  const [payToday, setPayToday] = useState<{ totalLakhs: number; count: number } | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -81,6 +82,11 @@ export default function TodayScreen({
       setKras(Array.isArray(krasData) ? krasData : []);
       setLoading(false);
     });
+    // Daily payments — managers care most, but harmless for all
+    fetch("/api/payments/today")
+      .then(r => r.json())
+      .then(d => setPayToday({ totalLakhs: d.totalLakhs ?? 0, count: d.count ?? 0 }))
+      .catch(() => {});
   }, []);
 
   const activeLeads = leads.filter(l => l.stage !== "CLOSED_WON" && l.stage !== "CLOSED_LOST");
@@ -159,6 +165,31 @@ export default function TodayScreen({
             Daily Update
           </button>
         </div>
+
+        {/* Payments received today (managers) */}
+        {isManager && payToday && payToday.count > 0 && (
+          <div className="m-section">
+            <div
+              className="m-card"
+              style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(31,157,85,0.06)", border: "1px solid rgba(31,157,85,0.2)" }}
+            >
+              <div style={{ width: 42, height: 42, borderRadius: 12, background: "rgba(31,157,85,0.14)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <MIcon name="check" size={20} color="var(--success)" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
+                  Payments Received Today
+                </div>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 700, color: "var(--success)", lineHeight: 1.1 }}>
+                  {payToday.totalLakhs >= 100 ? `₹${(payToday.totalLakhs / 100).toFixed(2)} Cr` : `₹${payToday.totalLakhs.toFixed(2)} L`}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
+                  {payToday.count} payment{payToday.count !== 1 ? "s" : ""} · tap the bell for details
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Today's Focus */}
         <div className="m-section">

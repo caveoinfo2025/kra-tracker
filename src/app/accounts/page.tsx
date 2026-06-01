@@ -19,23 +19,33 @@ export default async function AccountsPage() {
     orderBy: { name: "asc" },
   });
 
-  const rawRows = await prisma.collection.findMany({
-    include: { employee: { select: { name: true } } },
-    orderBy: { dueDate: "asc" },
-    take: 1000,
-  });
+  const [rawRows, rawAdvances] = await Promise.all([
+    prisma.collection.findMany({
+      include: { employee: { select: { name: true } } },
+      orderBy: { dueDate: "asc" },
+      take: 1000,
+    }),
+    prisma.orderAdvance.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { recordedBy: { select: { name: true } } },
+      take: 500,
+    }),
+  ]);
 
   const rows = JSON.parse(JSON.stringify(rawRows));
+  const advances = JSON.parse(JSON.stringify(rawAdvances));
 
   return (
     <SheetLayout
       title="Accounts — Payment Tracker"
-      description="Update payment received dates and track collection status across all invoices."
+      description="Record payments and advances, track collection status across all invoices."
     >
       <AccountsClient
         initialRows={rows}
+        initialAdvances={advances}
         employees={employees}
         isManager={!!isManager}
+        canManage={!!isManager || isAccounts}
       />
     </SheetLayout>
   );

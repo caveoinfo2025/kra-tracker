@@ -27,6 +27,11 @@ model Employee {
   weeklyCommits  WeeklyCommit[]
   certifications Certification[]
 
+  // Payments / advances / notifications
+  paymentsRecorded Payment[]      @relation("PaymentRecordedBy")
+  advancesRecorded OrderAdvance[] @relation("AdvanceRecordedBy")
+  notifications    Notification[] @relation("NotificationRecipient")
+
   // Pipeline module relations
   assignedLeads  CrmLead[]        @relation("LeadAssignedTo")
   createdLeads   CrmLead[]        @relation("LeadCreatedBy")
@@ -123,10 +128,68 @@ model Collection {
   amountWithoutGstLakhs Float     @default(0)
   dueDate               DateTime
   paymentReceivedDate   DateTime?
-  amountReceivedLakhs   Float     @default(0)
+  amountReceivedLakhs   Float     @default(0)   // cached sum of payments (kept in sync)
   collectionStatus      String    @default("Pending")
   remarks               String    @default("")
   createdAt             DateTime  @default(now())
+
+  payments              Payment[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payments, order advances & notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
+// A single payment receipt against an invoice (Collection). Many per invoice.
+model Payment {
+  id            Int        @id @default(autoincrement())
+  collection    Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId  Int
+  amountLakhs   Float
+  paymentDate   DateTime   @default(now())
+  mode          String     @default("Bank Transfer") // Bank Transfer | Cheque | UPI | Cash | Other
+  referenceNo   String     @default("")
+  notes         String     @default("")
+  // When this payment originated from applying an order advance:
+  fromAdvanceId Int?
+  recordedBy    Employee   @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  recordedById  Int
+  createdAt     DateTime   @default(now())
+}
+
+// An advance received against a Closed Won order before any invoice exists.
+// Held as an unapplied customer credit, later applied to an invoice.
+model OrderAdvance {
+  id             Int       @id @default(autoincrement())
+  salesFunnelId  Int?                                  // the Closed Won order (optional link)
+  customerName   String
+  amountLakhs    Float
+  receivedDate   DateTime  @default(now())
+  mode           String    @default("Bank Transfer")
+  referenceNo    String    @default("")
+  notes          String    @default("")
+  status         String    @default("unapplied")       // unapplied | applied
+  appliedToCollectionId Int?                            // invoice it was applied to
+  appliedDate    DateTime?
+  recordedBy     Employee  @relation("AdvanceRecordedBy", fields: [recordedById], references: [id])
+  recordedById   Int
+  createdAt      DateTime  @default(now())
+}
+
+// In-app notifications (payment received, advance applied, etc.)
+model Notification {
+  id          Int       @id @default(autoincrement())
+  recipient   Employee  @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipientId Int
+  type        String                                   // payment | advance | system
+  title       String
+  body        String    @default("")
+  link        String    @default("")                   // in-app route to open
+  amountLakhs Float?                                    // for payment/advance notifications
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([recipientId, isRead])
 }
 
 model DailyUpdate {
