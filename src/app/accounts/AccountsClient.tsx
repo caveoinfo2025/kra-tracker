@@ -422,7 +422,7 @@ export default function AccountsClient({
   const [advances, setAdvances] = useState<Advance[]>(initialAdvances);
   const [editRow, setEditRow] = useState<Row | null>(null);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
-  const [view, setView] = useState("pending-payment");
+  const [view, setView] = useState("outstanding");
   const [search, setSearch] = useState("");
   const [empFilter, setEmpFilter] = useState("");
   const [today, setToday] = useState<{ totalLakhs: number; count: number } | null>(null);
@@ -449,18 +449,22 @@ export default function AccountsClient({
   // ── Filtered rows ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      if (view === "pending-payment" && r.paymentReceivedDate) return false;
+      const isFullyPaid = r.collectionStatus === "Fully Received";
+
+      // Fully-paid invoices are hidden everywhere except the explicit "Fully Paid" view.
+      if (view !== "paid" && isFullyPaid) return false;
+
+      // "Outstanding" (default): anything not fully paid — pending + overdue + partial.
+      if (view === "outstanding") { /* keep all non-paid */ }
       if (view === "overdue" && !isOverdue(r)) return false;
       if (view === "upcoming" && !isUpcoming(r)) return false;
+      if (view === "pending-payment" && r.paymentReceivedDate) return false;
       if (view === "late-payment") {
         if (!r.paymentReceivedDate) return false;
         if (r.paymentReceivedDate.slice(0, 10) <= r.dueDate.slice(0, 10)) return false;
       }
-      if (view === "on-time") {
-        if (!r.paymentReceivedDate) return false;
-        if (r.paymentReceivedDate.slice(0, 10) > r.dueDate.slice(0, 10)) return false;
-      }
-      if (view === "all") { /* no filter */ }
+      if (view === "paid" && !isFullyPaid) return false;
+
       if (empFilter && String(r.employeeId) !== empFilter) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -478,23 +482,23 @@ export default function AccountsClient({
   const totalInvoiced   = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
   const totalReceived   = rows.reduce((s, r) => s + r.amountReceivedLakhs, 0);
   const outstanding     = totalInvoiced - totalReceived;
+  const notFullyPaid    = rows.filter((r) => r.collectionStatus !== "Fully Received");
+  const outstandingCount = notFullyPaid.length;
   const overdueCount    = rows.filter(isOverdue).length;
   const upcomingCount   = rows.filter(isUpcoming).length;
   const pendingPaymentCount = rows.filter((r) => !r.paymentReceivedDate && r.collectionStatus !== "Fully Received").length;
   const lateCount       = rows.filter(
-    (r) => r.paymentReceivedDate && r.paymentReceivedDate.slice(0, 10) > r.dueDate.slice(0, 10)
+    (r) => r.collectionStatus !== "Fully Received" && r.paymentReceivedDate && r.paymentReceivedDate.slice(0, 10) > r.dueDate.slice(0, 10)
   ).length;
-  const onTimeCount     = rows.filter(
-    (r) => r.paymentReceivedDate && r.paymentReceivedDate.slice(0, 10) <= r.dueDate.slice(0, 10)
-  ).length;
+  const paidCount       = rows.filter((r) => r.collectionStatus === "Fully Received").length;
 
   const TABS = [
-    { key: "pending-payment", label: "Pending Entry", count: pendingPaymentCount, color: "text-amber-600" },
+    { key: "outstanding",     label: "Outstanding",    count: outstandingCount,    color: "text-amber-600" },
     { key: "overdue",         label: "Overdue",        count: overdueCount,        color: "text-red-600" },
     { key: "upcoming",        label: "Upcoming (30d)", count: upcomingCount,        color: "text-blue-600" },
+    { key: "pending-payment", label: "Not Recorded",   count: pendingPaymentCount, color: "text-amber-600" },
     { key: "late-payment",    label: "Late Payments",  count: lateCount,            color: "text-orange-600" },
-    { key: "on-time",         label: "On-Time",        count: onTimeCount,          color: "text-green-600" },
-    { key: "all",             label: "All",            count: rows.length,          color: "text-gray-600" },
+    { key: "paid",            label: "Fully Paid",     count: paidCount,            color: "text-green-600" },
   ];
 
   const collRate = totalInvoiced > 0 ? ((totalReceived / totalInvoiced) * 100).toFixed(1) : "0";
@@ -607,12 +611,12 @@ export default function AccountsClient({
             </option>
           ))}
         </select>
-        {(search || empFilter || view !== "pending-payment") && (
+        {(search || empFilter || view !== "outstanding") && (
           <button
             onClick={() => {
               setSearch("");
               setEmpFilter("");
-              setView("pending-payment");
+              setView("outstanding");
             }}
             className="text-xs text-gray-500 hover:text-gray-700 underline"
           >
@@ -623,9 +627,9 @@ export default function AccountsClient({
 
       <p className="text-xs text-gray-500">
         Showing <strong>{filtered.length}</strong> of {rows.length} records
-        {view === "pending-payment" && (
+        {view === "outstanding" && (
           <span className="ml-2 text-amber-600">
-            — invoices with no payment date recorded yet
+            — pending, overdue & partially-paid invoices (fully paid hidden)
           </span>
         )}
       </p>
@@ -659,7 +663,7 @@ export default function AccountsClient({
               onClick={() => {
                 setSearch("");
                 setEmpFilter("");
-                setView("all");
+                setView("outstanding");
               }}
               className="mt-2 text-sm text-[#CC2229] hover:underline"
             >

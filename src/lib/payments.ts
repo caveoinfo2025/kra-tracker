@@ -63,10 +63,52 @@ interface RecordPaymentInput {
 }
 
 /**
+ * Ensure the payment ledger reflects any pre-existing cached amount that has no
+ * corresponding ledger entries (e.g. invoices imported with amountReceivedLakhs
+ * already > 0). Without this, the first new payment would OVERWRITE the cached
+ * amount instead of adding to it, because syncCollectionTotals re-sums the ledger.
+ *
+ * If cached amountReceived > current ledger sum, we insert a one-time
+ * "Opening balance" payment for the difference so totals add up correctly.
+ */
+async function reconcileOpeningBalance(collectionId: number, recordedById: number) {
+  const [coll, agg] = await Promise.all([
+    prisma.collection.findUnique({
+      where: { id: collectionId },
+      select: { amountReceivedLakhs: true, paymentReceivedDate: true, createdAt: true },
+    }),
+    prisma.payment.aggregate({ where: { collectionId }, _sum: { amountLakhs: true } }),
+  ]);
+  if (!coll) return;
+
+  const cached = round2(coll.amountReceivedLakhs ?? 0);
+  const ledgerSum = round2(agg._sum.amountLakhs ?? 0);
+  const gap = round2(cached - ledgerSum);
+
+  if (gap > 0.001) {
+    await prisma.payment.create({
+      data: {
+        collectionId,
+        amountLakhs: gap,
+        paymentDate: coll.paymentReceivedDate ?? coll.createdAt ?? new Date(),
+        mode: "Opening Balance",
+        referenceNo: "",
+        notes: "Opening balance (pre-existing received amount)",
+        recordedById,
+      },
+    });
+  }
+}
+
+/**
  * Record a payment against an invoice, sync the cache, and fire notifications.
  * Returns the created payment + the refreshed collection.
  */
 export async function recordPayment(input: RecordPaymentInput) {
+  // Capture any pre-existing received amount into the ledger first, so the new
+  // payment ADDS to it rather than replacing it.
+  await reconcileOpeningBalance(input.collectionId, input.recordedById);
+
   const payment = await prisma.payment.create({
     data: {
       collectionId: input.collectionId,
