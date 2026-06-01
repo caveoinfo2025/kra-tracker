@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
 }
 
 model Employee {
@@ -18,7 +18,6 @@ model Employee {
   msId        String?  @unique
   createdAt   DateTime @default(now())
 
-  // Reporting hierarchy (e.g. Accounts → Operations Head → Head of Sales)
   reportsToId Int?
   reportsTo   Employee?  @relation("OrgChart", fields: [reportsToId], references: [id], onDelete: SetNull)
   reports     Employee[] @relation("OrgChart")
@@ -32,34 +31,37 @@ model Employee {
   weeklyCommits  WeeklyCommit[]
   certifications Certification[]
 
-  // Payments / advances / notifications
   paymentsRecorded Payment[]      @relation("PaymentRecordedBy")
   advancesRecorded OrderAdvance[] @relation("AdvanceRecordedBy")
   notifications    Notification[] @relation("NotificationRecipient")
 
-  // Pipeline module relations
-  assignedLeads  CrmLead[]        @relation("LeadAssignedTo")
-  createdLeads   CrmLead[]        @relation("LeadCreatedBy")
-  pipelineTasks  CrmTask[]        @relation("TaskAssignedTo")
-  pipelineMeetings CrmMeeting[]   @relation("MeetingEmployee")
+  assignedLeads      CrmLead[]     @relation("LeadAssignedTo")
+  createdLeads       CrmLead[]     @relation("LeadCreatedBy")
+  pipelineTasks      CrmTask[]     @relation("TaskAssignedTo")
+  pipelineMeetings   CrmMeeting[]  @relation("MeetingEmployee")
   pipelineActivities CrmActivity[] @relation("ActivityPerformedBy")
-  pipelineNotes  CrmNote[]        @relation("NoteAuthor")
+  pipelineNotes      CrmNote[]     @relation("NoteAuthor")
+
+  @@index([reportsToId])
 }
 
 model KRA {
   id          Int      @id @default(autoincrement())
   title       String
-  description String
-  target      String
+  description String   @db.Text
+  target      String   @db.Text
   deadline    DateTime
   weight      Int      @default(100)
   status      String   @default("active")
   createdAt   DateTime @default(now())
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId  Int
+
   reviews        WeeklyReview[]
   weeklyCommits  WeeklyCommit[]
   certifications Certification[]
+
+  @@index([employeeId])
 }
 
 model WeeklyReview {
@@ -68,13 +70,16 @@ model WeeklyReview {
   year       Int
   progress   Int
   score      Int
-  notes      String
-  blockers   String   @default("")
+  notes      String   @db.Text
+  blockers   String   @default("") @db.Text
   createdAt  DateTime @default(now())
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId Int
   kra        KRA      @relation(fields: [kraId], references: [id], onDelete: Cascade)
   kraId      Int
+
+  @@index([employeeId])
+  @@index([kraId])
 }
 
 model LeadGeneration {
@@ -92,8 +97,10 @@ model LeadGeneration {
   leadStatus     String    @default("New")
   qualifiedFlag  Boolean   @default(false)
   nextActionDate DateTime?
-  remarks        String    @default("")
+  remarks        String    @default("") @db.Text
   createdAt      DateTime  @default(now())
+
+  @@index([employeeId])
 }
 
 model SalesFunnel {
@@ -112,14 +119,17 @@ model SalesFunnel {
   grossProfitPct    Float     @default(0)
   proposalDate      DateTime?
   expectedCloseDate DateTime?
-  poDate            DateTime?               // Purchase Order date — mandatory for Closed Won
-  closedDate        DateTime?               // mirrors poDate for Closed Won
+  poDate            DateTime?
+  closedDate        DateTime?
   probabilityPct    Float     @default(0)
   status            String    @default("Active")
   newCustomerFlag   Boolean   @default(false)
   pocFlag           Boolean   @default(false)
-  remarks           String    @default("")
+  remarks           String    @default("") @db.Text
   createdAt         DateTime  @default(now())
+
+  @@index([employeeId])
+  @@index([stage, status])
 }
 
 model Collection {
@@ -133,68 +143,72 @@ model Collection {
   amountWithoutGstLakhs Float     @default(0)
   dueDate               DateTime
   paymentReceivedDate   DateTime?
-  amountReceivedLakhs   Float     @default(0)   // cached sum of payments (kept in sync)
+  amountReceivedLakhs   Float     @default(0)
   collectionStatus      String    @default("Pending")
-  remarks               String    @default("")
+  remarks               String    @default("") @db.Text
   createdAt             DateTime  @default(now())
 
   payments              Payment[]
+
+  @@index([employeeId])
+  @@index([collectionStatus])
+  @@index([dueDate])
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Payments, order advances & notifications
-// ─────────────────────────────────────────────────────────────────────────────
-
-// A single payment receipt against an invoice (Collection). Many per invoice.
 model Payment {
   id            Int        @id @default(autoincrement())
   collection    Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   collectionId  Int
   amountLakhs   Float
   paymentDate   DateTime   @default(now())
-  mode          String     @default("Bank Transfer") // Bank Transfer | Cheque | UPI | Cash | Other
+  mode          String     @default("Bank Transfer")
   referenceNo   String     @default("")
-  notes         String     @default("")
-  // When this payment originated from applying an order advance:
+  notes         String     @default("") @db.Text
   fromAdvanceId Int?
   recordedBy    Employee   @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
   recordedById  Int
   createdAt     DateTime   @default(now())
+
+  @@index([collectionId])
+  @@index([paymentDate])
+  @@index([recordedById])
 }
 
-// An advance received against a Closed Won order before any invoice exists.
-// Held as an unapplied customer credit, later applied to an invoice.
 model OrderAdvance {
-  id             Int       @id @default(autoincrement())
-  salesFunnelId  Int?                                  // the Closed Won order (optional link)
-  customerName   String
-  amountLakhs    Float
-  receivedDate   DateTime  @default(now())
-  mode           String    @default("Bank Transfer")
-  referenceNo    String    @default("")
-  notes          String    @default("")
-  status         String    @default("unapplied")       // unapplied | applied
-  appliedToCollectionId Int?                            // invoice it was applied to
-  appliedDate    DateTime?
-  recordedBy     Employee  @relation("AdvanceRecordedBy", fields: [recordedById], references: [id])
-  recordedById   Int
-  createdAt      DateTime  @default(now())
+  id                    Int       @id @default(autoincrement())
+  salesFunnelId         Int?
+  customerName          String
+  amountLakhs           Float
+  receivedDate          DateTime  @default(now())
+  mode                  String    @default("Bank Transfer")
+  referenceNo           String    @default("")
+  notes                 String    @default("") @db.Text
+  status                String    @default("unapplied")
+  appliedToCollectionId Int?
+  appliedDate           DateTime?
+  recordedBy            Employee  @relation("AdvanceRecordedBy", fields: [recordedById], references: [id])
+  recordedById          Int
+
+  createdAt             DateTime  @default(now())
+
+  @@index([recordedById])
+  @@index([status])
 }
 
-// In-app notifications (payment received, advance applied, etc.)
 model Notification {
   id          Int       @id @default(autoincrement())
   recipient   Employee  @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   recipientId Int
-  type        String                                   // payment | advance | system
+  type        String
   title       String
-  body        String    @default("")
-  link        String    @default("")                   // in-app route to open
-  amountLakhs Float?                                    // for payment/advance notifications
+  body        String    @default("") @db.Text
+  link        String    @default("")
+  amountLakhs Float?
   isRead      Boolean   @default(false)
   createdAt   DateTime  @default(now())
 
   @@index([recipientId, isRead])
+  @@index([createdAt])
 }
 
 model DailyUpdate {
@@ -202,13 +216,15 @@ model DailyUpdate {
   date                   DateTime @default(now())
   employee               Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId             Int
-  topUpdates             String
-  keyMovement            String   @default("")
-  blockers               String   @default("")
-  topDealThisWeek        String   @default("")
+  topUpdates             String   @db.Text
+  keyMovement            String   @default("") @db.Text
+  blockers               String   @default("") @db.Text
+  topDealThisWeek        String   @default("") @db.Text
   managerSupportRequired Boolean  @default(false)
   updateStatus           String   @default("On Track")
   createdAt              DateTime @default(now())
+
+  @@index([employeeId, date])
 }
 
 model WeeklyCommit {
@@ -219,9 +235,12 @@ model WeeklyCommit {
   kraId      Int
   week       Int
   year       Int
-  commitText String   @default("")
+  commitText String   @default("") @db.Text
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([employeeId, week, year])
+  @@index([kraId])
 }
 
 model Certification {
@@ -238,16 +257,13 @@ model Certification {
   status        String    @default("pending")
   approvedBy    Int?
   approvedAt    DateTime?
-  remarks       String    @default("")
+  remarks       String    @default("") @db.Text
   createdAt     DateTime  @default(now())
+
+  @@index([employeeId])
+  @@index([kraId])
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pipeline module — Lead Qualification & Opportunity Funnel
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Stages: NEW_LEAD | CONTACTED | QUALIFIED | REQUIREMENT_GATHERED |
-//         SOLUTION_PROPOSED | POC_DEMO | PROPOSAL_SENT (triggers opportunity)
 model CrmLead {
   id              Int       @id @default(autoincrement())
   title           String
@@ -256,7 +272,6 @@ model CrmLead {
   email           String    @default("")
   phone           String    @default("")
   source          String    @default("Direct")
-  // External-CRM references (IDs from external system; names cached for display)
   categoryId      String?
   categoryName    String    @default("")
   oemId           String?
@@ -265,11 +280,9 @@ model CrmLead {
   productName     String    @default("")
   customerId      String?
   customerName    String    @default("")
-  // Pipeline
   stage           String    @default("NEW_LEAD")
   expectedValue   Float     @default(0)
-  remarks         String    @default("")
-  // Ownership
+  remarks         String    @default("") @db.Text
   assignedTo      Employee  @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
   assignedToId    Int
   createdBy       Employee  @relation("LeadCreatedBy", fields: [createdById], references: [id])
@@ -277,14 +290,17 @@ model CrmLead {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  opportunity     CrmOpportunity?
-  tasks           CrmTask[]
-  meetings        CrmMeeting[]
-  activities      CrmActivity[]
-  notes           CrmNote[]
+  opportunity CrmOpportunity?
+  tasks       CrmTask[]
+  meetings    CrmMeeting[]
+  activities  CrmActivity[]
+  notes       CrmNote[]
+
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([stage])
 }
 
-// Stages: PROPOSAL_SENT | FOLLOW_UP | NEGOTIATION | WON | LOST | ON_HOLD
 model CrmOpportunity {
   id                  Int       @id @default(autoincrement())
   lead                CrmLead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
@@ -293,7 +309,7 @@ model CrmOpportunity {
   value               Float     @default(0)
   expectedClosureDate DateTime?
   probability         Int       @default(50)
-  lostReason          String    @default("")
+  lostReason          String    @default("") @db.Text
   status              String    @default("active")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -301,12 +317,14 @@ model CrmOpportunity {
   tasks      CrmTask[]
   meetings   CrmMeeting[]
   activities CrmActivity[]
+
+  @@index([stage, status])
 }
 
 model CrmTask {
   id            Int              @id @default(autoincrement())
   title         String
-  description   String           @default("")
+  description   String           @default("") @db.Text
   dueDate       DateTime
   assignedTo    Employee         @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
   assignedToId  Int
@@ -318,14 +336,18 @@ model CrmTask {
   opportunityId Int?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
+
+  @@index([assignedToId])
+  @@index([leadId])
+  @@index([opportunityId])
 }
 
 model CrmMeeting {
   id            Int              @id @default(autoincrement())
   title         String
   meetingDate   DateTime
-  notes         String           @default("")
-  attendees     String           @default("")
+  notes         String           @default("") @db.Text
+  attendees     String           @default("") @db.Text
   location      String           @default("")
   lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId        Int?
@@ -334,15 +356,19 @@ model CrmMeeting {
   employee      Employee         @relation("MeetingEmployee", fields: [employeeId], references: [id])
   employeeId    Int
   createdAt     DateTime         @default(now())
+
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([employeeId])
 }
 
 model CrmActivity {
   id            Int              @id @default(autoincrement())
-  entityType    String           // lead | opportunity | task | meeting
+  entityType    String
   entityId      Int
-  action        String           // created | stage_changed | task_completed | note_added | …
-  description   String           @default("")
-  meta          String           @default("")   // JSON string for extra data
+  action        String
+  description   String           @default("") @db.Text
+  meta          String           @default("") @db.Text
   performedBy   Employee         @relation("ActivityPerformedBy", fields: [performedById], references: [id])
   performedById Int
   timestamp     DateTime         @default(now())
@@ -350,69 +376,65 @@ model CrmActivity {
   leadId        Int?
   opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   opportunityId Int?
+
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([performedById])
+  @@index([timestamp])
 }
 
 model CrmNote {
   id        Int      @id @default(autoincrement())
-  content   String
+  content   String   @db.Text
   lead      CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId    Int
   author    Employee @relation("NoteAuthor", fields: [authorId], references: [id])
   authorId  Int
   createdAt DateTime @default(now())
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Customer Master
-// ─────────────────────────────────────────────────────────────────────────────
+  @@index([leadId])
+  @@index([authorId])
+}
 
 model Customer {
   id         Int      @id @default(autoincrement())
   name       String
-  // Address
-  address    String   @default("")
+  address    String   @default("") @db.Text
   district   String   @default("")
   state      String   @default("")
   pincode    String   @default("")
   gstNo      String   @default("")
-  // HO = Head Office  |  Branch
   officeType String   @default("HO")
-  parentId   Int?                          // null for HO; branch → HO id
+  parentId   Int?
   parent     Customer?  @relation("CustomerBranches", fields: [parentId], references: [id])
   branches   Customer[] @relation("CustomerBranches")
-  // Audit
-  crmSource  String   @default("")         // leads | collections | sales_funnel | manual
+  crmSource  String   @default("")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Admin configuration store
-// ─────────────────────────────────────────────────────────────────────────────
+  @@index([parentId])
+  @@index([name])
+}
 
 model AppSetting {
   id          Int      @id @default(autoincrement())
-  category    String                          // e.g. "pipeline", "kra", "system"
-  key         String   @unique               // e.g. "pipeline.lead_stages"
-  label       String                          // Human-readable name shown in admin UI
-  value       String                          // JSON-encoded value
-  description String   @default("")           // Helper text shown in admin UI
+  category    String
+  key         String   @unique
+  label       String
+  value       String   @db.Text
+  description String   @default("") @db.Text
   updatedAt   DateTime @updatedAt
-  updatedById Int?                            // Last editor (employee id)
+  updatedById Int?
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Role-based access control
-// ─────────────────────────────────────────────────────────────────────────────
 
 model AppRole {
   id          Int      @id @default(autoincrement())
-  name        String   @unique          // Matches Employee.role string
-  label       String                    // Display name in admin UI
-  level       Int                       // Hierarchy: 100 = top, lower = less access
-  color       String   @default("#6b7280") // Badge color hex
-  isSystem    Boolean  @default(false)  // Built-in roles cannot be deleted
-  description String   @default("")
+  name        String   @unique
+  label       String
+  level       Int
+  color       String   @default("#6b7280")
+  isSystem    Boolean  @default(false)
+  description String   @default("") @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -423,7 +445,7 @@ model RolePageAccess {
   id        Int     @id @default(autoincrement())
   role      AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
   roleId    Int
-  pageKey   String  // e.g. "dashboard", "pipeline.leads", "collections"
+  pageKey   String
   canView   Boolean @default(false)
   canCreate Boolean @default(false)
   canEdit   Boolean @default(false)
