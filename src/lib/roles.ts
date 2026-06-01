@@ -12,14 +12,27 @@ export type SessionUser = {
 export const ACCOUNTS_ROLE = "Accounts";
 export const OPERATIONS_HEAD_ROLE = "Operations Head";
 
-/** Operations Head — sits above Accounts, reports to the sales head. */
-export function isOperationsHead(user?: SessionUser | null): boolean {
-  return user?.role === OPERATIONS_HEAD_ROLE;
+function roleText(user?: SessionUser | null): string {
+  return (user?.role ?? "").toLowerCase();
 }
 
-/** Accounts staff. */
+/**
+ * Operations Head — sits above Accounts, reports to the sales head.
+ * Matched flexibly so variants like "Operations Head", "HR & Operations Head",
+ * or "Head of Operations" all qualify.
+ */
+export function isOperationsHead(user?: SessionUser | null): boolean {
+  const r = roleText(user);
+  return (
+    r.includes("operations head") ||
+    r.includes("head of operations") ||
+    (r.includes("operations") && r.includes("head"))
+  );
+}
+
+/** Accounts staff (also matches "Accounts Manager", "Accounts Executive", etc.). */
 export function isAccounts(user?: SessionUser | null): boolean {
-  return user?.role === ACCOUNTS_ROLE;
+  return roleText(user).includes("accounts");
 }
 
 /**

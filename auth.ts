@@ -45,9 +45,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (msId) token.msId = msId;
       }
 
-      // Re-hydrate isManager on every token refresh in case it was missing
-      // from an old JWT or changed in the DB since last login
-      if (token.employeeId && token.isManager === undefined) {
+      // Re-hydrate isManager AND role from the DB on every token refresh, so
+      // changes made on the Team page (e.g. assigning the Operations Head role)
+      // take effect without forcing the user to sign out and back in.
+      if (token.employeeId) {
         const emp = await prisma.employee.findUnique({
           where: { id: token.employeeId as number },
           select: { isManager: true, role: true },

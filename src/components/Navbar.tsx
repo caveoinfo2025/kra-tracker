@@ -2,6 +2,7 @@ import { signOut } from "@/../auth";
 import { getSession } from "@/lib/dev-session";
 import { cookies } from "next/headers";
 import SidebarLinks from "./SidebarLinks";
+import { isOperationsHead, isAccounts as isAccountsRole } from "@/lib/roles";
 import { LogOut } from "lucide-react";
 import prisma from "@/lib/prisma";
 
@@ -11,19 +12,23 @@ export default async function Navbar() {
 
   if (!user) return null;
 
-  // Always read isManager fresh from DB — JWT may be stale or missing the field
+  // Always read isManager AND role fresh from DB — the JWT may be stale (e.g.
+  // role was just changed on the Team page but the user hasn't re-logged in).
   let isManager = user.isManager ?? false;
+  let role = user.role ?? "";
   if (user.employeeId) {
     const emp = await prisma.employee.findUnique({
       where: { id: user.employeeId },
-      select: { isManager: true },
+      select: { isManager: true, role: true },
     });
-    if (emp) isManager = emp.isManager;
+    if (emp) { isManager = emp.isManager; role = emp.role; }
   }
+  const liveUser = { isManager, role };
 
   // Accounts and Operations Head both use the finance-focused sidebar.
-  const isOpsHead = !isManager && user.role === "Operations Head";
-  const isAccounts = !isManager && (user.role === "Accounts" || isOpsHead);
+  const opsHead = isOperationsHead(liveUser);
+  const isOpsHead = !isManager && opsHead;
+  const isAccounts = !isManager && (isAccountsRole(liveUser) || opsHead);
 
   // Compute initials from name
   const displayName: string = (user.employeeName ?? user.name ?? "?") as string;
@@ -38,9 +43,7 @@ export default async function Navbar() {
     ? "Manager"
     : isOpsHead
     ? "Operations Head"
-    : user.role === "Accounts"
-    ? "Accounts"
-    : (user.role as string | undefined) ?? "Employee";
+    : role || "Employee";
 
   return (
     <aside className="sidebar">
