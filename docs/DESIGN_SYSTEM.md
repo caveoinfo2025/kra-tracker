@@ -4,6 +4,11 @@ Defined as CSS custom properties in `src/app/globals.css` (`:root`). Tailwind v4
 present but most styling uses these tokens + hand-written component classes.
 **Reuse tokens — never hardcode hex values in components.**
 
+> **2026-06-02:** no theme, token, or layout changes this session (work was the
+> SQLite→MariaDB migration). Tokens and patterns below are current. The orphaned
+> `public/maintenance.html` splash uses brand red `#C8102E` on `#0F1115` inline (it predates
+> being wired to anything) — if kept, migrate it onto these tokens; otherwise delete it.
+
 ## 1. Colors
 
 ### Brand

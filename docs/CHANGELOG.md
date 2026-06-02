@@ -4,34 +4,32 @@ Reverse-chronological log of notable changes. **Update at the end of every sessi
 Dates from git history (branch `master`).
 
 ## Current State
-- All core modules live in production on `master` / `sales.caveoinfosystems.com`:
-  auth, pipeline (leads/opportunities/tasks/meetings/notes), KRA engine + reviews/commits/
-  certifications, collections + payments + advances + notifications, customer master,
-  manager & employee dashboards (period filter + clickable KPIs), admin panel
-  (settings + RBAC), mobile app (incl. business-card OCR), bulk import, org hierarchy.
-- **Database is now MySQL/MariaDB** (Hostinger MariaDB 11.8), migrated from SQLite.
-  Prisma uses the `@prisma/adapter-mariadb` driver adapter. Production verified live.
-- **Working tree:** clean; documentation refreshed this session.
-- **Latest commit:** `7d6500a` — strip Passenger backslash-escaping from DATABASE_URL.
-- **Open production caveat:** users whose JWT was minted by the *old* `auth.ts` (before
-  `1ab4f7d`) need **one** sign-out + sign-in to pick up live role; afterwards role changes
-  apply automatically.
+- All core modules present on `master` / `sales.caveoinfosystems.com`: auth, pipeline,
+  KRA engine + reviews/commits/certifications, collections + payments + advances +
+  notifications, customer master, dashboards, admin panel, mobile app, bulk import, org hierarchy.
+- **Database migrated SQLite → MySQL/MariaDB 11.8** (driver adapter `@prisma/adapter-mariadb`).
+  Migration complete + verified (all 22 tables, row counts identical; app served the DB OK).
+- **🔴 Production is currently DOWN** — CloudLinux **LVE resource limit** hit
+  (`fork: Resource temporarily unavailable`) from piled-up `next-server` workers + a
+  concurrent rebuild. **Recover via hPanel → Node.js app → Restart.** Not data loss / not a
+  code bug. See NEXT_SESSION.md "BLOCKER #1".
+- **Auth runs in `src/proxy.ts`** (Next 16 edge middleware); the `auth.config.ts`
+  `authorized` callback IS live (older "dead code" notes corrected this session).
+- **Latest commit:** `749f335` (docs). Working tree clean apart from untracked local helper scripts.
+- **Open caveat:** pre-`1ab4f7d` JWTs need one sign-out + in to pick up live role.
 
 ## Next Actions
-1. **Post-MySQL smoke test on production:** log in via Microsoft and spot-check dashboard
-   totals, record a test payment, create a test lead, open the notifications feed — confirm
-   reads + writes against MariaDB. Keep the SQLite `db/prod.db` backup for ~2 weeks before deleting.
-2. **Rotate credentials** shared in chat (SSH `u686730471`, MySQL `u686730471_caveoadmincrm`).
-   Delete the local `scripts/ssh-*.mjs`, `scripts/server-migrate.cjs`, `scripts/*conn*.cjs`,
-   `scripts/test-*.cjs`, `scripts/commitmsg.txt` — they contain plaintext passwords and are
-   untracked (never commit them).
-3. Have Priyadharshini (Accounts) and Deepak (Operations Head) **log out + back in once** on
-   production (stale-JWT role fix from `1ab4f7d`); set Deepak's role + `Reports To` on Team page.
-4. Decide the authoritative RBAC path (DB `hasPermission` vs `roles.ts`) and enforce
-   `RolePageAccess` at the route/page layer.
-5. Wire the Topbar global search to real results.
-6. Address the `xlsx@0.18.5` advisory (replace or sandbox imports).
-7. Surface the notifications feed on desktop.
+1. **🔴 Restart the Node app in hPanel** to clear the LVE outage; confirm `200` on `/login`.
+2. **Post-MySQL smoke test:** log in via Microsoft; check dashboard totals, record a test
+   payment, create a test lead, open notifications. Keep server `db/prod.db` backup ~2 weeks.
+3. **Rotate credentials** shared in chat (SSH `u686730471`, MySQL `u686730471_caveoadmincrm`);
+   **delete** untracked `scripts/_tmp_ssh.mjs` + `scripts/_tmp_sftp.mjs` (plaintext creds).
+4. Priyadharshini + Deepak **re-login once** (stale-JWT role fix `1ab4f7d`); set Deepak's role +
+   `Reports To` on the Team page.
+5. Apply `@db.Decimal(12,4)` to money fields; wrap `recordPayment`/`applyAdvance` in
+   `prisma.$transaction`; remove orphaned `public/maintenance.html` + leftover `better-sqlite3` deps.
+6. Decide authoritative RBAC path + enforce `RolePageAccess`; wire Topbar search; mitigate
+   `xlsx@0.18.5`; surface notifications on desktop.
 
 ---
 
@@ -51,15 +49,27 @@ Dates from git history (branch `master`).
     counters reset to `MAX(id)+1`, `_prisma_migrations` baselined so `migrate deploy` is a no-op.
   - Single baseline migration `prisma/migrations/20260601000000_init_mysql`; old SQLite
     migrations removed; `migration_lock.toml` provider → `mysql`.
-- **Gotchas hit & fixed (all resolved):**
-  - Prisma connects over TCP — use `127.0.0.1`, not `localhost` (which the driver maps to a
-    unix socket). Hostinger user grant covers `@127.0.0.1`.
-  - Removed `src/middleware.ts` — Next.js 16 uses `src/proxy.ts`; the two cannot coexist.
-  - **Hostinger/Passenger escapes `%` → `\%` when injecting env vars**, corrupting the
-    URL-encoded DB password (`Crm%40…` → `Crm\%40…`). `prisma.ts` now strips stray
+- **Build-fix iterations (each a prod build failure → fix → rebuild):**
+  - `7b26b2b` use `127.0.0.1` not `localhost` (TCP vs unix socket; grant covers `@127.0.0.1`).
+  - `c39e45c` removed the 16 old SQLite migrations + set `migration_lock.toml` → `mysql`
+    (Prisma refused the provider mismatch).
+  - `50f4230` removed `src/middleware.ts` (maintenance gate I'd added) — Next 16 already has
+    `src/proxy.ts` and the two cannot coexist.
+  - `ec55aeb` switched `prisma.ts` to the `PrismaMariaDb` driver adapter (build was still on
+    the old SQLite adapter import).
+  - `7d6500a` **the hard one:** runtime `Access denied @127.0.0.1` — Hostinger/Passenger
+    escapes `%`→`\%` in injected env, corrupting the URL-encoded password (`Crm%40…` →
+    `Crm\%40…`). Diagnosed by reading `/proc/<pid>/environ`. `prisma.ts` now strips stray
     backslash-escapes before parsing `DATABASE_URL` (and accepts `DB_*` vars as override).
+- **Verification:** build green; `/login`, `/api/auth/session` → 200; 0 `Access denied` / 0
+  ERROR lines in runtime logs after the fix deployed.
+- **⚠️ After the docs commit (`749f335`), production hit a CloudLinux LVE resource limit**
+  (`fork: Resource temporarily unavailable`) — repeated rebuilds + `restart.txt` touches piled
+  up `next-server` workers alongside a running build; SSH/SFTP could no longer start subsystems.
+  Not data loss / not a code bug. Recovery = **hPanel → Node.js app → Restart** (next session).
 - Files: `prisma/schema.prisma`, `prisma.config.ts`, `src/lib/prisma.ts`, `package.json`,
-  `prisma/migrations/20260601000000_init_mysql/`. Commits `59c34d5`→`7d6500a`.
+  `prisma/migrations/20260601000000_init_mysql/`, removed `src/middleware.ts`. Commits
+  `59c34d5`→`749f335`.
 
 ## 2026-06-02 — earlier
 - **Fix — Operations Head / Accounts access (root cause: stale JWT role).** Two production

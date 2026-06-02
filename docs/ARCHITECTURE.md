@@ -5,9 +5,9 @@
 |---|---|---|
 | Framework | Next.js **16.2.6** App Router (Turbopack) | React 19.2 |
 | Language | TypeScript 5 | |
-| ORM | Prisma **7.8** | client → `src/generated/prisma` (NOT node_modules) |
-| DB | SQLite | `@prisma/adapter-better-sqlite3` + `better-sqlite3` |
-| Auth | NextAuth **v5 beta** | Microsoft Entra ID (Azure AD), JWT, 8h sessions |
+| ORM | Prisma **7.8** | client → `src/generated/prisma` (NOT node_modules); driver-adapter mode (no query engine) |
+| DB | **MySQL / MariaDB 11.8** | `@prisma/adapter-mariadb` + `mariadb` driver (migrated from SQLite 2026-06-02) |
+| Auth | NextAuth **v5 beta** | Microsoft Entra ID (Azure AD), JWT, 8h sessions; edge gate in `src/proxy.ts` |
 | Styling | Tailwind v4 + custom `globals.css` tokens | |
 | Charts | Recharts + inline SVG | |
 | Icons | lucide-react | |
@@ -17,11 +17,12 @@
 ## 2. Folder Structure
 ```
 auth.ts                  NextAuth (Node): JWT/session callbacks + DB lookups
-auth.config.ts           Edge-safe: provider + (dead) authorized callback
-prisma.config.ts         Prisma datasource (reads DATABASE_URL)
+auth.config.ts           Edge-safe: provider + LIVE authorized callback (run by proxy.ts)
+src/proxy.ts             Next.js 16 edge middleware: runs authConfig.auth, gates all routes
+prisma.config.ts         Prisma datasource (reads DATABASE_URL for the CLI)
 prisma/
-  schema.prisma          22 models
-  migrations/            16 migrations
+  schema.prisma          22 models · provider=mysql · @db.Text + indexes
+  migrations/            1 MySQL baseline (20260601000000_init_mysql); SQLite history removed
 src/
   app/
     <route>/page.tsx     Server component: getSession() → Prisma → <XClient/>
@@ -55,7 +56,7 @@ independently auth-checked.
 ## 4. Services (`src/lib/`)
 | File | Responsibility |
 |---|---|
-| `prisma.ts` | Singleton client; resolves SQLite path from `DATABASE_URL` (strips `file:`), dev fallback to `prisma/dev.db`. |
+| `prisma.ts` | Singleton client over the **MariaDB driver adapter** (`PrismaMariaDb`). Builds the pool config from `DATABASE_URL` — **strips Passenger's `\%` backslash-escaping** before `new URL()` parsing — or from explicit `DB_HOST/PORT/USER/PASSWORD/NAME` env vars if present. |
 | `dev-session.ts` | **`getSession()`** — universal accessor; dev impersonation via `dev_employee_id`. |
 | `kra-engine.ts` (759 ln) | Title-dispatched KRA progress from activity sheets; per-employee + team-wide helpers; `parseTargets`, `toScore`. |
 | `payments.ts` | `recordPayment` (+opening-balance reconcile), `syncCollectionTotals`, `applyAdvance`, `paymentsToday`, notification fan-out. |
@@ -81,9 +82,15 @@ independently auth-checked.
 5. **Development:** if `dev_employee_id` cookie is set, `getSession()` returns a synthetic
    session for that employee (DevBar / `/login` quick-login). `/api/dev/switch` sets the
    cookie (dev only; 404 in prod).
-6. **No middleware:** the `authorized` callback in `auth.config.ts` is never invoked.
-   Protection is per-page (`redirect`) and per-route (`401`/`403`). Unguarded by design:
-   `/api/auth/[...nextauth]` and `/api/dev/switch`.
+6. **Edge gate (`src/proxy.ts`):** Next.js 16's middleware replacement runs
+   `NextAuth(authConfig).auth` over a matcher covering all routes except
+   `_next/static`, `_next/image`, `favicon.ico`, `public`. The **`authorized` callback IS
+   live** — it allows `/login`, `/api/auth`, and (dev-only) `/api/dev/switch`; lets
+   authenticated requests through; returns **`401 JSON` for unauthenticated `/api/*`** and
+   **redirects unauthenticated page routes to `/login`**. Pages/routes ALSO call
+   `getSession()` (defence in depth + ownership). A `middleware.ts` cannot coexist with
+   `proxy.ts` in Next 16. *(Note: the header comment in `auth.config.ts` still says
+   "Used by src/middleware.ts" — stale; it's `proxy.ts` now.)*
 
 ## 6. Authorization Layers
 - **API ownership:** non-managers filtered to own `employeeId`; mismatch → `403`. Managers bypass.
@@ -96,7 +103,17 @@ independently auth-checked.
 ## 7. Build & Deploy
 - `npm run dev` — local. `npm run build` = `prisma migrate deploy && prisma generate &&
   next build`.
-- Hostinger injects `DATABASE_URL` + Azure env at runtime; deploys from `master`.
-- **Schema change loop:** `DATABASE_URL="file:./prisma/dev.db" npx prisma migrate dev`
+- **Hostinger / Passenger:** deploys from `master` (push → build under
+  `…/public_html/.builds/`). Env is read from `…/public_html/.builds/config/.env`
+  (Passenger injects at app start, **escaping `%`→`\%`** — see `prisma.ts`). Restart the
+  app with `touch …/nodejs/tmp/restart.txt`. Server Node: `/opt/alt/alt-nodejs22/...` (v22,
+  matches `better-sqlite3` ABI; v24 also installed). DB host must be **`127.0.0.1`** (TCP),
+  not `localhost`.
+  - ⚠️ Rapid back-to-back rebuilds/restarts pile up `next-server` workers and can trip the
+    **CloudLinux LVE** limit (`fork: Resource temporarily unavailable`) → recover via hPanel
+    → Restart Node app.
+- **Schema change loop:** `npx prisma migrate dev --name <x>` against a **MySQL** dev DB
   → `npx prisma generate` → **restart dev server** (Turbopack caches old client → 500s).
-- **SQLite:** never `mode: "insensitive"` (throws); `contains` is already case-insensitive.
+- **MySQL:** `contains` is case-insensitive under `utf8mb4_unicode_ci` (no
+  `mode:"insensitive"` needed). `url` is NOT allowed in `schema.prisma` (Prisma 7) — it
+  lives in `prisma.config.ts`.

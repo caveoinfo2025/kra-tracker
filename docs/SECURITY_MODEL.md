@@ -36,17 +36,26 @@ free-text variants ("HR & Operations Head") still resolve correctly.
    return `true`. ⚠️ The matrix is editable in the admin panel but **not yet enforced at
    most routes** — consolidating these two systems is a tracked next step.
 
+## Edge gate (`src/proxy.ts`) — primary boundary
+- **Next.js 16's middleware replacement.** `src/proxy.ts` runs `NextAuth(authConfig).auth`
+  over a matcher covering all routes except `_next/static`, `_next/image`, `favicon.ico`,
+  `public`. The **`authorized` callback in `auth.config.ts` IS live** (corrects the earlier
+  "dead code" note): it allows `/login`, `/api/auth`, and (dev-only) `/api/dev/switch`; lets
+  authenticated requests through; returns **`401 JSON` for unauthenticated `/api/*`** and
+  **redirects unauthenticated page routes to `/login`**.
+- A `middleware.ts` **cannot coexist** with `proxy.ts` in Next 16 (build error).
+- *(Stale comment:* `auth.config.ts` header still says "Used by src/middleware.ts".)*
+
 ## API security
-- Every route (52) calls `getSession()`. Unauthenticated → **`401 {error}`** (API routes
-  are never redirected to `/login`).
+- Defence in depth: the edge proxy 401s unauthenticated `/api/*`, AND every route (52) also
+  calls `getSession()`.
 - **Ownership:** non-managers are filtered to their own `employeeId`; `[id]` mutations
   fetch the record's owner and return **`403`** on mismatch. Managers/finance bypass.
 - **Manager-only** routes (admin) return `403` to non-managers.
-- **Unguarded by design:** `/api/auth/[...nextauth]` (NextAuth handler) and
-  `/api/dev/switch` (development only — returns `404` in production).
-- **No `middleware.ts`** — the `authorized` callback in `auth.config.ts` never runs;
-  enforcement is entirely per-page (`redirect`) and per-route (`401`/`403`). Treat this as
-  the security boundary; any new page/route MUST call `getSession()` itself.
+- **Public by design:** `/api/auth/[...nextauth]` (NextAuth handler) and `/api/dev/switch`
+  (development only — returns `404` in production).
+- Any new page/route should STILL call `getSession()` itself (don't rely on the proxy alone
+  for ownership / role checks).
 
 ## Data visibility
 - **Reps:** only their own leads, opportunities, collections, KRAs, daily updates.
@@ -75,8 +84,18 @@ free-text variants ("HR & Operations Head") still resolve correctly.
 - **Gaps:** no global, immutable audit trail across all entities; no login-history log.
   Consider centralizing if compliance requires it.
 
+## Database credentials & connection (post-migration)
+- MySQL/MariaDB creds + `DATABASE_URL` live in `…/public_html/.builds/config/.env` on the
+  server (Passenger injects at runtime). Host is **`127.0.0.1`** (TCP).
+- **Passenger escapes `%`→`\%`** in injected env values; `src/lib/prisma.ts` strips stray
+  backslash-escapes before parsing — keep that in mind if changing the DB password (prefer a
+  password without `%`, or rely on the unescape).
+- **⚠️ Action required:** SSH (`u686730471`) and MySQL (`u686730471_caveoadmincrm`)
+  passwords were shared in a chat session during migration — **rotate both**. Delete any
+  local helper scripts that embedded them (`scripts/_tmp_ssh.mjs`, `scripts/_tmp_sftp.mjs`).
+
 ## Known security notes
 - `xlsx@0.18.5` carries a HIGH-severity advisory (prototype pollution / ReDoS), no upstream
   fix — used only in the import path; treat imported files as untrusted.
-- Because protection is per-route, **forgetting `getSession()` in a new route silently
-  exposes it.** Always copy the guard pattern from an existing route.
+- The edge proxy is the first gate, but **forgetting `getSession()` in a new route still
+  drops ownership/role checks.** Always copy the guard pattern from an existing route.

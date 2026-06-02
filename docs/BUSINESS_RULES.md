@@ -52,6 +52,13 @@ Head of Sales).
 - **OrderAdvance:** `unapplied → applied`.
 - **Notification:** `isRead false → true`.
 
+> **Note (2026-06-02):** the SQLite→MariaDB migration changed **no business rules** — every
+> workflow, calculation, validation, and status transition below is unchanged and all data
+> was preserved (row counts verified). Money remains ₹ Lakhs (now MySQL `DOUBLE`; exact
+> `Decimal` is a deferred improvement). **Finance caveat:** `recordPayment`/`applyAdvance` are
+> not yet wrapped in a DB transaction — fine at current volume, but wrap them before heavy
+> concurrent writes on MySQL (see DATABASE.md §5).
+
 ## Calculations
 - **Money:** everything in **₹ Lakhs** (1 Cr = 100 L).
 - **KRA progress (0–100%) → score (1–10):** bands 100→10, 90→9, 75→8, 60→7, 50→6, 40→5,

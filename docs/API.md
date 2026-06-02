@@ -6,12 +6,16 @@ and return JSON.
 ## 1. Conventions
 
 ### Auth & errors
-- Unauthenticated API request → **`401 {"error":"Unauthorized"}`** (never redirected to /login).
+- **Two layers:** the edge proxy (`src/proxy.ts` → `authConfig.authorized`) returns
+  **`401 {"error":"Unauthorized"}`** for any unauthenticated `/api/*` request before the
+  handler runs; each handler ALSO calls `getSession()` (defence in depth + ownership).
 - Non-managers are scoped to their own `employeeId`; ownership mismatch → **`403 {"error":"Forbidden"}`**.
 - Missing record → **`404 {"error":"Not found"}`**. Bad input → **`400 {"error": "..."}`**.
 - Manager-only routes (admin) → `403` for non-managers.
-- **Unguarded by design:** `/api/auth/[...nextauth]` (NextAuth) and `/api/dev/switch`
-  (dev only; 404 in production).
+- **Public (allowed by the proxy):** `/api/auth/[...nextauth]` (NextAuth) and
+  `/api/dev/switch` (dev only; 404 in production).
+- **No API surface changed in the SQLite→MariaDB migration** — all routes behave identically;
+  only the underlying DB engine/driver changed.
 
 ### Formats
 - Request/response bodies are JSON. **Money fields are numbers in ₹ Lakhs.**

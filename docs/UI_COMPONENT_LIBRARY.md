@@ -3,6 +3,12 @@
 > Companion to `DESIGN_SYSTEM.md` (tokens). This catalogs the actual components and how
 > to use them.
 
+> **2026-06-02:** no components were added or modified this session — the work was the
+> SQLite→MariaDB database migration (backend/infra only). The catalog below is current. One
+> non-component artifact exists as debt: `public/maintenance.html` (a standalone maintenance
+> splash) is **orphaned** — the `middleware.ts` that served it was removed (Next 16 conflict
+> with `proxy.ts`). Either wire a maintenance gate into `proxy.ts` or delete the file.
+
 ## Design language
 Clean enterprise SaaS: white surfaces on a light grey app background, a **single brand-red
 accent (`#C8102E`)**, generous radius (8–16px cards), subtle shadows, Inter/Space Grotesk
