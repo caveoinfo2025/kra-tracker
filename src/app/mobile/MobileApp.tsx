@@ -11,6 +11,7 @@ import KRAsScreen from "./screens/KRAsScreen";
 import MeScreen from "./screens/MeScreen";
 import TeamScreen from "./screens/TeamScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
+import CollectionsScreen from "./screens/CollectionsScreen";
 import QuickLogSheet from "./screens/QuickLogSheet";
 import LogActivitySheet from "./screens/LogActivitySheet";
 import ScanCardScreen from "./screens/ScanCardScreen";
@@ -25,7 +26,8 @@ type Screen =
   | { type: "kras" }
   | { type: "team"; mode: "pipeline" | "kra" }
   | { type: "scan" }
-  | { type: "compose" };
+  | { type: "compose" }
+  | { type: "collections" };
 
 type LogSheet = { kind: "call" | "meeting"; lead: MobileLead | null } | null;
 
@@ -41,8 +43,8 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
   const [screen, setScreen] = useState<Screen>({ type: "tab" });
   const [showQuickLog, setShowQuickLog] = useState(false);
   const [logSheet, setLogSheet] = useState<LogSheet>(null);
-  const [updatesKey, setUpdatesKey] = useState(0); // force refresh
-  const [dealKey, setDealKey] = useState(0); // force deal-detail activity refresh
+  const [updatesKey, setUpdatesKey] = useState(0);
+  const [dealKey, setDealKey] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
 
   function showToast(msg: string) {
@@ -86,16 +88,27 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
     setShowQuickLog(false);
   }
 
+  function pushCollections() {
+    setScreen({ type: "collections" });
+    setShowQuickLog(false);
+  }
+
+  // Navigate to Opportunities: switch to pipeline tab in opps view
+  function pushOpportunities() {
+    switchTab("pipeline");
+    // PipelineScreen maintains its own view state; user can tap "Opportunities" segment
+    // We show a toast to guide them
+    showToast('Switch to Opportunities tab in Pipeline');
+  }
+
   function handleQuickLogAction(type: string) {
     setShowQuickLog(false);
     if (type === "update") {
       setActiveTab("updates");
       setScreen({ type: "compose" });
     } else if (type === "lead" || type === "deal") {
-      // New lead → scan a business card
       setScreen({ type: "scan" });
     } else if (type === "call" || type === "meeting") {
-      // Open the log sheet; lead is chosen inside it
       setLogSheet({ kind: type, lead: null });
     }
   }
@@ -104,7 +117,6 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
     setScreen({ type: "tab" });
   }
 
-  // Render the active screen
   function renderScreen() {
     if (screen.type === "notifications") {
       return <NotificationsScreen onBack={popScreen} />;
@@ -155,6 +167,14 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
         />
       );
     }
+    if (screen.type === "collections") {
+      return (
+        <CollectionsScreen
+          isManager={isManager}
+          onBack={popScreen}
+        />
+      );
+    }
 
     // Tab views
     if (activeTab === "home") {
@@ -168,6 +188,7 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
           onKRAs={pushKRAs}
           onUpdates={() => switchTab("updates")}
           onViewPipeline={() => switchTab("pipeline")}
+          onCollections={pushCollections}
         />
       );
     }
@@ -199,22 +220,22 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
           onKRAs={pushKRAs}
           onTeam={pushTeam}
           onTasks={() => switchTab("pipeline")}
+          onCollections={pushCollections}
+          onOpportunities={pushOpportunities}
         />
       );
     }
     return null;
   }
 
-  // Whether to show the tab bar
   const showTabBar = screen.type === "tab";
 
   return (
     <div className="mobile-root">
-      {/* Screen content */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         {renderScreen()}
 
-        {/* Quick Log bottom sheet overlay */}
+        {/* Quick Log bottom sheet */}
         {showQuickLog && (
           <QuickLogSheet
             onClose={() => setShowQuickLog(false)}
@@ -231,7 +252,6 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
             onLogged={() => {
               const k = logSheet.kind;
               setLogSheet(null);
-              // If we logged against the currently open deal, refresh its activity
               if (screen.type === "deal") setDealKey((n) => n + 1);
               showToast(k === "call" ? "Call logged" : "Meeting logged");
             }}
@@ -256,13 +276,14 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
             display: "flex",
             alignItems: "center",
             gap: 8,
+            whiteSpace: "nowrap",
           }}>
             <MIcon name="check" size={14} color="#fff" /> {toast}
           </div>
         )}
       </div>
 
-      {/* Tab bar — only shown on main tab views */}
+      {/* Tab bar */}
       {showTabBar && (
         <div className="m-tabbar" style={{ position: "fixed", bottom: "max(env(safe-area-inset-bottom, 0px), 20px)", left: 12, right: 12 }}>
           <button

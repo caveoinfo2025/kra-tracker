@@ -9,6 +9,8 @@ interface Props {
   onKRAs: () => void;
   onTeam: (mode: "pipeline" | "kra") => void;
   onTasks: () => void;
+  onCollections: () => void;
+  onOpportunities: () => void;
 }
 
 const AVATAR_COLORS = ["#5B626C","#0046B0","#B05000","#1F7A3F","#2A2A55","#702D5B"];
@@ -17,15 +19,17 @@ function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export default function MeScreen({ userName, userEmail, isManager, employeeId, onKRAs, onTeam, onTasks }: Props) {
+export default function MeScreen({ userName, userEmail, isManager, employeeId, onKRAs, onTeam, onTasks, onCollections, onOpportunities }: Props) {
   const menuItems = [
-    { icon: "target", label: "My KRAs", sub: "Targets & progress tracking", action: onKRAs, show: !isManager },
-    { icon: "shield", label: "Pipeline Tasks", sub: "Open follow-ups & actions", action: onTasks },
+    { icon: "target",   label: "My KRAs",          sub: "Targets & progress tracking",     action: onKRAs,           show: !isManager },
+    { icon: "funnel",   label: "Opportunities",     sub: "Deals in proposal & negotiation", action: onOpportunities,  show: true },
+    { icon: "wallet",   label: "Collections",       sub: "Invoices, payments & overdue",    action: onCollections,    show: true },
+    { icon: "shield",   label: "Pipeline Tasks",    sub: "Open follow-ups & actions",       action: onTasks,          show: true },
   ].filter(m => m.show !== false);
 
   const managerItems = isManager ? [
-    { icon: "user", label: "Team Overview", sub: "Team pipeline, won & open leads", action: () => onTeam("pipeline") },
-    { icon: "trend-up", label: "Team KRAs", sub: "Review team performance", action: () => onTeam("kra") },
+    { icon: "user",      label: "Team Overview",  sub: "Team pipeline, won & open leads",   action: () => onTeam("pipeline") },
+    { icon: "trend-up",  label: "Team KRAs",      sub: "Review team performance",           action: () => onTeam("kra") },
   ] : [];
 
   return (
@@ -43,10 +47,7 @@ export default function MeScreen({ userName, userEmail, isManager, employeeId, o
           <div className="m-card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div
               className="m-avatar lg"
-              style={{
-                background: AVATAR_COLORS[employeeId % AVATAR_COLORS.length],
-                width: 56, height: 56, fontSize: 18,
-              }}
+              style={{ background: AVATAR_COLORS[employeeId % AVATAR_COLORS.length], width: 56, height: 56, fontSize: 18 }}
             >
               {initials(userName)}
             </div>
@@ -62,7 +63,7 @@ export default function MeScreen({ userName, userEmail, isManager, employeeId, o
           </div>
         </div>
 
-        {/* Menu items */}
+        {/* Quick Access */}
         {menuItems.length > 0 && (
           <div className="m-section">
             <div className="m-section-label">Quick Access</div>
@@ -77,8 +78,7 @@ export default function MeScreen({ userName, userEmail, isManager, employeeId, o
                   <div style={{
                     width: 36, height: 36, borderRadius: 10,
                     background: "rgba(200, 16, 46, 0.08)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                   }}>
                     <MIcon name={item.icon} size={17} color="var(--caveo-red)" />
                   </div>
@@ -108,8 +108,7 @@ export default function MeScreen({ userName, userEmail, isManager, employeeId, o
                   <div style={{
                     width: 36, height: 36, borderRadius: 10,
                     background: "rgba(0, 102, 255, 0.08)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                   }}>
                     <MIcon name={item.icon} size={17} color="var(--infra-blue)" />
                   </div>
@@ -124,16 +123,14 @@ export default function MeScreen({ userName, userEmail, isManager, employeeId, o
           </div>
         )}
 
-        {/* Settings */}
+        {/* Account */}
         <div className="m-section">
           <div className="m-section-label">Account</div>
           <div className="m-list">
             <div className="m-list-row">
               <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: "var(--bg-muted)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
+                width: 36, height: 36, borderRadius: 10, background: "var(--bg-muted)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
                 <MIcon name="bell" size={17} color="var(--fg-3)" />
               </div>
@@ -143,16 +140,10 @@ export default function MeScreen({ userName, userEmail, isManager, employeeId, o
               </div>
               <MIcon name="chev" size={14} color="var(--fg-4)" />
             </div>
-            <a
-              href="/dashboard"
-              className="m-list-row"
-              style={{ textDecoration: "none" }}
-            >
+            <a href="/dashboard" className="m-list-row" style={{ textDecoration: "none" }}>
               <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: "var(--bg-muted)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
+                width: 36, height: 36, borderRadius: 10, background: "var(--bg-muted)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
                 <MIcon name="pipeline" size={17} color="var(--fg-3)" />
               </div>

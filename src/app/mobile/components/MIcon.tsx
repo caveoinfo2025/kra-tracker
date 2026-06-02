@@ -67,6 +67,16 @@ export default function MIcon({ name, size = 18, color = "currentColor" }: MIcon
       return <svg {...p}><path d="M21 11.5l-9 9a5.5 5.5 0 0 1-7.78-7.78l9-9a4 4 0 0 1 5.66 5.66l-9 9a2.5 2.5 0 0 1-3.54-3.54l8-8"/></svg>;
     case "log-out":
       return <svg {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+    case "wallet":
+      return <svg {...p}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/><path d="M2 10h20"/></svg>;
+    case "funnel":
+      return <svg {...p}><path d="M3 4h18l-7 9v6l-4 2v-8z"/></svg>;
+    case "receipt":
+      return <svg {...p}><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2V2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>;
+    case "opp":
+      return <svg {...p}><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>;
+    case "bar-chart":
+      return <svg {...p}><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>;
     default:
       return null;
   }

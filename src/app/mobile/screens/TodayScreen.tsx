@@ -11,6 +11,13 @@ type KRA = {
   reviews: { progress: number }[];
 };
 
+type CollectionStats = {
+  overdue: number;
+  openCount: number;
+  outstandingLakhs: number;
+  collectedTodayLakhs: number;
+};
+
 interface TodayScreenProps {
   userName: string;
   isManager: boolean;
@@ -20,6 +27,7 @@ interface TodayScreenProps {
   onKRAs: () => void;
   onUpdates: () => void;
   onViewPipeline: () => void;
+  onCollections: () => void;
 }
 
 const AVATAR_COLORS = ["#5B626C", "#0046B0", "#B05000", "#1F7A3F", "#2A2A55", "#702D5B"];
@@ -55,7 +63,19 @@ function todayLabel() {
 
 function fmtLakhs(val: number) {
   if (val >= 100) return `₹${(val / 100).toFixed(2)} Cr`;
-  return `₹${val.toFixed(0)} L`;
+  return `₹${Math.abs(val).toFixed(0)} L`;
+}
+
+function isToday(dateStr: string | null): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  const t = new Date();
+  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+}
+
+function isOverdueDate(dateStr: string, status: string): boolean {
+  if (status === "Fully Received") return false;
+  return new Date(dateStr) < new Date();
 }
 
 export default function TodayScreen({
@@ -67,13 +87,16 @@ export default function TodayScreen({
   onKRAs,
   onUpdates,
   onViewPipeline,
+  onCollections,
 }: TodayScreenProps) {
   const [leads, setLeads] = useState<MobileLead[]>([]);
   const [kras, setKras] = useState<KRA[]>([]);
   const [loading, setLoading] = useState(true);
   const [payToday, setPayToday] = useState<{ totalLakhs: number; count: number } | null>(null);
+  const [collStats, setCollStats] = useState<CollectionStats | null>(null);
 
   useEffect(() => {
+    // Core data: leads + KRAs
     Promise.all([
       fetch("/api/pipeline/leads?limit=20").then(r => r.json()).catch(() => ({ rows: [] })),
       fetch("/api/kras/me").then(r => r.json()).catch(() => []),
@@ -82,10 +105,26 @@ export default function TodayScreen({
       setKras(Array.isArray(krasData) ? krasData : []);
       setLoading(false);
     });
-    // Daily payments — managers care most, but harmless for all
+
+    // Payments today
     fetch("/api/payments/today")
       .then(r => r.json())
       .then(d => setPayToday({ totalLakhs: d.totalLakhs ?? 0, count: d.count ?? 0 }))
+      .catch(() => {});
+
+    // Collections stats
+    fetch("/api/collections")
+      .then(r => r.json())
+      .then((rows: Array<{ collectionStatus: string; dueDate: string; invoiceValueLakhs: number; amountReceivedLakhs: number; paymentReceivedDate: string | null }>) => {
+        if (!Array.isArray(rows)) return;
+        const overdue = rows.filter(r => isOverdueDate(r.dueDate, r.collectionStatus)).length;
+        const openRows = rows.filter(r => r.collectionStatus !== "Fully Received");
+        const outstandingLakhs = openRows.reduce((s, r) => s + (r.invoiceValueLakhs - r.amountReceivedLakhs), 0);
+        const collectedTodayLakhs = rows
+          .filter(r => isToday(r.paymentReceivedDate))
+          .reduce((s, r) => s + r.amountReceivedLakhs, 0);
+        setCollStats({ overdue, openCount: openRows.length, outstandingLakhs, collectedTodayLakhs });
+      })
       .catch(() => {});
   }, []);
 
@@ -96,6 +135,9 @@ export default function TodayScreen({
   const topFocus    = [...activeLeads].sort((a, b) => (b.expectedValue || 0) - (a.expectedValue || 0)).slice(0, 3);
 
   const displayKras = kras.slice(0, 2);
+  const avgKraProgress = kras.length
+    ? Math.round(kras.reduce((s, k) => s + (k.reviews?.[0]?.progress ?? 0), 0) / kras.length)
+    : 0;
 
   const firstName = userName.split(" ")[0];
 
@@ -115,17 +157,23 @@ export default function TodayScreen({
         <div className="m-greeting">
           <div className="eyebrow">{todayLabel()}</div>
           <div className="name">{getGreeting()}, {firstName}</div>
-          {isManager && (
+          {isManager ? (
             <div className="hint">
-              Team pipeline overview — {activeLeads.length} active deals tracked.
+              Team pipeline — {activeLeads.length} active deal{activeLeads.length !== 1 ? "s" : ""} tracked.
+            </div>
+          ) : (
+            <div className="hint">
+              {kras.length > 0
+                ? `KRA progress: ${avgKraProgress}% avg across ${kras.length} area${kras.length !== 1 ? "s" : ""}.`
+                : "Welcome back. Let's make today count."}
             </div>
           )}
           <div className="stat-row">
             <div className="stat">
               <div className="val">
                 {pipelineVal >= 100
-                  ? <>₹{(pipelineVal / 100).toFixed(1)}<span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>Cr</span></>
-                  : <>₹{pipelineVal.toFixed(0)}<span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>L</span></>
+                  ? <>{(pipelineVal / 100).toFixed(1)}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>Cr</span></>
+                  : <>{pipelineVal.toFixed(0)}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>L</span></>
                 }
               </div>
               <div className="label">Pipeline</div>
@@ -133,8 +181,8 @@ export default function TodayScreen({
             <div className="stat">
               <div className="val">
                 {bookingsVal >= 100
-                  ? <>₹{(bookingsVal / 100).toFixed(2)}<span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>Cr</span></>
-                  : <>₹{bookingsVal.toFixed(0)}<span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>L</span></>
+                  ? <>{(bookingsVal / 100).toFixed(2)}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>Cr</span></>
+                  : <>{bookingsVal.toFixed(0)}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginLeft: 2 }}>L</span></>
                 }
               </div>
               <div className="label">Won</div>
@@ -143,6 +191,12 @@ export default function TodayScreen({
               <div className="val">{activeLeads.length}</div>
               <div className="label">Open</div>
             </div>
+            {!isManager && kras.length > 0 && (
+              <div className="stat">
+                <div className="val">{avgKraProgress}%</div>
+                <div className="label">KRA Avg</div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -160,13 +214,88 @@ export default function TodayScreen({
             <div className="ico"><MIcon name="doc" size={14} color="var(--caveo-red)" /></div>
             New Lead
           </button>
+          <button className="m-action" onClick={onCollections}>
+            <div className="ico"><MIcon name="wallet" size={14} color="var(--caveo-red)" /></div>
+            Collections
+          </button>
           <button className="m-action" onClick={onUpdates}>
             <div className="ico"><MIcon name="updates" size={14} color="var(--caveo-red)" /></div>
             Daily Update
           </button>
         </div>
 
-        {/* Payments received today (managers) */}
+        {/* Collections summary card */}
+        {collStats && (collStats.openCount > 0 || collStats.collectedTodayLakhs > 0) && (
+          <div className="m-section">
+            <div className="m-section-label">
+              Collections
+              <span className="more" onClick={onCollections} style={{ cursor: "pointer" }}>View all →</span>
+            </div>
+
+            {/* Overdue alert */}
+            {collStats.overdue > 0 && (
+              <button
+                onClick={onCollections}
+                className="m-card"
+                style={{
+                  width: "100%", textAlign: "left", cursor: "pointer", marginBottom: 8,
+                  display: "flex", alignItems: "center", gap: 12,
+                  background: "rgba(200,16,46,0.05)",
+                  border: "1px solid rgba(200,16,46,0.2)",
+                }}
+              >
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10,
+                  background: "rgba(200,16,46,0.1)",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>
+                  <MIcon name="alert" size={17} color="var(--caveo-red)" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--caveo-red)" }}>
+                    {collStats.overdue} overdue invoice{collStats.overdue !== 1 ? "s" : ""}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--fg-3)", marginTop: 1 }}>
+                    Tap to view & follow up
+                  </div>
+                </div>
+                <MIcon name="chev" size={14} color="var(--caveo-red)" />
+              </button>
+            )}
+
+            {/* Outstanding + open */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div className="m-kpi">
+                <div className="m-kpi-label">Outstanding</div>
+                <div className="m-kpi-value" style={{ fontSize: 20, color: collStats.overdue > 0 ? "var(--caveo-red)" : "var(--fg-1)" }}>
+                  {collStats.outstandingLakhs >= 100
+                    ? <>{(collStats.outstandingLakhs / 100).toFixed(1)}<span className="unit">Cr</span></>
+                    : <>{Math.max(0, collStats.outstandingLakhs).toFixed(0)}<span className="unit">L</span></>}
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--fg-4)", marginTop: 2 }}>{collStats.openCount} open</div>
+              </div>
+              {collStats.collectedTodayLakhs > 0 ? (
+                <div className="m-kpi" style={{ borderLeft: "3px solid var(--success)" }}>
+                  <div className="m-kpi-label">Collected Today</div>
+                  <div className="m-kpi-value" style={{ fontSize: 20, color: "var(--success)" }}>
+                    {collStats.collectedTodayLakhs >= 100
+                      ? <>{(collStats.collectedTodayLakhs / 100).toFixed(1)}<span className="unit">Cr</span></>
+                      : <>{collStats.collectedTodayLakhs.toFixed(0)}<span className="unit">L</span></>}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--fg-4)", marginTop: 2 }}>received</div>
+                </div>
+              ) : (
+                <div className="m-kpi">
+                  <div className="m-kpi-label">Open Invoices</div>
+                  <div className="m-kpi-value" style={{ fontSize: 20 }}>{collStats.openCount}</div>
+                  <div style={{ fontSize: 10.5, color: "var(--fg-4)", marginTop: 2 }}>awaiting payment</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Payments received today (managers - from payments ledger) */}
         {isManager && payToday && payToday.count > 0 && (
           <div className="m-section">
             <div
@@ -251,7 +380,7 @@ export default function TodayScreen({
           )}
         </div>
 
-        {/* KRAs preview */}
+        {/* KRAs preview — employees only */}
         {!isManager && (
           <div className="m-section">
             <div className="m-section-label">
