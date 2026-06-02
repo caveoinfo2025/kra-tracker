@@ -1,240 +1,315 @@
-# Finance Module — Web UI Requirements
+# Finance Operations Module — Web UI Requirements
 
-> Follows the Caveo CRM design system: `globals.css` tokens, Tailwind v4,
-> SheetLayout wrapper, Badge component, lucide-react icons.
-> See `docs/DESIGN_SYSTEM.md` for full design token reference.
+> **Status: APPROVED FINAL SCOPE**
+> Design system: `globals.css` tokens, Tailwind v4, SheetLayout, Badge, lucide-react.
+> Route prefix: `/finance/`
 
 ---
 
-## 1. Pages
+## 1. Navigation & Layout
 
-### 1.1 `/collections` — Billing & Collections
+### Finance Hub (`/finance`)
 
-**File:** `src/app/collections/page.tsx` + `CollectionsClient.tsx`
+A top-level finance section with its own sub-navigation sidebar (or top tabs).
+Visible only to `canManageFinance` users (Accounts, Operations Head, Manager).
+Sales reps land on `/finance/expenses` and `/finance/claims` (own data only).
 
-**Access:** All authenticated users. Finance roles see all employees' data;
-sales reps see only their own invoices.
+### Sub-Routes
 
-**Layout:** `SheetLayout` with title "Billing & Collections".
-
-#### Summary Stat Cards (top of page)
-
-Four cards in a `2-col / 4-col` responsive grid:
-
-| Card | Value | Description |
+| Route | Page | Access |
 |---|---|---|
-| Invoiced (filtered) | `₹{total}L` | Sum of `invoiceValueLakhs` for visible rows |
-| Total Without GST | `₹{total}L` | Sum of `amountWithoutGstLakhs` for visible rows |
-| Collected (filtered) | `₹{total}L` | Sum of `amountReceivedLakhs` for visible rows |
-| Collection Rate | `{rate}%` | `(totalReceived / totalInvoiced) × 100` |
+| `/finance/cash-book` | Cash Book register | Finance roles |
+| `/finance/bank-book` | Bank Book register | Finance roles |
+| `/finance/expenses` | Expense Register | All (own) / Finance roles (all) |
+| `/finance/vendors` | Vendor Master | Finance roles |
+| `/finance/vouchers` | Voucher Register | Finance roles |
+| `/finance/approvals` | Approval Queue | Approvers + Finance roles |
+| `/finance/claims` | Employee Claims | All (own) / Finance roles (all) |
+| `/finance/advances` | Employee Advances | All (own) / Finance roles (all) |
+| `/finance/hr-policy` | HR Expense Policy | Managers only |
+| `/finance/conveyance` | Conveyance Log | All (own) / Finance roles (all) |
+| `/finance/profitability` | Customer Profitability | Finance roles + Managers |
+| `/finance/reports` | Reports Dashboard | Finance roles + Managers |
 
-Stats are computed client-side from the filtered rows (not a separate API call).
+---
 
-#### Tab Filter Bar
+## 2. Cash Book Page (`/finance/cash-book`)
 
-Pill-style segmented tabs:
+**Header:** Account selector dropdown (if multiple accounts). Running balance chip.
 
-| Tab | Filter | Count badge | Color |
-|---|---|---|---|
-| All | No filter | Total row count | — |
-| Overdue | `dueDate < today AND status ≠ "Fully Received"` | Overdue count | Red |
-| Upcoming (30d) | `today ≤ dueDate ≤ today+30 AND status ≠ "Fully Received"` | Upcoming count | Amber |
-| Received | `collectionStatus = "Fully Received"` | Count | Green |
-| Revenue Summary | Switches to per-salesperson breakdown table | — | Indigo |
+**Summary cards:**
+- Opening Balance (for selected period)
+- Total Receipts
+- Total Payments
+- Closing Balance
 
-#### Secondary Filters (finance roles only)
+**Date range filter:** From / To with quick presets (Today / This Week / This Month / This FY).
 
-- **Employee dropdown**: filter by salesperson.
-- **Search input**: case-insensitive filter on `customerName` OR `invoiceNo`.
+**Entry table columns:**
+| Date | Type | Narration | Receipts (₹L) | Payments (₹L) | Balance (₹L) |
 
-#### Invoice Table
+- Receipts and payments in separate credit/debit columns (Indian cash-book style).
+- Running balance in each row.
+- Colour coding: receipts in green, payments in red.
 
-Columns:
+**Add Entry button → slide-in form:**
+- Type: Receipt / Payment / Bank Withdrawal / Bank Deposit
+- Date, Amount, Narration
+- Linked bank account (required for Bank Withdrawal/Deposit)
+- Validation: amount must not make balance negative (live preview of balance after entry)
 
-| Column | Notes |
-|---|---|
-| Checkbox | Bulk-select (finance roles only) |
-| Customer | `customerName` |
-| Invoice No | `invoiceNo`, "—" if empty |
-| Invoice Date | `invoiceDate` formatted `DD MMM YYYY` |
-| Invoice Value | `₹{n}L` |
-| Without GST | `₹{n}L` |
-| Due Date | Red if overdue |
-| Payment Date | `paymentReceivedDate` or "—" |
-| Received | `₹{n}L` (green if fully received) |
-| Status | `Badge` component: success/warning/danger/neutral |
-| Salesperson | `employee.name` (finance roles only) |
-| Actions | Edit · Payments (ledger) · Delete |
+---
 
-#### Bulk Delete (finance roles)
+## 3. Bank Book Page (`/finance/bank-book`)
 
-- Select rows via checkboxes.
-- "Delete N selected" button appears when ≥1 row is checked.
-- Confirmation dialog required before deletion.
-- Calls `DELETE /api/collections` with `{ ids: [...] }`.
+**Header:** Account selector. Current balance chip.
 
-#### Create / Edit Invoice Form (slide-in panel)
+**Sub-tabs:** All Entries | Unreconciled | By Type (UPI / Cheque / Transfer)
 
-Fields:
+**Entry table columns:**
+| Date | Type | Narration | Payee | Reference No | Debit (₹L) | Credit (₹L) | Balance (₹L) | Reconciled |
 
-| Field | Type | Notes |
+- Unreconciled rows: yellow left border highlight.
+- Cheque rows: display cheque no + cheque date.
+- "Reconcile" button on each unreconciled row.
+
+**Add Entry form fields:**
+- Type, Direction (Debit / Credit), Date, Amount, Narration
+- For UPI: UTR/Reference No (required)
+- For Cheque: Cheque No (required), Cheque Date
+- For Transfer (NEFT/RTGS/IMPS): Reference No, Payee
+- Linked Cash Account (for cash withdrawal/deposit)
+
+**Bank Reconciliation view:**
+- Side-by-side: CRM entries vs uploaded bank statement rows
+- Match / unmatch entries
+- Show unmatched entries on both sides
+
+---
+
+## 4. Expense Register (`/finance/expenses`)
+
+**Summary cards:** Total Expenses | Pending Approval | This Month | GST Input
+
+**Tabs:** All / Draft / Submitted / Approved / Rejected / Paid
+
+**Filters:** Category, Employee (finance roles), Vendor, Customer, Date Range
+
+**Table columns:**
+| Date | Category | Vendor | Customer | Narration | Amount (₹L) | GST (₹L) | Status | Actions |
+
+**Create Expense → slide-in form:**
+- Category (searchable select)
+- Vendor (searchable autocomplete from Vendor Master)
+- Customer Name (optional, autocomplete from Customer master)
+- Expense Date
+- Amount (Lakhs)
+- GST Rate (0% / 5% / 12% / 18% / 28%) — GST amount auto-computes
+- Vendor Invoice No
+- Narration (required)
+- Attachments (file upload — images + PDF)
+
+**Attachment upload:**
+- Drag-and-drop or browse
+- Preview thumbnails for images; PDF icon for PDFs
+- Remove individual attachments
+
+**Submit button:** Moves status to `submitted` → triggers approval flow.
+
+**Approval history accordion:** Shows who approved at each level with timestamp + comment.
+
+---
+
+## 5. Vendor Master (`/finance/vendors`)
+
+**Table columns:** Name | GSTIN | City | State | Contact | Payment Terms | Status | Actions
+
+**Search:** Name / GSTIN contains.
+
+**Create / Edit Vendor → slide-in form:**
+- Name, GSTIN, PAN
+- Address, City, State, Pincode
+- Contact Name, Phone, Email
+- Bank Name, Account No, IFSC
+- Payment Terms (dropdown)
+
+**Vendor detail → Expense History tab:** all expenses linked to this vendor.
+
+---
+
+## 6. Voucher Register (`/finance/vouchers`)
+
+**Table columns:** Voucher No | Type | Date | Narration | Amount (₹L) | Status | PDF | Actions
+
+**Filters:** Type, Status, Date Range
+
+**Voucher detail view:**
+- Header: company logo, company name, address
+- Voucher number (bold, prominent)
+- Date, type, amount
+- Amount in words (e.g., "Rupees Five Lakhs Only")
+- Narration
+- Linked entities (cash/bank entry, expense, conveyance)
+- Signatory line (Prepared by / Approved by)
+
+**Print / Download PDF button** on each voucher row and in the detail view.
+
+**Void button:** Opens confirmation modal with reason field.
+
+---
+
+## 7. Approval Queue (`/finance/approvals`)
+
+**Sub-tabs:** Pending (mine) | All Pending | Approved | Rejected
+
+**My Queue:** Requests where the current user is the next approver.
+
+**Table columns:** Ref No | Entity Type | Submitted By | Amount (₹L) | Submitted On | Days Pending | Actions
+
+**Actions on each row:** View Details → Approve (with comment) / Reject (reason required)
+
+**Entity detail preview:** Shows the underlying expense / claim / advance inline without leaving the page.
+
+**Approval Policy configuration (Managers → `/finance/hr-policy` or sub-tab):**
+- Table of policies
+- Create / Edit policy: name, entity type, amount thresholds, approver role per level
+
+---
+
+## 8. Employee Claims (`/finance/claims`)
+
+**Sub-tabs:** All / Draft / Submitted / Approved / Paid (employees see own only)
+
+**Table columns:** Claim No | Date | Employee | Expenses | Total (₹L) | Status | Actions
+
+**Create Claim:**
+- Multi-select list of the employee's approved or draft expenses
+- Running total as items are selected
+- Remarks field
+- Submit button
+
+**Claim detail:**
+- Claim number, date, employee, status
+- Expense breakdown table
+- Approval history
+- Payment record (paid date, amount, mode)
+
+**Finance: Record Payment button** (for approved claims): date, amount, payment mode.
+
+---
+
+## 9. Employee Advances (`/finance/advances`)
+
+**Sub-tabs:** Pending / Approved / Disbursed / Settled / All
+
+**Table columns:** Advance No | Employee | Purpose | Amount (₹L) | Balance (₹L) | Status | Actions
+
+**Request Advance form:**
+- Purpose (textarea), Amount, Required By Date
+
+**Finance actions:**
+- Approve (via Approval Engine)
+- Disburse: date, actual amount, source (Cash Account / Bank Account select)
+- Settle: settlement date, amount, link to expense entries
+
+---
+
+## 10. HR Expense Policy (`/finance/hr-policy`)
+
+**Access:** Managers only.
+
+**Table columns:** Policy Name | Role Pattern | Bike ₹/km | Car ₹/km | Effective From | Status
+
+**Create / Edit Policy form:**
+- Name, Role Pattern (text with hint: "all" for default, or role name)
+- Per-diem Tier 1 (₹L), Tier 2 (₹L)
+- Meal Limit (₹L)
+- Hotel Tier 1 (₹L), Tier 2 (₹L)
+- Bike ₹/km, Car ₹/km, Auto ₹/km
+- Max Conveyance per Day (₹)
+- Effective From date
+
+---
+
+## 11. Conveyance Log (`/finance/conveyance`)
+
+**Sub-tabs:** All / Draft / Submitted / Approved / Paid
+
+**Summary cards:** Total KM | Total Amount (₹L) | This Month | Pending Approval
+
+**Table columns:** Date | From | To | Mode | KM | Rate | Amount (₹L) | Status | Actions
+
+**Log Trip form:**
+- Travel Date
+- From Location (text + optional map picker button)
+- To Location (text + optional map picker button)
+- Distance (KM) — auto-filled from Maps API if coordinates captured; editable fallback
+- Mode: Bike / Car / Auto / Public Transport (segmented)
+- Purpose (text)
+- Rate per KM (auto-read from HR Policy; shown as read-only)
+- Calculated Amount (read-only: KM × Rate)
+
+**Map picker (web):**
+- Google Maps autocomplete for From / To fields
+- Shows route on a small map preview
+- Fetches road distance on confirm
+
+---
+
+## 12. Customer Profitability (`/finance/profitability`)
+
+**Header:** Date range filter (default: current FY)
+
+**Summary cards:** Total Revenue | Total Costs | Gross Profit | Avg Margin %
+
+**Table columns:**
+| Customer | Revenue (₹L) | Cost (₹L) | Gross Profit (₹L) | Margin % | Invoices | Expenses |
+
+Sorted by Gross Profit descending. Click row → drill-down view.
+
+**Drill-down view:**
+- Customer name header
+- Two tabs: **Invoices** (Collection list) and **Expenses** (tagged ExpenseEntry list)
+- Monthly trend chart (Recharts line chart)
+
+**Export:** Excel / PDF buttons.
+
+---
+
+## 13. Reports Dashboard (`/finance/reports`)
+
+**Date range picker** at the top (affects all widgets).
+
+**Widget grid:**
+
+| Widget | Chart type | Data source |
 |---|---|---|
-| Employee | Select | Finance roles choose; reps fixed to self |
-| Invoice Date | Date | Required |
-| Invoice No | Text | Optional |
-| Customer Name | Text (CustomerNameCombobox) | Required; autocomplete from Customer master |
-| Invoice Value (Lakhs) | Number | Required; auto-fills Without GST on change |
-| Without GST (Lakhs) | Number | Auto-computed (`value / 1.18`); editable |
-| Due Date | Date | Required |
-| Collection Status | Select | `Pending` / `Partially Received` / `Fully Received` |
-| Remarks | Textarea | Optional |
+| Cash Position | Single value + sparkline | CashAccount balances |
+| Bank Balance | Single value + sparkline | BankAccount balances |
+| Collections Today | Large number | Existing payments API |
+| Expense by Category | Pie chart | ExpenseEntry grouped by category |
+| Pending Approvals | Count + list | ApprovalRequest pending |
+| Outstanding Advances | Count + total | EmployeeAdvance disbursed |
+| Overdue Invoices | Count + amount | Collection overdue |
+| Monthly Collections vs Expenses | Bar chart (grouped) | Collections + Expenses by month |
+| Conveyance by Employee | Bar chart | ConveyanceLog grouped |
+| DSO Trend | Line chart | Avg (paymentReceivedDate − invoiceDate) |
 
-**Auto-fill rule:** When `invoiceValueLakhs` changes and `amountWithoutGstLakhs` is still
-at its default (`0`), auto-compute `amountWithoutGstLakhs = invoiceValueLakhs / 1.18`.
-If the user has manually edited the without-GST field, do not override.
-
-#### Record Payment Modal
-
-Triggered by the "Payments" action on an invoice row.
-Shows the existing payment ledger, then a form to record a new payment.
-
-Fields:
-
-| Field | Type | Notes |
-|---|---|---|
-| Amount (Lakhs) | Number | Required; must be > 0 |
-| Payment Date | Date | Required; defaults to today |
-| Mode | Select | `Bank Transfer` / `Cheque` / `UPI` / `Cash` / `Other` |
-| Reference No | Text | Cheque/UTR number |
-| Notes | Textarea | Optional |
-
-On submit → `POST /api/payments`. On success: refresh invoice row in the table.
-
-Payment ledger display below the form:
-- Each row: date, amount, mode, reference, "by {name}".
-- `Opening Balance` mode entries displayed in muted style.
-
-#### Revenue Summary Tab
-
-Client-side aggregation across all (non-filtered) rows, grouped by employee:
-
-| Column | Notes |
-|---|---|
-| Salesperson | `employee.name` |
-| Invoice Count | Number of their invoices |
-| Total Billed | Sum `invoiceValueLakhs` |
-| Without GST | Sum `amountWithoutGstLakhs` |
-| GST | Billed − Without GST |
-| Collected | Sum `amountReceivedLakhs` |
-| Outstanding | Billed − Collected |
-
-Sorted by `totalBilled` descending.
+**Export All button:** Downloads a ZIP of all report PDFs.
 
 ---
 
-### 1.2 `/accounts` — Accounts Dashboard
+## 14. Export Controls (all pages)
 
-**File:** `src/app/accounts/page.tsx` + `AccountsClient.tsx`
+Every list page has an **Export** button in the toolbar opening a modal:
 
-**Access:** Finance roles only (`canSeeAllCollections`). Regular sales reps
-land on `/dashboard` instead.
+```
+┌─ Export ─────────────────────────────────────────────┐
+│  Date Range:  [From ____]  [To ____]                 │
+│  Format:      ○ Excel   ○ PDF   ○ Tally XML           │
+│  Employee:    [All ▾]   (finance roles only)          │
+│                        [ Cancel ]  [ Download ]       │
+└───────────────────────────────────────────────────────┘
+```
 
-**Layout:** `SheetLayout` with title "Accounts".
-
-#### Sections
-
-1. **Payments Today Widget** (`PaymentsTodayWidget` component)
-   - Fetches `GET /api/payments/today`.
-   - Shows total received today + list of individual payments.
-
-2. **Order Advances**
-   - Fetches `GET /api/advances?status=unapplied` on load.
-   - Lists unapplied advances: customer, amount, date, mode, reference.
-   - "Record Advance" button → opens form.
-   - Each row has "Apply to Invoice" button → opens apply modal.
-
-3. **Record Advance Form**
-   Fields: Customer Name, Amount (Lakhs), Received Date, Mode, Reference No, Notes,
-   Linked Deal (optional SalesFunnel select).
-   On submit → `POST /api/advances`.
-
-4. **Apply Advance Modal**
-   Shows the advance details.
-   User selects the target invoice from a list of open (`status ≠ "Fully Received"`)
-   invoices for the same customer.
-   On confirm → `POST /api/advances/[id]/apply`.
-
----
-
-## 2. Shared Components
-
-### `PaymentsTodayWidget`
-
-**File:** `src/components/PaymentsTodayWidget.tsx`
-
-Reusable widget used on both the manager dashboard and the Accounts page.
-Fetches `GET /api/payments/today` on mount.
-
-Displays:
-- Large headline: total amount received today.
-- Count: "N payments".
-- Scrollable list of individual payments (max 20): customer, invoice no, amount, mode, recorded by, time.
-
-Used on:
-- `/dashboard` (manager view)
-- `/accounts` (Accounts + Operations Head)
-
----
-
-### `Badge` component
-
-**File:** `src/components/Badge.tsx`
-
-Used for collection status display.
-
-| Status | Variant | Visual |
-|---|---|---|
-| `Fully Received` | `success` | Green pill |
-| `Partially Received` | `warning` | Amber pill |
-| `Overdue` | `danger` | Red pill |
-| `Pending` | `neutral` | Grey pill |
-
-Overdue check is applied at render time: if `dueDate < today AND status ≠ "Fully Received"`,
-display "Overdue" with the `danger` variant regardless of the stored `collectionStatus`.
-
----
-
-## 3. Design Tokens (finance-specific usage)
-
-| Token | Usage in finance UI |
-|---|---|
-| `--caveo-red` / `#C8102E` | Overdue amounts, alert indicators |
-| `--success` (green) | Fully Received status, positive payment amounts |
-| `--ot-orange` | Partially Received, upcoming due date warnings |
-| `--fg-3` | Muted labels, "Without GST" secondary values |
-
----
-
-## 4. Validation Rules (client-side)
-
-| Field | Rule |
-|---|---|
-| `invoiceValueLakhs` | Must be > 0 |
-| `amountWithoutGstLakhs` | Must be ≥ 0 and ≤ `invoiceValueLakhs` |
-| `dueDate` | Must be a valid date |
-| `amountLakhs` (payment) | Must be > 0 |
-| `paymentDate` | Must be a valid date; cannot be in the future by UI convention |
-| `customerName` | Required; non-empty string |
-
----
-
-## 5. Planned UI Features
-
-| Feature | Priority | Description |
-|---|---|---|
-| Payment void / correction | High (FR-FIN-44) | UI to reverse a mistaken payment entry |
-| Tally export button | Medium (FR-FIN-40) | "Export to Tally" button on `/collections` and `/accounts` |
-| Google Maps visit button | Medium (FR-FIN-41) | "Log Visit" on each overdue invoice row |
-| Pagination | Medium (FR-FIN-01) | Collections list is capped at 500 rows; need pagination for larger datasets |
-| DSO (Days Sales Outstanding) | Low | Per-invoice and aggregate DSO metric |
-| Email overdue reminder | Low | One-click "Send reminder" for overdue invoices |
+Tally XML option is available only for: Cash Book, Bank Book, Expenses, Collections, Payments.

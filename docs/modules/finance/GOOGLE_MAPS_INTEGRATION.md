@@ -1,263 +1,232 @@
-# Finance Module — Google Maps Integration
+# Finance Operations Module — Google Maps Integration
 
-> Planned feature. No code exists yet. This document defines requirements,
-> data model, API design, and UX for field-collection visit tracking.
-> Reference: FR-FIN-41 in `FINANCE_REQUIREMENTS.md`.
+> **Status: APPROVED FINAL SCOPE**
+> Google Maps is used exclusively for **Local Conveyance** (Feature 10).
+> Scope: road distance calculation between GPS start/end points.
+> No real-time tracking, no navigation, no route optimisation in scope.
 
 ---
 
 ## 1. Purpose
 
-When a sales representative or collections officer visits a customer site to
-follow up on an overdue invoice, the system should:
-
-1. Record the GPS coordinates and address of the visit.
-2. Link the visit to the specific overdue invoice.
-3. Capture the outcome of the visit (visited / promise to pay / escalation required).
-4. Allow managers to see the team's field-collection activity on a map.
-5. (Future) Route-optimise a rep's collection visit itinerary for the day.
+When an employee logs a local conveyance trip, Google Maps provides the
+accurate road distance between the start and end locations. This distance,
+combined with the rate from the employee's HR Expense Policy, auto-calculates
+the claim amount — eliminating manual entry and disputes.
 
 ---
 
-## 2. Scope
+## 2. APIs Used
 
-| In scope | Out of scope |
-|---|---|
-| Log a visit linked to a `Collection` (invoice) | Real-time GPS tracking / live location |
-| Capture GPS coordinates at the moment of logging | Navigation / turn-by-turn routing |
-| Reverse-geocode coordinates → address via Google Maps API | Third-party route optimisation |
-| Display visits on a manager map view | Offline map caching |
-| Mobile-first — visit logging happens in the field | Visit logging on desktop (low priority) |
-
----
-
-## 3. Data Model
-
-### New Prisma model: `CollectionVisit`
-
-```prisma
-model CollectionVisit {
-  id           Int        @id @default(autoincrement())
-  collectionId Int
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  employeeId   Int
-  employee     Employee   @relation("VisitEmployee", fields: [employeeId], references: [id])
-  visitedAt    DateTime   @default(now())
-  latitude     Float                           // GPS lat, decimal degrees
-  longitude    Float                           // GPS lng, decimal degrees
-  address      String     @db.Text @default("") // reverse-geocoded address string
-  notes        String     @db.Text @default("") // free-form field notes
-  outcome      String     @default("visited")  // see § 3.1 Outcome values
-  photoUrl     String?                          // future: cloud photo URL
-  createdAt    DateTime   @default(now())
-
-  @@index([collectionId])
-  @@index([employeeId])
-  @@index([visitedAt])
-}
-```
-
-**Add reverse-relation to `Collection`:**
-```prisma
-// Inside the Collection model:
-visits  CollectionVisit[]
-```
-
-**Add reverse-relation to `Employee`:**
-```prisma
-// Inside the Employee model:
-collectionVisits  CollectionVisit[]  @relation("VisitEmployee")
-```
-
-### 3.1 Outcome Values
-
-| Value | Meaning |
-|---|---|
-| `visited` | Customer was visited; no specific outcome recorded |
-| `promise_to_pay` | Customer committed to a payment date |
-| `not_available` | Customer / contact was not available |
-| `escalation` | Visit revealed a dispute or issue requiring management attention |
-| `partial_cash` | Customer paid a partial amount in cash on the spot |
-
----
-
-## 4. API Design
-
-### `GET /api/collections/[id]/visits`
-
-List all field visits for an invoice.
-
-**Access:** Finance roles + the invoice's owner.
-
-**Response:**
-```json
-[
-  {
-    "id": 1,
-    "collectionId": 42,
-    "employeeId": 7,
-    "employee": { "name": "Rahul Kumar" },
-    "visitedAt": "2026-06-10T11:30:00.000Z",
-    "latitude": 12.9716,
-    "longitude": 77.5946,
-    "address": "Outer Ring Road, Bangalore 560103",
-    "notes": "Met the MD; promised to transfer by Friday",
-    "outcome": "promise_to_pay",
-    "createdAt": "2026-06-10T11:31:00.000Z"
-  }
-]
-```
-
----
-
-### `POST /api/collections/[id]/visits`
-
-Log a new field visit.
-
-**Access:** Authenticated. The visit is recorded for the current user.
-
-**Request body:**
-```json
-{
-  "latitude": 12.9716,
-  "longitude": 77.5946,
-  "address": "Outer Ring Road, Bangalore 560103",
-  "notes": "Met the MD; promised to transfer by Friday",
-  "outcome": "promise_to_pay",
-  "visitedAt": "2026-06-10T11:30:00.000Z"
-}
-```
-
-| Field | Required | Notes |
+| Google Maps API | Purpose | Called from |
 |---|---|---|
-| `latitude` | ✅ | Decimal degrees, e.g. 12.9716 |
-| `longitude` | ✅ | Decimal degrees, e.g. 77.5946 |
-| `address` | optional | If omitted, server may reverse-geocode via Google Maps API |
-| `notes` | optional | Free-form visit notes |
-| `outcome` | optional | Defaults to `"visited"` |
-| `visitedAt` | optional | Defaults to `now()` on the server |
+| **Distance Matrix API** | Calculate road distance (KM) between two GPS coordinates | Server-side (`/api/finance/conveyance/distance`) |
+| **Maps JavaScript API** | Location picker map on the web UI conveyance form | Client-side (web only) |
+| **Geocoding API** | Reverse-geocode GPS coordinates → human-readable address | Server-side (optional, for display) |
 
-**Response:** `201` with the created `CollectionVisit` row.
+**Not in scope:** Navigation API, Routes API, real-time tracking, Places API.
 
 ---
 
-### `GET /api/finance/visits/map`
-
-Manager-only map data — all visits across the team for a date range.
-
-**Query parameters:**
-```
-from    YYYY-MM-DD   Start date (inclusive)
-to      YYYY-MM-DD   End date (inclusive)
-empId   number       (optional) Filter by employee
-```
-
-**Response:**
-```json
-{
-  "visits": [
-    {
-      "id": 1,
-      "lat": 12.9716,
-      "lng": 77.5946,
-      "address": "Outer Ring Road, Bangalore",
-      "outcome": "promise_to_pay",
-      "employee": "Rahul Kumar",
-      "customer": "Infosys Ltd",
-      "invoiceNo": "INV-2026-042",
-      "invoiceValueLakhs": 12.5,
-      "visitedAt": "2026-06-10T11:30:00.000Z"
-    }
-  ]
-}
-```
-
----
-
-## 5. Google Maps API Usage
-
-### 5.1 APIs Required
-
-| API | Purpose | Where used |
-|---|---|---|
-| **Maps JavaScript API** | Render the manager map view on web | `/accounts` map section |
-| **Geocoding API** | Reverse-geocode (lat/lng → address string) | Server-side, when logging a visit |
-| **Maps Embed API** | Lightweight map on mobile (iframe) | Mobile visit log confirmation |
-| **Places API** | (Future) Customer address autocomplete | Customer master, invoice form |
-
-### 5.2 Billing Considerations
-
-- Reverse Geocoding: **$5 per 1,000 requests**. At ~20 visits/day this is ~$0.10/day.
-- Maps JS: free up to 28,500 map loads/month.
-- All API calls go through a server-side Next.js route to keep the API key secret.
-  Never expose `GOOGLE_MAPS_API_KEY` in client-side code.
-
-### 5.3 Environment Variables
+## 3. Environment Variables
 
 ```bash
-# Add to .env and production config
-GOOGLE_MAPS_API_KEY=your_server_side_key
-NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=your_map_id   # For web map rendering only
+# Server-side only (Distance Matrix + Geocoding)
+GOOGLE_MAPS_SERVER_KEY=AIza...
+
+# Client-side (Maps JS API for the web map picker only)
+NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=AIza...
 ```
 
-The `NEXT_PUBLIC_` prefix is required for the Maps JS API key used in the browser.
-Use a **separate restricted key** for server-side Geocoding (no `NEXT_PUBLIC_`).
+Use two separate restricted keys:
+- **Server key:** restrict to Distance Matrix API and Geocoding API; IP-restricted to the Hostinger server IP.
+- **Browser key:** restrict to Maps JavaScript API; HTTP-referrer-restricted to `sales.caveoinfosystems.com`.
+
+Add both to `…/public_html/.builds/config/.env` on Hostinger.
+Note: Passenger escapes `%` → `\%` in env injection — if the key contains `%`, strip it in `src/lib/prisma.ts` (same pattern as `DATABASE_URL`). Avoid keys with `%` by regenerating if needed.
 
 ---
 
-## 6. Mobile Visit Logging Flow
+## 4. Distance Calculation Flow
+
+### Mobile (primary path)
 
 ```
-CollectionsScreen → overdue invoice row → "Log Visit" button
-  │
-  └─ CollectionVisitSheet (bottom sheet)
-       ├─ Request GPS: navigator.geolocation.getCurrentPosition()
-       ├─ Show coordinates (or "Getting location…")
-       ├─ Outcome selector: visited / promise / not available / escalation
-       ├─ Notes textarea
-       └─ Submit → POST /api/collections/[id]/visits
-            └─ Server: reverse-geocode lat/lng → store address
-            └─ Response: visit row
-            └─ Show toast: "Visit logged ✓"
+Employee opens ConveyanceScreen → taps "Capture Start"
+  → navigator.geolocation.getCurrentPosition()
+  → { lat: 12.9716, lng: 77.5946 }  (stored in component state)
+
+Employee travels to destination → taps "Capture End"
+  → navigator.geolocation.getCurrentPosition()
+  → { lat: 12.8399, lng: 77.6770 }
+
+App calls:
+  GET /api/finance/conveyance/distance
+    ?fromLat=12.9716&fromLng=77.5946
+    &toLat=12.8399&toLng=77.6770
+    &mode=bike
+
+Server calls Google Distance Matrix API:
+  POST https://maps.googleapis.com/maps/api/distancematrix/json
+    origins=12.9716,77.5946
+    destinations=12.8399,77.6770
+    mode=driving       ← use "driving" for both bike and car
+    key=GOOGLE_MAPS_SERVER_KEY
+
+Response: { distanceKm: 18.4, durationMinutes: 42 }
+
+App pre-fills distanceKm field.
+Employee confirms → amount = 18.4 × ratePerKm (from HR Policy)
 ```
 
-**GPS permission handling:**
-- If permission denied: show manual address input as fallback.
-- If geolocation unavailable (no GPS): allow submitting with `latitude=0, longitude=0`
-  and a manual address.
+### Web (optional path — map picker)
+
+On the web conveyance form, a "Pick on Map" button opens a modal with a
+Google Maps JS view. Employee clicks the map to set start and end pins.
+On confirm, the same `/api/finance/conveyance/distance` endpoint is called.
 
 ---
 
-## 7. Web Map View (Manager)
+## 5. API Route — Distance Endpoint
 
-Location: New tab on the `/accounts` page — "Field Visits" tab.
+### `GET /api/finance/conveyance/distance`
 
-**Map component:** Google Maps JS API via `@googlemaps/react-wrapper` or
-`@vis.gl/react-google-maps`.
+**Query parameters:**
 
-**Features:**
-- Date range filter (default: today).
-- Employee filter (dropdown).
-- Clustered markers — zoom to expand.
-- Marker colour by outcome:
-  - Green: `promise_to_pay`
-  - Blue: `visited`
-  - Red: `escalation`
-  - Grey: `not_available`
-- Click marker → popup: customer name, invoice no, amount, employee, notes.
-- Summary bar: total visits, promise-to-pay count, total at-risk amount.
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `fromLat` | number | ✅ | Decimal degrees |
+| `fromLng` | number | ✅ | |
+| `toLat` | number | ✅ | |
+| `toLng` | number | ✅ | |
+| `mode` | string | optional | `bike` / `car` / `auto` / `public`. Defaults to `bike`. All modes map to `driving` in the Maps API (Walking/Transit are not in scope). |
+
+**Response:**
+```json
+{
+  "distanceKm": 18.4,
+  "durationMinutes": 42,
+  "source": "google_maps"
+}
+```
+
+**Fallback (when Maps API unavailable or offline):**
+- Haversine straight-line distance × 1.25 correction factor.
+- Response includes `"source": "haversine_estimate"` so the UI can show a notice.
+
+**Error responses:**
+- `400` — missing/invalid coordinates
+- `502` — Google Maps API returned an error (logged server-side)
 
 ---
 
-## 8. Implementation Checklist
+## 6. Server-Side Implementation
 
-- [ ] Add `CollectionVisit` model to `prisma/schema.prisma`
-- [ ] Run `prisma migrate dev --name add_collection_visit`
-- [ ] Create `GET/POST /api/collections/[id]/visits` route
-- [ ] Create `GET /api/finance/visits/map` route (manager only)
-- [ ] Create `CollectionVisitSheet.tsx` (mobile bottom sheet)
-- [ ] Add "Log Visit" button to `CollectionsScreen.tsx` overdue rows
-- [ ] Integrate Google Maps JS API on `/accounts` for the manager map tab
-- [ ] Add `GOOGLE_MAPS_API_KEY` to `.env` and Hostinger environment config
-- [ ] Server-side Geocoding helper: `src/lib/geocode.ts`
-- [ ] Document the restricted key scopes in Hostinger config notes
+**File:** `src/lib/finance/google-maps.ts`
+
+```typescript
+// Pseudocode — actual implementation goes here
+
+const MAPS_API_KEY = process.env.GOOGLE_MAPS_SERVER_KEY;
+
+export async function getRoadDistanceKm(
+  from: { lat: number; lng: number },
+  to:   { lat: number; lng: number }
+): Promise<{ distanceKm: number; durationMinutes: number; source: string }> {
+
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
+    `?origins=${from.lat},${from.lng}` +
+    `&destinations=${to.lat},${to.lng}` +
+    `&mode=driving` +
+    `&key=${MAPS_API_KEY}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (data.status !== "OK" || data.rows[0].elements[0].status !== "OK") {
+    // Fallback to Haversine
+    const km = haversineKm(from, to) * 1.25;
+    return { distanceKm: Math.round(km * 10) / 10, durationMinutes: 0, source: "haversine_estimate" };
+  }
+
+  const el = data.rows[0].elements[0];
+  return {
+    distanceKm: Math.round((el.distance.value / 1000) * 10) / 10,
+    durationMinutes: Math.round(el.duration.value / 60),
+    source: "google_maps",
+  };
+}
+
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(h));
+}
+```
+
+---
+
+## 7. GPS Coordinates Storage
+
+GPS coordinates captured at the time of trip logging are stored on the `ConveyanceLog` row:
+
+| Field | Description |
+|---|---|
+| `fromLat`, `fromLng` | GPS coordinates of start point |
+| `toLat`, `toLng` | GPS coordinates of end point |
+| `distanceKm` | Road distance from Maps API (or Haversine fallback) |
+
+Coordinates are optional (nullable) — manual entry without GPS is always allowed.
+When coordinates are captured, the reverse-geocoded address is shown in the
+`fromLocation` and `toLocation` text fields (pre-filled for confirmation).
+
+---
+
+## 8. Web Map Picker Component
+
+**File:** `src/components/finance/ConveyanceMapPicker.tsx`
+
+Used on the web conveyance form (not mobile — mobile uses GPS buttons).
+
+Dependencies:
+- `@googlemaps/react-wrapper` (or `@vis.gl/react-google-maps`)
+- `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` environment variable
+
+Behaviour:
+1. Shows a Google Map centred on Bangalore by default.
+2. Two draggable markers: Start (green) and End (red).
+3. On marker placement, calls `/api/finance/conveyance/distance`.
+4. Shows route polyline and distance label on the map.
+5. "Confirm" button returns `{ fromLat, fromLng, toLat, toLng, distanceKm }` to the parent form.
+
+---
+
+## 9. Billing Estimate
+
+| API | Rate (approx.) | Expected usage | Monthly cost |
+|---|---|---|---|
+| Distance Matrix API | $5 per 1,000 requests | ~25 trips/day × 22 working days = 550 requests | ~$2.75 |
+| Maps JavaScript API | Free up to 28,500 loads/month | Web map picker (~100 uses/month) | Free |
+| Geocoding API | $5 per 1,000 requests | Optional; ~100/month | ~$0.50 |
+
+**Total estimated Maps cost: ~$3–4/month.** Well within the Google Maps Platform free tier
+for small-scale usage (if a billing account is created with the $200/month free credit).
+
+---
+
+## 10. Implementation Checklist
+
+- [ ] Create a Google Cloud project for Caveo CRM
+- [ ] Enable Distance Matrix API, Maps JavaScript API, Geocoding API
+- [ ] Generate two restricted API keys (server + browser)
+- [ ] Add `GOOGLE_MAPS_SERVER_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` to `.env` and Hostinger `.builds/config/.env`
+- [ ] Create `src/lib/finance/google-maps.ts` — `getRoadDistanceKm` + Haversine fallback
+- [ ] Create `GET /api/finance/conveyance/distance` route
+- [ ] Build `ConveyanceMapPicker.tsx` (web map picker component)
+- [ ] Build `ConveyanceScreen.tsx` (mobile GPS capture flow)
+- [ ] Test with real GPS coordinates in Bangalore + verify KM matches Maps app
+- [ ] Test Haversine fallback by mocking a Maps API failure
+- [ ] Document API key in Hostinger config notes (for future devs)

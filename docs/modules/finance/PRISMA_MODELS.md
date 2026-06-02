@@ -1,219 +1,439 @@
-# Finance Module — Prisma Models
+# Finance Operations Module — Prisma Models
 
-> Source of truth: `prisma/schema.prisma`.
-> This file documents the finance-related models as they exist today plus
-> planned additions. Always check the live schema file before coding —
-> if they diverge, the schema file wins.
->
-> Provider: `mysql` | Collation: `utf8mb4_unicode_ci`
-> Client output: `src/generated/prisma`
+> **Status: APPROVED FINAL SCOPE**
+> Provider: `mysql` | Client output: `src/generated/prisma`
+> All models must be added to `prisma/schema.prisma`.
+> Run `npx prisma migrate dev --name <name>` against a live MySQL DB after changes.
+> Never run migrations against a SQLite URL.
 
 ---
 
-## Current Models
+## Existing Models (Phase 0 — unchanged)
 
-### Collection
+`Collection`, `Payment`, `OrderAdvance`, `Notification` — see `docs/DATABASE.md`.
+
+---
+
+## New Models — Approved Scope
 
 ```prisma
-model Collection {
-  id                    Int       @id @default(autoincrement())
-  invoiceDate           DateTime  @default(now())
-  invoiceNo             String
-  employeeId            Int
-  employee              Employee  @relation("EmployeeCollections", fields: [employeeId], references: [id])
-  customerName          String
-  invoiceValueLakhs     Float
-  amountWithoutGstLakhs Float     @default(0)
-  dueDate               DateTime
-  paymentReceivedDate   DateTime?
-  // ── Cached fields — written ONLY by syncCollectionTotals() ──
-  amountReceivedLakhs   Float     @default(0)
-  collectionStatus      String    @default("Pending")
-  // ────────────────────────────────────────────────────────────
-  remarks               String    @db.Text @default("")
-  payments              Payment[]
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+// ─── Cash Book ────────────────────────────────────────────────────────────────
+
+model CashAccount {
+  id             Int         @id @default(autoincrement())
+  name           String
+  branchName     String      @default("HO")
+  openingBalance Float       @default(0)
+  currentBalance Float       @default(0)    // CACHED — written by cash-book.ts only
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  entries        CashEntry[]
+}
+
+model CashEntry {
+  id                Int          @id @default(autoincrement())
+  cashAccountId     Int
+  cashAccount       CashAccount  @relation(fields: [cashAccountId], references: [id])
+  entryDate         DateTime
+  type              String       // "receipt" | "payment" | "bank_withdrawal" | "bank_deposit"
+  amountLakhs       Float        // always positive; direction from type
+  narration         String       @db.Text
+  voucherId         Int?
+  voucher           Voucher?     @relation("CashVoucher", fields: [voucherId], references: [id])
+  pairedBankEntryId Int?         // FK → BankEntry for bank-cash transfers
+  recordedById      Int
+  recordedBy        Employee     @relation("CashEntryRecorder", fields: [recordedById], references: [id])
+  createdAt         DateTime     @default(now())
+
+  @@index([cashAccountId])
+  @@index([entryDate])
+  @@index([recordedById])
+}
+
+// ─── Bank Book ────────────────────────────────────────────────────────────────
+
+model BankAccount {
+  id             Int         @id @default(autoincrement())
+  bankName       String
+  accountNo      String
+  ifscCode       String      @default("")
+  accountHolder  String
+  openingBalance Float       @default(0)
+  currentBalance Float       @default(0)    // CACHED — written by bank-book.ts only
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  entries        BankEntry[]
+}
+
+model BankEntry {
+  id                 Int          @id @default(autoincrement())
+  bankAccountId      Int
+  bankAccount        BankAccount  @relation(fields: [bankAccountId], references: [id])
+  entryDate          DateTime
+  type               String       // "upi"|"cheque"|"neft"|"rtgs"|"imps"|"cash_withdrawal"|"cash_deposit"|"bank_charge"|"receipt"|"payment"
+  direction          String       // "debit" | "credit"
+  amountLakhs        Float
+  narration          String       @db.Text
+  referenceNo        String       @default("")
+  chequeNo           String       @default("")
+  chequeDate         DateTime?
+  payee              String       @default("")
+  voucherId          Int?
+  voucher            Voucher?     @relation("BankVoucher", fields: [voucherId], references: [id])
+  pairedCashEntryId  Int?
+  reconciled         Boolean      @default(false)
+  reconciledAt       DateTime?
+  recordedById       Int
+  recordedBy         Employee     @relation("BankEntryRecorder", fields: [recordedById], references: [id])
+  createdAt          DateTime     @default(now())
+
+  @@index([bankAccountId])
+  @@index([entryDate])
+  @@index([reconciled])
+  @@index([recordedById])
+}
+
+// ─── Vendor Master ────────────────────────────────────────────────────────────
+
+model Vendor {
+  id           Int            @id @default(autoincrement())
+  name         String
+  gstin        String         @default("")
+  pan          String         @default("")
+  address      String         @db.Text @default("")
+  city         String         @default("")
+  state        String         @default("")
+  pincode      String         @default("")
+  contactName  String         @default("")
+  contactPhone String         @default("")
+  contactEmail String         @default("")
+  bankName     String         @default("")
+  bankAccountNo String        @default("")
+  ifscCode     String         @default("")
+  paymentTerms String         @default("30 days")
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  expenses     ExpenseEntry[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+// ─── Expense Register ─────────────────────────────────────────────────────────
+
+model ExpenseCategory {
+  id             Int            @id @default(autoincrement())
+  name           String
+  code           String
+  gstApplicable  Boolean        @default(true)
+  tallyLedger    String         @default("")
+  isActive       Boolean        @default(true)
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  expenses       ExpenseEntry[]
+}
+
+model ExpenseEntry {
+  id              Int                  @id @default(autoincrement())
+  categoryId      Int
+  category        ExpenseCategory      @relation(fields: [categoryId], references: [id])
+  vendorId        Int?
+  vendor          Vendor?              @relation(fields: [vendorId], references: [id])
+  customerName    String?              // denormalized customer tag for profitability
+  employeeId      Int
+  employee        Employee             @relation("EmployeeExpenses", fields: [employeeId], references: [id])
+  expenseDate     DateTime
+  amountLakhs     Float
+  gstAmountLakhs  Float                @default(0)
+  gstRate         Float                @default(0)
+  narration       String               @db.Text
+  vendorInvoiceNo String               @default("")
+  status          String               @default("draft")
+  voucherId       Int?
+  voucher         Voucher?             @relation("ExpenseVoucher", fields: [voucherId], references: [id])
+  claimId         Int?
+  claim           EmployeeClaim?       @relation(fields: [claimId], references: [id])
+  conveyanceId    Int?                 @unique
+  conveyance      ConveyanceLog?       @relation("ConveyanceExpense")
+  approvalId      Int?
+  approval        ApprovalRequest?     @relation("ExpenseApproval", fields: [approvalId], references: [id])
+  paidDate        DateTime?
+  attachments     ExpenseAttachment[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([categoryId])
+  @@index([vendorId])
+  @@index([employeeId])
+  @@index([expenseDate])
+  @@index([status])
+  @@index([claimId])
+  @@index([customerName])
+}
+
+model ExpenseAttachment {
+  id           Int          @id @default(autoincrement())
+  expenseId    Int
+  expense      ExpenseEntry @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileUrl      String       @db.Text
+  fileSize     Int?
+  mimeType     String       @default("")
+  uploadedById Int
+  uploadedBy   Employee     @relation("AttachmentUploader", fields: [uploadedById], references: [id])
+  uploadedAt   DateTime     @default(now())
+
+  @@index([expenseId])
+}
+
+// ─── Voucher Management ───────────────────────────────────────────────────────
+
+model VoucherSequence {
+  id            Int      @id @default(autoincrement())
+  financialYear String   @unique   // e.g. "26-27"
+  lastNumber    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model Voucher {
+  id          Int               @id @default(autoincrement())
+  voucherNo   String            @unique    // CI/26-27/00001
+  type        String            // "payment"|"receipt"|"journal"|"expense"|"conveyance"|"advance"
+  voucherDate DateTime
+  amountLakhs Float
+  narration   String            @db.Text
+  status      String            @default("draft")   // "draft"|"approved"|"voided"
+  pdfUrl      String?           @db.Text
+  approvalId  Int?
+  approval    ApprovalRequest?  @relation("VoucherApproval", fields: [approvalId], references: [id])
+  voidedAt    DateTime?
+  voidReason  String            @db.Text @default("")
+  createdById Int
+  createdBy   Employee          @relation("VoucherCreator", fields: [createdById], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  cashEntries  CashEntry[]      @relation("CashVoucher")
+  bankEntries  BankEntry[]      @relation("BankVoucher")
+  expenses     ExpenseEntry[]   @relation("ExpenseVoucher")
+  conveyanceLogs ConveyanceLog[] @relation("ConveyanceVoucher")
+
+  @@index([voucherDate])
+  @@index([type])
+  @@index([status])
+  @@index([createdById])
+}
+
+// ─── Approval Engine ──────────────────────────────────────────────────────────
+
+model ApprovalPolicy {
+  id                Int               @id @default(autoincrement())
+  name              String
+  expenseType       String            @default("all")
+  autoApproveLimit  Float             @default(0)
+  level1Limit       Float
+  level1Role        String
+  level2Limit       Float?
+  level2Role        String?
+  level3Limit       Float?
+  level3Role        String?
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  requests          ApprovalRequest[]
+}
+
+model ApprovalRequest {
+  id                Int              @id @default(autoincrement())
+  entityType        String           // "expense"|"claim"|"advance"|"conveyance"|"voucher"
+  entityId          Int
+  policyId          Int?
+  policy            ApprovalPolicy?  @relation(fields: [policyId], references: [id])
+  requestedById     Int
+  requestedBy       Employee         @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  currentLevel      Int              @default(1)
+  status            String           @default("pending")
+  level1ApproverId  Int?
+  level1Approver    Employee?        @relation("L1Approver", fields: [level1ApproverId], references: [id])
+  level1ApprovedAt  DateTime?
+  level1Comments    String           @db.Text @default("")
+  level2ApproverId  Int?
+  level2Approver    Employee?        @relation("L2Approver", fields: [level2ApproverId], references: [id])
+  level2ApprovedAt  DateTime?
+  level2Comments    String           @db.Text @default("")
+  level3ApproverId  Int?
+  level3Approver    Employee?        @relation("L3Approver", fields: [level3ApproverId], references: [id])
+  level3ApprovedAt  DateTime?
+  level3Comments    String           @db.Text @default("")
+  rejectedAt        DateTime?
+  rejectedById      Int?
+  rejectedBy        Employee?        @relation("ApprovalRejecter", fields: [rejectedById], references: [id])
+  rejectionReason   String           @db.Text @default("")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  expenses      ExpenseEntry[]   @relation("ExpenseApproval")
+  claims        EmployeeClaim[]  @relation("ClaimApproval")
+  advances      EmployeeAdvance[] @relation("AdvanceApproval")
+  conveyances   ConveyanceLog[]  @relation("ConveyanceApproval")
+  vouchers      Voucher[]        @relation("VoucherApproval")
+
+  @@index([entityType, entityId])
+  @@index([requestedById])
+  @@index([status])
+  @@index([level1ApproverId])
+  @@index([level2ApproverId])
+}
+
+// ─── Employee Claims ──────────────────────────────────────────────────────────
+
+model EmployeeClaim {
+  id               Int              @id @default(autoincrement())
+  claimNo          String           @unique    // CI/CLM/26-27/00001
+  employeeId       Int
+  employee         Employee         @relation("EmployeeClaims", fields: [employeeId], references: [id])
+  claimDate        DateTime         @default(now())
+  totalAmountLakhs Float
+  status           String           @default("draft")
+  approvalId       Int?             @unique
+  approval         ApprovalRequest? @relation("ClaimApproval", fields: [approvalId], references: [id])
+  paidDate         DateTime?
+  paidAmountLakhs  Float?
+  remarks          String           @db.Text @default("")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  entries          ExpenseEntry[]
 
   @@index([employeeId])
-  @@index([collectionStatus])
-  @@index([dueDate])
+  @@index([status])
+  @@index([claimDate])
 }
-```
 
-**Key constraints:**
-- `collectionStatus` valid values: `"Pending"` | `"Partially Received"` | `"Fully Received"`
-- `amountReceivedLakhs` and `collectionStatus` must never be set outside `syncCollectionTotals()`.
-- `paymentReceivedDate` mirrors the most recent `Payment.paymentDate` for this invoice.
+// ─── Employee Advance ─────────────────────────────────────────────────────────
 
----
+model EmployeeAdvance {
+  id                    Int              @id @default(autoincrement())
+  advanceNo             String           @unique    // CI/ADV/26-27/00001
+  employeeId            Int
+  employee              Employee         @relation("EmployeeAdvances", fields: [employeeId], references: [id])
+  purpose               String           @db.Text
+  amountLakhs           Float
+  requestDate           DateTime         @default(now())
+  requiredByDate        DateTime?
+  status                String           @default("pending")
+  approvalId            Int?             @unique
+  approval              ApprovalRequest? @relation("AdvanceApproval", fields: [approvalId], references: [id])
+  disbursedDate         DateTime?
+  disbursedAmountLakhs  Float?
+  disbursedFromType     String?          // "cash" | "bank"
+  disbursedFromId       Int?             // FK to CashAccount or BankAccount
+  settledDate           DateTime?
+  settledAmountLakhs    Float?
+  balanceLakhs          Float            @default(0)    // CACHED: disbursed − settled
+  remarks               String           @db.Text @default("")
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
-### Payment
-
-```prisma
-model Payment {
-  id            Int           @id @default(autoincrement())
-  collectionId  Int
-  collection    Collection    @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  amountLakhs   Float
-  paymentDate   DateTime      @default(now())
-  mode          String        @default("Bank Transfer")
-  referenceNo   String        @default("")
-  notes         String        @db.Text @default("")
-  fromAdvanceId Int?
-  fromAdvance   OrderAdvance? @relation("AdvancePayments", fields: [fromAdvanceId], references: [id])
-  recordedById  Int
-  recordedBy    Employee      @relation("PaymentRecorder", fields: [recordedById], references: [id])
-  createdAt     DateTime      @default(now())
-
-  @@index([collectionId])
-  @@index([paymentDate])
-  @@index([recordedById])
+  @@index([employeeId])
+  @@index([status])
+  @@index([requestDate])
 }
-```
 
-**Key constraints:**
-- `mode` valid values: `"Bank Transfer"` | `"Cheque"` | `"UPI"` | `"Cash"` | `"Opening Balance"` | `"Other"`
-- `"Opening Balance"` mode is reserved for the system-generated reconciliation entry
-  created by `reconcileOpeningBalance()` — never use it in UI forms.
-- No `DELETE` route exists currently. Rows are immutable once created.
-- `onDelete: Cascade` — deleting a `Collection` removes all its `Payment` rows.
+// ─── HR Expense Policy ────────────────────────────────────────────────────────
 
----
+model HRExpensePolicy {
+  id                      Int      @id @default(autoincrement())
+  name                    String
+  rolePattern             String   @default("all")
+  perDiemTier1Lakhs       Float    @default(0)
+  perDiemTier2Lakhs       Float    @default(0)
+  mealLimitLakhs          Float    @default(0)
+  hotelTier1Lakhs         Float    @default(0)
+  hotelTier2Lakhs         Float    @default(0)
+  bikeRatePerKm           Float    @default(2.0)    // ₹ per KM
+  carRatePerKm            Float    @default(7.0)    // ₹ per KM
+  autoRatePerKm           Float    @default(0)
+  maxConveyanceDayRupees  Float    @default(0)      // 0 = no cap
+  isActive                Boolean  @default(true)
+  effectiveFrom           DateTime @default(now())
+  createdAt               DateTime @default(now())
 
-### OrderAdvance
+  @@index([isActive])
+  @@index([effectiveFrom])
+}
 
-```prisma
-model OrderAdvance {
-  id                  Int          @id @default(autoincrement())
-  salesFunnelId       Int?
-  salesFunnel         SalesFunnel? @relation(fields: [salesFunnelId], references: [id])
-  customerName        String
-  amountLakhs         Float
-  receivedDate        DateTime     @default(now())
-  mode                String       @default("Bank Transfer")
-  referenceNo         String       @default("")
-  notes               String       @db.Text @default("")
-  status              String       @default("unapplied")
-  appliedToCollectionId Int?
-  appliedDate         DateTime?
-  recordedById        Int
-  recordedBy          Employee     @relation("AdvanceRecorder", fields: [recordedById], references: [id])
-  payments            Payment[]    @relation("AdvancePayments")
-  createdAt           DateTime     @default(now())
+// ─── Local Conveyance ─────────────────────────────────────────────────────────
 
-  @@index([recordedById])
+model ConveyanceLog {
+  id           Int              @id @default(autoincrement())
+  employeeId   Int
+  employee     Employee         @relation("EmployeeConveyance", fields: [employeeId], references: [id])
+  travelDate   DateTime
+  fromLocation String           @db.Text
+  toLocation   String           @db.Text
+  fromLat      Float?
+  fromLng      Float?
+  toLat        Float?
+  toLng        Float?
+  distanceKm   Float
+  mode         String           // "bike" | "car" | "auto" | "public"
+  ratePerKm    Float            // ₹ per KM (snapshot from HR Policy)
+  amountRupees Float
+  amountLakhs  Float
+  purpose      String           @db.Text @default("")
+  status       String           @default("draft")
+  expenseId    Int?             @unique
+  expense      ExpenseEntry?    @relation("ConveyanceExpense", fields: [expenseId], references: [id])
+  voucherId    Int?
+  voucher      Voucher?         @relation("ConveyanceVoucher", fields: [voucherId], references: [id])
+  approvalId   Int?
+  approval     ApprovalRequest? @relation("ConveyanceApproval", fields: [approvalId], references: [id])
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([employeeId])
+  @@index([travelDate])
   @@index([status])
 }
 ```
 
-**Key constraints:**
-- `status` valid values: `"unapplied"` | `"applied"`
-- Once `status = "applied"`, the advance cannot be applied again.
-  `applyAdvance()` checks this and returns `{ error: "Advance already applied" }`.
-- `salesFunnelId` is optional — advances can exist without a linked deal.
-- `appliedToCollectionId` is informational only (not a FK relation); the actual
-  payment link is `Payment.fromAdvanceId`.
-
 ---
 
-### Notification
+## Employee Model — New Back-References Required
+
+Add these relation fields to the existing `Employee` model in `schema.prisma`:
 
 ```prisma
-model Notification {
-  id          Int      @id @default(autoincrement())
-  recipientId Int
-  recipient   Employee @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  type        String                    // "payment" | "advance" | "system"
-  title       String
-  body        String   @db.Text
-  link        String
-  amountLakhs Float?
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  @@index([recipientId, isRead])
-  @@index([createdAt])
-}
-```
-
-**Finance-generated types:**
-- `"payment"` — fired by `recordPayment()` on every successful payment
-- `"advance"` — reserved for future advance-specific notifications
-- `"system"` — reserved for system/admin messages
-
----
-
-## Employee Relation Back-References
-
-The `Employee` model must carry the following reverse-relation fields for the
-finance models to compile. These are in `schema.prisma` but documented here
-for cross-reference:
-
-```prisma
-// Inside the Employee model:
-collections   Collection[]  @relation("EmployeeCollections")
-recordedPayments Payment[]  @relation("PaymentRecorder")
-recordedAdvances OrderAdvance[] @relation("AdvanceRecorder")
-notifications Notification[] @relation("NotificationRecipient")
+// Add inside the Employee model:
+cashEntries       CashEntry[]         @relation("CashEntryRecorder")
+bankEntries       BankEntry[]         @relation("BankEntryRecorder")
+expenses          ExpenseEntry[]      @relation("EmployeeExpenses")
+attachments       ExpenseAttachment[] @relation("AttachmentUploader")
+vouchersCreated   Voucher[]           @relation("VoucherCreator")
+approvalRequests  ApprovalRequest[]   @relation("ApprovalRequester")
+level1Approvals   ApprovalRequest[]   @relation("L1Approver")
+level2Approvals   ApprovalRequest[]   @relation("L2Approver")
+level3Approvals   ApprovalRequest[]   @relation("L3Approver")
+approvalRejections ApprovalRequest[]  @relation("ApprovalRejecter")
+claims            EmployeeClaim[]     @relation("EmployeeClaims")
+advances          EmployeeAdvance[]   @relation("EmployeeAdvances")
+conveyanceLogs    ConveyanceLog[]     @relation("EmployeeConveyance")
 ```
 
 ---
 
-## Planned Model Additions
+## MySQL-Specific Rules Applied to All Models
 
-### CollectionVisit (Google Maps integration)
-
-```prisma
-model CollectionVisit {
-  id           Int        @id @default(autoincrement())
-  collectionId Int
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  employeeId   Int
-  employee     Employee   @relation("VisitEmployee", fields: [employeeId], references: [id])
-  visitedAt    DateTime   @default(now())
-  latitude     Float
-  longitude    Float
-  address      String     @db.Text @default("")
-  notes        String     @db.Text @default("")
-  outcome      String     @default("visited")  // "visited" | "promise_to_pay" | "escalation"
-  photoUrl     String?                          // future: photo evidence of visit
-  createdAt    DateTime   @default(now())
-
-  @@index([collectionId])
-  @@index([employeeId])
-  @@index([visitedAt])
-}
-```
-
-### Planned Payment fields (soft-delete)
-
-```prisma
-// Add to Payment model (migration required):
-isVoid     Boolean   @default(false)
-voidedAt   DateTime?
-voidedById Int?
-voidedBy   Employee? @relation("PaymentVoider", fields: [voidedById], references: [id])
-voidReason String    @db.Text @default("")
-```
-
----
-
-## MySQL-Specific Notes for This Module
-
-1. All `String @db.Text` fields: `TEXT` column — no length limit, avoids MySQL's
-   `VARCHAR(191)` truncation. Apply to any notes/remarks/body field.
-
-2. All `Float` fields map to MySQL `DOUBLE` — approximately 15-17 significant decimal
-   digits, sufficient for Lakhs values but not for exact financial accounting.
-   The target upgrade is `@db.Decimal(12,4)` (FR-FIN-43, deferred).
-
-3. The `@@index` directives on FK columns are **mandatory** — MySQL does not
-   auto-create indexes on foreign key columns, unlike SQLite.
-
-4. `amountLakhs` and related aggregations use `prisma.payment.aggregate({ _sum: ... })`.
-   The result of `_sum.amountLakhs` is `number | null` — always null-check before
-   arithmetic (use `?? 0`).
-
-5. `contains` queries on `customerName` and `invoiceNo` are case-insensitive
-   under `utf8mb4_unicode_ci`. Do not add `mode: "insensitive"`.
+1. `provider = "mysql"` — do not change.
+2. Every `String` field holding free-form content uses `@db.Text`.
+3. Every FK and hot-filter column has `@@index(...)`.
+4. All `Float` fields = MySQL `DOUBLE`. Target upgrade: `@db.Decimal(12,4)`.
+5. `currentBalance` on `CashAccount` and `BankAccount` are **cached fields** —
+   never write them outside `cash-book.ts` / `bank-book.ts` service functions.
+6. `balanceLakhs` on `EmployeeAdvance` is a **cached field** — update only on
+   disbursement and settlement events.
+7. `VoucherSequence.lastNumber` must only be incremented inside `prisma.$transaction`
+   to prevent duplicate voucher numbers.
+8. All multi-step financial writes must use `prisma.$transaction`.

@@ -1,71 +1,161 @@
-# Finance Module — Tally Export
+# Finance Operations Module — Excel / PDF / Tally Export
 
-> Planned feature. No code exists yet.
-> Reference: FR-FIN-40 in `FINANCE_REQUIREMENTS.md`.
-> Tally.ERP 9 / Tally Prime is the accounting software used by Caveo Infosystems.
-
----
-
-## 1. Purpose
-
-The Tally Export feature allows the Accounts team to download finance data from
-Caveo CRM in a format that can be directly imported into Tally Prime / Tally.ERP 9,
-eliminating manual re-entry of invoices and payment receipts.
+> **Status: APPROVED FINAL SCOPE**
+> Feature 13: Excel / PDF / Tally Export
+> Covers all three formats for all applicable financial data types.
 
 ---
 
-## 2. Tally Import Formats
+## 1. Overview
 
-Tally supports two import mechanisms:
+| Format | Library | Use case |
+|---|---|---|
+| **Excel (.xlsx)** | `exceljs` | Download for analysis, internal records, sharing |
+| **PDF** | `@react-pdf/renderer` (server-side) | Formal reports, voucher printouts, audit packs |
+| **Tally XML** | Custom builder (`src/lib/finance/tally-xml.ts`) | Import into Tally Prime / Tally.ERP 9 |
 
-| Format | Use case |
+All exports are generated server-side at `GET /api/finance/export`.
+The client receives a file download response (no preview step).
+
+---
+
+## 2. Export Coverage Matrix
+
+| Data Type | Excel | PDF | Tally XML |
+|---|---|---|---|
+| Cash Book | ✅ | ✅ | ✅ |
+| Bank Book | ✅ | ✅ | ✅ |
+| Expense Register | ✅ | ✅ | ✅ |
+| Voucher Register | ✅ | ✅ | — |
+| Collections (Invoices) | ✅ | ✅ | ✅ |
+| Payment Ledger | ✅ | ✅ | ✅ |
+| Employee Claims | ✅ | ✅ | — |
+| Conveyance Summary | ✅ | ✅ | — |
+| Customer Profitability | ✅ | ✅ | — |
+| Individual Voucher PDF | — | ✅ | — |
+
+---
+
+## 3. Excel Export
+
+**Library:** `exceljs` (add to `package.json`)
+
+### Common Structure
+Every Excel export has:
+- **Row 1:** Company name — "Caveo Infosystems Pvt. Ltd."
+- **Row 2:** Report title + date range
+- **Row 3:** Empty (spacer)
+- **Row 4+:** Column headers (bold, background fill)
+- **Data rows**
+- **Last row:** Totals (bold, top border)
+
+### Cash Book Excel
+
+Columns: `Date | Type | Narration | Receipts (₹L) | Payments (₹L) | Balance (₹L)`
+
+- Running balance computed row by row.
+- Receipts and payments in separate columns (Indian cash-book format).
+- Summary row: Total Receipts | Total Payments.
+
+### Bank Book Excel
+
+Columns: `Date | Type | Narration | Payee | Reference No | Debit (₹L) | Credit (₹L) | Balance (₹L) | Reconciled`
+
+### Expense Register Excel
+
+Columns: `Date | Category | Vendor | Customer | Narration | Invoice No | Amount (₹L) | GST Rate | GST Amount (₹L) | Net (₹L) | Employee | Status`
+
+- Subtotal row per category (optional grouping).
+
+### Collections Excel
+
+Columns: `Invoice Date | Invoice No | Customer | Employee | Invoice Value (₹L) | Without GST (₹L) | Due Date | Received Date | Amount Received (₹L) | Outstanding (₹L) | Status`
+
+### Conveyance Excel
+
+Columns: `Date | Employee | From | To | Mode | KM | Rate (₹/km) | Amount (₹) | Status`
+
+### Customer Profitability Excel
+
+Columns: `Customer | Revenue (₹L) | Direct Costs (₹L) | Gross Profit (₹L) | Gross Margin % | Invoices | Expenses`
+
+---
+
+## 4. PDF Export
+
+**Library:** `@react-pdf/renderer` (server-side rendering, no browser required)
+
+### PDF Report Template
+
+All PDF reports share a common header:
+```
+┌────────────────────────────────────────────────┐
+│  [Company Logo]   Caveo Infosystems Pvt. Ltd.  │
+│                   {Report Title}               │
+│                   Period: {from} to {to}       │
+│  Generated: {timestamp}          Page {n}/{N}  │
+├────────────────────────────────────────────────┤
+│  [Table with data rows]                        │
+│  ...                                           │
+├────────────────────────────────────────────────┤
+│  Totals row                                    │
+└────────────────────────────────────────────────┘
+```
+
+Company logo is configured in `AppSetting` (key: `company.logo.url`).
+
+### Individual Voucher PDF
+
+Each voucher generates a standalone A5/A4 PDF:
+
+```
+┌────────────────────────────────────────────────┐
+│  [Logo]         CAVEO INFOSYSTEMS PVT. LTD.   │
+│                 {Address}  |  GSTIN: ...       │
+├────────────────────────────────────────────────┤
+│  PAYMENT VOUCHER              CI/26-27/00042   │
+│  Date: 10 Jun 2026                             │
+├────────────────────────────────────────────────┤
+│  To: {Vendor / Payee Name}                     │
+│                                                │
+│  Narration: Office supplies — June 2026        │
+│                                                │
+│  Amount:  ₹ 25,000.00                          │
+│  In Words: Rupees Twenty-Five Thousand Only    │
+├────────────────────────────────────────────────┤
+│  Mode: Bank Transfer   Ref: UTR1234567890      │
+├────────────────────────────────────────────────┤
+│  Prepared by: ____________   Date: __________  │
+│  Approved by: ____________   Date: __________  │
+└────────────────────────────────────────────────┘
+```
+
+"Amount in Words" is computed by an `amountToWords(rupees: number): string` helper.
+
+---
+
+## 5. Tally XML Export
+
+**Library:** Custom builder — `src/lib/finance/tally-xml.ts` (no external dep needed).
+
+### Tally Voucher Format
+
+All Tally imports use the `TALLYMESSAGE` XML structure.
+One `<VOUCHER>` element per financial record.
+
+#### Voucher Type Mapping
+
+| CRM entity | Tally voucher type |
 |---|---|
-| **XML (TDL-based)** | Native Tally XML import — the recommended method. Tally reads a structured XML file via `File > Import Data > Vouchers`. |
-| **CSV via Excel** | Manual copy-paste with Tally Excel Import plugin — less reliable, not recommended. |
+| CashEntry (receipt) | `Receipt` |
+| CashEntry (payment) | `Payment` |
+| BankEntry (debit) | `Payment` |
+| BankEntry (credit) | `Receipt` |
+| ExpenseEntry | `Journal` |
+| Collection (invoice) | `Sales` |
+| Payment (ledger) | `Receipt` |
 
-**This integration targets Tally XML import.**
-
----
-
-## 3. Data to Export
-
-### 3.1 Sales Invoices (from `Collection` table)
-
-Each `Collection` row maps to a **Sales Voucher** in Tally.
-
-| CRM Field | Tally Field | Notes |
-|---|---|---|
-| `invoiceDate` | `DATE` | Format: `YYYYMMDD` |
-| `invoiceNo` | `VOUCHERNUMBER` | Tally voucher number |
-| `customerName` | `PARTYLEDGERNAME` | Must match a Tally ledger name |
-| `invoiceValueLakhs × 100000` | `AMOUNT` | Convert Lakhs to Rupees (multiply by 100,000) |
-| `amountWithoutGstLakhs × 100000` | Taxable amount | Pre-GST amount |
-| `(invoiceValueLakhs − amountWithoutGstLakhs) × 100000` | GST amount (CGST + SGST or IGST) | |
-| `employeeId → employee.name` | Narration / Cost Centre | Tag to salesperson |
-
-### 3.2 Payment Receipts (from `Payment` table)
-
-Each `Payment` row (excluding `mode = "Opening Balance"`) maps to a
-**Receipt Voucher** in Tally.
-
-| CRM Field | Tally Field | Notes |
-|---|---|---|
-| `paymentDate` | `DATE` | Format: `YYYYMMDD` |
-| `Payment.id` | `VOUCHERNUMBER` | e.g. `REC-{id}` |
-| `collection.customerName` | `PARTYLEDGERNAME` | |
-| `amountLakhs × 100000` | `AMOUNT` | Rupees |
-| `mode` | Narration | Bank Transfer / Cheque / UPI / Cash |
-| `referenceNo` | `NARRATION` / Cheque No | |
-| `notes` | `NARRATION` | Appended to narration |
-
----
-
-## 4. Tally XML Structure
-
-Tally's native import format is `TALLYMESSAGE` XML. The minimal structure for
-a Sales Voucher and Receipt Voucher:
-
-### Sales Voucher (invoice)
+#### XML Envelope
 
 ```xml
 <ENVELOPE>
@@ -79,34 +169,7 @@ a Sales Voucher and Receipt Voucher:
       </REQUESTDESC>
       <REQUESTDATA>
         <TALLYMESSAGE xmlns:UDF="TallyUDF">
-
-          <!-- One VOUCHER element per invoice -->
-          <VOUCHER VCHTYPE="Sales" ACTION="Create">
-            <DATE>20260515</DATE>
-            <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
-            <VOUCHERNUMBER>INV-2026-042</VOUCHERNUMBER>
-            <PARTYLEDGERNAME>Infosys Ltd</PARTYLEDGERNAME>
-            <NARRATION>Invoice INV-2026-042 · Sales rep: Rahul Kumar</NARRATION>
-            <ALLLEDGERENTRIES.LIST>
-              <!-- Debtors (customer receivable) -->
-              <LEDGERNAME>Infosys Ltd</LEDGERNAME>
-              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-              <AMOUNT>-1250000.00</AMOUNT>  <!-- negative = debit in Tally -->
-            </ALLLEDGERENTRIES.LIST>
-            <ALLLEDGERENTRIES.LIST>
-              <!-- Sales ledger -->
-              <LEDGERNAME>Sales</LEDGERNAME>
-              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <AMOUNT>1059322.03</AMOUNT>  <!-- without-GST amount -->
-            </ALLLEDGERENTRIES.LIST>
-            <ALLLEDGERENTRIES.LIST>
-              <!-- GST output ledger (IGST or CGST+SGST depending on supply type) -->
-              <LEDGERNAME>Output IGST 18%</LEDGERNAME>
-              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <AMOUNT>190677.97</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>
-          </VOUCHER>
-
+          <!-- One <VOUCHER> block per record -->
         </TALLYMESSAGE>
       </REQUESTDATA>
     </IMPORTDATA>
@@ -114,173 +177,160 @@ a Sales Voucher and Receipt Voucher:
 </ENVELOPE>
 ```
 
-### Receipt Voucher (payment)
+#### Cash Receipt Voucher
 
 ```xml
 <VOUCHER VCHTYPE="Receipt" ACTION="Create">
-  <DATE>20260520</DATE>
+  <DATE>20260610</DATE>
   <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
-  <VOUCHERNUMBER>REC-18</VOUCHERNUMBER>
-  <PARTYLEDGERNAME>Infosys Ltd</PARTYLEDGERNAME>
-  <NARRATION>Bank Transfer · UTR12345678 · First instalment</NARRATION>
+  <VOUCHERNUMBER>CI/26-27/00042</VOUCHERNUMBER>
+  <NARRATION>Cash receipt — office rent collection</NARRATION>
   <ALLLEDGERENTRIES.LIST>
-    <!-- Bank account (debit) -->
-    <LEDGERNAME>HDFC Bank A/C</LEDGERNAME>
+    <LEDGERNAME>Cash</LEDGERNAME>               <!-- debit -->
     <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-    <AMOUNT>-500000.00</AMOUNT>
+    <AMOUNT>-50000.00</AMOUNT>
   </ALLLEDGERENTRIES.LIST>
   <ALLLEDGERENTRIES.LIST>
-    <!-- Debtors (credit) -->
-    <LEDGERNAME>Infosys Ltd</LEDGERNAME>
+    <LEDGERNAME>Office Rent Income</LEDGERNAME>  <!-- credit -->
     <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-    <AMOUNT>500000.00</AMOUNT>
+    <AMOUNT>50000.00</AMOUNT>
+  </ALLLEDGERENTRIES.LIST>
+</VOUCHER>
+```
+
+#### Sales Invoice (Collection)
+
+```xml
+<VOUCHER VCHTYPE="Sales" ACTION="Create">
+  <DATE>20260515</DATE>
+  <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+  <VOUCHERNUMBER>INV-2026-042</VOUCHERNUMBER>
+  <PARTYLEDGERNAME>Infosys Ltd</PARTYLEDGERNAME>
+  <NARRATION>Invoice INV-2026-042</NARRATION>
+  <ALLLEDGERENTRIES.LIST>
+    <LEDGERNAME>Infosys Ltd</LEDGERNAME>
+    <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+    <AMOUNT>-1250000.00</AMOUNT>
+  </ALLLEDGERENTRIES.LIST>
+  <ALLLEDGERENTRIES.LIST>
+    <LEDGERNAME>Sales</LEDGERNAME>
+    <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+    <AMOUNT>1059322.03</AMOUNT>
+  </ALLLEDGERENTRIES.LIST>
+  <ALLLEDGERENTRIES.LIST>
+    <LEDGERNAME>Output IGST @ 18%</LEDGERNAME>
+    <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+    <AMOUNT>190677.97</AMOUNT>
+  </ALLLEDGERENTRIES.LIST>
+</VOUCHER>
+```
+
+#### Expense Journal Entry
+
+```xml
+<VOUCHER VCHTYPE="Journal" ACTION="Create">
+  <DATE>20260610</DATE>
+  <VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>
+  <VOUCHERNUMBER>CI/26-27/00043</VOUCHERNUMBER>
+  <NARRATION>Client entertainment — Infosys lunch</NARRATION>
+  <ALLLEDGERENTRIES.LIST>
+    <LEDGERNAME>Client Entertainment</LEDGERNAME>  <!-- expense ledger -->
+    <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+    <AMOUNT>-25000.00</AMOUNT>
+  </ALLLEDGERENTRIES.LIST>
+  <ALLLEDGERENTRIES.LIST>
+    <LEDGERNAME>Input IGST @ 18%</LEDGERNAME>   <!-- GST input credit -->
+    <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+    <AMOUNT>-3813.56</AMOUNT>
+  </ALLLEDGERENTRIES.LIST>
+  <ALLLEDGERENTRIES.LIST>
+    <LEDGERNAME>Accounts Payable</LEDGERNAME>    <!-- or Cash / Bank -->
+    <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+    <AMOUNT>28813.56</AMOUNT>
   </ALLLEDGERENTRIES.LIST>
 </VOUCHER>
 ```
 
 ---
 
-## 5. Currency Conversion
+## 6. Currency Conversion
 
-All CRM values are in **₹ Lakhs** (Float). Tally works in **Rupees** (paise-level precision).
+All CRM money is in **₹ Lakhs**. Tally and PDFs need **₹ Rupees**.
 
 ```
-Tally Rupees = CRM Lakhs × 100,000
+Rupees = Lakhs × 100,000
+Round to 2 decimal places: Math.round(lakhs × 100000 × 100) / 100
 ```
 
 Examples:
-- `12.5 L` → `₹12,50,000`
-- `0.5 L` → `₹50,000`
-
-Apply `Math.round(value × 100000 * 100) / 100` to get 2-decimal-place Rupees.
+- `12.5 L` → `₹12,50,000.00`
+- `0.002 L` → `₹200.00`
+- `0.25 L` → `₹25,000.00`
 
 ---
 
-## 6. Ledger Name Mapping
+## 7. Tally Ledger Name Mapping
 
-Tally ledger names must exactly match what exists in the Tally company file.
-A mapping configuration is needed (stored in `AppSetting`):
+Ledger names must exactly match names in the Tally company file.
+Stored in `AppSetting` and configurable in Admin → Finance Settings.
 
-| CRM concept | Default Tally ledger name | Configurable? |
+| AppSetting Key | Default Value | Description |
 |---|---|---|
-| Sales income | `Sales` | Yes |
-| Output IGST 18% | `Output IGST @ 18%` | Yes |
-| Output CGST 9% | `Output CGST @ 9%` | Yes |
-| Output SGST 9% | `Output SGST @ 9%` | Yes |
-| Bank account | `HDFC Bank A/C` | Yes |
-| Cash | `Cash` | Yes |
-| Customer (debtor) | `{customerName}` (dynamic) | No — uses customer name directly |
+| `finance.tally.ledger.cash` | `Cash` | Cash account ledger |
+| `finance.tally.ledger.bank` | `HDFC Bank A/C` | Primary bank ledger |
+| `finance.tally.ledger.sales` | `Sales` | Sales income ledger |
+| `finance.tally.ledger.output_igst` | `Output IGST @ 18%` | IGST output for interstate sales |
+| `finance.tally.ledger.output_cgst` | `Output CGST @ 9%` | CGST for intrastate |
+| `finance.tally.ledger.output_sgst` | `Output SGST @ 9%` | SGST for intrastate |
+| `finance.tally.ledger.input_igst` | `Input IGST @ 18%` | GST input credit (expenses) |
+| `finance.tally.supply_type` | `interstate` | `interstate` (IGST) or `intrastate` (CGST+SGST) |
+| `finance.tally.ledger.accounts_payable` | `Sundry Creditors` | Vendor payable ledger |
 
-**AppSetting keys to add:**
+Category-specific ledger mapping (one AppSetting per ExpenseCategory code):
 
-```
-finance.tally.ledger.sales          = "Sales"
-finance.tally.ledger.igst           = "Output IGST @ 18%"
-finance.tally.ledger.cgst           = "Output CGST @ 9%"
-finance.tally.ledger.sgst           = "Output SGST @ 9%"
-finance.tally.ledger.bank           = "HDFC Bank A/C"
-finance.tally.ledger.cash           = "Cash"
-finance.tally.supply_type           = "interstate"  // "interstate" (IGST) | "intrastate" (CGST+SGST)
-```
-
-These settings are configurable in the Admin panel (`/admin` → Settings tab).
+| AppSetting Key | Example Value |
+|---|---|
+| `finance.tally.category.TRVL` | `Travel Expenses` |
+| `finance.tally.category.ENT` | `Client Entertainment` |
+| `finance.tally.category.OFS` | `Office Supplies` |
+| `finance.tally.category.CVY` | `Conveyance` |
 
 ---
 
-## 7. API Design
+## 8. Tally Import Instructions (for Accounts Team)
 
-### `GET /api/finance/tally-export`
+After downloading the XML file:
 
-Generate and download the Tally-compatible XML file.
+1. Open **Tally Prime**.
+2. Go to **Gateway of Tally → Import → Vouchers**.
+3. Select the `.xml` file from Downloads.
+4. Verify the voucher count matches CRM.
+5. Click **Import**.
+6. Review import log for errors.
 
-**Access:** Finance roles only (`canManagePayments`).
-
-**Query parameters:**
-
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `from` | `YYYY-MM-DD` | Start of current FY | Export start date (inclusive) |
-| `to` | `YYYY-MM-DD` | Today | Export end date (inclusive) |
-| `type` | `invoices` \| `payments` \| `all` | `all` | Which voucher types to include |
-| `employeeId` | number | (all) | Scope to a single salesperson |
-
-**Response:**
-- `Content-Type: application/xml`
-- `Content-Disposition: attachment; filename="tally-export-{from}-{to}.xml"`
-- Body: Tally-compatible XML as described in § 4.
-
-**Server-side logic:**
-
-```typescript
-// Pseudocode — src/app/api/finance/tally-export/route.ts
-
-export async function GET(req: Request) {
-  const session = await getSession();
-  if (!canManagePayments(session?.user)) return 403;
-
-  const { from, to, type, employeeId } = parseParams(req.url);
-
-  const [collections, payments] = await Promise.all([
-    type !== "payments" ? prisma.collection.findMany({ where: { invoiceDate: { gte: from, lte: to }, ...(employeeId ? { employeeId } : {}) }, include: { employee: true } }) : [],
-    type !== "invoices" ? prisma.payment.findMany({ where: { paymentDate: { gte: from, lte: to }, mode: { not: "Opening Balance" }, ...(employeeId ? { collection: { employeeId } } : {}) }, include: { collection: { include: { employee: true } } } }) : [],
-  ]);
-
-  const settings = await getTallySettings();   // read AppSetting for ledger names
-  const xml = buildTallyXml(collections, payments, settings);
-
-  return new Response(xml, {
-    headers: {
-      "Content-Type": "application/xml",
-      "Content-Disposition": `attachment; filename="tally-export-${from}-${to}.xml"`,
-    },
-  });
-}
-```
-
----
-
-## 8. UI — Export Button
-
-**Location:** `/collections` page toolbar + `/accounts` page toolbar.
-
-**Button:** "Export to Tally" (with a download icon).
-
-**Behaviour:**
-1. Opens a small modal with date-range pickers and type selector.
-2. On confirm, calls `GET /api/finance/tally-export?from=...&to=...&type=...`.
-3. Browser triggers file download automatically.
-4. Shows toast: "Tally XML downloaded — import via Tally: File → Import Data → Vouchers."
-
----
-
-## 9. Import Instructions for the Accounts Team
-
-After downloading the XML file from Caveo CRM:
-
-1. Open **Tally Prime** / **Tally.ERP 9**.
-2. Go to **Gateway of Tally → Import Data → Vouchers**.
-3. Select the downloaded `.xml` file.
-4. Tally will show a preview of vouchers to be imported.
-5. Verify the count matches CRM records.
-6. Click **Import**.
-7. Check the import log for any ledger-name mismatches.
-
-**Common errors:**
+**Common errors and fixes:**
 
 | Error | Fix |
 |---|---|
-| "Ledger not found" | Create the ledger in Tally first, or update the ledger name mapping in Admin → Settings |
-| "Duplicate voucher number" | The invoice/payment was already imported; use date-range filter to export only new records |
-| "Amount mismatch" | Verify the Lakhs → Rupees conversion; check for rounding differences |
+| "Ledger not found: XYZ" | Create ledger in Tally first, or update the AppSetting for that ledger name |
+| "Duplicate voucher number" | Filter export to only new records (already-imported range already done) |
+| "Amount mismatch" | Check Lakhs → Rupees conversion; amounts may have rounding at the third decimal |
+| "Date format error" | Export uses `YYYYMMDD` format — correct if Tally shows this error |
 
 ---
 
-## 10. Implementation Checklist
+## 9. Implementation Checklist
 
-- [ ] Add Tally ledger mapping keys to `AppSetting` defaults (`src/lib/settings.ts`)
-- [ ] Create `src/lib/tally-xml.ts` — XML builder with types for Sales / Receipt vouchers
-- [ ] Create `GET /api/finance/tally-export/route.ts`
-- [ ] Add "Export to Tally" button and date-range modal to `CollectionsClient.tsx`
-- [ ] Add "Export to Tally" button to `AccountsClient.tsx`
-- [ ] Test import with a real Tally Prime trial installation
-- [ ] Document ledger name setup in the Accounts team user guide (`/user-guide.html`)
+- [ ] Add `exceljs` to `package.json`
+- [ ] Add `@react-pdf/renderer` to `package.json`
+- [ ] Create `src/lib/finance/excel-export.ts` — sheet builders for each data type
+- [ ] Create `src/lib/finance/pdf-report.ts` — report PDF + voucher PDF templates
+- [ ] Create `src/lib/finance/tally-xml.ts` — XML builder for all entity types
+- [ ] Create `src/lib/finance/amount-to-words.ts` — Indian number words (for voucher PDF)
+- [ ] Create `GET /api/finance/export/route.ts` — unified export endpoint
+- [ ] Add Tally ledger AppSetting defaults in `src/lib/settings.ts`
+- [ ] Add Export button + modal to all applicable list pages
+- [ ] Add "Download PDF" button to individual voucher pages
+- [ ] Add company logo URL to AppSetting (`company.logo.url`)
+- [ ] Test Tally import with a trial Tally Prime installation
+- [ ] Update Accounts team user guide (`/user-guide.html`) with import instructions

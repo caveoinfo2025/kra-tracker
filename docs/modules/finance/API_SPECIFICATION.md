@@ -1,392 +1,459 @@
-# Finance Module — API Specification
+# Finance Operations Module — API Specification
 
-> All routes are in `src/app/api/`.
-> Auth: every route calls `getSession()` and returns `401` if no session.
-> Finance writes gate on `canManagePayments(session.user)` → returns `403` if denied.
-> Money values are in **₹ Lakhs** (Float).
-
----
-
-## 1. Collections API
-
-### `GET /api/collections`
-
-List invoices. Scope determined by the session role.
-
-**Query parameters:**
-
-| Param | Type | Description |
-|---|---|---|
-| `employeeId` | number (optional) | Filter by sales rep. Finance roles only; ignored for reps. |
-
-**Access:**
-- Finance roles (`canSeeAllCollections`): returns all invoices, or filtered by `employeeId`.
-- Sales rep: always returns only their own invoices (query param ignored).
-
-**Response:** `Collection[]` — array of Collection objects including `employee: { name }`.
-
-```json
-[
-  {
-    "id": 42,
-    "invoiceDate": "2026-05-15T00:00:00.000Z",
-    "invoiceNo": "INV-2026-042",
-    "employeeId": 7,
-    "employee": { "name": "Rahul Kumar" },
-    "customerName": "Infosys Ltd",
-    "invoiceValueLakhs": 12.5,
-    "amountWithoutGstLakhs": 10.59,
-    "dueDate": "2026-06-15T00:00:00.000Z",
-    "paymentReceivedDate": null,
-    "amountReceivedLakhs": 0,
-    "collectionStatus": "Pending",
-    "remarks": "",
-    "createdAt": "2026-05-15T10:00:00.000Z",
-    "updatedAt": "2026-05-15T10:00:00.000Z"
-  }
-]
-```
+> **Status: APPROVED FINAL SCOPE**
+> Base path: `/api/finance/`
+> Auth: every route calls `getSession()` → `401` if no session.
+> Role gates use `src/lib/roles.ts`. Finance writes require `canManageFinance(user)`.
+> Money values are in **₹ Lakhs** (`Float`) unless stated otherwise.
 
 ---
 
-### `POST /api/collections`
+## Conventions
 
-Create a new invoice record.
-
-**Access:** Authenticated. Finance roles can specify any `employeeId`; reps default to their own.
-
-**Request body:**
-
-```json
-{
-  "employeeId": 7,
-  "invoiceDate": "2026-05-15",
-  "invoiceNo": "INV-2026-042",
-  "customerName": "Infosys Ltd",
-  "invoiceValueLakhs": 12.5,
-  "amountWithoutGstLakhs": 10.59,
-  "dueDate": "2026-06-15",
-  "paymentReceivedDate": null,
-  "amountReceivedLakhs": 0,
-  "collectionStatus": "Pending",
-  "remarks": ""
-}
-```
-
-**Response:** `201` with the created `Collection` row (includes `employee: { name }`).
-
----
-
-### `PUT /api/collections/[id]`
-
-Update invoice header fields. Does **not** update cached payment fields.
-
-**Access:** Own record for reps; any record for finance roles.
-Returns `403` if a rep tries to edit another rep's invoice.
-
-**Request body:** Same shape as POST. Omit fields to leave unchanged.
-
-**Response:** `200` with updated Collection row.
-
----
-
-### `DELETE /api/collections/[id]`
-
-Delete a single invoice.
-
-**Access:** Own record for reps; any for finance roles.
-
-**Response:** `200 { "success": true }`
-
----
-
-### `DELETE /api/collections` (bulk)
-
-Delete multiple invoices.
-
-**Access:** Finance roles only (`canSeeAllCollections`).
-
-**Request body:**
-```json
-{ "ids": [42, 43, 44] }
-```
-
-**Response:** `200 { "success": true, "deleted": 3 }`
-
----
-
-## 2. Payments API
-
-### `GET /api/payments?collectionId=42`
-
-Fetch the payment ledger for a single invoice.
-
-**Query parameters:**
-
-| Param | Type | Required | Description |
-|---|---|---|---|
-| `collectionId` | number | ✅ | Invoice ID |
-
-**Response:** `Payment[]` ordered by `paymentDate DESC`, each including `recordedBy: { name }`.
-
-```json
-[
-  {
-    "id": 18,
-    "collectionId": 42,
-    "amountLakhs": 5.0,
-    "paymentDate": "2026-05-20T00:00:00.000Z",
-    "mode": "Bank Transfer",
-    "referenceNo": "UTR12345678",
-    "notes": "First instalment",
-    "fromAdvanceId": null,
-    "recordedById": 4,
-    "recordedBy": { "name": "Vijesh Vijayan" },
-    "createdAt": "2026-05-20T14:30:00.000Z"
-  }
-]
-```
-
----
-
-### `POST /api/payments`
-
-Record a payment against an invoice.
-
-**Access:** `canManagePayments` — Managers, Accounts, Operations Head only. Returns `403` for reps.
-
-**Request body:**
-
-```json
-{
-  "collectionId": 42,
-  "amountLakhs": 5.0,
-  "paymentDate": "2026-05-20",
-  "mode": "Bank Transfer",
-  "referenceNo": "UTR12345678",
-  "notes": "First instalment"
-}
-```
-
-| Field | Required | Notes |
-|---|---|---|
-| `collectionId` | ✅ | Must exist |
-| `amountLakhs` | ✅ | Must be > 0 |
-| `paymentDate` | optional | Defaults to `now()` if omitted |
-| `mode` | optional | Defaults to `"Bank Transfer"` |
-| `referenceNo` | optional | |
-| `notes` | optional | |
-
-**Side effects:**
-1. Reconciles opening balance if needed.
-2. Creates `Payment` row.
-3. Updates `Collection` cached fields via `syncCollectionTotals()`.
-4. Creates `Notification` rows for the invoice owner and all managers.
-
-**Response:** `201`
-```json
-{
-  "payment": { "id": 18, "amountLakhs": 5.0, ... },
-  "collection": { "id": 42, "amountReceivedLakhs": 5.0, "collectionStatus": "Partially Received", ... }
-}
-```
-
----
-
-### `GET /api/payments/today`
-
-Daily payment summary — total received today + recent receipts.
-
-**Query parameters:**
-
-| Param | Type | Description |
-|---|---|---|
-| `scope` | `"mine"` \| `"all"` | Force scope. Finance roles default to `"all"`; reps always `"mine"`. |
-
-**Response:**
-
-```json
-{
-  "totalLakhs": 18.5,
-  "count": 3,
-  "scope": "all",
-  "payments": [
-    {
-      "id": 18,
-      "amountLakhs": 5.0,
-      "customerName": "Infosys Ltd",
-      "invoiceNo": "INV-2026-042",
-      "mode": "Bank Transfer",
-      "recordedBy": "Vijesh Vijayan",
-      "paymentDate": "2026-05-20T00:00:00.000Z"
-    }
-  ]
-}
-```
-
----
-
-## 3. Advances API
-
-### `GET /api/advances`
-
-List order advances.
-
-**Query parameters:**
-
-| Param | Type | Description |
-|---|---|---|
-| `status` | `"unapplied"` \| `"applied"` | Filter by status. Omit for all. |
-| `customer` | string | Filter by customer name (contains, case-insensitive). |
-
-**Response:** `OrderAdvance[]` including `recordedBy: { name }`.
-
-```json
-[
-  {
-    "id": 5,
-    "salesFunnelId": 12,
-    "customerName": "TCS",
-    "amountLakhs": 8.0,
-    "receivedDate": "2026-04-10T00:00:00.000Z",
-    "mode": "Bank Transfer",
-    "referenceNo": "UTR99887766",
-    "notes": "Mobilisation advance",
-    "status": "unapplied",
-    "appliedToCollectionId": null,
-    "appliedDate": null,
-    "recordedBy": { "name": "Vijesh Vijayan" },
-    "createdAt": "2026-04-10T09:00:00.000Z"
-  }
-]
-```
-
----
-
-### `POST /api/advances`
-
-Record a new order advance.
-
-**Access:** `canManagePayments` only. Returns `403` for reps.
-
-**Request body:**
-
-```json
-{
-  "customerName": "TCS",
-  "amountLakhs": 8.0,
-  "receivedDate": "2026-04-10",
-  "mode": "Bank Transfer",
-  "referenceNo": "UTR99887766",
-  "notes": "Mobilisation advance",
-  "salesFunnelId": 12
-}
-```
-
-| Field | Required | Notes |
-|---|---|---|
-| `customerName` | ✅ | |
-| `amountLakhs` | ✅ | Must be > 0 |
-| `receivedDate` | optional | Defaults to `now()` |
-| `mode` | optional | Defaults to `"Bank Transfer"` |
-| `referenceNo` | optional | |
-| `notes` | optional | |
-| `salesFunnelId` | optional | Link to a Closed Won deal |
-
-**Response:** `201` with created `OrderAdvance` row.
-
----
-
-### `POST /api/advances/[id]/apply`
-
-Apply an unapplied advance to an open invoice.
-
-**Access:** `canManagePayments` only.
-
-**Request body:**
-```json
-{ "collectionId": 42 }
-```
-
-**Side effects:**
-1. Validates advance exists and is `unapplied`.
-2. Calls `recordPayment()` — creates a `Payment` from the advance amount.
-3. Updates `Collection` cached fields.
-4. Fires payment notifications.
-5. Marks advance `status = "applied"`, sets `appliedToCollectionId` and `appliedDate`.
-
-**Response:** `200` with `{ payment, collection }` (same shape as `POST /api/payments`).
-
-**Error responses:**
-- `400 { "error": "Advance not found" }` — invalid `id`
-- `400 { "error": "Advance already applied" }` — already applied
-- `400 { "error": "collectionId required" }` — missing body field
-- `404 { "error": "Invoice not found" }` — invalid `collectionId`
-
----
-
-## 4. Notifications API
-
-### `GET /api/notifications`
-
-Fetch the current user's notifications.
-
-**Response:**
-```json
-{
-  "notifications": [
-    {
-      "id": 101,
-      "type": "payment",
-      "title": "Payment received: ₹5.00L",
-      "body": "Infosys Ltd · Invoice INV-2026-042",
-      "link": "/collections",
-      "amountLakhs": 5.0,
-      "isRead": false,
-      "createdAt": "2026-05-20T14:30:00.000Z"
-    }
-  ]
-}
-```
-
----
-
-### `PATCH /api/notifications`
-
-Mark all notifications as read for the current user.
-
-**Request body:**
-```json
-{ "markAllRead": true }
-```
-
-**Response:** `200 { "success": true }`
-
----
-
-## 5. Error Response Format
-
-All error responses follow the same shape:
-
-```json
-{ "error": "Human-readable message" }
-```
-
-| Status | Meaning |
+| Pattern | Description |
 |---|---|
-| `400` | Validation error (missing/invalid field) |
-| `401` | Not authenticated (no session) |
-| `403` | Authenticated but insufficient role |
-| `404` | Record not found |
-| `500` | Unhandled server error |
+| `GET /api/finance/X` | List or fetch |
+| `POST /api/finance/X` | Create |
+| `PUT /api/finance/X/[id]` | Update |
+| `DELETE /api/finance/X/[id]` | Delete (soft where applicable) |
+| `POST /api/finance/X/[id]/action` | State-change actions (submit, approve, void, etc.) |
+
+Error shape: `{ "error": "message" }` with status `400` / `401` / `403` / `404` / `422` / `500`.
 
 ---
 
-## 6. Planned API Endpoints
+## 1. Cash Book API
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/api/payments/[id]/void` | `POST` | Soft-delete / reverse a payment (FR-FIN-44) |
-| `/api/collections/[id]/visits` | `GET` / `POST` | Customer visit log (Google Maps — FR-FIN-41) |
-| `/api/finance/tally-export` | `GET` | Download Tally-compatible voucher export (FR-FIN-40) |
-| `/api/finance/summary` | `GET` | Aggregated dashboard stats for the mobile dashboard |
+### `GET /api/finance/cash-book/accounts`
+List all cash accounts.
+**Access:** Finance roles.
+**Response:** `CashAccount[]`
+
+### `POST /api/finance/cash-book/accounts`
+Create a cash account.
+**Access:** Finance roles.
+**Body:** `{ name, branchName?, openingBalance? }`
+**Response:** `201 CashAccount`
+
+### `GET /api/finance/cash-book/entries?accountId=&from=&to=`
+List cash entries for an account and date range.
+**Query:** `accountId` (required), `from` (YYYY-MM-DD), `to` (YYYY-MM-DD)
+**Response:** `{ account: CashAccount, entries: CashEntry[], openingBalance: number, closingBalance: number }`
+
+### `POST /api/finance/cash-book/entries`
+Record a cash entry.
+**Access:** Finance roles.
+**Body:**
+```json
+{
+  "cashAccountId": 1,
+  "entryDate": "2026-06-10",
+  "type": "payment",
+  "amountLakhs": 0.5,
+  "narration": "Office supplies purchase",
+  "linkedBankAccountId": null
+}
+```
+**Side effects:** Updates `CashAccount.currentBalance`. Rejects if balance would go negative. Creates paired `BankEntry` if `linkedBankAccountId` is set.
+**Response:** `201 CashEntry`
+
+---
+
+## 2. Bank Book API
+
+### `GET /api/finance/bank-book/accounts`
+List all bank accounts.
+**Response:** `BankAccount[]`
+
+### `POST /api/finance/bank-book/accounts`
+Create a bank account.
+**Body:** `{ bankName, accountNo, ifscCode?, accountHolder, openingBalance? }`
+**Response:** `201 BankAccount`
+
+### `GET /api/finance/bank-book/entries?accountId=&from=&to=&reconciled=`
+List bank entries.
+**Query:** `accountId` (required), `from`, `to`, `reconciled` (`true`/`false`/omit for all)
+**Response:** `{ account: BankAccount, entries: BankEntry[], openingBalance, closingBalance }`
+
+### `POST /api/finance/bank-book/entries`
+Record a bank entry.
+**Body:**
+```json
+{
+  "bankAccountId": 1,
+  "entryDate": "2026-06-10",
+  "type": "upi",
+  "direction": "debit",
+  "amountLakhs": 1.2,
+  "narration": "Vendor payment — ABC Supplies",
+  "referenceNo": "UTR123456789",
+  "payee": "ABC Supplies"
+}
+```
+**Response:** `201 BankEntry`
+
+### `POST /api/finance/bank-book/entries/[id]/reconcile`
+Mark an entry as reconciled.
+**Body:** `{}` (no body needed)
+**Response:** `200 BankEntry`
+
+---
+
+## 3. Vendor Master API
+
+### `GET /api/finance/vendors?q=&active=`
+List / search vendors.
+**Query:** `q` (name contains), `active` (`true` / `false`)
+**Response:** `Vendor[]`
+
+### `POST /api/finance/vendors`
+Create a vendor.
+**Body:** `{ name, gstin?, pan?, address?, city?, state?, pincode?, contactName?, contactPhone?, contactEmail?, bankName?, bankAccountNo?, ifscCode?, paymentTerms? }`
+**Response:** `201 Vendor`
+
+### `PUT /api/finance/vendors/[id]`
+Update vendor.
+**Response:** `200 Vendor`
+
+### `DELETE /api/finance/vendors/[id]`
+Deactivate vendor (sets `isActive = false`). Hard delete blocked if linked expenses exist.
+**Response:** `200 { success: true }`
+
+### `GET /api/finance/vendors/[id]/expenses?from=&to=`
+Expenses linked to this vendor.
+**Response:** `ExpenseEntry[]`
+
+---
+
+## 4. Expense Register API
+
+### `GET /api/finance/expenses?employeeId=&categoryId=&status=&from=&to=&customer=`
+List expenses. Finance roles see all; employees see own.
+**Response:** `ExpenseEntry[]` with `category`, `vendor`, `employee`, `attachments`
+
+### `POST /api/finance/expenses`
+Create an expense (draft).
+**Body:**
+```json
+{
+  "categoryId": 3,
+  "vendorId": 7,
+  "customerName": "Infosys Ltd",
+  "expenseDate": "2026-06-10",
+  "amountLakhs": 0.25,
+  "gstRate": 18,
+  "narration": "Client entertainment — lunch",
+  "vendorInvoiceNo": "REST-2026-042"
+}
+```
+**Response:** `201 ExpenseEntry`
+
+### `PUT /api/finance/expenses/[id]`
+Update a draft expense.
+**Access:** Own draft only (or finance roles for any draft).
+**Response:** `200 ExpenseEntry`
+
+### `DELETE /api/finance/expenses/[id]`
+Delete a draft expense.
+**Access:** Own draft only (or finance roles).
+**Response:** `200 { success: true }`
+
+### `POST /api/finance/expenses/[id]/submit`
+Submit expense for approval.
+**Side effects:** Creates `ApprovalRequest`; sends notification to approver(s).
+**Response:** `200 { expense: ExpenseEntry, approval: ApprovalRequest }`
+
+### `POST /api/finance/expenses/[id]/attachments`
+Upload an attachment.
+**Content-Type:** `multipart/form-data`
+**Body:** `file` (field name)
+**Side effects:** Uploads to cloud storage; creates `ExpenseAttachment` row.
+**Response:** `201 ExpenseAttachment`
+
+### `DELETE /api/finance/expenses/[id]/attachments/[attachmentId]`
+Remove an attachment.
+**Response:** `200 { success: true }`
+
+### `GET /api/finance/expense-categories`
+List all active expense categories.
+**Response:** `ExpenseCategory[]`
+
+### `POST /api/finance/expense-categories`
+Create a category.
+**Access:** Finance roles.
+**Body:** `{ name, code, gstApplicable?, tallyLedger?, sortOrder? }`
+**Response:** `201 ExpenseCategory`
+
+---
+
+## 5. Voucher API
+
+### `GET /api/finance/vouchers?type=&from=&to=&status=`
+List vouchers.
+**Access:** Finance roles.
+**Response:** `Voucher[]`
+
+### `GET /api/finance/vouchers/[id]`
+Fetch a single voucher with full detail.
+**Response:** `Voucher` with linked entries
+
+### `POST /api/finance/vouchers/[id]/pdf`
+Generate (or regenerate) PDF for a voucher.
+**Side effects:** Generates PDF, uploads to cloud, stores URL in `Voucher.pdfUrl`.
+**Response:** `200 { pdfUrl: string }`
+
+### `POST /api/finance/vouchers/[id]/void`
+Void a voucher.
+**Access:** Finance roles.
+**Body:** `{ reason: string }`
+**Response:** `200 Voucher`
+
+---
+
+## 6. Approval Engine API
+
+### `GET /api/finance/approvals?status=&entityType=&myQueue=`
+List approval requests.
+**Query:** `status` (`pending`/`approved`/`rejected`), `entityType`, `myQueue` (`true` = only requests where I am the next approver)
+**Access:** Finance roles see all. Others see own requests.
+**Response:** `ApprovalRequest[]`
+
+### `POST /api/finance/approvals/[id]/approve`
+Approve at the current level.
+**Body:** `{ level: 1|2|3, comments?: string }`
+**Side effects:** Advances approval to next level or marks `approved`. On full approval: triggers entity state change + voucher generation + notification.
+**Response:** `200 ApprovalRequest`
+
+### `POST /api/finance/approvals/[id]/reject`
+Reject the request.
+**Body:** `{ reason: string }`
+**Side effects:** Marks entity status `rejected`; notifies submitter.
+**Response:** `200 ApprovalRequest`
+
+### `GET /api/finance/approvals/policies`
+List approval policies.
+**Access:** Finance roles.
+**Response:** `ApprovalPolicy[]`
+
+### `POST /api/finance/approvals/policies`
+Create an approval policy.
+**Access:** Managers only (`canManagePolicy`).
+**Body:** `{ name, expenseType, autoApproveLimit, level1Limit, level1Role, level2Limit?, level2Role?, level3Limit?, level3Role? }`
+**Response:** `201 ApprovalPolicy`
+
+### `PUT /api/finance/approvals/policies/[id]`
+Update a policy.
+**Response:** `200 ApprovalPolicy`
+
+---
+
+## 7. Employee Claims API
+
+### `GET /api/finance/claims?employeeId=&status=`
+List claims. Finance roles see all; employees see own.
+**Response:** `EmployeeClaim[]` with `entries`, `approval`
+
+### `POST /api/finance/claims`
+Create a claim from a list of expense entry IDs.
+**Body:** `{ expenseIds: number[], remarks?: string }`
+**Side effects:** Sets `ExpenseEntry.claimId` for all included entries; computes `totalAmountLakhs`.
+**Response:** `201 EmployeeClaim`
+
+### `POST /api/finance/claims/[id]/submit`
+Submit claim for approval.
+**Side effects:** Creates `ApprovalRequest`; notifies approver.
+**Response:** `200 { claim: EmployeeClaim, approval: ApprovalRequest }`
+
+### `POST /api/finance/claims/[id]/pay`
+Record claim payment.
+**Access:** Finance roles.
+**Body:** `{ paidDate: string, paidAmountLakhs: number }`
+**Side effects:** Sets status `paid`, generates payment voucher.
+**Response:** `200 EmployeeClaim`
+
+---
+
+## 8. Employee Advance API
+
+### `GET /api/finance/advances/employee?employeeId=&status=`
+List employee advances (not the same as `OrderAdvance` for customers).
+**Response:** `EmployeeAdvance[]`
+
+### `POST /api/finance/advances/employee`
+Request an advance.
+**Body:** `{ purpose, amountLakhs, requiredByDate? }`
+**Response:** `201 EmployeeAdvance`
+
+### `POST /api/finance/advances/employee/[id]/submit`
+Submit advance request for approval.
+**Response:** `200 { advance: EmployeeAdvance, approval: ApprovalRequest }`
+
+### `POST /api/finance/advances/employee/[id]/disburse`
+Record disbursement.
+**Access:** Finance roles.
+**Body:** `{ disbursedDate: string, disbursedAmountLakhs: number, fromType: "cash"|"bank", fromId: number }`
+**Side effects:** Sets status `disbursed`; generates advance voucher; deducts from cash/bank account.
+**Response:** `200 EmployeeAdvance`
+
+### `POST /api/finance/advances/employee/[id]/settle`
+Settle advance against expenses.
+**Body:** `{ settledAmountLakhs: number, expenseIds?: number[] }`
+**Side effects:** Updates `balanceLakhs`; if fully settled, sets status `settled`.
+**Response:** `200 EmployeeAdvance`
+
+---
+
+## 9. HR Expense Policy API
+
+### `GET /api/finance/hr-policy`
+List all policies.
+**Access:** Finance roles.
+**Response:** `HRExpensePolicy[]`
+
+### `GET /api/finance/hr-policy/me`
+Get the active policy for the current session user (matched by role pattern).
+**Response:** `HRExpensePolicy` (or the default policy if no specific match)
+
+### `POST /api/finance/hr-policy`
+Create a policy.
+**Access:** Managers only.
+**Body:** All `HRExpensePolicy` fields.
+**Response:** `201 HRExpensePolicy`
+
+### `PUT /api/finance/hr-policy/[id]`
+Update a policy.
+**Response:** `200 HRExpensePolicy`
+
+---
+
+## 10. Local Conveyance API
+
+### `GET /api/finance/conveyance?employeeId=&from=&to=&status=`
+List conveyance logs. Finance roles see all; employees see own.
+**Response:** `ConveyanceLog[]` with `employee`
+
+### `POST /api/finance/conveyance`
+Log a conveyance trip.
+**Body:**
+```json
+{
+  "travelDate": "2026-06-10",
+  "fromLocation": "Caveo Office, Bangalore",
+  "toLocation": "Infosys Campus, Electronic City",
+  "fromLat": 12.9716,
+  "fromLng": 77.5946,
+  "toLat": 12.8399,
+  "toLng": 77.6770,
+  "distanceKm": 18.4,
+  "mode": "bike",
+  "purpose": "Client meeting — Infosys account review"
+}
+```
+**Side effects:**
+- Reads HR Policy for `ratePerKm`.
+- Enforces daily cap.
+- Computes `amountRupees` and `amountLakhs`.
+- Creates linked `ExpenseEntry` (category: Conveyance).
+**Response:** `201 ConveyanceLog`
+
+### `GET /api/finance/conveyance/distance`
+Calculate road distance between two GPS coordinates via Google Maps Distance Matrix API.
+**Query:** `fromLat=&fromLng=&toLat=&toLng=`
+**Response:** `{ distanceKm: number, durationMinutes: number, mode: string }`
+
+### `POST /api/finance/conveyance/[id]/submit`
+Submit for approval.
+**Response:** `200 { conveyance: ConveyanceLog, approval: ApprovalRequest }`
+
+---
+
+## 11. Customer Profitability API
+
+### `GET /api/finance/profitability?from=&to=&sortBy=profit`
+Aggregated customer profitability.
+**Access:** Finance roles + managers.
+**Query:** `from`, `to` (YYYY-MM-DD), `sortBy` (`profit`/`revenue`/`margin`)
+**Response:**
+```json
+{
+  "customers": [
+    {
+      "customerName": "Infosys Ltd",
+      "revenueLakhs": 125.0,
+      "costLakhs": 8.5,
+      "grossProfitLakhs": 116.5,
+      "grossMarginPct": 93.2,
+      "invoiceCount": 5,
+      "expenseCount": 3
+    }
+  ],
+  "totals": { "revenueLakhs": 500, "costLakhs": 35, "grossProfitLakhs": 465, "grossMarginPct": 93.0 }
+}
+```
+
+### `GET /api/finance/profitability/[customerName]?from=&to=`
+Drill-down for a single customer.
+**Response:** `{ customer, invoices: Collection[], expenses: ExpenseEntry[] }`
+
+---
+
+## 12. Reports API
+
+### `GET /api/finance/reports/summary?from=&to=`
+Finance dashboard KPI summary.
+**Response:**
+```json
+{
+  "cashBalance": 12.5,
+  "bankBalance": 87.3,
+  "collectionsToday": 5.0,
+  "pendingApprovals": 4,
+  "outstandingAdvances": 3,
+  "overdueInvoices": 7,
+  "overdueAmountLakhs": 45.2
+}
+```
+
+### `GET /api/finance/reports/expense-summary?from=&to=&groupBy=category`
+Expense breakdown.
+**Query:** `groupBy` = `category` / `employee` / `vendor`
+**Response:** `{ groups: [{ key, label, totalLakhs, count }] }`
+
+---
+
+## 13. Export API
+
+### `GET /api/finance/export?type=&format=&from=&to=&employeeId=`
+
+| `type` | Available `format` values |
+|---|---|
+| `cash-book` | `excel`, `pdf`, `tally` |
+| `bank-book` | `excel`, `pdf`, `tally` |
+| `expenses` | `excel`, `pdf`, `tally` |
+| `vouchers` | `excel`, `pdf` |
+| `collections` | `excel`, `pdf`, `tally` |
+| `payments` | `excel`, `pdf`, `tally` |
+| `claims` | `excel`, `pdf` |
+| `conveyance` | `excel`, `pdf` |
+| `profitability` | `excel`, `pdf` |
+
+**Access:** Finance roles.
+**Response:**
+- `excel` → `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- `pdf` → `Content-Type: application/pdf`
+- `tally` → `Content-Type: application/xml`
+- All: `Content-Disposition: attachment; filename="..."`
+
+---
+
+## Existing Finance API (Phase 0 — unchanged)
+
+| Route | Description |
+|---|---|
+| `GET/POST /api/collections` | Invoice CRUD |
+| `PUT/DELETE /api/collections/[id]` | Invoice edit/delete |
+| `GET/POST /api/payments` | Payment ledger |
+| `GET /api/payments/today` | Daily payment summary |
+| `GET/POST /api/advances` | Customer order advances |
+| `POST /api/advances/[id]/apply` | Apply advance to invoice |
+| `GET/PATCH /api/notifications` | Notification feed |
