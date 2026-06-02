@@ -8,15 +8,15 @@ datasource db {
 }
 
 model Employee {
-  id          Int      @id @default(autoincrement())
-  name        String
-  email       String   @unique
-  department  String
-  role        String
-  isManager   Boolean  @default(false)
-  msEmail     String?  @unique
-  msId        String?  @unique
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  name       String
+  email      String   @unique
+  department String
+  role       String
+  isManager  Boolean  @default(false)
+  msEmail    String?  @unique
+  msId       String?  @unique
+  createdAt  DateTime @default(now())
 
   reportsToId Int?
   reportsTo   Employee?  @relation("OrgChart", fields: [reportsToId], references: [id], onDelete: SetNull)
@@ -41,6 +41,17 @@ model Employee {
   pipelineMeetings   CrmMeeting[]  @relation("MeetingEmployee")
   pipelineActivities CrmActivity[] @relation("ActivityPerformedBy")
   pipelineNotes      CrmNote[]     @relation("NoteAuthor")
+
+  // ── Finance Operations Module (Phase 1) ──
+  ledgerEntries            Ledger[]          @relation("LedgerRecordedBy")
+  expenses                 Expense[]         @relation("ExpenseEmployee")
+  expensesApproved         Expense[]         @relation("ExpenseApprovedBy")
+  vouchersCreated          Voucher[]         @relation("VoucherCreatedBy")
+  employeeAdvances         EmployeeAdvance[] @relation("AdvanceEmployee")
+  employeeAdvancesApproved EmployeeAdvance[] @relation("AdvanceApprovedBy")
+  travelClaims             TravelClaim[]     @relation("TravelClaimEmployee")
+  travelClaimsApproved     TravelClaim[]     @relation("TravelClaimApprovedBy")
+  auditLogs                AuditLog[]        @relation("AuditPerformedBy")
 
   @@index([reportsToId])
 }
@@ -148,7 +159,7 @@ model Collection {
   remarks               String    @default("") @db.Text
   createdAt             DateTime  @default(now())
 
-  payments              Payment[]
+  payments Payment[]
 
   @@index([employeeId])
   @@index([collectionStatus])
@@ -189,23 +200,23 @@ model OrderAdvance {
   recordedBy            Employee  @relation("AdvanceRecordedBy", fields: [recordedById], references: [id])
   recordedById          Int
 
-  createdAt             DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([recordedById])
   @@index([status])
 }
 
 model Notification {
-  id          Int       @id @default(autoincrement())
-  recipient   Employee  @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  id          Int      @id @default(autoincrement())
+  recipient   Employee @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   recipientId Int
   type        String
   title       String
-  body        String    @default("") @db.Text
-  link        String    @default("")
+  body        String   @default("") @db.Text
+  link        String   @default("")
   amountLakhs Float?
-  isRead      Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   @@index([recipientId, isRead])
   @@index([createdAt])
@@ -265,30 +276,30 @@ model Certification {
 }
 
 model CrmLead {
-  id              Int       @id @default(autoincrement())
-  title           String
-  companyName     String
-  contactPerson   String
-  email           String    @default("")
-  phone           String    @default("")
-  source          String    @default("Direct")
-  categoryId      String?
-  categoryName    String    @default("")
-  oemId           String?
-  oemName         String    @default("")
-  productId       String?
-  productName     String    @default("")
-  customerId      String?
-  customerName    String    @default("")
-  stage           String    @default("NEW_LEAD")
-  expectedValue   Float     @default(0)
-  remarks         String    @default("") @db.Text
-  assignedTo      Employee  @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
-  assignedToId    Int
-  createdBy       Employee  @relation("LeadCreatedBy", fields: [createdById], references: [id])
-  createdById     Int
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            Int      @id @default(autoincrement())
+  title         String
+  companyName   String
+  contactPerson String
+  email         String   @default("")
+  phone         String   @default("")
+  source        String   @default("Direct")
+  categoryId    String?
+  categoryName  String   @default("")
+  oemId         String?
+  oemName       String   @default("")
+  productId     String?
+  productName   String   @default("")
+  customerId    String?
+  customerName  String   @default("")
+  stage         String   @default("NEW_LEAD")
+  expectedValue Float    @default(0)
+  remarks       String   @default("") @db.Text
+  assignedTo    Employee @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  assignedToId  Int
+  createdBy     Employee @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  createdById   Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   opportunity CrmOpportunity?
   tasks       CrmTask[]
@@ -322,20 +333,20 @@ model CrmOpportunity {
 }
 
 model CrmTask {
-  id            Int              @id @default(autoincrement())
+  id            Int             @id @default(autoincrement())
   title         String
-  description   String           @default("") @db.Text
+  description   String          @default("") @db.Text
   dueDate       DateTime
-  assignedTo    Employee         @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  assignedTo    Employee        @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
   assignedToId  Int
-  status        String           @default("pending")
-  priority      String           @default("medium")
-  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status        String          @default("pending")
+  priority      String          @default("medium")
+  lead          CrmLead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId        Int?
-  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunity   CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   opportunityId Int?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([assignedToId])
   @@index([leadId])
@@ -343,19 +354,19 @@ model CrmTask {
 }
 
 model CrmMeeting {
-  id            Int              @id @default(autoincrement())
+  id            Int             @id @default(autoincrement())
   title         String
   meetingDate   DateTime
-  notes         String           @default("") @db.Text
-  attendees     String           @default("") @db.Text
-  location      String           @default("")
-  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  notes         String          @default("") @db.Text
+  attendees     String          @default("") @db.Text
+  location      String          @default("")
+  lead          CrmLead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId        Int?
-  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunity   CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   opportunityId Int?
-  employee      Employee         @relation("MeetingEmployee", fields: [employeeId], references: [id])
+  employee      Employee        @relation("MeetingEmployee", fields: [employeeId], references: [id])
   employeeId    Int
-  createdAt     DateTime         @default(now())
+  createdAt     DateTime        @default(now())
 
   @@index([leadId])
   @@index([opportunityId])
@@ -363,18 +374,18 @@ model CrmMeeting {
 }
 
 model CrmActivity {
-  id            Int              @id @default(autoincrement())
+  id            Int             @id @default(autoincrement())
   entityType    String
   entityId      Int
   action        String
-  description   String           @default("") @db.Text
-  meta          String           @default("") @db.Text
-  performedBy   Employee         @relation("ActivityPerformedBy", fields: [performedById], references: [id])
+  description   String          @default("") @db.Text
+  meta          String          @default("") @db.Text
+  performedBy   Employee        @relation("ActivityPerformedBy", fields: [performedById], references: [id])
   performedById Int
-  timestamp     DateTime         @default(now())
-  lead          CrmLead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  timestamp     DateTime        @default(now())
+  lead          CrmLead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId        Int?
-  opportunity   CrmOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunity   CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   opportunityId Int?
 
   @@index([leadId])
@@ -397,20 +408,20 @@ model CrmNote {
 }
 
 model Customer {
-  id         Int      @id @default(autoincrement())
+  id         Int        @id @default(autoincrement())
   name       String
-  address    String   @default("") @db.Text
-  district   String   @default("")
-  state      String   @default("")
-  pincode    String   @default("")
-  gstNo      String   @default("")
-  officeType String   @default("HO")
+  address    String     @default("") @db.Text
+  district   String     @default("")
+  state      String     @default("")
+  pincode    String     @default("")
+  gstNo      String     @default("")
+  officeType String     @default("HO")
   parentId   Int?
   parent     Customer?  @relation("CustomerBranches", fields: [parentId], references: [id])
   branches   Customer[] @relation("CustomerBranches")
-  crmSource  String   @default("")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  crmSource  String     @default("")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
   @@index([parentId])
   @@index([name])
@@ -438,7 +449,7 @@ model AppRole {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  pageAccess  RolePageAccess[]
+  pageAccess RolePageAccess[]
 }
 
 model RolePageAccess {
@@ -452,4 +463,277 @@ model RolePageAccess {
   canDelete Boolean @default(false)
 
   @@unique([roleId, pageKey])
+}
+
+// ============================================================
+// Finance Operations Module — Phase 1 (database only)
+// Provider: mysql · money in ₹ Lakhs (Float -> DOUBLE) · long text uses @db.Text
+// Every FK + hot-filter column is indexed. No API/UI in this phase.
+// Module → model map:
+//   Account        -> FinAccount       (chart of accounts: cash + bank)
+//   Ledger         -> Ledger           (general ledger entries)
+//   Expense        -> Expense          (expense register; category + attachments inline)
+//   Vendor         -> Vendor
+//   Voucher        -> Voucher (+ VoucherSequence for atomic per-FY numbering)
+//   EmployeeAdvance-> EmployeeAdvance
+//   TravelClaim    -> TravelClaim      (local conveyance / travel reimbursement)
+//   ApprovalRule   -> ApprovalRule     (configurable amount-limit approval policy)
+//   AuditLog       -> AuditLog         (generic financial audit trail)
+// ============================================================
+
+// ── Account: chart of accounts (cash & bank) ──
+model FinAccount {
+  id             Int      @id @default(autoincrement())
+  name           String
+  type           String   @default("cash") // "cash" | "bank"
+  branchName     String   @default("HO")
+  bankName       String   @default("")
+  accountNo      String   @default("")
+  ifscCode       String   @default("")
+  accountHolder  String   @default("")
+  openingBalance Float    @default(0)
+  currentBalance Float    @default(0) // CACHED — written by the cash/bank service only
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  ledgerEntries Ledger[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+// ── Ledger: general ledger entries posted against an account ──
+model Ledger {
+  id             Int        @id @default(autoincrement())
+  account        FinAccount @relation(fields: [accountId], references: [id])
+  accountId      Int
+  entryDate      DateTime   @default(now())
+  type           String // upi|cheque|neft|rtgs|imps|cash_in|cash_out|receipt|payment|bank_charge|transfer
+  direction      String // "debit" | "credit"
+  amountLakhs    Float
+  narration      String     @default("") @db.Text
+  referenceNo    String     @default("")
+  chequeNo       String     @default("")
+  chequeDate     DateTime?
+  payee          String     @default("")
+  voucher        Voucher?   @relation(fields: [voucherId], references: [id])
+  voucherId      Int?
+  pairedLedgerId Int? // soft self-pair for bank<->cash transfers
+  reconciled     Boolean    @default(false)
+  reconciledAt   DateTime?
+  recordedBy     Employee   @relation("LedgerRecordedBy", fields: [recordedById], references: [id])
+  recordedById   Int
+  createdAt      DateTime   @default(now())
+
+  @@index([accountId])
+  @@index([entryDate])
+  @@index([type])
+  @@index([reconciled])
+  @@index([voucherId])
+  @@index([recordedById])
+}
+
+// ── Vendor master ──
+model Vendor {
+  id            Int      @id @default(autoincrement())
+  name          String
+  gstin         String   @default("")
+  pan           String   @default("")
+  address       String   @default("") @db.Text
+  city          String   @default("")
+  state         String   @default("")
+  pincode       String   @default("")
+  contactName   String   @default("")
+  contactPhone  String   @default("")
+  contactEmail  String   @default("")
+  bankName      String   @default("")
+  bankAccountNo String   @default("")
+  ifscCode      String   @default("")
+  paymentTerms  String   @default("30 days")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  expenses Expense[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+// ── Expense register (category + attachments held inline for Phase 1) ──
+model Expense {
+  id              Int       @id @default(autoincrement())
+  category        String    @default("") // category name
+  categoryCode    String    @default("") // short code, e.g. TRVL
+  vendor          Vendor?   @relation(fields: [vendorId], references: [id])
+  vendorId        Int?
+  customerName    String    @default("") // denormalized customer tag (profitability)
+  employee        Employee  @relation("ExpenseEmployee", fields: [employeeId], references: [id])
+  employeeId      Int
+  expenseDate     DateTime  @default(now())
+  amountLakhs     Float
+  gstRate         Float     @default(0)
+  gstAmountLakhs  Float     @default(0)
+  narration       String    @default("") @db.Text
+  vendorInvoiceNo String    @default("")
+  attachmentsJson String    @default("[]") @db.Text // JSON array of { fileName, fileUrl }
+  status          String    @default("draft") // draft|submitted|approved|rejected|paid
+  voucher         Voucher?  @relation(fields: [voucherId], references: [id])
+  voucherId       Int?
+  approvedBy      Employee? @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  approvedById    Int?
+  approvedAt      DateTime?
+  paidDate        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([category])
+  @@index([vendorId])
+  @@index([employeeId])
+  @@index([expenseDate])
+  @@index([status])
+  @@index([customerName])
+  @@index([voucherId])
+}
+
+// ── Voucher ──
+model Voucher {
+  id          Int       @id @default(autoincrement())
+  voucherNo   String    @unique // CI/26-27/00001
+  type        String // payment|receipt|journal|expense|conveyance|advance
+  voucherDate DateTime  @default(now())
+  amountLakhs Float
+  narration   String    @default("") @db.Text
+  status      String    @default("draft") // draft|approved|voided
+  pdfUrl      String    @default("") @db.Text
+  voidedAt    DateTime?
+  voidReason  String    @default("") @db.Text
+  createdBy   Employee  @relation("VoucherCreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  ledgerEntries Ledger[]
+  expenses      Expense[]
+  travelClaims  TravelClaim[]
+  advances      EmployeeAdvance[]
+
+  @@index([voucherDate])
+  @@index([type])
+  @@index([status])
+  @@index([createdById])
+}
+
+// ── Voucher sequence: atomic per-financial-year numbering (supports Voucher) ──
+model VoucherSequence {
+  id            Int      @id @default(autoincrement())
+  financialYear String   @unique // "26-27"
+  lastNumber    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Employee advance ──
+model EmployeeAdvance {
+  id                   Int       @id @default(autoincrement())
+  advanceNo            String    @unique // CI/ADV/26-27/00001
+  employee             Employee  @relation("AdvanceEmployee", fields: [employeeId], references: [id])
+  employeeId           Int
+  purpose              String    @default("") @db.Text
+  amountLakhs          Float
+  requestDate          DateTime  @default(now())
+  requiredByDate       DateTime?
+  status               String    @default("pending") // pending|approved|disbursed|settled|rejected
+  approvedBy           Employee? @relation("AdvanceApprovedBy", fields: [approvedById], references: [id])
+  approvedById         Int?
+  approvedAt           DateTime?
+  disbursedDate        DateTime?
+  disbursedAmountLakhs Float?
+  disbursedFromType    String    @default("") // "cash" | "bank"
+  disbursedFromId      Int? // soft ref to FinAccount.id
+  settledDate          DateTime?
+  settledAmountLakhs   Float?
+  balanceLakhs         Float     @default(0) // CACHED: disbursed − settled
+  voucher              Voucher?  @relation(fields: [voucherId], references: [id])
+  voucherId            Int?
+  remarks              String    @default("") @db.Text
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([requestDate])
+  @@index([voucherId])
+}
+
+// ── Travel claim: local conveyance / travel reimbursement (GPS-aware) ──
+model TravelClaim {
+  id           Int       @id @default(autoincrement())
+  claimNo      String    @unique // CI/TRV/26-27/00001
+  employee     Employee  @relation("TravelClaimEmployee", fields: [employeeId], references: [id])
+  employeeId   Int
+  travelDate   DateTime  @default(now())
+  fromLocation String    @default("") @db.Text
+  toLocation   String    @default("") @db.Text
+  fromLat      Float?
+  fromLng      Float?
+  toLat        Float?
+  toLng        Float?
+  distanceKm   Float     @default(0)
+  mode         String    @default("bike") // bike|car|auto|public
+  ratePerKm    Float     @default(0) // ₹ per km (snapshot from HR policy)
+  amountRupees Float     @default(0)
+  amountLakhs  Float     @default(0)
+  purpose      String    @default("") @db.Text
+  status       String    @default("draft") // draft|submitted|approved|rejected|paid
+  approvedBy   Employee? @relation("TravelClaimApprovedBy", fields: [approvedById], references: [id])
+  approvedById Int?
+  approvedAt   DateTime?
+  voucher      Voucher?  @relation(fields: [voucherId], references: [id])
+  voucherId    Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([travelDate])
+  @@index([status])
+  @@index([voucherId])
+}
+
+// ── Approval rule: configurable amount-limit approval policy ──
+model ApprovalRule {
+  id               Int      @id @default(autoincrement())
+  name             String
+  entityType       String   @default("all") // all|expense|advance|travel|voucher
+  autoApproveLimit Float    @default(0)
+  level1Limit      Float    @default(0)
+  level1Role       String   @default("")
+  level2Limit      Float?
+  level2Role       String?
+  level3Limit      Float?
+  level3Role       String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([entityType])
+  @@index([isActive])
+}
+
+// ── Audit log: generic financial audit trail ──
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  entityType    String // expense|voucher|ledger|account|advance|travel_claim|vendor|approval
+  entityId      Int
+  action        String // create|update|submit|approve|reject|void|disburse|settle|delete|reconcile
+  performedBy   Employee @relation("AuditPerformedBy", fields: [performedById], references: [id])
+  performedById Int
+  changes       String   @default("") @db.Text // JSON before/after or detail
+  notes         String   @default("") @db.Text
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([performedById])
+  @@index([action])
+  @@index([createdAt])
 }
