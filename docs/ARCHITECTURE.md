@@ -117,3 +117,35 @@ independently auth-checked.
 - **MySQL:** `contains` is case-insensitive under `utf8mb4_unicode_ci` (no
   `mode:"insensitive"` needed). `url` is NOT allowed in `schema.prisma` (Prisma 7) — it
   lives in `prisma.config.ts`.
+
+---
+
+## 8. Database Platform — Authoritative Record (append-only)
+
+### Migration completed: SQLite → MySQL (2026-06-02)
+The project was originally built on SQLite for local development. On 2026-06-02 the
+production database was migrated to **MySQL-compatible MariaDB 11.8** hosted on Hostinger.
+SQLite is no longer used in development or production.
+
+### Canonical stack (do not change without updating this section)
+| Layer | Choice |
+|---|---|
+| Framework | Next.js (App Router) |
+| ORM | Prisma 7 — `prisma-client` generator (driver-adapter mode, no binary engine) |
+| Database | **MySQL 8-compatible** · MariaDB 11.8 |
+| Driver adapter | `@prisma/adapter-mariadb` + `mariadb` npm driver |
+
+### MySQL-compatible Prisma design — rules for all future modules
+These rules apply to every new model, migration, API route, or service added to the project:
+
+| Rule | Requirement |
+|---|---|
+| Provider | `provider = "mysql"` in `schema.prisma` — permanent |
+| Datasource URL | In `prisma.config.ts` only — Prisma 7 forbids `url` in `schema.prisma` |
+| Long text | `@db.Text` on any `String` field holding free-form content, JSON, or notes |
+| Indexes | `@@index` on every FK column and every column used in `where` filters |
+| Money | `Float` (→ MySQL `DOUBLE`) now; planned upgrade is `@db.Decimal(12,4)` |
+| Case search | No `mode:"insensitive"` — `utf8mb4_unicode_ci` collation handles it |
+| Connection | `127.0.0.1` in `DATABASE_URL` — `localhost` maps to a unix socket (breaks) |
+| Transactions | `prisma.$transaction` for any multi-step write sequence |
+| Migration | `npx prisma migrate dev` requires a live MySQL instance, never a SQLite URL |

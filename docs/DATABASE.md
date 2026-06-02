@@ -139,3 +139,69 @@ Beyond the implicit unique indexes, `@@index` covers FK / hot-filter columns:
   writes WITHOUT a `$transaction`, and `syncCollectionTotals` is read-modify-write. Under
   SQLite's single-writer this was safe; on MySQL with concurrent connections wrap these in
   `prisma.$transaction` (and consider `SELECT … FOR UPDATE`) before high write volume.
+
+---
+
+## 6. Platform Migration Record (append-only)
+
+### SQLite → MySQL — completed 2026-06-02
+
+| Item | Before | After |
+|---|---|---|
+| Engine | SQLite (file-based) | **MySQL 8-compatible · MariaDB 11.8** |
+| ORM adapter | `@prisma/adapter-better-sqlite3` | `@prisma/adapter-mariadb` |
+| Provider | `sqlite` | **`mysql`** |
+| Migrations | 16 SQLite migrations (`init` → `reports_to_hierarchy`) | 1 MySQL baseline (`20260601000000_init_mysql`) |
+| Datasource URL | `prisma.config.ts` (SQLite file path) | `prisma.config.ts` (**`DATABASE_URL`** — MySQL TCP) |
+
+All 22 tables were migrated with identical row counts verified. SQLite is permanently
+removed from the codebase. `better-sqlite3` / `@types/better-sqlite3` remain in
+`package.json` as a cleanup debt item (safe to remove; only used by the deleted migration script).
+
+### Canonical database stack (do not change without updating this section)
+```
+Database : MySQL 8-compatible — MariaDB 11.8 (Hostinger)
+ORM      : Prisma 7 (prisma-client generator — driver-adapter mode, no binary engine)
+Adapter  : @prisma/adapter-mariadb  +  mariadb (npm driver)
+Provider : mysql   (schema.prisma)
+Collation: utf8mb4_unicode_ci   (case-insensitive LIKE / contains)
+```
+
+### MySQL-compatible Prisma design rules — mandatory for all future modules
+Every new Prisma model, migration, API route, or service file added to this project must
+follow these rules without exception:
+
+1. **`provider = "mysql"`** — the schema provider must never be changed back to `sqlite`
+   or switched to `postgresql` without a full migration plan.
+
+2. **`url` in `prisma.config.ts` only** — Prisma 7's `prisma-client` generator does not
+   allow `url` inside `schema.prisma`. Keep it in `prisma.config.ts`.
+
+3. **`@db.Text` on all long strings** — MySQL maps an undecorated Prisma `String` to
+   `VARCHAR(191)`, silently truncating content over 191 characters. Any field that holds
+   notes, descriptions, JSON, remarks, or free-form text must use `@db.Text`.
+
+4. **`@@index` on every FK and filter column** — MySQL does not auto-create indexes on
+   foreign-key columns the way SQLite did. Missing indexes produce silent full-table scans.
+   Add `@@index([foreignKeyColumn])` for every relation field and every column that appears
+   in `where` clauses.
+
+5. **Money fields** — current standard is `Float` → MySQL `DOUBLE`. The planned upgrade is
+   `@db.Decimal(12,4)` for exact decimal arithmetic. Never use `Int` or `String` for money.
+
+6. **Case-insensitive search** — the `utf8mb4_unicode_ci` collation makes `contains`
+   (and `LIKE`) case-insensitive by default. Do not add `mode: "insensitive"` to Prisma
+   queries — it is unnecessary and was only valid on PostgreSQL.
+
+7. **Connection string** — always use `127.0.0.1` as the host, never `localhost`. The
+   `mariadb` Node driver maps `localhost` to a unix socket which times out on Hostinger.
+
+8. **Prisma migrations against MySQL only** — running `prisma migrate dev` requires a live
+   MySQL/MariaDB instance. SQLite file-path URLs will be rejected by `provider = "mysql"`.
+   Set `DATABASE_URL` in your local `.env` to a MySQL connection string before running any
+   migration command.
+
+9. **Multi-step writes → `prisma.$transaction`** — MySQL supports real concurrent
+   connections. Any sequence of reads + writes that must be atomic (e.g., recording a
+   payment and syncing collection totals) must be wrapped in `prisma.$transaction` to
+   prevent partial writes under concurrency.

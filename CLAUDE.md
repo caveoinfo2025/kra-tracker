@@ -91,3 +91,38 @@ Before ending every session, update:
 
 # userEmail
 vijesh@caveoinfosystems.com
+
+---
+
+## Database — canonical facts (append-only, do not remove)
+
+### Migration: SQLite → MySQL (completed 2026-06-02)
+The project database was migrated from SQLite (file-based, dev-only) to **MySQL-compatible
+MariaDB 11.8** hosted on Hostinger. This is a permanent, irreversible change. SQLite is
+no longer used anywhere in the project.
+
+### Current stack (authoritative)
+| Layer | Technology |
+|---|---|
+| **Framework** | Next.js (App Router) |
+| **ORM** | Prisma 7 (driver-adapter mode — `@prisma/adapter-mariadb`) |
+| **Database** | MySQL 8-compatible · MariaDB 11.8 on Hostinger |
+
+### MySQL-compatible Prisma design rules (mandatory for all future modules)
+Every new Prisma model, migration, or query must follow these rules:
+
+1. **`provider = "mysql"`** in `schema.prisma` — never revert to `sqlite` or `postgresql`.
+2. **No `url` in `schema.prisma`** (Prisma 7 forbids it) — keep the datasource URL in
+   `prisma.config.ts` only.
+3. **Long text fields → `@db.Text`** — MySQL defaults `String` to `VARCHAR(191)`; any field
+   that can hold free-form text, notes, JSON blobs, or long descriptions must carry `@db.Text`.
+4. **Add `@@index` on every FK and hot-filter column** — MySQL does not auto-index foreign
+   keys the way SQLite did; missing indexes silently cause full-table scans.
+5. **Money fields** — use `Float` (→ `DOUBLE`) for now; the planned upgrade is
+   `@db.Decimal(12,4)`. Do NOT use plain `Int` or `String` for currency.
+6. **`contains` is case-insensitive** under `utf8mb4_unicode_ci`; omit `mode:"insensitive"`.
+7. **`prisma migrate dev`** requires a live MySQL/MariaDB connection (`DATABASE_URL` must
+   point at `127.0.0.1`, not `localhost` — the `mariadb` driver maps `localhost` to a unix
+   socket). Never run migrations against a SQLite file URL.
+8. **Concurrent writes** — wrap multi-step finance writes (`recordPayment`, `applyAdvance`)
+   in `prisma.$transaction` before any high-concurrency deployment.

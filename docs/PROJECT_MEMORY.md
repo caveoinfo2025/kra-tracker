@@ -182,3 +182,36 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Session end:** update this file + `CHANGELOG.md`.
 - **Golden rules (CLAUDE.md):** never delete features / rewrite working code / reset DB /
   change UI standards. Reuse components, preserve logic, update docs.
+
+---
+
+## 8. Database Migration Record (append-only)
+
+### SQLite → MySQL — completed 2026-06-02
+| Item | Detail |
+|---|---|
+| **From** | SQLite (`file:./dev.db`) via `@prisma/adapter-better-sqlite3` |
+| **To** | MySQL-compatible MariaDB 11.8 on Hostinger via `@prisma/adapter-mariadb` |
+| **Status** | ✅ Complete — all 22 tables migrated, row counts verified identical |
+| **Baseline migration** | `prisma/migrations/20260601000000_init_mysql` |
+| **Provider** | `mysql` in `schema.prisma` |
+
+SQLite is no longer referenced or used anywhere in the codebase. All local development
+and production deployments now require a MySQL/MariaDB instance.
+
+### Current canonical stack
+```
+Next.js (App Router)   — framework
+Prisma 7               — ORM, driver-adapter mode (no binary query engine)
+MySQL 8 / MariaDB 11.8 — database (MySQL-compatible)
+@prisma/adapter-mariadb — driver adapter (mandatory with Prisma 7 prisma-client generator)
+mariadb (npm)          — underlying Node.js driver
+```
+
+### Mandatory rules for all future Prisma modules
+- `provider = "mysql"` — no exceptions.
+- All `String` fields that hold free-form content → `@db.Text`.
+- Every FK column and hot-filter column → `@@index(...)`.
+- Datasource `url` lives in `prisma.config.ts` only (Prisma 7 rule).
+- Multi-write operations → `prisma.$transaction`.
+- Use `127.0.0.1` (not `localhost`) in `DATABASE_URL` for TCP connection.
