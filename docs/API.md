@@ -80,6 +80,12 @@ and return JSON.
 | `/api/advances` | GET, POST | Order advances |
 | `/api/advances/[id]/apply` | POST | Apply advance → creates Payment, marks applied |
 
+> **Finance Operations Module — Phase 1 added NO API** (2026-06-02). The 10 new finance tables
+> (`FinAccount`, `Ledger`, `Vendor`, `Expense`, `Voucher`, `VoucherSequence`,
+> `EmployeeAdvance`, `TravelClaim`, `ApprovalRule`, `AuditLog`) are database-only. The full
+> planned endpoint set lives in `docs/modules/finance/API_SPECIFICATION.md` and is built from
+> **Phase 2** onward (`/api/finance/*`). Route count (52) is unchanged this session.
+
 ### Customers & employees
 | Route | Methods | Purpose |
 |---|---|---|

@@ -1,98 +1,82 @@
 # Next Session — Resume Here
 
-> Quick-start state for the next coding session. Update this at the end of every session.
+> Quick-start state for the next coding session. Overwritten at the end of every session.
+> Last updated: 2026-06-02 (Finance Phase 1 DB — tested on dev, awaiting commit/push).
 
-## Current development status
-**Database migrated SQLite → MariaDB 11.8 — migration is COMPLETE and was verified
-(all 22 tables, row counts identical; app authenticated + served the DB).**
-Code committed + pushed through `749f335`. Working tree otherwise clean (only untracked local
-helper scripts remain — delete them, see security note).
+## Where to continue
+**Finance Operations Module — Phase 1 (database) is complete and verified on a dev DB but
+is NOT yet committed or pushed.** Decide first:
+1. **Commit + push Phase 1** (schema + migration + finance seed), OR
+2. Start **Phase 2** (Vendor Master + Expense Register API/UI — see
+   `docs/modules/finance/IMPLEMENTATION_PLAN.md` Phase 2).
 
-## 🔴 BLOCKER #1 — production is currently DOWN (recover first)
-The site returns **503/500** and the account hit a **CloudLinux LVE resource limit**
-(`bash: fork: Resource temporarily unavailable`) — SSH/SFTP can no longer even start a shell
-for the account. Cause: many back-to-back rebuilds + Passenger `restart.txt` touches piled up
-`next-server` workers while a build was running, exceeding the per-account process/memory cap.
+## Last completed task
+- Added **10 finance Prisma models** + 9 Employee back-refs (`prisma/schema.prisma`).
+- Created migration **`20260602120000_finance_operations_phase1`** (offline via
+  `prisma migrate diff` — no local MySQL).
+- Added `prisma/seed.ts` (finance config) + wired `prisma.config.ts` `migrations.seed`.
+- **Tested on a Hostinger dev DB** (`u686730471_caveodev`): both migrations applied, seed ran,
+  all 10 tables + FKs verified, relational round-trip passed, dev server booted clean.
+- Added **dev-only** helpers `prisma/seed-dev-users.ts` (7 role users) and
+  `prisma/seed-dev-finance.ts` (sample finance data). Verified dev quick-login + Prisma Studio.
 
-**This is an ops/resource issue, NOT data loss or a code bug.** The DB and code are intact.
-
-**Recovery (do this first, via the browser — SSH is locked out):**
-1. **hPanel → Websites → sales.caveoinfosystems.com → Node.js app → Restart**
-   (Hostinger does this at the infra level, bypassing the LVE lock — it clears the stale
-   workers). If there's a Stop then Start, use that.
-2. If hPanel offers it, kill stray Node processes / check resource usage.
-3. Once up: `curl -I https://sales.caveoinfosystems.com/login` → expect `200`.
-4. Then SSH should work again: server Node is at `/opt/alt/alt-nodejs22/root/usr/bin`; restart
-   the app cleanly with `touch …/nodejs/tmp/restart.txt` (do this sparingly — don't loop it).
-> Lesson: do NOT trigger rapid successive rebuilds/restarts on Hostinger; each spawns workers
-> and a heavy `next build`. Space them out and confirm one finished before the next.
-
-## Then — post-migration smoke test
-Log in via Microsoft and confirm reads + writes on MariaDB: dashboard totals, record a test
-payment, create a test lead, open the notifications feed.
-
-## ⚠️ Security / cleanup (do this session)
-1. **Rotate the SSH (`u686730471`) + MySQL (`u686730471_caveoadmincrm`) passwords** — both were
-   shared in chat during migration.
-2. **Delete untracked local credential scripts:** `scripts/_tmp_ssh.mjs`, `scripts/_tmp_sftp.mjs`
-   (plaintext SSH creds). They are NOT tracked — never commit them.
-3. Keep the server SQLite backup `…/db/prod.db` ~2 weeks as rollback, then delete.
-
-## Other open items (carried over)
-- Priyadharshini (Accounts) + Deepak (Operations Head): one-time **re-login** for the
-  stale-JWT role fix (`1ab4f7d`); set Deepak's role + `Reports To` on the Team page.
-- **Money precision:** apply `@db.Decimal(12,4)` to `*Lakhs`/value fields (deferred this session).
-- **Finance transactions:** wrap `recordPayment`/`applyAdvance` (`payments.ts`) in
-  `prisma.$transaction` before heavy concurrent writes (MySQL has real concurrency now).
-- **Orphaned `public/maintenance.html`** — wire a maintenance gate into `proxy.ts` or delete it.
-- **Leftover deps** — remove `better-sqlite3` + `@types/better-sqlite3` from `package.json`.
-- Consolidate dual RBAC (`rbac.ts` matrix vs `roles.ts` predicates); wire Topbar search;
-  mitigate `xlsx@0.18.5`; surface notifications on desktop.
-
-## How production connects to the DB (reference)
-- Host **`127.0.0.1`** (TCP), NOT `localhost` (the `mariadb` driver maps localhost → unix socket).
-- Env in `…/public_html/.builds/config/.env` (Passenger reads at app start).
-- **Passenger escapes `%`→`\%`** in injected env; `src/lib/prisma.ts` strips that before parsing
-  `DATABASE_URL`. Prisma 7 forbids `url` in `schema.prisma` (it's in `prisma.config.ts`).
-- Auth gate is **`src/proxy.ts`** (Next 16 edge middleware); `middleware.ts` cannot coexist.
-
-## Files to watch (central to recent work)
-| File | Why it matters |
-|---|---|
-| `src/lib/prisma.ts` | Builds the MariaDB driver adapter; unescapes Passenger's `\%` in DATABASE_URL |
-| `prisma/schema.prisma` | `provider=mysql`, `@db.Text` fields, 18 indexes |
-| `prisma.config.ts` | Holds the datasource `url` (Prisma 7 — not allowed in schema) |
-| `prisma/migrations/20260601000000_init_mysql/` | The single MySQL baseline migration |
-| `src/proxy.ts` / `auth.config.ts` | Edge auth gate + live `authorized` callback |
-| `src/lib/payments.ts` | Ledger sync + opening-balance reconciliation (needs tx wrapping) |
-
-## Commands to run the project
-```bash
-# Install
-npm install                       # runs prisma generate via postinstall
-
-# Local dev (http://localhost:3000) — requires a local MySQL/MariaDB now
-npm run dev
-
-# Database (after editing prisma/schema.prisma) — DATABASE_URL must point at MySQL
-npx prisma migrate dev --name <change>
-npx prisma generate
-# then RESTART the dev server (Turbopack caches the old Prisma client → 500s)
-
-# Lint / build (build also runs prisma migrate deploy + generate)
-npm run lint
-npx next build                    # always run before pushing — type-checks the whole project
-# If the build fails with a type error inside .next/dev/types/* or a corrupt
-# generated file, it's a stale Turbopack cache: `rm -rf .next` then rebuild.
-
-# Tests (Playwright + ad-hoc screenshot/API checks)
-npx playwright test
-node scripts/check-*.mjs           # session check scripts (payments, hierarchy, mobile, etc.)
+## Current state of the working tree (UNCOMMITTED)
 ```
-- **Tooling:** local Node v24.15.0, npm 11.12.1. **Server Node:** `/opt/alt/alt-nodejs22` (v22).
-- **Pre-push discipline:** dev-mode (Turbopack) does NOT type-check the whole project, but
-  `next build` (and Hostinger) does. Run `next build` locally before every push.
-- **Hostinger restart:** `touch …/nodejs/tmp/restart.txt` — but space restarts/rebuilds out
-  (see LVE blocker above).
-- **Dev login:** use the DevBar / `/login` quick-login to impersonate an employee
-  (sets `dev_employee_id`). Manager = Vijesh (id 4).
+ M package.json                 # db:seed script; removed dead prisma.seed block
+ M prisma.config.ts             # migrations.seed = "npx tsx prisma/seed.ts"
+ M prisma/schema.prisma         # +10 finance models, +9 Employee back-refs
+?? prisma/migrations/20260602120000_finance_operations_phase1/
+?? prisma/seed.ts               # finance config seed (prod-safe)
+?? prisma/seed-dev-users.ts     # DEV ONLY
+?? prisma/seed-dev-finance.ts   # DEV ONLY
+```
+`.env` was repointed to the dev DB locally — **gitignored, never commit it.**
+
+## ⚠️ Before pushing — production impact
+The Hostinger build runs `prisma migrate deploy` automatically, so **pushing applies the
+finance migration to the PRODUCTION MariaDB on the next rebuild.** Confirm with Vijesh first
+(golden rule). Space out rebuilds (LVE limit risk).
+- Decide whether to commit the two `seed-dev-*.ts` helpers or leave them untracked/gitignored.
+
+## Priority tasks (next session)
+1. **Commit + push Finance Phase 1** (after confirmation) — verify prod migration applied.
+2. **Phase 2 — Vendor Master + Expense Register** (API + UI). Needs a cloud storage choice
+   (Cloudflare R2 / S3) for expense attachments + `canManageFinance` predicate in `roles.ts`.
+3. Wrap `recordPayment`/`applyAdvance` in `prisma.$transaction` (now real concurrency on MySQL).
+4. Carryover debt: `@db.Decimal(12,4)` money precision; remove `better-sqlite3`; rotate the
+   dev DB password shared in chat + remove the Remote-MySQL IP/`%` entry after testing.
+
+## Files needing attention
+| File | Why |
+|---|---|
+| `prisma/schema.prisma` | New finance models live here; source of truth |
+| `prisma/migrations/20260602120000_finance_operations_phase1/migration.sql` | Applies on next prod build |
+| `prisma.config.ts` | Now holds the seed command (Prisma 7 location) |
+| `prisma/seed.ts` | Finance config seed — keep prod-safe (no employee/PII data) |
+| `.env` | Points at the dev DB locally (gitignored) |
+
+## Start commands
+```powershell
+# Local dev server (reads .env → dev MySQL automatically)
+npm run dev                       # http://localhost:3000  → /login → quick-login
+
+# Prisma CLI needs DATABASE_URL inline (Prisma 7 does NOT auto-load .env):
+$env:DATABASE_URL = "mysql://u686730471_devuser:<pwd-%40-encoded>@srv2201.hstgr.io:3306/u686730471_caveodev"
+npx prisma migrate status
+npx prisma db seed                # finance config seed
+npx tsx prisma/seed-dev-users.ts  # dev users (role testing)
+npx tsx prisma/seed-dev-finance.ts# sample finance data
+npx prisma studio                 # browse data (opens on a random port, e.g. :51212)
+
+# Pre-push discipline
+npx prisma validate ; npx tsc --noEmit ; npx next build
+```
+
+## Context to restore (non-obvious)
+- **No local MySQL exists** (no Docker/XAMPP/service). Dev DB is the **remote Hostinger**
+  `u686730471_caveodev` via `srv2201.hstgr.io` (Remote MySQL whitelisted). Password contains
+  `@` → URL-encode as `%40` in `DATABASE_URL`.
+- Phase 1 is **DB-only** — there is no finance API/UI yet, so the app shell looks unchanged;
+  the finance tables are only visible via Prisma Studio.
+- Dev DB is otherwise empty except the seeds (no real CRM data) — log in via quick-login,
+  not Microsoft (no matching employees beyond the 7 seeded).

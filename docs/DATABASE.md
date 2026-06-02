@@ -3,7 +3,7 @@
 **Engine:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02) · **ORM:** Prisma 7.8
 (driver-adapter mode, `@prisma/adapter-mariadb`) · **Schema:** `prisma/schema.prisma`
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
-**22 models, 1 baseline migration.**
+**32 models, 2 migrations** (22 core + 10 Finance Operations Phase 1).
 
 > Money fields ending in `Lakhs` are ₹ Lakhs (`Float` → MySQL `DOUBLE`). Status/stage/role
 > fields are free-form strings validated in app code, not DB enums. Long-text columns use
@@ -205,3 +205,48 @@ follow these rules without exception:
    connections. Any sequence of reads + writes that must be atomic (e.g., recording a
    payment and syncing collection totals) must be wrapped in `prisma.$transaction` to
    prevent partial writes under concurrency.
+
+---
+
+## 7. Finance Operations Module — Phase 1 (database, 2026-06-02)
+
+> Implemented + tested on the dev DB; **uncommitted** at session end. No API/UI yet.
+> Full column-level spec: `docs/modules/finance/DATABASE_SCHEMA.md` + `PRISMA_MODELS.md`.
+
+### Models added (10)
+| Model | Purpose | Key fields / notes |
+|---|---|---|
+| `FinAccount` | Chart of accounts (cash + bank) | `type` (cash\|bank), `currentBalance` (cached) |
+| `Ledger` | General ledger entries vs an account | `direction` (debit\|credit), `reconciled`, FK→FinAccount/Voucher/Employee |
+| `Vendor` | Vendor master | GSTIN, PAN, bank, `paymentTerms`, soft `isActive` |
+| `Expense` | Expense register | category inline, `gstRate/gstAmountLakhs`, `attachmentsJson` (Text), `status` |
+| `Voucher` | Numbered vouchers | `voucherNo @unique` (`CI/YY-YY/00001`), `type`, `status` |
+| `VoucherSequence` | Atomic per-FY counter | `financialYear @unique`, `lastNumber` (increment in `$transaction`) |
+| `EmployeeAdvance` | Staff advances | `advanceNo @unique`, lifecycle pending→disbursed→settled, `balanceLakhs` (cached) |
+| `TravelClaim` | Local conveyance | GPS lat/lng, `distanceKm`, `mode`, `ratePerKm`, `amountLakhs` |
+| `ApprovalRule` | Approval policy | amount thresholds + role per level (1–3), `entityType` |
+| `AuditLog` | Generic financial audit trail | `entityType+entityId`, `action`, `performedById`, `changes` (JSON Text) |
+
+Plus **9 back-reference relations on `Employee`** (`ledgerEntries`, `expenses`,
+`expensesApproved`, `vouchersCreated`, `employeeAdvances`, `employeeAdvancesApproved`,
+`travelClaims`, `travelClaimsApproved`, `auditLogs`).
+
+### FK delete rules
+- Required refs (`Ledger.accountId/recordedById`, `Expense.employeeId`, `Voucher.createdById`,
+  `EmployeeAdvance/TravelClaim.employeeId`, `AuditLog.performedById`) → `ON DELETE RESTRICT`.
+- Optional refs (`*.voucherId`, `Expense.vendorId/approvedById`, `*.approvedById`) → `ON DELETE SET NULL`.
+- `disbursedFromId` (EmployeeAdvance) and `pairedLedgerId` (Ledger) are **soft refs** (no FK).
+
+### Cached fields (mutate via service only — no API in Phase 1)
+`FinAccount.currentBalance`, `EmployeeAdvance.balanceLakhs`, `VoucherSequence.lastNumber`.
+
+### Migration
+- **`20260602120000_finance_operations_phase1`** — 10 `CREATE TABLE`, 15 FKs, inline indexes,
+  `utf8mb4_unicode_ci`. **Generated offline** via
+  `prisma migrate diff --from-schema <baseline> --to-schema prisma/schema.prisma --script`
+  (no local MySQL was available). Applies on the next `prisma migrate deploy` (Hostinger build).
+
+### Seeds
+- `prisma/seed.ts` — finance **config** (cash+bank account, `VoucherSequence` FY 26-27,
+  default `ApprovalRule`); idempotent; wired via `prisma.config.ts` `migrations.seed`.
+- `prisma/seed-dev-users.ts`, `prisma/seed-dev-finance.ts` — **dev-only**, run with `npx tsx`.

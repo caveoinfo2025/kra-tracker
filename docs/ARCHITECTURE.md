@@ -21,8 +21,9 @@ auth.config.ts           Edge-safe: provider + LIVE authorized callback (run by 
 src/proxy.ts             Next.js 16 edge middleware: runs authConfig.auth, gates all routes
 prisma.config.ts         Prisma datasource (reads DATABASE_URL for the CLI)
 prisma/
-  schema.prisma          22 models · provider=mysql · @db.Text + indexes
-  migrations/            1 MySQL baseline (20260601000000_init_mysql); SQLite history removed
+  schema.prisma          32 models · provider=mysql · @db.Text + indexes (22 core + 10 Finance Phase 1)
+  migrations/            2: 20260601000000_init_mysql + 20260602120000_finance_operations_phase1
+  seed.ts                Finance config seed (prisma db seed); seed-dev-{users,finance}.ts are DEV-ONLY
 src/
   app/
     <route>/page.tsx     Server component: getSession() → Prisma → <XClient/>

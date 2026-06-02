@@ -81,8 +81,20 @@ free-text variants ("HR & Operations Head") still resolve correctly.
 - **`Notification`** persists payment/advance events with recipient + amount + timestamp.
 - `AppSetting.updatedById` and role/cert approval fields (`approvedBy`, `approvedAt`)
   capture who changed config / approved items.
-- **Gaps:** no global, immutable audit trail across all entities; no login-history log.
-  Consider centralizing if compliance requires it.
+- **🆕 `AuditLog` model added (Finance Phase 1, 2026-06-02)** — a generic
+  `entityType`/`entityId`/`action`/`performedById`/`changes` trail. DB-ready; it will be
+  **written by the Phase 2+ finance services** (expense/voucher/advance/approval actions). It
+  begins to address the gap below but is currently finance-scoped and unpopulated.
+- **Gaps:** no global audit trail across ALL entities yet (AuditLog is finance-only for now);
+  no login-history log. Consider widening `AuditLog` usage if compliance requires it.
+
+## Finance authorization (Phase 1 — planned predicates)
+The 10 finance tables exist but have **no API/role gates yet**. Phase 2 must add predicates to
+`src/lib/roles.ts` before exposing any route: `canManageFinance` (managers + Accounts + Ops
+Head — cash/bank/expense/voucher writes), `canApprove` (managers + Ops Head + employees in an
+approver role), `canManagePolicy` (managers only — `ApprovalRule`). Every new `/api/finance/*`
+route MUST call `getSession()` + the relevant predicate (same defence-in-depth pattern as
+existing routes). Until then, the finance data is reachable only via Prisma Studio / DB tools.
 
 ## Database credentials & connection (post-migration)
 - MySQL/MariaDB creds + `DATABASE_URL` live in `…/public_html/.builds/config/.env` on the

@@ -7,29 +7,89 @@ Dates from git history (branch `master`).
 - All core modules present on `master` / `sales.caveoinfosystems.com`: auth, pipeline,
   KRA engine + reviews/commits/certifications, collections + payments + advances +
   notifications, customer master, dashboards, admin panel, mobile app, bulk import, org hierarchy.
-- **Database migrated SQLite → MySQL/MariaDB 11.8** (driver adapter `@prisma/adapter-mariadb`).
-  Migration complete + verified (all 22 tables, row counts identical; app served the DB OK).
-- **🔴 Production is currently DOWN** — CloudLinux **LVE resource limit** hit
-  (`fork: Resource temporarily unavailable`) from piled-up `next-server` workers + a
-  concurrent rebuild. **Recover via hPanel → Node.js app → Restart.** Not data loss / not a
-  code bug. See NEXT_SESSION.md "BLOCKER #1".
-- **Auth runs in `src/proxy.ts`** (Next 16 edge middleware); the `auth.config.ts`
-  `authorized` callback IS live (older "dead code" notes corrected this session).
-- **Latest commit:** `749f335` (docs). Working tree clean apart from untracked local helper scripts.
-- **Open caveat:** pre-`1ab4f7d` JWTs need one sign-out + in to pick up live role.
+- **Database is MySQL/MariaDB 11.8** (driver adapter `@prisma/adapter-mariadb`) — migrated
+  from SQLite 2026-06-02.
+- **Mobile finance screens shipped** (`5ba865a`): mobile `CollectionsScreen`, Pipeline
+  Leads|Opportunities segment, enriched Today dashboard with collections KPIs.
+- **Finance module documentation** complete (`fbfa681`, `9ae9de2`) under `docs/modules/finance/`
+  — approved 14-feature scope.
+- **🆕 Finance Operations Module — Phase 1 (database) implemented + tested on a dev DB,
+  UNCOMMITTED.** 10 new models, migration `20260602120000_finance_operations_phase1`, finance
+  config seed + 2 dev-only seeds. No API/UI yet. See NEXT_SESSION.md.
+- **Latest commit:** `9ae9de2` (finance docs). Working tree has the uncommitted Phase 1 DB work.
+- **Prod note:** the LVE outage flagged during the migration session was not re-verified this
+  session (all work was against a separate dev DB). Confirm `200` on `/login` before/after the
+  next push. Pre-`1ab4f7d` JWTs still need one sign-out + in to pick up live role.
 
 ## Next Actions
-1. **🔴 Restart the Node app in hPanel** to clear the LVE outage; confirm `200` on `/login`.
-2. **Post-MySQL smoke test:** log in via Microsoft; check dashboard totals, record a test
-   payment, create a test lead, open notifications. Keep server `db/prod.db` backup ~2 weeks.
-3. **Rotate credentials** shared in chat (SSH `u686730471`, MySQL `u686730471_caveoadmincrm`);
-   **delete** untracked `scripts/_tmp_ssh.mjs` + `scripts/_tmp_sftp.mjs` (plaintext creds).
-4. Priyadharshini + Deepak **re-login once** (stale-JWT role fix `1ab4f7d`); set Deepak's role +
-   `Reports To` on the Team page.
-5. Apply `@db.Decimal(12,4)` to money fields; wrap `recordPayment`/`applyAdvance` in
-   `prisma.$transaction`; remove orphaned `public/maintenance.html` + leftover `better-sqlite3` deps.
-6. Decide authoritative RBAC path + enforce `RolePageAccess`; wire Topbar search; mitigate
-   `xlsx@0.18.5`; surface notifications on desktop.
+1. **Decide: commit + push Finance Phase 1** (applies the migration to PROD on the next
+   Hostinger build — confirm with Vijesh) **or** start Phase 2. Decide whether to track the
+   `seed-dev-*.ts` helpers.
+2. **Phase 2 — Vendor Master + Expense Register** (API + UI); pick cloud storage (R2/S3) for
+   attachments; add `canManageFinance` to `roles.ts`. See `docs/modules/finance/IMPLEMENTATION_PLAN.md`.
+3. Wrap `recordPayment`/`applyAdvance` in `prisma.$transaction`; apply `@db.Decimal(12,4)` to
+   money fields; remove `better-sqlite3` deps.
+4. **Rotate** the dev DB password shared in chat; remove the Remote-MySQL IP/`%` entry after
+   testing. Confirm prod `/login` 200.
+5. Decide authoritative RBAC path + enforce `RolePageAccess`; wire Topbar search; mitigate
+   `xlsx@0.18.5`; remove orphaned `public/maintenance.html`.
+
+---
+
+## [2026-06-02] — Finance Operations Module · Phase 1 (database) + mobile finance + docs
+
+### Added
+- **Finance Phase 1 — 10 Prisma models** (`prisma/schema.prisma`): `FinAccount`, `Ledger`,
+  `Vendor`, `Expense`, `Voucher`, `VoucherSequence`, `EmployeeAdvance`, `TravelClaim`,
+  `ApprovalRule`, `AuditLog`; + 9 back-reference relations on `Employee`.
+- **Migration** `20260602120000_finance_operations_phase1` — generated **offline** via
+  `prisma migrate diff` (no local MySQL): 10 tables, 15 FKs, all FK/filter columns indexed,
+  `utf8mb4_unicode_ci`, `Float`→`DOUBLE`, `@db.Text` on long fields.
+- **`prisma/seed.ts`** — finance config seed (1 cash + 1 bank `FinAccount`, `VoucherSequence`
+  FY 26-27, default `ApprovalRule`); idempotent.
+- **`prisma/seed-dev-users.ts`** (dev-only) — 7 employees across every role + reporting
+  hierarchy, for `/login` quick-login testing.
+- **`prisma/seed-dev-finance.ts`** (dev-only) — coherent sample finance data (2 vendors,
+  expense → voucher `CI/26-27/00001` → ledger cash-out, advance, travel claim, audit log).
+- **Mobile finance screens** (`5ba865a`): `src/app/mobile/screens/CollectionsScreen.tsx`,
+  Leads|Opportunities segment in `PipelineScreen`, collections KPIs + overdue alert in
+  `TodayScreen`, new `MIcon` glyphs (wallet/funnel/receipt/opp/bar-chart), Me-tab shortcuts.
+- **Finance module docs** (`fbfa681`, `9ae9de2`) — `docs/modules/finance/` (10 files,
+  approved 14-feature scope).
+
+### Changed
+- **`prisma.config.ts`** — added `migrations.seed = "npx tsx prisma/seed.ts"` (Prisma 7's
+  seed location; `package.json`'s `prisma.seed` is ignored in v7).
+- **`package.json`** — added `db:seed` script; removed the dead `prisma.seed` block.
+- **`.env`** (local, gitignored) — `DATABASE_URL` repointed from stale SQLite to the Hostinger
+  **dev** DB (`srv2201.hstgr.io` / `u686730471_caveodev`).
+- Appended MySQL migration record + MySQL-compatible Prisma rules to `CLAUDE.md` +
+  `docs/{PROJECT_MEMORY,ARCHITECTURE,DATABASE}.md` (`a047c2f`).
+
+### Decisions
+- Mapped the approved 9-module list to the **standard accounting pattern**: unified
+  `FinAccount` + `Ledger` (instead of split Cash/Bank tables), plus new `AuditLog` and
+  supporting `VoucherSequence`.
+- Money kept as `Float`/`DOUBLE` (consistent with existing tables); `@db.Decimal(12,4)` deferred.
+- Voucher numbering via a dedicated `VoucherSequence` row (atomic increment), format `CI/YY-YY/00001`.
+
+### Verified on dev DB (`u686730471_caveodev`)
+- `prisma migrate deploy` applied both migrations; `prisma db seed` ran (idempotent).
+- All 10 finance tables + FKs present; relational create→read→delete round-trip passed.
+- Dev server booted clean (Ready 10.4s, `/login` 200); quick-login user-switch + role gating
+  worked (manager → `/`, Accounts → `/collections`); Prisma Studio browsed the data.
+
+### Database Changes
+- New migration `20260602120000_finance_operations_phase1` (10 tables). **Not yet applied to
+  production** — will run via `prisma migrate deploy` on the next Hostinger build after push.
+
+### Config Changes
+- `prisma.config.ts` seed command; `package.json` scripts; local `.env` DB URL (gitignored).
+
+### Files Modified
+- `prisma/schema.prisma`, `prisma.config.ts`, `package.json` (modified)
+- `prisma/migrations/20260602120000_finance_operations_phase1/migration.sql`,
+  `prisma/seed.ts`, `prisma/seed-dev-users.ts`, `prisma/seed-dev-finance.ts` (new, uncommitted)
 
 ---
 

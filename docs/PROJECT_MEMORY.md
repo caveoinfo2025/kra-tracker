@@ -20,15 +20,18 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
 ## 0. Current status (2026-06-02, end of session)
-- **Database migration SQLite → MariaDB is COMPLETE and verified** (all 22 tables, row
-  counts identical; the app authenticates and serves the DB on the MariaDB driver adapter).
-- **⚠️ Production is currently DOWN / degraded** — a CloudLinux **LVE resource limit** was
-  hit (`bash: fork: Resource temporarily unavailable`) after many back-to-back rebuilds +
-  Passenger restarts piled up `next-server` workers alongside a running build. SSH/SFTP can
-  no longer start subsystems for the account. **Recovery = hPanel → Node.js app → Restart**
-  (infra-level, bypasses the per-account LVE lock) to clear the stale workers. This is the
-  #1 next-session action. It is an ops/resource issue, **not** data loss or a code bug — the
-  DB and code are intact and the migration is sound.
+- **Database is MySQL/MariaDB 11.8** (migration from SQLite complete + verified earlier).
+- **🆕 Finance Operations Module — Phase 1 (database layer) is implemented and tested on a
+  dev database, but UNCOMMITTED.** 10 new Prisma models, migration
+  `20260602120000_finance_operations_phase1`, finance config seed + 2 dev-only seeds. No API
+  or UI yet (Phase 2+). Verified against the Hostinger **dev** DB `u686730471_caveodev`
+  (migrate + seed + FK round-trip + dev quick-login + Prisma Studio all passed).
+- **Mobile finance screens shipped this session** (`5ba865a`): mobile `CollectionsScreen`,
+  Pipeline Leads|Opportunities segment, collections KPIs on the Today dashboard.
+- **Decision to make next session:** commit + push Phase 1 (applies the migration to
+  PRODUCTION on the next Hostinger build — confirm with Vijesh) vs. start Phase 2.
+- **Prod note:** the LVE outage flagged during the migration session was NOT re-verified this
+  session (all work used a separate dev DB). Confirm `200` on `/login` around the next push.
 
 ## 2. Roles (Employee.role + isManager)
 | Role | Access summary |
@@ -62,8 +65,14 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   clickable KPI tiles linking to detail pages; charts.
 - **Admin panel** (`/admin`, manager-only) — Settings (106 config keys, `AppSetting`) +
   Roles & Access matrix (`AppRole`/`RolePageAccess`). Data-free; config/rules only.
-- **Mobile app** (`/mobile`) — 12 screens incl. business-card OCR (`/api/ocr/business-card`),
-  team views, quick activity/call/meeting logging.
+- **Mobile app** (`/mobile`) — 13 screens incl. business-card OCR (`/api/ocr/business-card`),
+  team views, quick activity/call/meeting logging, and a read-only **Collections** screen +
+  Pipeline **Leads|Opportunities** segment + collections KPIs on the Today dashboard (`5ba865a`).
+- **Finance Operations Module — Phase 1 (database only)** *(implemented, tested on dev,
+  UNCOMMITTED)* — 10 models (`FinAccount`, `Ledger`, `Vendor`, `Expense`, `Voucher`,
+  `VoucherSequence`, `EmployeeAdvance`, `TravelClaim`, `ApprovalRule`, `AuditLog`), migration
+  `20260602120000_finance_operations_phase1`, finance config seed. Full spec in
+  `docs/modules/finance/`. No API/UI yet.
 - **Bulk import** — CSV/XLSX lead import; printable employee user guide at `/user-guide.html`.
 - **Org hierarchy** — `Employee.reportsTo` self-relation; Operations Head role with
   manager-like finance reach; editable `Reports To` + `Manager access` on the Team page.
@@ -90,8 +99,21 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   ownership checks). Also fix the stale "src/middleware.ts" comment in `auth.config.ts`.
 
 ## 4b. In-progress / Decisions this session
-- **No feature work in progress.** Working tree clean (committed + pushed through `749f335`),
-  apart from local untracked helper scripts under `scripts/` (see debt below).
+- **IN PROGRESS — Finance Operations Module, Phase 1 (database only).** Implemented + tested
+  on the dev DB; **uncommitted**. Working tree: `M schema.prisma, prisma.config.ts, package.json`
+  and new `prisma/migrations/20260602120000_finance_operations_phase1/`, `prisma/seed.ts`,
+  `prisma/seed-dev-users.ts`, `prisma/seed-dev-finance.ts`.
+- **10 new models:** `FinAccount` (cash+bank), `Ledger`, `Vendor`, `Expense`, `Voucher`,
+  `VoucherSequence`, `EmployeeAdvance`, `TravelClaim`, `ApprovalRule`, `AuditLog`.
+- **Key decisions (2026-06-02 — Finance Phase 1):**
+  - Mapped the approved 9-module list to the **standard accounting pattern**: unified
+    `FinAccount` + `Ledger` (NOT the doc's split Cash/Bank tables); added `AuditLog` (new) and
+    `VoucherSequence` (atomic voucher numbering, `CI/YY-YY/00001`).
+  - Money kept as `Float`/`DOUBLE` (consistent with existing tables; `Decimal` deferred).
+  - Migration **generated offline** (`prisma migrate diff`) because no local MySQL exists.
+  - Local dev now uses the **remote Hostinger dev DB** (`srv2201.hstgr.io`/`u686730471_caveodev`);
+    seed command moved to `prisma.config.ts` `migrations.seed` (Prisma 7 location).
+  - `seed.ts` is **prod-safe** (config only, no PII); the two `seed-dev-*.ts` are dev-only.
 - **Key decisions (2026-06-02 — DB migration):**
   - **Migrated to MySQL/MariaDB** (Hostinger-provided) rather than PostgreSQL — it's what the
     Hostinger plan offers and required no new infra.
@@ -182,6 +204,31 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Session end:** update this file + `CHANGELOG.md`.
 - **Golden rules (CLAUDE.md):** never delete features / rewrite working code / reset DB /
   change UI standards. Reuse components, preserve logic, update docs.
+
+## 8. Technical Debt
+- **Finance Phase 1 is uncommitted** — commit/push deferred to a deliberate confirmed step
+  (the build auto-applies the migration to prod). Decide whether to track `seed-dev-*.ts`.
+- **`recordPayment`/`applyAdvance` lack `prisma.$transaction`** — wrap before high concurrency
+  (MySQL has real concurrent writes now). The new finance services in Phase 2 must use
+  `$transaction` from day one (balance updates, voucher numbering).
+- **Money is `Float`/`DOUBLE`** across both finance modules — `@db.Decimal(12,4)` deferred.
+- **Cached balances** (`FinAccount.currentBalance`, `EmployeeAdvance.balanceLakhs`) have no
+  service guard yet (no API in Phase 1) — Phase 2 must only mutate them via a service fn.
+- **Dev DB password shared in chat** (`Caveo@2026`) — rotate after testing; remove the
+  Remote-MySQL IP/`%` whitelist entry in hPanel.
+- Carryover: dual RBAC (`rbac.ts` vs `roles.ts`); `xlsx@0.18.5` advisory; remove
+  `better-sqlite3` deps; orphaned `public/maintenance.html`; pre-`1ab4f7d` JWT re-login.
+
+## 9. Recommended Next Steps (ordered)
+1. **Confirm + commit + push Finance Phase 1** (after Vijesh's OK); verify the prod migration
+   applied (`prisma migrate status` on the server) and `/login` returns 200.
+2. **Phase 2 — Vendor Master + Expense Register** (API + UI): choose cloud storage (Cloudflare
+   R2 / S3) for attachments; add `canManageFinance` predicate to `roles.ts`; build CRUD +
+   submit-for-approval. See `docs/modules/finance/IMPLEMENTATION_PLAN.md` Phase 2.
+3. **Phase 3 — Approval Engine** wired to `ApprovalRule` + `AuditLog`, with notifications.
+4. Wrap existing `recordPayment`/`applyAdvance` in `$transaction`; then tackle the
+   `@db.Decimal(12,4)` money migration across both finance modules.
+5. Rotate the dev DB credentials and prune the Remote-MySQL whitelist.
 
 ---
 

@@ -3,11 +3,16 @@
 > Companion to `DESIGN_SYSTEM.md` (tokens). This catalogs the actual components and how
 > to use them.
 
-> **2026-06-02:** no components were added or modified this session — the work was the
-> SQLite→MariaDB database migration (backend/infra only). The catalog below is current. One
-> non-component artifact exists as debt: `public/maintenance.html` (a standalone maintenance
-> splash) is **orphaned** — the `middleware.ts` that served it was removed (Next 16 conflict
-> with `proxy.ts`). Either wire a maintenance gate into `proxy.ts` or delete the file.
+> **2026-06-02:** **Mobile finance screens added** (`5ba865a`) — a new
+> `src/app/mobile/screens/CollectionsScreen.tsx` (read-only invoices with overdue alerts +
+> Open/Overdue/All segments), a **Leads | Opportunities** segment in `PipelineScreen`, and
+> collections KPIs + overdue alert + "Collections" action chip on `TodayScreen`. New `MIcon`
+> glyphs: `wallet`, `funnel`, `receipt`, `opp`, `bar-chart`. The mobile app is now **13
+> screens**. Desktop component catalog below is unchanged. **Finance Operations Module Phase 1
+> was database-only — no UI components** (finance UI starts in Phase 2; spec in
+> `docs/modules/finance/UI_REQUIREMENTS.md` + `MOBILE_REQUIREMENTS.md`).
+> Debt: `public/maintenance.html` is still **orphaned** (its `middleware.ts` was removed for the
+> Next 16 `proxy.ts` conflict) — wire it into `proxy.ts` or delete it.
 
 ## Design language
 Clean enterprise SaaS: white surfaces on a light grey app background, a **single brand-red
@@ -80,7 +85,7 @@ type. Information-dense but calm — KPI tiles, cards, and tables dominate.
 - **Sheet pages:** `SheetLayout` header (title + description + action) over a table.
 - **Pipeline:** kanban ↔ table toggle.
 - **Mobile:** full-screen `.m-*` overlay (`position:fixed; inset:0; z-index:9000`) with
-  bottom tab nav (12 screens).
+  bottom tab nav (13 screens, incl. `CollectionsScreen`).
 
 ## Icons
 - **lucide-react** throughout. Common: `LogOut`, `Search`, `Plus`, `Trash2`, `Save`,

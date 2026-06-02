@@ -126,3 +126,40 @@ Every new Prisma model, migration, or query must follow these rules:
    socket). Never run migrations against a SQLite file URL.
 8. **Concurrent writes** — wrap multi-step finance writes (`recordPayment`, `applyAdvance`)
    in `prisma.$transaction` before any high-concurrency deployment.
+
+---
+
+## Finance Operations Module — Phase 1 (database only, 2026-06-02)
+
+Phase 1 (DB layer) is **implemented and tested on a dev database — NOT yet committed/pushed.**
+No API or UI yet (that's Phase 2+). Spec lives in `docs/modules/finance/`.
+
+**10 new Prisma models** (`prisma/schema.prisma`):
+`FinAccount` (chart of accounts: cash+bank) · `Ledger` (general ledger entries) · `Vendor` ·
+`Expense` · `Voucher` (+ `VoucherSequence` for atomic `CI/YY-YY/00001` numbering) ·
+`EmployeeAdvance` · `TravelClaim` (local conveyance, GPS-aware) · `ApprovalRule` · `AuditLog`.
+Plus 9 back-reference relations on `Employee`.
+
+**Migration:** `prisma/migrations/20260602120000_finance_operations_phase1/` — generated
+**offline** via `prisma migrate diff` (no local MySQL), 10 tables, 15 FKs, all indexed.
+
+**Seeds (`prisma/`):**
+- `seed.ts` — finance **config** (cash+bank account, VoucherSequence FY 26-27, default
+  ApprovalRule). Wired into `prisma db seed` via `prisma.config.ts` `migrations.seed`
+  (Prisma 7 location — NOT `package.json`, whose `prisma.seed` key is ignored in v7).
+- `seed-dev-users.ts` — **dev-only**, 7 employees across every role for quick-login testing.
+- `seed-dev-finance.ts` — **dev-only**, sample finance rows. Run via `npx tsx prisma/seed-*.ts`.
+
+**Module → model mapping decision:** the approved 9-module list ("Account, Ledger, Expense,
+Vendor, Voucher, EmployeeAdvance, TravelClaim, ApprovalRule, AuditLog") was mapped to the
+standard accounting pattern — **unified `FinAccount` + `Ledger`** (not the doc's split
+Cash/Bank tables), plus `AuditLog` (new) and `VoucherSequence` (supporting).
+
+### Local dev now uses a Hostinger DEV database
+- `.env` `DATABASE_URL` → `srv2201.hstgr.io` / `u686730471_caveodev` (remote MySQL, IP
+  whitelisted in hPanel → Remote MySQL). For **remote** dev the host is the server hostname,
+  **not** `127.0.0.1` (that rule is only for the app running *on* the server). `.env` is gitignored.
+- **Prisma 7 does NOT auto-load `.env`** (a `prisma.config.ts` exists). For CLI commands set
+  the var inline: `$env:DATABASE_URL="mysql://…"; npx prisma migrate deploy`. The Next.js dev
+  server *does* auto-load `.env`.
+- Dev quick-login: `/login` → "Select an employee to log in as" (lists the 7 seeded users).

@@ -4,10 +4,12 @@ Defined as CSS custom properties in `src/app/globals.css` (`:root`). Tailwind v4
 present but most styling uses these tokens + hand-written component classes.
 **Reuse tokens — never hardcode hex values in components.**
 
-> **2026-06-02:** no theme, token, or layout changes this session (work was the
-> SQLite→MariaDB migration). Tokens and patterns below are current. The orphaned
-> `public/maintenance.html` splash uses brand red `#C8102E` on `#0F1115` inline (it predates
-> being wired to anything) — if kept, migrate it onto these tokens; otherwise delete it.
+> **2026-06-02:** **no token/theme changes** this session. New mobile finance screens
+> (`CollectionsScreen`, Pipeline Opportunities segment, Today collections KPIs — `5ba865a`)
+> reuse the existing `.m-*` mobile classes and tokens (no new design primitives). Finance
+> Operations Module Phase 1 was database-only (no UI). Tokens/patterns below are current.
+> The orphaned `public/maintenance.html` splash still uses brand red `#C8102E` on `#0F1115`
+> inline — migrate it onto these tokens if kept, otherwise delete it.
 
 ## 1. Colors
 
@@ -57,7 +59,7 @@ present but most styling uses these tokens + hand-written component classes.
 - **Sheet/table pages** (collections, lead-gen, etc.): `SheetLayout` with toolbar + table.
 - **Pipeline:** `KanbanBoard` (columns per stage) ↔ table toggle.
 - **Mobile** (`/mobile`): full-screen overlay, `position: fixed; inset:0; z-index:9000`,
-  styled with `.m-*` classes in `mobile.css`; bottom tab nav across 12 screens.
+  styled with `.m-*` classes in `mobile.css`; bottom tab nav across 13 screens.
 - **Login:** centered card; dev quick-login list appears only in development.
 
 ## 5. UI Components

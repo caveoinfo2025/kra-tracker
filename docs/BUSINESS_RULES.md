@@ -42,6 +42,23 @@ Head of Sales).
 - **Order advances:** recorded `status=unapplied` → finance applies to an invoice
   (`/api/advances/[id]/apply`) → creates a `Payment`, flips to `applied`.
 
+### Finance Operations Module — Phase 1 rules (DB-ready, not yet enforced in code)
+> Data model exists (2026-06-02); enforcement logic comes with the Phase 2+ services. See
+> `docs/modules/finance/FINANCE_REQUIREMENTS.md`.
+- **No negative cash:** a `Ledger` cash-out must never drive `FinAccount.currentBalance < 0`
+  (enforce in the service before write, inside `prisma.$transaction`).
+- **Voucher numbering:** `Voucher.voucherNo` = `CI/YY-YY/00001`, FY = Apr 1–Mar 31; the
+  number comes from an **atomic increment** of `VoucherSequence.lastNumber` (per financial year).
+- **Approval workflow:** `ApprovalRule` defines amount thresholds + an approver role per level
+  (auto-approve ≤ limit, then L1/L2/L3). Drives Expense / EmployeeAdvance / TravelClaim states.
+- **Expense lifecycle:** `draft → submitted → approved → rejected → paid`; on approval a
+  `Voucher` is generated and an `AuditLog` row recorded.
+- **Employee advance:** `pending → approved → disbursed → settled`; `balanceLakhs` = disbursed − settled.
+- **Travel claim:** `amountRupees = distanceKm × ratePerKm` (rate snapshot from HR policy);
+  GPS start/end captured; status `draft → submitted → approved → paid`.
+- **Audit trail:** every finance state change should write an `AuditLog` entry
+  (`entityType`, `entityId`, `action`, `performedById`).
+
 ## Status transitions
 - **Lead stage** / **Opportunity stage** — see workflows above.
 - **Collection status:** `Pending → Partially Received → Fully Received`, derived purely
