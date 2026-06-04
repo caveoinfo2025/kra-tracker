@@ -9,30 +9,275 @@ Dates from git history (branch `master`).
   notifications, customer master, dashboards, admin panel, mobile app, bulk import, org hierarchy.
 - **Database is MySQL/MariaDB 11.8** (driver adapter `@prisma/adapter-mariadb`) — migrated
   from SQLite 2026-06-02.
-- **Mobile finance screens shipped** (`5ba865a`): mobile `CollectionsScreen`, Pipeline
-  Leads|Opportunities segment, enriched Today dashboard with collections KPIs.
-- **Finance module documentation** complete (`fbfa681`, `9ae9de2`) under `docs/modules/finance/`
-  — approved 14-feature scope.
-- **🆕 Finance Operations Module — Phase 1 (database) implemented + tested on a dev DB,
-  UNCOMMITTED.** 10 new models, migration `20260602120000_finance_operations_phase1`, finance
-  config seed + 2 dev-only seeds. No API/UI yet. See NEXT_SESSION.md.
-- **Latest commit:** `9ae9de2` (finance docs). Working tree has the uncommitted Phase 1 DB work.
-- **Prod note:** the LVE outage flagged during the migration session was not re-verified this
-  session (all work was against a separate dev DB). Confirm `200` on `/login` before/after the
-  next push. Pre-`1ab4f7d` JWTs still need one sign-out + in to pick up live role.
+- **Finance Operations — Phase 1 (database) is committed/pushed** (`1747f9e`): 10 models,
+  migration `20260602120000_finance_operations_phase1`, finance config + dev seeds.
+- **Finance Operations — Phase 2 UI (2026-06-03), UI-ONLY mock data, UNCOMMITTED** (~45 files).
+- **🆕 2026-06-04 — Three enterprise UI modules added, UI-ONLY on mock data, UNCOMMITTED:**
+  (1) **Expense Categories** (`/finance/expenses/categories`, 8 files); (2) **Global Vendor Master**
+  (`/masters/vendors`, 14 files); (3) **Global Customer Master** (`/masters/customers`, 16 files).
+  New sidebar **Masters** section. `/finance/vendors` now redirects to `/masters/vendors`. **No APIs,
+  no schema changes.** `tsc` clean.
+- **🆕 2026-06-04 — Admin Console Phase 1 implemented, UNCOMMITTED:**
+  `/settings` now renders Enterprise Admin Console (`AdminConsole.tsx`) — 12-module grid, 4 stat cards,
+  live search/filter, Recent Changes, Quick Actions. `SettingsHub.tsx` kept as rollback. Zero DB changes.
+- **🆕 2026-06-04 — Admin Console Phase 2 DB Foundation implemented, UNCOMMITTED:**
+  12 new Prisma models (Tenant, Company, Branch, Department, Team, Designation, EmployeeProfile, Role,
+  Permission, RolePermission, UserRole, DataAccessPolicy). Offline migration SQL
+  `20260604000000_admin_console_foundation`. Access control service (`src/lib/access-control/`):
+  `permissions.ts` (50-permission catalogue), `policy.ts` (scope resolution), `index.ts`
+  (`hasPermission`/`getAllPermissions`). Seed: `prisma/seed-admin-foundation.ts` (6 roles, full
+  permission grants, data access policies). `roles.ts` bridge comment added. `tsc` clean,
+  `next build` clean. **Migration NOT yet applied to dev/prod DB.**
+- **🆕 2026-06-04 — Admin Console Phase 3 — Organization Management implemented, UNCOMMITTED:**
+  Full enterprise org console at `/settings/organization` — 8 tabs (Overview, Companies, Branches,
+  Departments, Teams, Designations, Hierarchy, Audit). 10 API routes (`/api/settings/organization/*`)
+  with dual-mode: live DB when migration applied, mock data until then. `Organization` permission pair
+  added to PERMISSION_CATALOGUE. Organization module status set to `"active"` in `adminModules.ts`.
+  `tsc` clean, `next build` clean.
+- **🆕 2026-06-04 — Admin Console Phase 4 — Identity & Access Management implemented, UNCOMMITTED:**
+  Full enterprise IAM console at `/settings/identity` — 6 tabs: Users, Roles, Permissions, Data Access,
+  Delegation, Audit. Components: `UsersTab` (KPI cards, search/filter, quick suspend), `UserProfileDrawer`
+  (profile/org/access tabs, status change), `RoleManagement` (table, clone, disable, `RoleEditor` slide-over),
+  `PermissionMatrix` (module/resource grid with dirty-cell tracking), `DataAccessPolicyPanel` (scope pills per
+  module), `DelegationPanel` (rule table, slide-over form), `IdentityAudit` (audit log with action filter).
+  8 API routes: `GET/PATCH /api/admin/identity/users/[id]`, `GET/POST /api/admin/identity/roles`, `PATCH
+  /api/admin/identity/roles/[id]`, `GET /api/admin/identity/permissions?roleId=X`, `POST
+  /api/admin/identity/permissions/[roleId]`, `GET /api/admin/identity/policies?roleId=X`, `POST
+  /api/admin/identity/policies/[roleId]`. All dual-mode (live DB / mock). `/settings/users-roles` now
+  redirects to `/settings/identity`. `Settings/Identity/VIEW` and `EDIT` added to `PERMISSION_CATALOGUE`.
+  `tsc` clean, `next build` clean.
+- **Latest commit:** `ce29704` (session memory snapshot). **All work from 2026-06-04 is uncommitted.**
+- **Prod note:** unchanged; confirm `200` on `/login` before/after any push. Pre-`1ab4f7d`
+  JWTs still need one sign-out + in to pick up live role.
 
 ## Next Actions
-1. **Decide: commit + push Finance Phase 1** (applies the migration to PROD on the next
-   Hostinger build — confirm with Vijesh) **or** start Phase 2. Decide whether to track the
-   `seed-dev-*.ts` helpers.
-2. **Phase 2 — Vendor Master + Expense Register** (API + UI); pick cloud storage (R2/S3) for
-   attachments; add `canManageFinance` to `roles.ts`. See `docs/modules/finance/IMPLEMENTATION_PLAN.md`.
-3. Wrap `recordPayment`/`applyAdvance` in `prisma.$transaction`; apply `@db.Decimal(12,4)` to
-   money fields; remove `better-sqlite3` deps.
-4. **Rotate** the dev DB password shared in chat; remove the Remote-MySQL IP/`%` entry after
-   testing. Confirm prod `/login` 200.
-5. Decide authoritative RBAC path + enforce `RolePageAccess`; wire Topbar search; mitigate
-   `xlsx@0.18.5`; remove orphaned `public/maintenance.html`.
+1. **Apply migration to dev DB:** `$env:DATABASE_URL="mysql://…"; npx prisma migrate deploy` then verify
+   `npx prisma db seed` with `seed-admin-foundation.ts` runs clean.
+2. **Decide commit strategy** for the large uncommitted body and commit in logical chunks (confirm with Vijesh).
+3. **Wire real data behind the finance/master screens** — Expense Register CRUD first; then Customer Master →
+   extend existing `Customer` model; Vendor Master → wire to Phase-1 `Vendor` model.
+4. **Wire real data behind the finance/master screens** — Expense Register CRUD first; then Customer Master →
+   extend existing `Customer` model; Vendor Master → wire to Phase-1 `Vendor` model.
+5. **Consolidate Customer Master** — two nav entries pending convergence (`/masters/customers` + legacy `/customers`).
+6. **Service-worker dev fix**; wrap `recordPayment`/`applyAdvance` in `$transaction`; apply `@db.Decimal(12,4)`;
+   rotate dev DB password; remove `better-sqlite3`; mitigate `xlsx@0.18.5`.
+
+---
+
+## [2026-06-04 — Session 2] — Role-Adaptive Dashboard + Settings Hub + Enterprise Architecture Plan
+
+> No application logic removed. No schema/API/migration changes. `npx tsc --noEmit` clean.
+> All changes are **uncommitted** (same working tree as Session 1 today).
+
+### Added
+- **Role-Adaptive Dashboard** (`src/app/dashboard/`) — dashboard now renders differently per
+  role variant. Added `roleVariant: "manager" | "opsHead" | "techHead" | "employee"` discriminator
+  to `DashboardProps`. `showSales` flag gates pipeline funnel, sales KPI tiles, team chart.
+  `showTeam` flag gates approvals panel. Live DB role refresh reads `Employee.isManager` + `role`
+  on every request (same pattern as Navbar).
+- **`isOperationsHead` import** in `dashboard/page.tsx`; `isTechHead` regex inline. Operations Head
+  and Technical Head see team-oriented dashboard without the sales funnel.
+- **Settings Hub expanded** (`src/app/settings/SettingsHub.tsx`) — 10 → 26 cards across 7 sections:
+  General (3), Workflow (2), People (3), Masters (2), Finance (11), CRM & Sales (3), System (2).
+  Added icons: `Landmark, Banknote, Layers, Wallet, MapPin, ClipboardCheck, ClipboardList,
+  BarChart3, Target, BookUser, Store, CheckSquare, Activity`.
+- **AdminClient expanded** (`src/app/admin/AdminClient.tsx`) — 11 → 14 tabs. Added Finance Ops,
+  Approvals, and Masters tabs with new icons `Receipt, ClipboardCheck, BookUser`.
+- **Settings in `src/lib/settings.ts`** — 16 new defaults + metadata across 3 new categories:
+  Finance (7 keys: conveyance_rate_per_km, advance_max_months_salary, expense_max_days_backdated,
+  voucher_prefix, fiscal_year_label, auto_approve_expense_below, expense_receipt_required_above),
+  Approvals (5 keys), Masters (4 keys: gstin_validation_enabled, duplicate_name_threshold_pct,
+  require_pan_for_vendor, customer_credit_limit_default).
+- **Enterprise Architecture Plan** (`docs/ADMIN_ARCHITECTURE_PLAN.md`) — 10-section comprehensive
+  migration plan from the current flat admin panel to a 12-module Enterprise Admin Console.
+  Covers: 9 current problems, 12 target modules with full detail, 9 Architecture Decisions (Org
+  Model, Company Model, User Model, Security Model, Permission Depth, Approval, Masters, Record
+  Visibility, Config Lifecycle), target folder structure, 4-layer DB architecture plan (Org/IAM/
+  Workflow/Config), 6-phase migration strategy (12 sprints), 8 files to refactor, 5 files to
+  deprecate, 10 development rules.
+
+### Files Modified
+- `src/app/dashboard/page.tsx` — live role detection, `roleVariant` computation, conditional data queries
+- `src/app/dashboard/DashboardClient.tsx` — `roleVariant` prop + `showSales`/`showTeam` flags + conditional sections
+- `src/app/settings/SettingsHub.tsx` — expanded from 10 to 26 cards, 7 sections
+- `src/app/admin/AdminClient.tsx` — added Finance Ops, Approvals, Masters tabs (11 → 14)
+- `src/lib/settings.ts` — 16 new setting defaults + metadata (Finance, Approvals, Masters categories)
+
+### Created
+- `docs/ADMIN_ARCHITECTURE_PLAN.md` — full enterprise admin console architecture plan
+
+---
+
+## [2026-06-04 — Session 4] — Admin Console Phase 1 (UI Shell) + Phase 2 (DB Foundation)
+
+> No existing features removed. `npx tsc --noEmit` clean. `npx next build` clean. All changes UNCOMMITTED.
+
+### Admin Console Phase 1 — UI Shell
+- **`src/app/settings/AdminConsole.tsx`** — enterprise 12-module grid with live search/filter
+- **`src/app/settings/data/adminModules.ts`** — module metadata, stats, recent changes
+- **`src/app/settings/components/`** — AdminHeader, AdminSearch, AdminStatsCard, AdminModuleCard, RecentChanges, QuickActions
+- **`src/app/settings/page.tsx`** updated to render `<AdminConsole />` (`SettingsHub.tsx` kept as rollback)
+
+### Admin Console Phase 2 — Database Foundation
+- **`prisma/schema.prisma`** — 12 new models added: Tenant, Company, Branch, Department, Team, Designation, EmployeeProfile, Role, Permission, RolePermission, UserRole, DataAccessPolicy. 4 back-reference relations added to Employee model.
+- **`prisma/migrations/20260604000000_admin_console_foundation/migration.sql`** — offline migration, 12 CREATE TABLE statements + FK constraints. NOT yet deployed.
+- **`src/lib/access-control/permissions.ts`** — 50-permission catalogue, MODULE/ACTION/SCOPE constants
+- **`src/lib/access-control/policy.ts`** — `resolveScope()` + `canAccessScope()` with OWN/TEAM/DEPARTMENT/BRANCH/COMPANY/ALL handling
+- **`src/lib/access-control/index.ts`** — `hasPermission()` + `getAllPermissions()` public API
+- **`prisma/seed-admin-foundation.ts`** — idempotent seed: Caveo Infosystems tenant/company/branch, 3 departments, 6 enterprise roles, full permission grants, data access policies
+- **`src/lib/roles.ts`** — Phase 3 migration bridge comment added (legacy predicates still live)
+- **`npx prisma generate`** — regenerated Prisma client with all 12 new models
+
+### Migration status
+- Schema + migration SQL written. `npx prisma migrate deploy` **NOT yet run** against dev/prod DB.
+- All new `hasPermission`/`canAccessScope` calls return safe defaults (false / true respectively) until UserRole/DataAccessPolicy rows exist → zero backward-compat breakage.
+
+---
+
+## [2026-06-04] — Expense Categories + Global Vendor Master + Global Customer Master (UI-only, mock)
+
+> Three enterprise UI modules built this session. **All UI-only — no Prisma schema, no
+> migrations, no API routes.** All data is illustrative mock in each module's `data.ts`.
+> Everything below is **uncommitted**. `npx tsc --noEmit` clean. Pages verified `200` live.
+
+### Added — Expense Category Management (`/finance/expenses/categories`)
+- Replaced the "coming soon" placeholder with a full **configuration-driven category engine**.
+- `data.ts` (30 mock categories, 7 parents + 23 sub-categories, `deriveCatCaps`, 7 default
+  templates) + `ExpenseCategoriesClient` + 5 components: `CategoryTable` (search/sort/paginate/
+  column-visibility/bulk-disable), `CategoryFilters`, `CategoryForm` (9 sections A–I: Basic,
+  Usage, Payment, Document rules, GST, Approval, Grade-policy, Customer, Tally), `CategoryDrawer`
+  (full read view + clone), `CategoryTemplateLoader` (load default Office/Travel/Employee/Business/
+  Maintenance/IT/Customer template groups).
+
+### Added — Global Vendor Master (`/masters/vendors`)
+- New global CRM master (one `Vendor` referenced by Finance/Expense/Procurement/Inventory/
+  Projects/Support/Assets/Tally). `data.ts` (8 mock vendors, complete Indian GST state-code map,
+  `validateGSTIN` validator, `deriveVendorCaps`) + `VendorMasterClient` + 10 components:
+  `VendorTable`, `VendorFilters`, `VendorForm`, `VendorProfile` (9-tab drawer: Overview/Branches/
+  GST/Contacts/Bank/Documents/Transactions/Purchase History/Audit), `VendorBranchManager`
+  (multi-branch + per-branch GST), `VendorContactManager`, `VendorBankManager`,
+  `VendorDocumentPanel` (expiry alerts), `VendorUsageViewer`, **`GSTRegistrationPanel`** (+
+  `GSTINBadge`) — the reusable GSTIN validator field.
+- `/finance/vendors` placeholder now **redirects** to `/masters/vendors`.
+
+### Added — Global Customer Master (`/masters/customers`)
+- New global CRM master (one `Customer` referenced by CRM Sales/Opps/Quotations/Orders/Projects/
+  Support/AMC/Assets/Finance/Profitability/Engineer-Visits/Conveyance). **Extends** the existing
+  `Customer` model — does NOT duplicate it; the legacy operational `/customers` page (live DB
+  import + dedupe) is untouched. `data.ts` (8 mock customers incl. ABC Group hierarchy parent +
+  2 subsidiaries, `deriveCustomerCaps`, duplicate detection, profitability math; reuses the
+  Vendor GST validator) + `CustomerMasterClient` + 13 components: `CustomerTable`,
+  `CustomerFilters`, `CustomerForm` (Basic/Hierarchy/Commercial/Sites + duplicate warning),
+  `CustomerProfile` (12-tab drawer), `CustomerSiteManager` (multi-site + per-site GST + geo
+  lat/long), `CustomerContactManager`, `CustomerGSTPanel`, `CustomerHierarchyViewer` (parent↔child
+  tree), `CustomerAssetPanel` (warranty/AMC/SLA), `CustomerProfitabilityPanel` (revenue−cost=margin),
+  `CustomerDocumentPanel`, `CustomerTimeline` (audit), `CustomerRelationshipViewer` (linked
+  Opps/Quotations/Orders/Projects/Support/AMC/Finance/Expenses, finance-gated).
+
+### Fixed
+- **Login broken (dev quick-login 404).** An orphaned `next dev` process held port 3000 and
+  served a stale Turbopack route tree where `/api/dev/switch` wasn't registered → quick-login
+  couldn't set the `dev_employee_id` cookie. Fix: killed the orphan, cleared `.next`, restarted
+  clean. (CLAUDE.md gotcha #10.) No code change.
+- Removed a dead `GST_RATES` import in `vendors/components/GSTRegistrationPanel.tsx` (latent
+  unused-import that broke `tsc` once Customer Master pulled the module into the graph).
+
+### Changed
+- `src/components/SidebarLinks.tsx` — added a **Masters** section (Customer Master + Vendor
+  Master) to Manager, Accounts, and Employee role groups; Finance-nav "Vendors" link now points
+  to `/masters/vendors`.
+
+### Files Modified
+- `src/components/SidebarLinks.tsx` (Masters section + Vendor link), `src/app/finance/vendors/page.tsx`
+  (now a redirect), `src/app/finance/expenses/categories/page.tsx` (placeholder → real),
+  `src/app/masters/vendors/components/GSTRegistrationPanel.tsx` (dead-import cleanup).
+- New: everything under `src/app/masters/` (29 files) and `src/app/finance/expenses/categories/` (8 files).
+
+### Database Changes
+- **None.** No schema, migrations, or Prisma model changes.
+
+### Config Changes
+- **None.**
+
+---
+
+## [2026-06-03] — Finance Operations Module · Phase 2 UI (mock data, no backend)
+
+> Entire finance UI built this session. **UI-only — no Prisma schema, no migrations, no API
+> routes.** All data is illustrative mock held in each module's `data.ts` (money in ₹ rupees).
+> Everything below is **uncommitted** in the working tree.
+
+### Added — Finance navigation & shell
+- `canManageFinance(user)` predicate in `src/lib/roles.ts` (manager / Accounts / Operations Head).
+- Collapsible **Finance** section in `src/components/SidebarLinks.tsx` (Accounts ▸ Cash/Bank
+  Book, Expenses ▸ Register/Add/Categories, Vendors, Employees ▸ Claims/Advance/Conveyance,
+  Approvals, Vouchers, Reports) — full nav for finance roles, own-data nav for employees.
+- 13 finance route placeholders, later filled: `/finance`, `/finance/cash-book`,
+  `/finance/bank-book`, `/finance/expenses(+/new,/categories)`, `/finance/vendors`,
+  `/finance/claims`, `/finance/advances`, `/finance/conveyance`, `/finance/approvals`,
+  `/finance/vouchers`, `/finance/reports`.
+
+### Added — Finance Dashboard (`/finance`)
+- `FinanceDashboardClient.tsx` — 8 KPI tiles, 4 inline-SVG charts (monthly trend, category
+  donut, cash flow, top categories), quick actions, period/branch/account filters. Mirrors
+  the CRM dashboard language.
+
+### Added — Bank Book (`/finance/bank-book`)
+- `BankBookClient.tsx` + `data.ts` + 9 components: `BankBalanceCard`, `BankFilters`,
+  `BankTransactionTable` (search/sort/paginate/column-visibility/bulk reconcile),
+  `BankTransactionDrawer`, `BankSummaryPanel`, `BankStatementUpload`, `BankImportPreviewTable`,
+  `BankImportHistoryTable`, `BankImportWizard` (4-step CSV/XLS import with match suggestions).
+- Bank↔source mapping: link a bank line to a Collection / Customer Advance / Expense; shown
+  in table + drawer "Mapped To"; import preview suggests settlements by amount.
+
+### Added — Cash Book (`/finance/cash-book`) — upgraded to Bank Book maturity
+- `CashBookClient.tsx` + `data.ts` + 8 components: `CashBalanceCard` (re-exports Bank card),
+  `CashFilters`, `CashTransactionTable`, `CashTransactionDrawer`, `CashSummaryPanel`,
+  `CashReconciliationPanel` (physical-count vs system, variance, remarks), `CashTransferPanel`
+  (Transfer From / Deposit To Bank), `CashVoucherPanel`. Customer-cost + employee-finance
+  panels; accounting-ledger running balance.
+
+### Added — Expense Register (`/finance/expenses`)
+- `ExpenseRegisterClient.tsx` + `data.ts` + 11 components: `ExpenseSummaryCard`,
+  `ExpenseFilters` (18 fields), `ExpenseTable` (bulk approve / generate vouchers / mark paid),
+  `ExpenseForm` (sections A–G, dynamic by type), `ExpenseDetailsDrawer`,
+  `ExpenseApprovalTimeline`, `ExpenseAttachmentViewer`, `GSTInputSection` (auto CGST/SGST/IGST),
+  `VoucherPreviewPanel`, `CustomerExpensePanel` (profitability), `EmployeeClaimPanel` (advance).
+- Standalone `/finance/expenses/new/ExpenseEntryForm.tsx` (full-page entry; superseded by the
+  register's drawer form but kept).
+
+### Added — Mobile finance screens
+- `ExpenseClaimScreen.tsx` (bill photo placeholder, category chips, amount, submit) and
+  `ConveyanceScreen.tsx` (customer/vehicle, start/end location placeholder capture, KM, claim
+  calc — no Google API). Wired into `MobileApp.tsx`, `MeScreen.tsx` (Finance section), and the
+  `QuickLogSheet` FAB. New `MIcon` glyphs: `camera`, `car`, `pin`, `route`, `rupee`.
+
+### Added — cross-module + docs
+- `src/app/finance/_shared/transferStore.ts` — module-level singleton so a Cash Book
+  Bank↔Cash transfer posts the paired Bank Book entry (both books seed `mock + store`).
+- `docs/modules/finance/BANK_LEDGER_MAPPING.md` — schema + service design for ledger
+  persistence (source links, paired posting, reconciliation) — deferred to a DB phase.
+- Rewrote `docs/modules/finance/UI_REQUIREMENTS.md` to the full 12-screen spec.
+
+### Fixed
+- **Bank↔Cash transfer not reflecting in Bank Book** — Cash Book transfer now creates both
+  legs (cash + paired bank, cross-referenced) via the shared store.
+
+### Changed
+- **Filters moved to the top of all 3 finance pages, made collapsible** (collapsed by default,
+  click the "Filters" bar to expand) with an active-filter count badge.
+
+### Files Modified
+- `src/lib/roles.ts`, `src/components/SidebarLinks.tsx`, `src/app/mobile/MobileApp.tsx`,
+  `src/app/mobile/components/MIcon.tsx`, `src/app/mobile/screens/MeScreen.tsx`,
+  `src/app/mobile/screens/QuickLogSheet.tsx`, `docs/modules/finance/UI_REQUIREMENTS.md`.
+- New: everything under `src/app/finance/`, two mobile screens, `BANK_LEDGER_MAPPING.md`.
+
+### Database Changes
+- **None.** No schema, no migrations, no Prisma model changes this session.
+
+### Config Changes
+- **None.**
 
 ---
 
