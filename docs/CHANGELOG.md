@@ -46,6 +46,21 @@ Dates from git history (branch `master`).
   /api/admin/identity/policies/[roleId]`. All dual-mode (live DB / mock). `/settings/users-roles` now
   redirects to `/settings/identity`. `Settings/Identity/VIEW` and `EDIT` added to `PERMISSION_CATALOGUE`.
   `tsc` clean, `next build` clean.
+- **🆕 2026-06-04 — Admin Console Phase 5 — Policy Engine Foundation implemented, UNCOMMITTED:**
+  Centralized reusable Policy Engine at `/settings/policies` — policies, rules, lifecycle, version history
+  and audit log. Policy Engine service (`src/lib/policy-engine/`): `conditions.ts` (9 operators, dot-notation
+  field resolution), `actions.ts` (6 action types), `rules.ts` (priority-ordered evaluation, BLOCK
+  short-circuit), `versioning.ts` (snapshot builder), `policy.ts` (`listPolicies`/`transitionPolicyStatus`),
+  `index.ts` (`evaluatePolicy` — fail-open pre-migration). 6 new DB models (PolicyCategory, Policy,
+  PolicyRule, PolicyVersion, PolicyAudit, ConfigurationVersion). Offline migration SQL
+  `20260604120000_policy_engine_foundation`. Admin UI: 7 components (PolicyList, PolicyEditor with
+  3-section tabs, RuleBuilder with inline enable/disable, ConditionBuilder IF/THEN, ActionBuilder,
+  PolicyVersionHistory, PolicyAudit). 6 API routes (`GET/POST /api/admin/policies`, `PATCH [id]`,
+  `GET [id]/versions`, `GET audit`, `GET categories`, `POST evaluate`). `Settings/Policy/VIEW+EDIT`
+  added to PERMISSION_CATALOGUE. Policy Engine entry added to `adminModules.ts`. Seed:
+  `prisma/seed-policy-defaults.ts` (6 categories, 3 default policies). `settings.ts` extended with
+  `getPublishedSetting`/`draftSetting`/`publishSettingVersion`. `tsc` clean, `next build` clean.
+  **Migration NOT yet applied to dev/prod DB — all API routes fail-open to mock data until then.**
 - **Latest commit:** `ce29704` (session memory snapshot). **All work from 2026-06-04 is uncommitted.**
 - **Prod note:** unchanged; confirm `200` on `/login` before/after any push. Pre-`1ab4f7d`
   JWTs still need one sign-out + in to pick up live role.

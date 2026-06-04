@@ -4,6 +4,30 @@ Defined as CSS custom properties in `src/app/globals.css` (`:root`). Tailwind v4
 present but most styling uses these tokens + hand-written component classes.
 **Reuse tokens — never hardcode hex values in components.**
 
+> **2026-06-04 Session 2:** **no token/theme changes.** Settings Hub 26-card grid and AdminClient
+> 14-tab expansion reuse existing tokens and component classes. Dashboard role-adaptive sections
+> reuse `.kpi`, `.card`, `.crm-table`. The `roleVariant` discriminator adds no visual tokens —
+> it only controls which existing sections render.
+
+> **2026-06-04 Session 1:** **no token/theme changes.** Expense Categories + Global Vendor/Customer Masters
+> reuse existing tokens and component classes. Two **enterprise master-data patterns** established
+> (reuse for any future master): **(1) tabbed profile drawer** — a wide `.detail-pane`
+> (`min(840px,96vw)`) with a horizontal scrollable tab bar (active tab = `--caveo-red` underline)
+> over a scrollable `.dp-body`, footer actions pinned; used by `VendorProfile` (9 tabs) and
+> `CustomerProfile` (12 tabs). **(2) inline sub-entity managers** — card list + inline add/edit
+> form + set-primary star, for branches/sites/contacts/banks (`VendorBranchManager`,
+> `CustomerSiteManager`, etc.). Also: a reusable **toggle switch** (custom 36×20 pill) and a
+> **GSTIN validator field** with green/orange/red inline feedback (`GSTRegistrationPanel`). Money
+> on these screens is ₹ rupees (`fmtINR`). Same collapsible top filter bar as the finance pages.
+
+> **2026-06-03:** **no token/theme changes.** Finance Phase 2 UI reuses existing tokens +
+> component classes (`.kpi`, `.card`, `.crm-table`, `.btn-cav`, `.badge-*`, `.detail-pane`,
+> `.seg-control`). New repeatable pattern: **collapsible top filter bar** — a `card-header`
+> rendered as a toggle button (Filter icon + "Filters" + active-count `badge-accent` + chevron),
+> body shown only when expanded, collapsed by default, positioned above the KPI strip. Note:
+> finance web pages render money in **₹ rupees** (petty-cash realism) rather than the app-wide
+> ₹ Lakhs — a deliberate, temporary divergence until backend wiring normalises it.
+
 > **2026-06-02:** **no token/theme changes** this session. New mobile finance screens
 > (`CollectionsScreen`, Pipeline Opportunities segment, Today collections KPIs — `5ba865a`)
 > reuse the existing `.m-*` mobile classes and tokens (no new design primitives). Finance

@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import {
   Settings, GitBranch, Target, Database,
   List, Sliders, ShieldCheck, Save, RotateCcw,
-  ChevronRight, Info, CheckCircle, AlertCircle, Users
+  ChevronRight, Info, CheckCircle, AlertCircle, Users,
+  Receipt, BookUser, ClipboardCheck,
 } from "lucide-react";
 import RolesClient from "./RolesClient";
 
@@ -17,17 +18,20 @@ type Setting = {
 };
 
 const TABS = [
-  { id: "roles",        label: "Roles & Access",    icon: Users      },
-  { id: "pipeline",     label: "Pipeline",          icon: GitBranch  },
-  { id: "sales_funnel", label: "Sales Funnel",       icon: Sliders    },
-  { id: "collections",  label: "Collections",        icon: Database   },
-  { id: "lead_gen",     label: "Lead Generation",    icon: List       },
-  { id: "tasks",        label: "Tasks",              icon: CheckCircle},
-  { id: "daily_updates",label: "Daily Updates",      icon: List       },
-  { id: "crm",          label: "CRM Master Data",    icon: Database   },
-  { id: "kra",          label: "KRA Weights",       icon: Target     },
-  { id: "kra_targets",  label: "KRA Targets",       icon: Target     },
-  { id: "system",       label: "System",            icon: Settings   },
+  { id: "roles",        label: "Roles & Access",    icon: Users         },
+  { id: "pipeline",     label: "Pipeline",          icon: GitBranch     },
+  { id: "sales_funnel", label: "Sales Funnel",       icon: Sliders       },
+  { id: "collections",  label: "Collections",        icon: Database      },
+  { id: "lead_gen",     label: "Lead Generation",    icon: List          },
+  { id: "tasks",        label: "Tasks",              icon: CheckCircle   },
+  { id: "daily_updates",label: "Daily Updates",      icon: List          },
+  { id: "crm",          label: "CRM Master Data",    icon: Database      },
+  { id: "kra",          label: "KRA Weights",        icon: Target        },
+  { id: "kra_targets",  label: "KRA Targets",        icon: Target        },
+  { id: "finance",      label: "Finance Ops",        icon: Receipt       },
+  { id: "approvals",    label: "Approvals",          icon: ClipboardCheck},
+  { id: "masters",      label: "Masters",            icon: BookUser      },
+  { id: "system",       label: "System",             icon: Settings      },
 ];
 
 // ── Value editors ────────────────────────────────────────────────────────────

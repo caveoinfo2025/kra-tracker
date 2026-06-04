@@ -65,3 +65,43 @@ export function usesFinanceNav(user?: SessionUser | null): boolean {
   // finance-focused sidebar.
   return !user?.isManager && (isAccounts(user) || isOperationsHead(user));
 }
+
+/**
+ * Can access the Finance Operations module (/finance/* routes).
+ * Same set as canManagePayments — managers, Accounts, and Operations Head.
+ */
+export function canManageFinance(user?: SessionUser | null): boolean {
+  return !!user?.isManager || isAccounts(user) || isOperationsHead(user);
+}
+
+/**
+ * Is Head of Sales — matched flexibly so "Head of Sales", "Sales Head",
+ * "VP Sales" etc. all qualify.
+ */
+export function isHeadOfSales(user?: SessionUser | null): boolean {
+  const r = roleText(user);
+  return (
+    (r.includes("head") && r.includes("sales")) ||
+    r.includes("sales head") ||
+    r.includes("vp sales") ||
+    r.includes("vp of sales")
+  );
+}
+
+/**
+ * Can access Settings (Administration, Users & Roles, Approval Engine config).
+ * Operations Head = full config admin. Head of Sales = full access.
+ */
+export function canAccessSettings(user?: SessionUser | null): boolean {
+  return isOperationsHead(user) || isHeadOfSales(user);
+}
+
+// ── Phase 3 migration bridge ──────────────────────────────────────────────────
+// The predicates above are the legacy role-string system (AppRole + isManager).
+// New code should prefer the DB-driven permission service:
+//
+//   import { hasPermission, canAccessScope } from "@/lib/access-control";
+//   const ok = await hasPermission(userId, "CRM", "Lead", "EDIT");
+//
+// Phase 3 will gradually replace each predicate above with hasPermission() calls
+// so both systems remain live until the migration is complete.

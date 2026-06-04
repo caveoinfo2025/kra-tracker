@@ -2,7 +2,7 @@ import { signOut } from "@/../auth";
 import { getSession } from "@/lib/dev-session";
 import { cookies } from "next/headers";
 import SidebarLinks from "./SidebarLinks";
-import { isOperationsHead, isAccounts as isAccountsRole } from "@/lib/roles";
+import { isOperationsHead, isAccounts as isAccountsRole, isHeadOfSales } from "@/lib/roles";
 import { LogOut } from "lucide-react";
 import prisma from "@/lib/prisma";
 
@@ -26,9 +26,11 @@ export default async function Navbar() {
   const liveUser = { isManager, role };
 
   // Accounts and Operations Head both use the finance-focused sidebar.
-  const opsHead = isOperationsHead(liveUser);
-  const isOpsHead = !isManager && opsHead;
+  const opsHead   = isOperationsHead(liveUser);
+  const salesHead = isHeadOfSales(liveUser);
+  const isOpsHead  = !isManager && opsHead;
   const isAccounts = !isManager && (isAccountsRole(liveUser) || opsHead);
+  const showSettings = opsHead || salesHead || isManager;
 
   // Compute initials from name
   const displayName: string = (user.employeeName ?? user.name ?? "?") as string;
@@ -64,6 +66,8 @@ export default async function Navbar() {
       <SidebarLinks
         isManager={isManager}
         isAccounts={isAccounts}
+        showSettings={showSettings}
+        isOpsHead={opsHead}
       />
 
       {/* ── Footer: user chip + sign out ── */}

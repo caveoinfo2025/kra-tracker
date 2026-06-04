@@ -12,6 +12,8 @@ import MeScreen from "./screens/MeScreen";
 import TeamScreen from "./screens/TeamScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
 import CollectionsScreen from "./screens/CollectionsScreen";
+import ExpenseClaimScreen from "./screens/ExpenseClaimScreen";
+import ConveyanceScreen from "./screens/ConveyanceScreen";
 import QuickLogSheet from "./screens/QuickLogSheet";
 import LogActivitySheet from "./screens/LogActivitySheet";
 import ScanCardScreen from "./screens/ScanCardScreen";
@@ -27,7 +29,9 @@ type Screen =
   | { type: "team"; mode: "pipeline" | "kra" }
   | { type: "scan" }
   | { type: "compose" }
-  | { type: "collections" };
+  | { type: "collections" }
+  | { type: "expense" }
+  | { type: "conveyance" };
 
 type LogSheet = { kind: "call" | "meeting"; lead: MobileLead | null } | null;
 
@@ -93,6 +97,16 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
     setShowQuickLog(false);
   }
 
+  function pushExpense() {
+    setScreen({ type: "expense" });
+    setShowQuickLog(false);
+  }
+
+  function pushConveyance() {
+    setScreen({ type: "conveyance" });
+    setShowQuickLog(false);
+  }
+
   // Navigate to Opportunities: switch to pipeline tab in opps view
   function pushOpportunities() {
     switchTab("pipeline");
@@ -110,6 +124,10 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
       setScreen({ type: "scan" });
     } else if (type === "call" || type === "meeting") {
       setLogSheet({ kind: type, lead: null });
+    } else if (type === "expense") {
+      setScreen({ type: "expense" });
+    } else if (type === "conveyance") {
+      setScreen({ type: "conveyance" });
     }
   }
 
@@ -175,6 +193,22 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
         />
       );
     }
+    if (screen.type === "expense") {
+      return (
+        <ExpenseClaimScreen
+          onBack={popScreen}
+          onSubmitted={showToast}
+        />
+      );
+    }
+    if (screen.type === "conveyance") {
+      return (
+        <ConveyanceScreen
+          onBack={popScreen}
+          onSubmitted={showToast}
+        />
+      );
+    }
 
     // Tab views
     if (activeTab === "home") {
@@ -222,6 +256,8 @@ export default function MobileApp({ userName, userEmail, isManager, employeeId }
           onTasks={() => switchTab("pipeline")}
           onCollections={pushCollections}
           onOpportunities={pushOpportunities}
+          onExpense={pushExpense}
+          onConveyance={pushConveyance}
         />
       );
     }

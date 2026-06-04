@@ -53,6 +53,20 @@ model Employee {
   travelClaimsApproved     TravelClaim[]     @relation("TravelClaimApprovedBy")
   auditLogs                AuditLog[]        @relation("AuditPerformedBy")
 
+  // ── Admin Console Phase 2 (back-references — no DB columns on Employee) ──
+  employeeProfile  EmployeeProfile?  @relation("ProfileEmployee")
+  reporteeProfiles EmployeeProfile[] @relation("ProfileReportingManager")
+  teamLeadOf       Team[]            @relation("TeamLead")
+  userRoles        UserRole[]
+
+  // ── Phase 5 — Policy Engine (back-references — no DB columns on Employee) ──
+  policiesCreated      Policy[]               @relation("PolicyCreatedBy")
+  policiesApproved     Policy[]               @relation("PolicyApprovedBy")
+  policyVersions       PolicyVersion[]        @relation("PolicyVersionCreatedBy")
+  policyAudits         PolicyAudit[]          @relation("PolicyAuditPerformedBy")
+  configVersionsChanged  ConfigurationVersion[] @relation("ConfigVersionChangedBy")
+  configVersionsReviewed ConfigurationVersion[] @relation("ConfigVersionReviewedBy")
+
   @@index([reportsToId])
 }
 
@@ -736,4 +750,378 @@ model AuditLog {
   @@index([performedById])
   @@index([action])
   @@index([createdAt])
+}
+
+// ============================================================
+// Admin Console — Phase 2 Foundation
+// Org Structure · Employee Profile Extension · Enterprise RBAC
+// Provider: mysql · All String long-text → @db.Text
+// Every FK + filter column is indexed. No workflow/finance yet.
+// ============================================================
+
+// ── 1. Tenant — top-level organisation group ──────────────────
+model Tenant {
+  id        Int       @id @default(autoincrement())
+  name      String
+  code      String    @unique
+  status    String    @default("ACTIVE")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  companies Company[]
+  roles     Role[]
+
+  @@index([status])
+}
+
+// ── 2. Company ────────────────────────────────────────────────
+model Company {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  companyName String
+  legalName   String   @default("")
+  companyCode String   @default("")
+  gstNumber   String   @default("")
+  panNumber   String   @default("")
+  email       String   @default("")
+  phone       String   @default("")
+  website     String   @default("")
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branches         Branch[]
+  departments      Department[]
+  designations     Designation[]
+  employeeProfiles EmployeeProfile[]
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// ── 3. Branch ─────────────────────────────────────────────────
+model Branch {
+  id         Int      @id @default(autoincrement())
+  companyId  Int
+  branchName String
+  branchCode String   @default("")
+  address    String   @default("") @db.Text
+  city       String   @default("")
+  state      String   @default("")
+  country    String   @default("India")
+  timezone   String   @default("Asia/Kolkata")
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeProfiles EmployeeProfile[]
+
+  @@index([companyId])
+  @@index([status])
+}
+
+// ── 4. Department ─────────────────────────────────────────────
+model Department {
+  id          Int      @id @default(autoincrement())
+  companyId   Int
+  name        String
+  code        String   @default("")
+  description String   @default("") @db.Text
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  teams            Team[]
+  employeeProfiles EmployeeProfile[]
+
+  @@index([companyId])
+  @@index([status])
+}
+
+// ── 5. Team ───────────────────────────────────────────────────
+model Team {
+  id           Int      @id @default(autoincrement())
+  departmentId Int
+  name         String
+  teamLeadId   Int?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department       Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  teamLead         Employee?         @relation("TeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
+  employeeProfiles EmployeeProfile[]
+
+  @@index([departmentId])
+  @@index([teamLeadId])
+  @@index([status])
+}
+
+// ── 6. Designation ────────────────────────────────────────────
+model Designation {
+  id          Int      @id @default(autoincrement())
+  companyId   Int
+  title       String
+  level       Int      @default(1)
+  description String   @default("") @db.Text
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeProfiles EmployeeProfile[]
+
+  @@index([companyId])
+  @@index([status])
+}
+
+// ── 7. EmployeeProfile — enterprise HR record (extends Employee) ──
+// employmentStatus: DRAFT | ACTIVE | SUSPENDED | INACTIVE
+model EmployeeProfile {
+  id                 Int       @id @default(autoincrement())
+  userId             Int       @unique // FK → Employee.id (Employee IS the auth user)
+  employeeCode       String    @default("")
+  companyId          Int?
+  branchId           Int?
+  departmentId       Int?
+  teamId             Int?
+  designationId      Int?
+  reportingManagerId Int?
+  joiningDate        DateTime?
+  employmentStatus   String    @default("ACTIVE")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  employee          Employee     @relation("ProfileEmployee", fields: [userId], references: [id], onDelete: Cascade)
+  company           Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  branch            Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department        Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  team              Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  designation       Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  reportingManager  Employee?    @relation("ProfileReportingManager", fields: [reportingManagerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([departmentId])
+  @@index([teamId])
+  @@index([designationId])
+  @@index([reportingManagerId])
+  @@index([employmentStatus])
+}
+
+// ── 8. Role — enterprise role (additive; AppRole legacy kept) ──
+// isSystemRole: true means not deletable via UI
+model Role {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int?
+  name         String
+  description  String   @default("") @db.Text
+  level        Int      @default(1)
+  isSystemRole Boolean  @default(false)
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant            Tenant?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  rolePermissions   RolePermission[]
+  userRoles         UserRole[]
+  dataAccessPolicies DataAccessPolicy[]
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// ── 9. Permission — granular action catalogue ─────────────────
+// Unique per (module, resource, action) — same across all tenants.
+model Permission {
+  id          Int    @id @default(autoincrement())
+  module      String // CRM | Finance | Workflow | Settings | Reports | Masters
+  resource    String // Lead | Opportunity | Expense | Invoice | ...
+  action      String // VIEW | CREATE | EDIT | DELETE | APPROVE | EXPORT | IMPORT | ASSIGN
+  description String @default("") @db.Text
+
+  rolePermissions RolePermission[]
+
+  @@unique([module, resource, action])
+  @@index([module])
+}
+
+// ── 10. RolePermission — grants permission to a role ──────────
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  createdAt    DateTime   @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// ── 11. UserRole — multiple roles per employee ────────────────
+model UserRole {
+  id        Int      @id @default(autoincrement())
+  userId    Int      // FK → Employee.id
+  roleId    Int
+  createdAt DateTime @default(now())
+
+  employee  Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+// ── 12. DataAccessPolicy — per-role data visibility scope ─────
+// scope: OWN | TEAM | DEPARTMENT | BRANCH | COMPANY | ALL
+// filterJson: optional JSON string for additional WHERE constraints
+model DataAccessPolicy {
+  id         Int      @id @default(autoincrement())
+  roleId     Int
+  module     String   @default("")
+  scope      String   @default("OWN")
+  filterJson String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, module])
+  @@index([roleId])
+  @@index([scope])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 5 — Policy Engine
+// ═══════════════════════════════════════════════════════════════
+
+// ── 13. PolicyCategory — groups policies by domain ────────────
+model PolicyCategory {
+  id          Int      @id @default(autoincrement())
+  name        String
+  code        String   @unique
+  description String   @default("") @db.Text
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  policies Policy[]
+
+  @@index([status])
+}
+
+// ── 14. Policy — a versioned, lifecycle-managed business rule ─
+// scopeType: GLOBAL | COMPANY | BRANCH | DEPARTMENT | ROLE | USER
+// status:    DRAFT | REVIEW | ACTIVE | INACTIVE | ARCHIVED
+model Policy {
+  id            Int       @id @default(autoincrement())
+  categoryId    Int
+  name          String
+  code          String    @unique
+  description   String    @default("") @db.Text
+  scopeType     String    @default("GLOBAL")
+  scopeId       Int?
+  status        String    @default("DRAFT")
+  version       Int       @default(1)
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  createdBy     Int
+  approvedBy    Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  category PolicyCategory @relation(fields: [categoryId], references: [id])
+  creator  Employee       @relation("PolicyCreatedBy",  fields: [createdBy],  references: [id])
+  approver Employee?      @relation("PolicyApprovedBy", fields: [approvedBy], references: [id])
+
+  rules    PolicyRule[]
+  versions PolicyVersion[]
+  audits   PolicyAudit[]
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([scopeType, scopeId])
+}
+
+// ── 15. PolicyRule — individual IF/THEN rule inside a policy ──
+model PolicyRule {
+  id            Int      @id @default(autoincrement())
+  policyId      Int
+  ruleName      String
+  priority      Int      @default(10)
+  conditionJson String   @db.Text  // JSON: { field, operator, value } or { and/or: [...] }
+  actionJson    String   @db.Text  // JSON: { type, ...params }
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@index([priority])
+}
+
+// ── 16. PolicyVersion — immutable snapshot per publish cycle ──
+model PolicyVersion {
+  id            Int      @id @default(autoincrement())
+  policyId      Int
+  versionNumber Int
+  snapshotJson  String   @db.Text  // full Policy + rules JSON at publish time
+  changeReason  String   @default("") @db.Text
+  createdBy     Int
+  createdAt     DateTime @default(now())
+
+  policy  Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  creator Employee @relation("PolicyVersionCreatedBy", fields: [createdBy], references: [id])
+
+  @@unique([policyId, versionNumber])
+  @@index([policyId])
+}
+
+// ── 17. PolicyAudit — every change to a policy ───────────────
+model PolicyAudit {
+  id          Int      @id @default(autoincrement())
+  policyId    Int
+  action      String   // CREATED | UPDATED | STATUS_CHANGED | RULE_ADDED | RULE_REMOVED | PUBLISHED | ARCHIVED
+  oldValue    String?  @db.Text
+  newValue    String?  @db.Text
+  performedBy Int
+  createdAt   DateTime @default(now())
+
+  policy    Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  performer Employee @relation("PolicyAuditPerformedBy", fields: [performedBy], references: [id])
+
+  @@index([policyId])
+  @@index([performedBy])
+}
+
+// ── 18. ConfigurationVersion — Draft→Review→Published settings ─
+// Enables lifecycle management for AppSetting values.
+// getSetting() reads the latest published version; falls back to AppSetting row.
+model ConfigurationVersion {
+  id           Int       @id @default(autoincrement())
+  settingKey   String
+  value        String    @db.Text  // JSON-encoded setting value
+  version      Int
+  module       String
+  status       String    @default("draft")  // draft | in_review | published | rolled_back
+  changedById  Int
+  reviewedById Int?
+  publishedAt  DateTime?
+  note         String?   @db.Text
+  createdAt    DateTime  @default(now())
+
+  changedBy  Employee  @relation("ConfigVersionChangedBy",  fields: [changedById],  references: [id])
+  reviewedBy Employee? @relation("ConfigVersionReviewedBy", fields: [reviewedById], references: [id])
+
+  @@unique([settingKey, version])
+  @@index([settingKey, status])
+  @@index([changedById])
 }

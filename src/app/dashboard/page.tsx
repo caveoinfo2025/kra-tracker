@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
+import { isOperationsHead } from "@/lib/roles";
 import DashboardClient from "./DashboardClient";
 import type { DashboardProps } from "./DashboardClient";
 
@@ -58,11 +59,26 @@ export default async function DashboardPage({
   const currentWeek = getWeekNumber(now);
   const currentYear = now.getFullYear();
   const hour = now.getHours();
-  const isManager = !!session.user.isManager;
   const empId = session.user.employeeId!;
 
-  // ─── Manager Dashboard Data ───────────────────────────────────────────────
-  if (isManager) {
+  // Live-read role + isManager from DB (JWT may be stale after role change)
+  let isManager = !!session.user.isManager;
+  let liveRole = session.user.role ?? "";
+  if (session.user.employeeId) {
+    const emp = await prisma.employee.findUnique({
+      where: { id: session.user.employeeId },
+      select: { isManager: true, role: true },
+    });
+    if (emp) { isManager = emp.isManager; liveRole = emp.role; }
+  }
+  const liveUser = { isManager, role: liveRole };
+  const isOpsHead = isOperationsHead(liveUser);
+  const isTechHead = /technical[\s-]*head|tech[\s-]*head/i.test(liveRole);
+  const roleVariant: DashboardProps["roleVariant"] =
+    isOpsHead ? "opsHead" : isTechHead ? "techHead" : isManager ? "manager" : "employee";
+
+  // ─── Leadership Dashboard Data (manager / opsHead / techHead) ─────────────
+  if (roleVariant !== "employee") {
     const [employees, allTasks, allLeads, allOpps, allCollections, pendingCerts, legacyWonAgg] =
       await Promise.all([
         prisma.employee.findMany({
@@ -217,6 +233,7 @@ export default async function DashboardPage({
 
     const props: DashboardProps = {
       isManager: true,
+      roleVariant,
       employeeName: session.user.employeeName ?? session.user.name ?? "Manager",
       period,
       currentWeek,
@@ -374,6 +391,7 @@ export default async function DashboardPage({
 
   const props: DashboardProps = {
     isManager: false,
+    roleVariant: "employee",
     employeeName: session.user.employeeName ?? session.user.name ?? "there",
     period,
     currentWeek,

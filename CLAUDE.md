@@ -83,6 +83,20 @@ planned changes, modify only required files.
    `…/public_html/.builds/config/.env`; server Node at `/opt/alt/alt-nodejs22/root/usr/bin`.
    Repeated rebuilds/restarts can pile up `next-server` workers and hit the CloudLinux LVE
    limit (`bash: fork: Resource temporarily unavailable`) → recover via hPanel → Restart app.
+9. **PWA service worker caches stale assets in dev (`caveo-crm-v1`).** The `/mobile` PWA
+   registers a service worker (`src/app/mobile/ServiceWorkerRegistrar.tsx`) that caches the
+   app shell for the whole origin. During dev it will serve **old JS chunks even after you
+   edit files, clear `.next`, and restart the server** — symptom: "my change isn't showing."
+   Fix: in DevTools console run
+   `navigator.serviceWorker.getRegistrations().then(r=>r.forEach(x=>x.unregister()));`
+   `caches.keys().then(k=>k.forEach(x=>caches.delete(x)));` then hard-reload. (TODO: make the
+   registrar skip dev or go network-first.)
+10. **Turbopack only hot-reloads EDITS, not newly-CREATED sibling files.** After adding a new
+    `.tsx`/`.ts` file, the dev server may report `Module not found` for it until you **restart
+    the dev server**. Editing an existing file is fine. Also: stray orphaned `next dev`
+    processes can hold port 3000 and serve old code — kill all `node`/`next dev` before a clean start.
+11. **`.next/dev/types/*` TS errors are stale-cache noise.** If `npx tsc --noEmit` reports
+    errors only inside `.next/dev/types/`, delete `.next` and re-run — your source is fine.
 
 ## Session-ending rule
 Before ending every session, update:
@@ -163,3 +177,66 @@ Cash/Bank tables), plus `AuditLog` (new) and `VoucherSequence` (supporting).
   the var inline: `$env:DATABASE_URL="mysql://…"; npx prisma migrate deploy`. The Next.js dev
   server *does* auto-load `.env`.
 - Dev quick-login: `/login` → "Select an employee to log in as" (lists the 7 seeded users).
+
+---
+
+## Finance Operations Module — Phase 2 UI (2026-06-03, UI-only, UNCOMMITTED)
+
+Phase 2 **UI** is built end-to-end on **mock data** — **no API routes, no schema/migration
+changes** this session. Lives under `src/app/finance/`. Each module has its own `data.ts`
+(types + mock + helpers + `deriveCaps`). **Money is shown in ₹ rupees in the finance web
+pages** (Cash/Bank/Expense) — distinct from the app-wide ₹ Lakhs; normalise when wiring the
+backend.
+
+- **Pages:** `/finance` (Dashboard), `/finance/bank-book`, `/finance/cash-book`,
+  `/finance/expenses` (+`/new`, `/categories`), `/finance/vendors`, `/finance/claims`,
+  `/finance/advances`, `/finance/conveyance`, `/finance/approvals`, `/finance/vouchers`,
+  `/finance/reports`. Mobile: `ExpenseClaimScreen`, `ConveyanceScreen`.
+- **RBAC:** finance pages gate on `canManageFinance` (except own-data pages); per-tier
+  capabilities derive in each `data.ts` (`deriveCaps`/`deriveExpenseCaps`) → Accounts Admin
+  (Ops Head), Accounts Team (Accounts), Manager, Employee/Branch User.
+- **Reuse:** Cash Book and Expense Register re-use Bank Book helpers/components (e.g.
+  `CashBalanceCard` re-exports `BankBalanceCard`). Keep the two books visually identical.
+- **Cross-module store:** `src/app/finance/_shared/transferStore.ts` makes Bank↔Cash
+  transfers post both legs; in-memory, persists only across client-side nav (resets on hard
+  reload). Real persistence design: `docs/modules/finance/BANK_LEDGER_MAPPING.md`.
+- **When wiring the backend:** the screens define the exact data shapes in `data.ts`; build
+  CRUD/services to match, follow the MySQL Prisma rules above, and replace the mock arrays.
+
+---
+
+## Global Masters + Expense Categories — UI (2026-06-04, UI-only, UNCOMMITTED)
+
+Three enterprise UI modules added — **all mock data, no API routes, no schema/migration changes.**
+`npx tsc --noEmit` clean; pages verified `200`.
+
+- **Expense Categories** (`src/app/finance/expenses/categories/`, 8 files) — a
+  **configuration-driven category engine** (`data.ts` + `ExpenseCategoriesClient` +
+  `CategoryTable/Filters/Form/Drawer/TemplateLoader`). `CategoryForm` = 9 config sections
+  (Basic, Usage, Payment modes, Document rules, GST, Approval, Grade-policy, Customer-cost, Tally).
+- **Global Vendor Master** (`src/app/masters/vendors/`, 14 files) — one `Vendor` for Finance/
+  Expense/Procurement/Inventory/Projects/Support/Assets/Tally. `data.ts` holds the **canonical
+  `validateGSTIN` + Indian GST state-code map** (reused by Customer Master). Components incl.
+  `VendorProfile` (9-tab), multi-branch+GST, contacts, banks, docs, and the reusable
+  **`GSTRegistrationPanel`/`GSTINBadge`**. `/finance/vendors` **redirects** to `/masters/vendors`.
+- **Global Customer Master** (`src/app/masters/customers/`, 16 files) — one `Customer` for CRM
+  Sales/Opps/Quotations/Orders/Projects/Support/AMC/Assets/Finance/Profitability/Engineer-Visits/
+  Conveyance. Hierarchy, multi-site (per-site GST + geo), contacts, commercial, assets,
+  profitability, 12-tab profile, duplicate detection. **EXTENDS the existing `Customer` model —
+  never duplicate it.** The legacy operational `/customers` page (live CRM import + dedupe) is
+  **preserved and unchanged**.
+
+**Rules for these modules:**
+- **Masters are GLOBAL** — one record referenced by every module via a common ID. Do NOT create
+  per-module vendor/customer tables. Backend wiring extends the existing `Vendor`/`Customer`
+  models (+ child tables), it does not add parallel models.
+- **Reuse, don't duplicate** — Customer Master imports the GST validator/panel/badge from
+  `masters/vendors`; both masters reuse `finance/expenses/components/ExpenseSummaryCard`.
+- **RBAC is client-side only** for now (`deriveCatCaps`/`deriveVendorCaps`/`deriveCustomerCaps`
+  in each `data.ts`) — enforce server-side when CRUD APIs are built.
+- New sidebar **Masters** section (Customer Master + Vendor Master) in `SidebarLinks.tsx`. There
+  are currently **two "Customer Master" entries** (global `/masters/customers` + legacy
+  `/customers`) pending consolidation.
+- **Dev-login gotcha reinforced:** an orphaned `next dev` on port 3000 serves a stale Turbopack
+  route tree where `/api/dev/switch` 404s → quick-login fails. Recovery: kill the port-3000
+  process, `rm -rf .next`, restart (gotcha #10).

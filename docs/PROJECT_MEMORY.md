@@ -19,19 +19,36 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-02, end of session)
-- **Database is MySQL/MariaDB 11.8** (migration from SQLite complete + verified earlier).
-- **🆕 Finance Operations Module — Phase 1 (database layer) is implemented and tested on a
-  dev database, but UNCOMMITTED.** 10 new Prisma models, migration
-  `20260602120000_finance_operations_phase1`, finance config seed + 2 dev-only seeds. No API
-  or UI yet (Phase 2+). Verified against the Hostinger **dev** DB `u686730471_caveodev`
-  (migrate + seed + FK round-trip + dev quick-login + Prisma Studio all passed).
-- **Mobile finance screens shipped this session** (`5ba865a`): mobile `CollectionsScreen`,
-  Pipeline Leads|Opportunities segment, collections KPIs on the Today dashboard.
-- **Decision to make next session:** commit + push Phase 1 (applies the migration to
-  PRODUCTION on the next Hostinger build — confirm with Vijesh) vs. start Phase 2.
-- **Prod note:** the LVE outage flagged during the migration session was NOT re-verified this
-  session (all work used a separate dev DB). Confirm `200` on `/login` around the next push.
+## 0. Current status (2026-06-04, end of session 2)
+- **Database is MySQL/MariaDB 11.8.** **Finance Phase 1 (DB) is committed/pushed** (`1747f9e`).
+- **Finance Operations — Phase 2 UI (2026-06-03)** built end-to-end, UI-ONLY mock, UNCOMMITTED.
+- **🆕 2026-06-04 Session 2 additions (all uncommitted):**
+  - **Role-Adaptive Dashboard** — `roleVariant` discriminator; Operations Head + Technical Head
+    see team-oriented views; only Managers see the sales funnel. Live DB role refresh.
+  - **Settings Hub** expanded: 10 → 26 cards across 7 sections.
+  - **AdminClient** expanded: 11 → 14 tabs (Finance Ops, Approvals, Masters added).
+  - **`settings.ts`** extended: 16 new setting defaults across Finance, Approvals, Masters categories.
+  - **`docs/ADMIN_ARCHITECTURE_PLAN.md`** created: 10-section enterprise migration plan targeting
+    a 12-module Admin Console (6 phases, 12 sprints, full DB architecture).
+- **🆕 2026-06-04 Session 1 — three enterprise UI modules added, UI-ONLY on MOCK data, UNCOMMITTED:**
+  1. **Expense Categories** (`/finance/expenses/categories`, 8 files) — configuration-driven
+     category engine (usage flags, payment modes, document rules, GST, approval, grade limits,
+     customer-cost, Tally mapping; parent/sub hierarchy; load-from-template).
+  2. **Global Vendor Master** (`/masters/vendors`, 14 files) — one `Vendor` for Finance/Expense/
+     Procurement/Inventory/Projects/Support/Assets/Tally; branches+GST, contacts, banks, docs,
+     9-tab profile, GSTIN validator. `/finance/vendors` redirects here.
+  3. **Global Customer Master** (`/masters/customers`, 16 files) — one `Customer` for CRM Sales/
+     Opps/Quotations/Orders/Projects/Support/AMC/Assets/Finance/Profitability/Engineer-Visits/
+     Conveyance; hierarchy, multi-site+GST+geo, contacts, commercial, assets, profitability,
+     12-tab profile, duplicate detection. **Extends** the existing `Customer` model (does NOT
+     duplicate; legacy `/customers` DB import/dedupe untouched).
+- New sidebar **Masters** section (Customer + Vendor). **No API routes, no schema changes.**
+  Money in ₹ rupees. `npx tsc --noEmit` clean; pages verified `200` live.
+- **Also fixed:** dev login (orphaned `next dev` on port 3000 served a stale route tree →
+  `/api/dev/switch` 404). Recovery: kill orphan, clear `.next`, restart.
+- **Decision pending (asked Vijesh):** consolidate the two "Customer Master" nav entries
+  (new global `/masters/customers` vs legacy operational `/customers`).
+- **Prod note:** unchanged. Confirm `200` on `/login` before/after the next push.
 
 ## 2. Roles (Employee.role + isManager)
 | Role | Access summary |
@@ -63,16 +80,54 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   auto-seed when empty; customer-name autocomplete across all CRM sources.
 - **Dashboards** — manager + employee variants; period filter (Today/Week/Month/Quarter);
   clickable KPI tiles linking to detail pages; charts.
-- **Admin panel** (`/admin`, manager-only) — Settings (106 config keys, `AppSetting`) +
-  Roles & Access matrix (`AppRole`/`RolePageAccess`). Data-free; config/rules only.
+- **Admin panel** (`/admin`, manager-only) — Settings (122 config keys including 16 new Finance/
+  Approvals/Masters keys, `AppSetting`, 14 tabs) + Roles & Access matrix (`AppRole`/`RolePageAccess`).
+  Data-free; config/rules only.
+- **Settings Hub** (`/settings`) — 26-card navigation grid across 7 sections: General, Workflow,
+  People, Masters, Finance, CRM & Sales, System. Entry point to all configuration.
+- **Role-Adaptive Dashboard** — `roleVariant` discriminator derived from live DB role. Ops Head
+  sees Finance/HR/team KRA view; Tech Head sees team KRA/tasks; Manager sees full sales funnel;
+  Employee sees own KRA. No stale JWT — role read fresh on every dashboard load.
 - **Mobile app** (`/mobile`) — 13 screens incl. business-card OCR (`/api/ocr/business-card`),
   team views, quick activity/call/meeting logging, and a read-only **Collections** screen +
   Pipeline **Leads|Opportunities** segment + collections KPIs on the Today dashboard (`5ba865a`).
-- **Finance Operations Module — Phase 1 (database only)** *(implemented, tested on dev,
-  UNCOMMITTED)* — 10 models (`FinAccount`, `Ledger`, `Vendor`, `Expense`, `Voucher`,
-  `VoucherSequence`, `EmployeeAdvance`, `TravelClaim`, `ApprovalRule`, `AuditLog`), migration
-  `20260602120000_finance_operations_phase1`, finance config seed. Full spec in
-  `docs/modules/finance/`. No API/UI yet.
+- **Finance Operations Module — Phase 1 (database)** *(committed/pushed `1747f9e`)* — 10 models
+  (`FinAccount`, `Ledger`, `Vendor`, `Expense`, `Voucher`, `VoucherSequence`, `EmployeeAdvance`,
+  `TravelClaim`, `ApprovalRule`, `AuditLog`), migration `20260602120000_finance_operations_phase1`,
+  finance config seed. Full spec in `docs/modules/finance/`.
+- **Finance Operations Module — Phase 2 UI** *(2026-06-03, UI-only mock data, UNCOMMITTED)* —
+  full finance web UI under `src/app/finance/`:
+  - **Navigation** — collapsible Finance section in `SidebarLinks` + `canManageFinance` in `roles.ts`.
+  - **Dashboard** (`/finance`) — 8 KPIs, 4 charts, quick actions, filters.
+  - **Bank Book** (`/finance/bank-book`) — ledger + reconcile + 4-step statement import wizard
+    + Bank↔source mapping (Collection/Advance/Expense). `data.ts` + 9 components.
+  - **Cash Book** (`/finance/cash-book`) — ledger, reconciliation panel, Bank↔Cash transfers,
+    customer-cost & employee-finance panels, vouchers. `data.ts` + 8 components.
+  - **Expense Register** (`/finance/expenses`) — summary cards, 18-field filters, bulk actions,
+    GST auto-split, approval timeline, profitability + advance panels. `data.ts` + 11 components.
+  - **Mobile** — `ExpenseClaimScreen`, `ConveyanceScreen` (no Google API; placeholders).
+  - **Shared** — `_shared/transferStore.ts` (cross-module Bank↔Cash entries); collapsible
+    top-of-page filters across all 3 ledger pages.
+  - All on mock data (₹ rupees); shapes defined in each `data.ts` ready for backend wiring.
+- **Expense Categories** *(2026-06-04, UI-only mock, UNCOMMITTED)* — `/finance/expenses/categories`,
+  a configuration-driven category engine: `data.ts` (30 categories, parent/sub, `deriveCatCaps`,
+  7 templates) + `ExpenseCategoriesClient` + `CategoryTable/Filters/Form/Drawer/TemplateLoader`.
+  `CategoryForm` has 9 config sections (Basic, Usage, Payment, Document rules, GST, Approval,
+  Grade-policy, Customer-cost, Tally). Built to replace hardcoded category logic later.
+- **Global Vendor Master** *(2026-06-04, UI-only mock, UNCOMMITTED)* — `/masters/vendors`, a global
+  CRM master (one `Vendor` referenced by Finance/Expense/Procurement/Inventory/Projects/Support/
+  Assets/Tally): `data.ts` (8 vendors, full Indian GST state-code map, `validateGSTIN`,
+  `deriveVendorCaps`) + `VendorMasterClient` + 10 components incl. `VendorProfile` (9-tab),
+  multi-branch+GST, contacts, banks, documents, and the reusable `GSTRegistrationPanel`/`GSTINBadge`.
+  `/finance/vendors` redirects here.
+- **Global Customer Master** *(2026-06-04, UI-only mock, UNCOMMITTED)* — `/masters/customers`, a
+  global CRM master (one `Customer` referenced by CRM Sales/Opps/Quotations/Orders/Projects/Support/
+  AMC/Assets/Finance/Profitability/Engineer-Visits/Conveyance): `data.ts` (8 customers incl. ABC
+  Group hierarchy, `deriveCustomerCaps`, duplicate detection; reuses Vendor GST validator) +
+  `CustomerMasterClient` + 13 components incl. `CustomerProfile` (12-tab), `CustomerSiteManager`
+  (per-site GST + geo), `CustomerHierarchyViewer`, `CustomerProfitabilityPanel`,
+  `CustomerRelationshipViewer`. **Extends the existing `Customer` model — no duplicate model.**
+  The legacy operational `/customers` page (live CRM import + dedupe) is preserved and unchanged.
 - **Bulk import** — CSV/XLSX lead import; printable employee user guide at `/user-guide.html`.
 - **Org hierarchy** — `Employee.reportsTo` self-relation; Operations Head role with
   manager-like finance reach; editable `Reports To` + `Manager access` on the Team page.
@@ -174,6 +229,23 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 11. Loose root scripts (`seed.js`, `setup_manager.*`, `fix_roles.js`, `read_xls.js`) are
     one-off utilities, not part of the build.
 12. Turbopack caches the Prisma client — always restart dev after `prisma generate`.
+13. **🟠 PWA service worker (`caveo-crm-v1`) serves stale assets in dev.** Edits/`​.next`
+    clears/server restarts can all be masked by the cached app shell. Unregister SW + clear
+    caches in DevTools, then hard reload. Fix pending: skip SW registration in dev. (Cost us
+    significant debugging time this session.)
+14. **Turbopack doesn't pick up newly-created files without a server restart** (edits are fine).
+    Orphaned `next dev` processes can also hold port 3000 and serve old code.
+15. **All Finance Phase 2 UI is mock data** — no persistence. The Bank↔Cash transfer store is
+    in-memory and resets on hard reload. Money shown in ₹ rupees (finance pages) vs ₹ Lakhs
+    (rest of app) — reconcile when wiring the backend.
+16. **2026-06-04 modules are mock & client-gated** — Expense Categories, Vendor Master, Customer
+    Master have no APIs and only client-side RBAC. Money in ₹ rupees. Customer/Vendor masters
+    target the existing `Customer`/`Vendor` models (extend, don't duplicate).
+17. **Two "Customer Master" nav entries** — global `/masters/customers` (mock) and operational
+    `/customers` (real DB). Confusing until consolidated; decision pending.
+18. **Orphaned `next dev` breaks dev login** — a stray process on port 3000 serves a stale
+    Turbopack route tree where `/api/dev/switch` 404s, so quick-login can't set the cookie.
+    Recovery: kill the port-3000 process, `rm -rf .next`, restart. (CLAUDE.md gotcha #10.)
 
 ## 6. Business Rules
 - **Money** is in ₹ Lakhs everywhere (1 Cr = 100 L).
@@ -206,8 +278,26 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   change UI standards. Reuse components, preserve logic, update docs.
 
 ## 8. Technical Debt
-- **Finance Phase 1 is uncommitted** — commit/push deferred to a deliberate confirmed step
-  (the build auto-applies the migration to prod). Decide whether to track `seed-dev-*.ts`.
+- **Enterprise Admin Console not yet started (2026-06-04).** Architecture plan is in
+  `docs/ADMIN_ARCHITECTURE_PLAN.md`. The current `/settings/administration` flat-tab panel is the
+  interim solution. Phase 1 of the migration (routing skeleton) is the next step.
+- **Two "Customer Master" surfaces (2026-06-04).** The new global `/masters/customers` (enterprise
+  UI, mock) and the legacy operational `/customers` (real DB + CRM import/dedupe) both exist and
+  both appear in the sidebar. Non-destructive by design, but must converge: fold import/dedupe into
+  the global master and back it with the existing `Customer` model. Decision asked of Vijesh.
+- **Three new 2026-06-04 modules are all mock & uncommitted** — Expense Categories (8 files),
+  Vendor Master (14), Customer Master (16). No APIs/persistence; gating is client-side only.
+  Shapes in each `data.ts` are the backend contract. Customer/Vendor masters must wire to the
+  **existing** `Customer`/`Vendor` models (extend, never duplicate).
+- **Finance Phase 2 UI is all mock & uncommitted** — ~45 files under `src/app/finance/` run on
+  in-memory mock data (each module's `data.ts`). No APIs/persistence. The Bank↔Cash transfer
+  store resets on hard reload. Needs backend wiring (shapes already defined in `data.ts`).
+- **Finance money unit mismatch** — finance web pages use ₹ rupees; the rest of the app uses
+  ₹ Lakhs. Normalise (likely to Lakhs + `@db.Decimal`) when persisting.
+- **Duplicate expense entry UIs** — `/finance/expenses/new/ExpenseEntryForm.tsx` (full page)
+  vs the richer `ExpenseForm` drawer in the register. Consolidate.
+- **Service worker not dev-safe** — `ServiceWorkerRegistrar` caches the shell and serves stale
+  assets in dev; make it skip dev / network-first.
 - **`recordPayment`/`applyAdvance` lack `prisma.$transaction`** — wrap before high concurrency
   (MySQL has real concurrent writes now). The new finance services in Phase 2 must use
   `$transaction` from day one (balance updates, voucher numbering).
@@ -220,15 +310,20 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   `better-sqlite3` deps; orphaned `public/maintenance.html`; pre-`1ab4f7d` JWT re-login.
 
 ## 9. Recommended Next Steps (ordered)
-1. **Confirm + commit + push Finance Phase 1** (after Vijesh's OK); verify the prod migration
-   applied (`prisma migrate status` on the server) and `/login` returns 200.
-2. **Phase 2 — Vendor Master + Expense Register** (API + UI): choose cloud storage (Cloudflare
-   R2 / S3) for attachments; add `canManageFinance` predicate to `roles.ts`; build CRUD +
-   submit-for-approval. See `docs/modules/finance/IMPLEMENTATION_PLAN.md` Phase 2.
-3. **Phase 3 — Approval Engine** wired to `ApprovalRule` + `AuditLog`, with notifications.
-4. Wrap existing `recordPayment`/`applyAdvance` in `$transaction`; then tackle the
-   `@db.Decimal(12,4)` money migration across both finance modules.
-5. Rotate the dev DB credentials and prune the Remote-MySQL whitelist.
+1. **Commit the uncommitted UI** (confirm with Vijesh; stage in chunks — dashboard-role-variant,
+   settings-expansion, finance-ui, expense-categories, vendor-master, customer-master, nav).
+   All UI-only/mock, safe to merge.
+2. **Begin Admin Console Phase 1** (`docs/ADMIN_ARCHITECTURE_PLAN.md`) — create the
+   `src/app/admin-console/` skeleton with layout + 12-module landing page. Zero DB changes.
+3. **Decide Customer Master consolidation** — converge `/masters/customers` (new global) with
+   `/customers` (legacy import/dedupe) into one master backed by the existing `Customer` model.
+4. **Wire backend behind the screens** — Expense Register CRUD first (Phase-1 models exist);
+   then Customer/Vendor masters → **extend** the existing `Customer`/`Vendor` models + child
+   tables (sites/branches/contacts/banks/assets); then Expense Categories → a config table.
+5. **Ledger persistence** — `src/lib/finance/bank-ledger.ts` per `BANK_LEDGER_MAPPING.md`.
+6. Carryover: service-worker dev fix; wrap `recordPayment`/`applyAdvance` in `$transaction`;
+   `@db.Decimal(12,4)` money; rotate dev DB creds + prune Remote-MySQL whitelist; remove
+   `better-sqlite3`; mitigate `xlsx@0.18.5`; remove orphaned `public/maintenance.html`.
 
 ---
 

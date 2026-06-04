@@ -108,6 +108,8 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   { module: "Settings", resource: "Organization",   action: "EDIT",   description: "Manage companies, branches, departments, teams and designations" },
   { module: "Settings", resource: "Identity",       action: "VIEW",   description: "View identity & access management" },
   { module: "Settings", resource: "Identity",       action: "EDIT",   description: "Manage users, roles, permissions, and data access policies" },
+  { module: "Settings", resource: "Policy",         action: "VIEW",   description: "View business policy rules and configurations" },
+  { module: "Settings", resource: "Policy",         action: "EDIT",   description: "Create, edit and publish business policy rules" },
 
   // ── Reports ───────────────────────────────────────────────────────────────
   { module: "Reports", resource: "Dashboard", action: "VIEW",   description: "Access dashboards" },

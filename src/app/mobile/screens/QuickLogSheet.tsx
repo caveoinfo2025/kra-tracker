@@ -8,10 +8,12 @@ interface Props {
 }
 
 const ACTIONS = [
-  { type: "call",    icon: "phone",    label: "Log Call",     sub: "Capture an outbound call" },
-  { type: "meeting", icon: "calendar", label: "Log Meeting",  sub: "From today's calendar" },
-  { type: "update",  icon: "updates",  label: "Daily Update", sub: "Post status to team" },
-  { type: "lead",    icon: "doc",      label: "Scan Card",    sub: "New lead from business card" },
+  { type: "call",       icon: "phone",    label: "Log Call",      sub: "Capture an outbound call" },
+  { type: "meeting",    icon: "calendar", label: "Log Meeting",   sub: "From today's calendar" },
+  { type: "update",     icon: "updates",  label: "Daily Update",  sub: "Post status to team" },
+  { type: "lead",       icon: "doc",      label: "Scan Card",     sub: "New lead from business card" },
+  { type: "expense",    icon: "receipt",  label: "Log Expense",   sub: "Claim a bill with photo" },
+  { type: "conveyance", icon: "car",      label: "Log Conveyance", sub: "Local travel by distance" },
 ];
 
 export default function QuickLogSheet({ onClose, onAction }: Props) {

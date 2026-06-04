@@ -126,6 +126,28 @@ export const SETTING_DEFAULTS: Record<string, unknown> = {
   "kra.targets.team_forecast_accuracy_pct": 90,
   "kra.targets.team_win_rate_pct": 30,
 
+  // Finance Operations
+  "finance.conveyance_rate_per_km": 4.5,
+  "finance.advance_max_months_salary": 2,
+  "finance.expense_max_days_backdated": 90,
+  "finance.voucher_prefix": "CI",
+  "finance.fiscal_year_label": "2026-27",
+  "finance.auto_approve_expense_below": 500,
+  "finance.expense_receipt_required_above": 200,
+
+  // Approvals
+  "approvals.reminder_after_days": 2,
+  "approvals.escalate_after_days": 5,
+  "approvals.max_approval_levels": 3,
+  "approvals.notify_on_status_change": "true",
+  "approvals.auto_approve_below_amount": 0,
+
+  // Masters
+  "masters.gstin_validation_enabled": "true",
+  "masters.duplicate_name_threshold_pct": 85,
+  "masters.require_pan_for_vendor": "false",
+  "masters.customer_credit_limit_default": 5,
+
   // System
   "system.pagination_default": 50,
   "system.pagination_max": 100,
@@ -193,6 +215,28 @@ export const SETTING_META: Record<string, { label: string; description: string; 
   "kra.targets.team_forecast_accuracy_pct":    { category: "kra_targets", label: "Team Forecast Accuracy %",         description: "Target forecast-to-actual accuracy percentage." },
   "kra.targets.team_win_rate_pct":             { category: "kra_targets", label: "Team Win Rate %",                  description: "Target deal win rate as a percentage." },
 
+  // Finance Operations
+  "finance.conveyance_rate_per_km":         { category: "finance", label: "Conveyance Rate (₹/km)",          description: "Reimbursement rate per kilometre for conveyance claims." },
+  "finance.advance_max_months_salary":      { category: "finance", label: "Max Advance (× monthly salary)",  description: "Maximum salary advance as a multiple of monthly salary." },
+  "finance.expense_max_days_backdated":     { category: "finance", label: "Max Backdated Expense Days",      description: "How many days in the past an expense entry can be dated." },
+  "finance.voucher_prefix":                 { category: "finance", label: "Voucher Prefix",                  description: "Company prefix used in voucher numbers (e.g. CI → CI/26-27/00001)." },
+  "finance.fiscal_year_label":              { category: "finance", label: "Finance Fiscal Year Label",       description: "Label used in voucher numbers and reports (e.g. 2026-27)." },
+  "finance.auto_approve_expense_below":     { category: "finance", label: "Auto-Approve Expenses Below (₹)", description: "Expenses below this amount are auto-approved without a workflow step." },
+  "finance.expense_receipt_required_above": { category: "finance", label: "Receipt Required Above (₹)",      description: "Receipts must be uploaded for expenses above this amount." },
+
+  // Approvals
+  "approvals.reminder_after_days":      { category: "approvals", label: "Reminder After (days)",          description: "Send a reminder to the approver after this many idle days." },
+  "approvals.escalate_after_days":      { category: "approvals", label: "Escalate After (days)",          description: "Escalate to the next level after this many days with no action." },
+  "approvals.max_approval_levels":      { category: "approvals", label: "Max Approval Levels",            description: "Maximum number of levels in any approval chain." },
+  "approvals.notify_on_status_change":  { category: "approvals", label: "Notify on Status Change",        description: "Notify the requester when their request is approved or rejected." },
+  "approvals.auto_approve_below_amount":{ category: "approvals", label: "Auto-Approve Below Amount (₹)",  description: "Requests below this amount skip the approval workflow entirely (0 = disabled)." },
+
+  // Masters
+  "masters.gstin_validation_enabled":      { category: "masters", label: "GSTIN Validation",              description: "Validate GSTIN format and state code when adding vendors/customers." },
+  "masters.duplicate_name_threshold_pct":  { category: "masters", label: "Duplicate Name Threshold (%)",  description: "Fuzzy-match similarity % above which a potential duplicate is flagged." },
+  "masters.require_pan_for_vendor":        { category: "masters", label: "Require PAN for Vendor",        description: "Block vendor creation without a valid PAN number." },
+  "masters.customer_credit_limit_default": { category: "masters", label: "Default Credit Limit (₹L)",     description: "Default credit limit assigned to new customer master records." },
+
   "system.pagination_default":       { category: "system",      label: "Default Page Size",         description: "Default number of records per page in list views." },
   "system.pagination_max":           { category: "system",      label: "Max Page Size",             description: "Maximum records per page allowed in API requests." },
   "system.session_timeout_hours":    { category: "system",      label: "Session Timeout (hours)",   description: "Hours before an authenticated JWT session expires." },
@@ -243,4 +287,110 @@ export async function getAllSettings(): Promise<Record<string, unknown>> {
     try { map[row.key] = JSON.parse(row.value); } catch { /* skip bad rows */ }
   }
   return map;
+}
+
+// ── Phase 5 — Configuration lifecycle (Draft → Review → Published) ──────────
+// These functions are ADDITIVE — existing getSetting / setSetting are unchanged.
+
+/**
+ * Read the latest *published* ConfigurationVersion for a key.
+ * Falls back to getSetting() when no published version exists yet,
+ * so all callers continue to work before the migration is applied.
+ */
+export async function getPublishedSetting<T = unknown>(key: string): Promise<T> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = await (prisma as any).configurationVersion.findFirst({
+      where:   { settingKey: key, status: "published" },
+      orderBy: { version: "desc" },
+      select:  { value: true },
+    });
+    if (row) return JSON.parse(row.value) as T;
+  } catch {
+    // Table doesn't exist yet (pre-migration) — fall through
+  }
+  return getSetting<T>(key);
+}
+
+/**
+ * Create a DRAFT ConfigurationVersion for a setting change.
+ * Does NOT immediately apply the value — a reviewer must publish it.
+ * Falls back to setSetting() when the ConfigurationVersion table doesn't exist yet.
+ */
+export async function draftSetting(
+  key: string,
+  value: unknown,
+  changedById: number,
+  note?: string,
+): Promise<void> {
+  const meta = SETTING_META[key];
+  const module = meta?.category ?? "misc";
+
+  try {
+    // Find the current max version for this key
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const latest = await (prisma as any).configurationVersion.findFirst({
+      where:   { settingKey: key },
+      orderBy: { version: "desc" },
+      select:  { version: true },
+    });
+    const nextVersion = (latest?.version ?? 0) + 1;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (prisma as any).configurationVersion.create({
+      data: {
+        settingKey:  key,
+        value:       JSON.stringify(value),
+        version:     nextVersion,
+        module,
+        status:      "draft",
+        changedById,
+        note:        note ?? null,
+      },
+    });
+  } catch {
+    // Pre-migration fallback: write directly (bypass lifecycle)
+    await setSetting(key, value, changedById);
+  }
+}
+
+/**
+ * Publish a draft ConfigurationVersion, making it the live value.
+ * Marks previous published versions as rolled_back.
+ */
+export async function publishSettingVersion(
+  versionId: number,
+  reviewedById: number,
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cv = await (prisma as any).configurationVersion.findUnique({
+      where: { id: versionId },
+    });
+    if (!cv) throw new Error(`ConfigurationVersion ${versionId} not found`);
+    if (cv.status !== "draft" && cv.status !== "in_review") {
+      throw new Error(`Cannot publish version with status: ${cv.status}`);
+    }
+
+    // Roll back any existing published version for this key
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (prisma as any).configurationVersion.updateMany({
+      where: { settingKey: cv.settingKey, status: "published" },
+      data:  { status: "rolled_back" },
+    });
+
+    // Publish this version
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (prisma as any).configurationVersion.update({
+      where: { id: versionId },
+      data:  { status: "published", reviewedById, publishedAt: new Date() },
+    });
+
+    // Apply the value to the live AppSetting table so getSetting() stays fast
+    await setSetting(cv.settingKey, JSON.parse(cv.value), reviewedById);
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("not found")) throw e;
+    if (e instanceof Error && e.message.includes("Cannot publish")) throw e;
+    // Pre-migration: silently ignore
+  }
 }

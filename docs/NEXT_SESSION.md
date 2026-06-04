@@ -1,7 +1,7 @@
 # Next Session — Resume Here
 
 > Quick-start state for the next coding session. Overwritten at the end of every session.
-> Last updated: 2026-06-04 — Admin Console Phase 4 (Identity & Access Management) complete.
+> Last updated: 2026-06-04 — Admin Console Phase 5 (Policy Engine Foundation) complete.
 
 ## Where to continue
 
@@ -9,6 +9,7 @@
 Decide commit/deploy order with Vijesh before proceeding.
 
 Uncommitted modules (newest first):
+- **Admin Console Phase 5 — Policy Engine Foundation** (2026-06-04) — `src/app/settings/policies/` (9 files) + 6 API routes + Policy Engine service (`src/lib/policy-engine/` 6 files) + migration SQL + seed
 - **Admin Console Phase 4 — Identity & Access Management** (2026-06-04) — `src/app/settings/identity/` (11 files) + `src/app/api/admin/identity/` (8 routes)
 - **Admin Console Phase 3 — Organization Management** (2026-06-04) — 23 files under `src/app/settings/organization/` + `src/app/api/settings/organization/`
 - **Admin Console Phase 2 DB Foundation** (2026-06-04) — 12 new models, migration SQL, access-control service, seed
@@ -22,42 +23,57 @@ Uncommitted modules (newest first):
 
 ## Last completed task
 
-**Admin Console Phase 4 — Identity & Access Management** (completed this session):
+**Admin Console Phase 5 — Policy Engine Foundation** (completed this session):
 
 ### Files created
 | File | Notes |
 |---|---|
-| `src/app/settings/identity/page.tsx` | Server component auth gate — `Settings/Identity/VIEW+EDIT` with `canAccessSettings` fallback |
-| `src/app/settings/identity/IdentityClient.tsx` | 6-tab client shell (Users/Roles/Permissions/Data Access/Delegation/Audit) |
-| `src/app/settings/identity/data/identityDefaults.ts` | Types, mock data (7 users, 6 roles, policies, delegations, audit), helpers |
-| `src/app/settings/identity/components/UsersTab.tsx` | KPI cards, search+filter table, quick suspend/activate, opens UserProfileDrawer |
-| `src/app/settings/identity/components/UserProfileDrawer.tsx` | Right slide-over: Profile/Org Mapping/Access & Roles tabs, status change confirm modal |
-| `src/app/settings/identity/components/RoleManagement.tsx` | Role table with clone/disable/enable, confirm modal, opens RoleEditor |
-| `src/app/settings/identity/components/RoleEditor.tsx` | Slide-over form for create/edit role with system-role guard |
-| `src/app/settings/identity/components/PermissionMatrix.tsx` | Module/resource grid, 8 actions, dirty-cell tracking, bulk save |
-| `src/app/settings/identity/components/DataAccessPolicyPanel.tsx` | Per-module scope pills (OWN→ALL), dirty state, save policies |
-| `src/app/settings/identity/components/DelegationPanel.tsx` | Delegation rules table + slide-over form (from/to/scope/dates/reason) |
-| `src/app/settings/identity/components/IdentityAudit.tsx` | Audit log with 12 action types, search + action filter |
-| `src/app/api/admin/identity/users/route.ts` | `GET` — employees + profiles + roles; falls back to mock |
-| `src/app/api/admin/identity/users/[id]/route.ts` | `PATCH` — upsert `EmployeeProfile.employmentStatus` |
-| `src/app/api/admin/identity/roles/route.ts` | `GET` — roles with counts; `POST` — create custom role |
-| `src/app/api/admin/identity/roles/[id]/route.ts` | `PATCH` — name/description/level/status (system roles: description+status only) |
-| `src/app/api/admin/identity/permissions/route.ts` | `GET?roleId=X` — catalogue + granted flag per role |
-| `src/app/api/admin/identity/permissions/[roleId]/route.ts` | `POST` — batch grant/revoke via `RolePermission` upsert/delete |
-| `src/app/api/admin/identity/policies/route.ts` | `GET?roleId=X` — `DataAccessPolicy` rows for role |
-| `src/app/api/admin/identity/policies/[roleId]/route.ts` | `POST` — upsert scope per module |
+| `src/lib/policy-engine/conditions.ts` | 9 operators, dot-notation field resolution, AND/OR/leaf condition trees |
+| `src/lib/policy-engine/actions.ts` | 6 action types: ALLOW/BLOCK/REQUIRE_APPROVAL/SEND_NOTIFICATION/CREATE_TASK/ESCALATE |
+| `src/lib/policy-engine/rules.ts` | Priority-ordered evaluation, BLOCK short-circuits when combineAll=false |
+| `src/lib/policy-engine/versioning.ts` | Policy snapshot builder for version history |
+| `src/lib/policy-engine/policy.ts` | `listPolicies()` + `transitionPolicyStatus()` with audit + version snapshot on ACTIVE |
+| `src/lib/policy-engine/index.ts` | `evaluatePolicy({ module, event, data })` — fail-open on DB error |
+| `src/app/settings/policies/data/policyDefaults.ts` | All UI types, mock data (6 categories, 3 policies, 5 audit entries), helpers |
+| `src/app/settings/policies/components/ConditionBuilder.tsx` | IF field/operator/value inline builder with datalist suggestions |
+| `src/app/settings/policies/components/ActionBuilder.tsx` | THEN action type + type-specific params (level/reason/templateKey/title) |
+| `src/app/settings/policies/components/RuleBuilder.tsx` | Rules list with add/remove/enable-disable/priority, uses Condition+Action builders |
+| `src/app/settings/policies/components/PolicyVersionHistory.tsx` | Expandable version rows with snapshot JSON, CURRENT badge |
+| `src/app/settings/policies/components/PolicyAudit.tsx` | Audit log table with search + action filter, falls back to mock |
+| `src/app/settings/policies/components/PolicyEditor.tsx` | Right slide-over: 3 tabs (Details/Rules/History), lifecycle action buttons, read-only guard |
+| `src/app/settings/policies/components/PolicyList.tsx` | KPI cards, search/filter table with clone, opens PolicyEditor |
+| `src/app/settings/policies/PolicyClient.tsx` | 2-tab client shell (Policies / Audit Log) |
+| `src/app/settings/policies/page.tsx` | Server auth gate — `Settings/Policy/VIEW+EDIT` with `canAccessSettings` fallback |
+| `src/app/api/admin/policies/route.ts` | `GET` (list) + `POST` (create DRAFT) |
+| `src/app/api/admin/policies/[id]/route.ts` | `PATCH` (field update + status transition + rule upsert) |
+| `src/app/api/admin/policies/[id]/versions/route.ts` | `GET` — version history for a policy |
+| `src/app/api/admin/policies/audit/route.ts` | `GET` — audit log |
+| `src/app/api/admin/policies/categories/route.ts` | `GET` — policy categories |
+| `src/app/api/admin/policies/evaluate/route.ts` | `POST` — `evaluatePolicy()` passthrough |
+| `prisma/migrations/20260604120000_policy_engine_foundation/migration.sql` | 6 new tables: policy_category, policy, policy_rule, policy_version, policy_audit, configuration_version |
+| `prisma/seed-policy-defaults.ts` | Seeds 6 categories + 3 default policies |
 
 ### Files modified
 | File | What changed |
 |---|---|
-| `src/lib/access-control/permissions.ts` | Added `Settings/Identity/VIEW` and `Settings/Identity/EDIT` to `PERMISSION_CATALOGUE` |
-| `src/app/settings/users-roles/page.tsx` | Replaced with redirect to `/settings/identity` (old `RolesClient` import removed) |
-| `docs/CHANGELOG.md` | Phase 4 entry added |
+| `prisma/schema.prisma` | 6 new models + Employee back-references |
+| `src/lib/access-control/permissions.ts` | Added `Settings/Policy/VIEW` and `Settings/Policy/EDIT` |
+| `src/lib/settings.ts` | Added `getPublishedSetting`, `draftSetting`, `publishSettingVersion` |
+| `src/app/settings/data/adminModules.ts` | Added Policy Engine module (id=13, `active`, route `/settings/policies`) |
+| `docs/CHANGELOG.md` | Phase 5 entry added |
 | `docs/NEXT_SESSION.md` | This file |
 
 ### Build status
 - `npx tsc --noEmit` — ✅ clean
-- `npx next build` — ✅ clean, `/settings/identity` in route list
+- `npx next build` — ✅ clean, `/settings/policies` in route list
+
+## Recommended next steps (Phase 6+)
+
+Per the ADMIN_ARCHITECTURE_PLAN, next phases after Policy Engine are:
+1. **Wire Policy Engine into existing CRM flows** — call `evaluatePolicy()` in deal-save and export flows
+2. **Approval Workflow Engine** — implement multi-level approval chains that the Policy Engine can trigger via `REQUIRE_APPROVAL` actions
+3. **Apply DB migration** — run `prisma migrate deploy` against dev then prod to make all Phase 2–5 tables live
+4. **Commit batch** — all 2026-06-04 work is ready to commit once migration is applied and tested
 
 ## Current blockers
 

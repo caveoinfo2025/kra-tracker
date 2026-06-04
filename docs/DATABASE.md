@@ -5,6 +5,30 @@
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
 **32 models, 2 migrations** (22 core + 10 Finance Operations Phase 1).
 
+> **2026-06-04 (Sessions 1 & 2):** **No schema/migration/model changes.** All work this day was
+> UI-only on mock data (Expense Categories, Vendor Master, Customer Master, Role-Adaptive
+> Dashboard, Settings Hub, AdminClient expansion). `docs/ADMIN_ARCHITECTURE_PLAN.md` defines the
+> future DB models to be added in Phases 2–5 of the Admin Console migration — these include
+> `Company`, `Branch`, `Department`, `Team`, `Designation`, `RoleModulePermission`,
+> `DataAccessPolicy`, `WorkflowDefinition`, `WorkflowRule`, `WorkflowLevel`, `ApprovalRequest`,
+> `ApprovalHistory`, `DelegationRule`, `ConfigurationVersion`. None are in schema.prisma yet.
+
+> **2026-06-04 (Session 1):** **No schema/migration/model changes this session.** Expense Categories,
+> Vendor Master, and Customer Master are all **UI-only on mock data** (in each module's
+> `data.ts`). No Prisma models added. **Architecture note — Customer Master:** the new global
+> `/masters/customers` UI deliberately does **NOT** add a model — it extends the **existing**
+> `Customer` model (`id/name/address/district/state/pincode/gstNo/officeType/parentId/branches/
+> crmSource`). The enterprise fields shown in the UI (customerType, industry, sites with
+> per-site GST, contacts, commercial, assets, profitability, documents) are the **target shape**
+> for a future, additive migration on the existing `Customer` table + new child tables — not a
+> parallel model. Likewise Vendor Master's UI shape targets the existing Phase-1 `Vendor` model.
+
+> **2026-06-03:** **No schema/migration/model changes this session.** Finance Phase 2 was
+> **UI-only on mock data** (`src/app/finance/**/data.ts`) — no Prisma changes. The mock shapes
+> are the contract for the future finance APIs built against the existing Phase 1 models.
+> See `docs/modules/finance/BANK_LEDGER_MAPPING.md` for the proposed (deferred) `Ledger`
+> source-link columns.
+
 > Money fields ending in `Lakhs` are ₹ Lakhs (`Float` → MySQL `DOUBLE`). Status/stage/role
 > fields are free-form strings validated in app code, not DB enums. Long-text columns use
 > `@db.Text` (avoid MySQL's default `VARCHAR(191)` truncation). Charset `utf8mb4_unicode_ci`.

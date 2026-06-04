@@ -88,6 +88,7 @@ type RecentWin = {
 
 export type DashboardProps = {
   isManager: boolean;
+  roleVariant?: "manager" | "opsHead" | "techHead" | "employee";
   employeeName: string;
   period?: string;
   currentWeek: number;
@@ -482,7 +483,7 @@ function PeriodFilter({ active }: { active: string }) {
 
 export default function DashboardClient(props: DashboardProps) {
   const {
-    isManager, employeeName, hour,
+    isManager, roleVariant = "manager", employeeName, hour,
     overdueCollections, upcomingCollections,
     leadStageCounts, pipelineValue, wonValue, totalLeads, totalOpps,
     myKras, weeklyCommits, recentWins, legacyWins,
@@ -490,6 +491,9 @@ export default function DashboardClient(props: DashboardProps) {
     currentWeek, currentYear,
     period = "Week",
   } = props;
+
+  const showSales = roleVariant === "manager";     // managers + directors see sales pipeline
+  const showTeam  = isManager || roleVariant === "opsHead" || roleVariant === "techHead";
 
   const router = useRouter();
 
@@ -614,7 +618,10 @@ export default function DashboardClient(props: DashboardProps) {
               {greeting(hour)}, {employeeName.split(" ")[0]} 👋
             </h1>
             <p style={{ fontSize: 13, color: "var(--fg-3)", marginTop: 4, marginBottom: 0 }}>
-              {totalFunnel} active leads · ₹{fmtShort(pipelineValue)} pipeline · {activeOverdueTasks.length > 0 && <span style={{ color: "var(--caveo-red)", fontWeight: 600 }}>{activeOverdueTasks.length} overdue tasks</span>}
+              {showSales
+                ? <>{totalFunnel} active leads · ₹{fmtShort(pipelineValue)} pipeline{activeOverdueTasks.length > 0 && <> · <span style={{ color: "var(--caveo-red)", fontWeight: 600 }}>{activeOverdueTasks.length} overdue tasks</span></>}</>
+                : <>{teamTaskHealth.length} team members · {teamKra.length} KRAs tracked{activeOverdueTasks.length > 0 && <> · <span style={{ color: "var(--caveo-red)", fontWeight: 600 }}>{activeOverdueTasks.length} overdue tasks</span></>}</>
+              }
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -647,18 +654,40 @@ export default function DashboardClient(props: DashboardProps) {
             spark={[1,2,2,3,3,2,activeOverdueTasks.length]} sparkColor="var(--caveo-red)"
             href="/pipeline/tasks?filter=overdue"
           />
-          <KpiTile
-            label="Active Pipeline" value={fmtShort(pipelineValue)}
-            delta={`${totalOpps} deals`} deltaDir="up"
-            spark={[8,10,12,9,11,13,pipelineValue/100]} sparkColor="var(--ot-orange)"
-            accent href="/pipeline/leads"
-          />
-          <KpiTile
-            label="Closed Won (CRM)" value={fmtShort(wonValue)}
-            delta={`${totalOpps > 0 ? Math.round(wonValue/(wonValue+pipelineValue)*100) : 0}% rate`} deltaDir="up"
-            spark={[10,15,20,18,22,wonValue/10,wonValue/5]} sparkColor="var(--success)"
-            href="/pipeline/opportunities?stage=WON"
-          />
+          {showSales ? (
+            <>
+              <KpiTile
+                label="Active Pipeline" value={fmtShort(pipelineValue)}
+                delta={`${totalOpps} deals`} deltaDir="up"
+                spark={[8,10,12,9,11,13,pipelineValue/100]} sparkColor="var(--ot-orange)"
+                accent href="/pipeline/leads"
+              />
+              <KpiTile
+                label="Closed Won (CRM)" value={fmtShort(wonValue)}
+                delta={`${totalOpps > 0 ? Math.round(wonValue/(wonValue+pipelineValue)*100) : 0}% rate`} deltaDir="up"
+                spark={[10,15,20,18,22,wonValue/10,wonValue/5]} sparkColor="var(--success)"
+                href="/pipeline/opportunities?stage=WON"
+              />
+            </>
+          ) : (
+            <>
+              <KpiTile
+                label="Team KRA Avg"
+                value={teamKra.length > 0 ? Math.round(teamKra.reduce((s, k) => s + k.avgProgress, 0) / teamKra.length) : 0}
+                unit="%"
+                delta={`${teamKra.length} members`} deltaDir="up"
+                spark={[30,40,45,50,55,60,teamKra.length > 0 ? Math.round(teamKra.reduce((s,k)=>s+k.avgProgress,0)/teamKra.length) : 0]}
+                sparkColor="var(--success)"
+                href="/kras"
+              />
+              <KpiTile
+                label="Pending Approvals" value={3}
+                delta="awaiting review" deltaDir="down"
+                spark={[1,2,3,2,4,3,3]} sparkColor="var(--ot-orange)"
+                href="/approvals"
+              />
+            </>
+          )}
           <KpiTile
             label="Overdue Collections" value={overdueCollections.length}
             sub={`₹${fmtShort(overdueCollTotal)} o/s`}
@@ -668,40 +697,68 @@ export default function DashboardClient(props: DashboardProps) {
           />
         </div>
 
-        {/* ── Funnel + Donut ───────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
-          {/* Sales Funnel */}
-          <div className="card">
-            <CardHeader title="Sales Funnel" sub={`${totalFunnel} leads by stage`} href="/pipeline/leads" hrefLabel="View pipeline" />
-            <div className="card-body">
-              {funnelStages.length === 0 ? (
-                <p style={{ color: "var(--fg-4)", fontSize: 13 }}>No leads yet</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* ── Funnel + Collections (sales view) / KRA + Collections (ops/tech view) ── */}
+        {showSales ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+            <div className="card">
+              <CardHeader title="Sales Funnel" sub={`${totalFunnel} leads by stage`} href="/pipeline/leads" hrefLabel="View pipeline" />
+              <div className="card-body">
+                {funnelStages.length === 0 ? (
+                  <p style={{ color: "var(--fg-4)", fontSize: 13 }}>No leads yet</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {funnelStages.map(s => (
+                      <FunnelBar key={s.stage} label={s.label} count={s.count} max={maxCount} color={s.color} total={totalFunnel} />
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 12 }}>
                   {funnelStages.map(s => (
-                    <FunnelBar key={s.stage} label={s.label} count={s.count} max={maxCount} color={s.color} total={totalFunnel} />
+                    <div key={s.stage} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--fg-3)" }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                      {s.label}
+                    </div>
                   ))}
                 </div>
-              )}
-              {/* Stage colour legend */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 12 }}>
-                {funnelStages.map(s => (
-                  <div key={s.stage} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--fg-3)" }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-                    {s.label}
-                  </div>
-                ))}
               </div>
             </div>
+            <PaymentsTodayWidget title="Collections Today" />
           </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+            <div className="card">
+              <CardHeader title="Team KRA Progress" sub="Average progress this quarter" href="/kras" />
+              <div className="card-body" style={{ padding: 0 }}>
+                {teamKra.length === 0 ? (
+                  <p style={{ color: "var(--fg-4)", fontSize: 13, padding: "12px 18px" }}>No KRA data</p>
+                ) : (
+                  teamKra.sort((a, b) => b.avgProgress - a.avgProgress).slice(0, 10).map(emp => (
+                    <div key={emp.id} style={{ padding: "10px 18px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                      <Avatar name={emp.name} size={28} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)" }}>{emp.name.split(" ")[0]}</span>
+                          <span style={{ fontSize: 11, color: "var(--fg-3)", fontVariantNumeric: "tabular-nums" }}>
+                            {emp.avgProgress}% · {emp.kraCount} KRA{emp.kraCount !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        <ProgressBar
+                          value={emp.avgProgress}
+                          color={emp.avgProgress >= 75 ? "var(--success)" : emp.avgProgress >= 40 ? "var(--ot-orange)" : "var(--caveo-red)"}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <PaymentsTodayWidget title="Collections Today" />
+          </div>
+        )}
 
-          {/* Collections Today — company-wide payments (moved here from below) */}
-          <PaymentsTodayWidget title="Collections Today" />
-        </div>
-
-        {/* ── Team Pipeline Bar Chart + Team KRA ──────────────────────────── */}
+        {/* ── Team Pipeline Bar Chart + Team KRA (sales only) ─────────────── */}
+        {showSales && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
-          {/* Team pipeline bar chart */}
           <div className="card">
             <CardHeader title="Team Pipeline" sub="Active pipeline vs. Won (₹L) · top performers" href="/employees" hrefLabel="View team" />
             <div className="card-body">
@@ -725,7 +782,6 @@ export default function DashboardClient(props: DashboardProps) {
             </div>
           </div>
 
-          {/* Team KRA Progress */}
           <div className="card">
             <CardHeader title="Team KRA Progress" sub="Avg. progress this quarter" href="/kras" />
             <div className="card-body" style={{ padding: 0 }}>
@@ -753,6 +809,7 @@ export default function DashboardClient(props: DashboardProps) {
             </div>
           </div>
         </div>
+        )}
 
         {/* ── Complete Team View ───────────────────────────────────────────── */}
         <div className="card">
@@ -901,6 +958,31 @@ export default function DashboardClient(props: DashboardProps) {
             </div>
           </div>
         </div>
+
+        {/* ── Approvals Quick-Access (non-sales leadership) ───────────────── */}
+        {!showSales && (
+          <div className="card">
+            <CardHeader title="Pending Approvals" sub="Requests awaiting your review" href="/approvals" hrefLabel="View all" />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, padding: "12px 18px" }}>
+              {[
+                { label: "Finance Expenses", count: 2, href: "/finance/approvals", color: "var(--caveo-red)" },
+                { label: "Advances", count: 1, href: "/finance/approvals", color: "var(--ot-orange)" },
+                { label: "Conveyance", count: 0, href: "/finance/approvals", color: "var(--infra-blue)" },
+                { label: "All Requests", count: 3, href: "/approvals", color: "var(--success)" },
+              ].map(item => (
+                <Link key={item.label} href={item.href} style={{ textDecoration: "none" }}>
+                  <div style={{ background: "var(--bg-muted)", borderRadius: 10, padding: "12px 14px", borderLeft: `3px solid ${item.color}`, cursor: "pointer" }}>
+                    <div style={{ fontSize: 11, color: "var(--fg-3)", marginBottom: 4 }}>{item.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: item.count > 0 ? item.color : "var(--fg-4)", fontFamily: "var(--font-display)" }}>
+                      {item.count}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: "var(--fg-4)", marginTop: 2 }}>pending</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Pending Certs ────────────────────────────────────────────────── */}
         {pendingCerts.length > 0 && (

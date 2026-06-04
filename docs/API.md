@@ -3,6 +3,26 @@
 REST handlers under `src/app/api/**/route.ts`. **52 routes.** All call `getSession()`
 and return JSON.
 
+> **2026-06-04 (Sessions 1 & 2):** **No API routes added/changed.** Role-Adaptive Dashboard
+> (`dashboard/page.tsx`) performs a direct Prisma `findUnique` on the server — no new API. Settings
+> Hub and AdminClient tab expansion are pure UI (the existing `/api/settings` routes handle the
+> additional 16 new keys automatically because `AppSetting` is schema-free key-value). The three
+> enterprise UI modules (Expense Categories, Vendor Master, Customer Master) are all mock-data UI.
+
+> **2026-06-04 (Session 1):** **No API routes added/changed this session.** Three enterprise UI modules
+> were built — **Expense Categories** (`/finance/expenses/categories`), **Global Vendor Master**
+> (`/masters/vendors`), **Global Customer Master** (`/masters/customers`) — all **UI-only on
+> mock data** (in each module's `data.ts`). The mock shapes are the contract for future CRUD
+> APIs. The Customer Master is a NEW global UI that will be wired to the **existing**
+> `/api/customers/master*` routes + `Customer` model (extend, do not duplicate). The legacy
+> operational `/customers` page and its live `/api/customers/master`, `/master/[id]`,
+> `/master/import`, `/master/deduplicate` routes are **unchanged and still in use**.
+
+> **2026-06-03:** **No API routes added/changed this session.** Finance Phase 2 is UI-only on
+> mock data — the finance pages mutate in-memory React state, not the network. Planned finance
+> endpoints (when the backend lands) are catalogued in `docs/modules/finance/API_SPECIFICATION.md`
+> and the data shapes live in `src/app/finance/**/data.ts`.
+
 ## 1. Conventions
 
 ### Auth & errors

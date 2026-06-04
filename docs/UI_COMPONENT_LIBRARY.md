@@ -14,6 +14,37 @@
 > Debt: `public/maintenance.html` is still **orphaned** (its `middleware.ts` was removed for the
 > Next 16 `proxy.ts` conflict) — wire it into `proxy.ts` or delete it.
 
+> **2026-06-04 Session 2 — Role-Adaptive Dashboard + Settings Hub:**
+> **`DashboardClient.tsx`** now accepts `roleVariant?: "manager" | "opsHead" | "techHead" |
+> "employee"`. Uses `showSales` + `showTeam` flags to conditionally render sales funnel, pipeline
+> chart, pipeline KPI tiles, approvals panel. Pattern: pass a discriminator string → derive flags →
+> gate sections — avoid adding boolean props for each role.
+> **`SettingsHub.tsx`** is now a 26-card navigation grid across 7 sections. Cards are defined in a
+> `CARDS` array with `{href, icon, label, description, section, badge?}`. Sections auto-derive with
+> `[...new Set(CARDS.map(c => c.section))]`. All hover effects use `onMouseEnter/Leave` inline.
+> **`AdminClient.tsx`** has 14 tabs including 3 new ones: Finance Ops (`Receipt` icon), Approvals
+> (`ClipboardCheck`), Masters (`BookUser`). Settings render dynamically from `getSetting` for all
+> keys — no component change needed when adding new `AppSetting` keys.
+
+> **2026-06-04 Session 1 — Expense Categories + Global Masters (UI-only, MOCK).** Three modules added:
+> **Expense Categories** (`/finance/expenses/categories`) — `ExpenseCategoriesClient` +
+> `CategoryTable`, `CategoryFilters`, `CategoryForm` (9 config sections A–I), `CategoryDrawer`,
+> `CategoryTemplateLoader` (+ `data.ts` with 30 mock categories, parent/sub hierarchy).
+> **Global Vendor Master** (`/masters/vendors`) — `VendorMasterClient` + `VendorTable`,
+> `VendorFilters`, `VendorForm`, `VendorProfile` (9-tab drawer), `VendorBranchManager`,
+> `VendorContactManager`, `VendorBankManager`, `VendorDocumentPanel`, `VendorUsageViewer`,
+> **`GSTRegistrationPanel`** (+ `GSTINBadge`) — a reusable GSTIN validator with state-code
+> cross-check. **Global Customer Master** (`/masters/customers`) — `CustomerMasterClient` +
+> `CustomerTable`, `CustomerFilters`, `CustomerForm` (with duplicate detection),
+> `CustomerProfile` (12-tab drawer), `CustomerSiteManager`, `CustomerContactManager`,
+> `CustomerGSTPanel`, `CustomerHierarchyViewer`, `CustomerAssetPanel`,
+> `CustomerProfitabilityPanel`, `CustomerDocumentPanel`, `CustomerTimeline`,
+> `CustomerRelationshipViewer`. **Reuse highlights:** Customer Master imports the GST
+> validator/panel/badge from Vendor Master; both masters reuse `ExpenseSummaryCard` (Finance)
+> for KPI tiles. **Reusable patterns:** wide tabbed profile drawer, inline sub-entity manager
+> (card + inline form + set-primary), custom toggle switch, GSTIN validator field. Sidebar
+> gained a **Masters** section (Customer Master + Vendor Master) across all role groups.
+
 ## Design language
 Clean enterprise SaaS: white surfaces on a light grey app background, a **single brand-red
 accent (`#C8102E`)**, generous radius (8–16px cards), subtle shadows, Inter/Space Grotesk
@@ -68,6 +99,36 @@ type. Information-dense but calm — KPI tiles, cards, and tables dominate.
   how Operations Head / reporting lines are configured in the UI. `LeadDetailClient` adds
   Edit-lead, Schedule-Meeting (with assignee + presales group), and a POC/Demo-→-presales
   prompt (creates a meeting **and** a task on entering the `POC_DEMO` stage).
+
+### Finance — Phase 2 UI (`src/app/finance/`) — 2026-06-03 (UI-only, MOCK data)
+Built to the desktop design system (`globals.css` tokens + `.crm-table`, `.kpi`, `.card`,
+`.btn-cav`, `.badge-*`, `.detail-pane`, `.seg-control`). Each module has a co-located
+`data.ts` (types + mock + helpers + `deriveCaps`). **Cash Book & Expense Register reuse Bank
+Book components** to stay identical — reuse Bank Book parts before building new finance UI.
+
+| Module | Client + key components |
+|---|---|
+| **Dashboard** (`/finance`) | `FinanceDashboardClient` — 8 KPI tiles, inline-SVG charts (bar/donut/cash-flow), quick actions, filters |
+| **Bank Book** (`/finance/bank-book`) | `BankBookClient` + `BankBalanceCard`, `BankFilters`, `BankTransactionTable`, `BankTransactionDrawer`, `BankSummaryPanel`, `BankStatementUpload`, `BankImportPreviewTable`, `BankImportHistoryTable`, `BankImportWizard` |
+| **Cash Book** (`/finance/cash-book`) | `CashBookClient` + `CashBalanceCard` (re-exports `BankBalanceCard`), `CashFilters`, `CashTransactionTable`, `CashTransactionDrawer`, `CashSummaryPanel`, `CashReconciliationPanel`, `CashTransferPanel`, `CashVoucherPanel` |
+| **Expense Register** (`/finance/expenses`) | `ExpenseRegisterClient` + `ExpenseSummaryCard`, `ExpenseFilters`, `ExpenseTable`, `ExpenseForm`, `ExpenseDetailsDrawer`, `ExpenseApprovalTimeline`, `ExpenseAttachmentViewer`, `GSTInputSection`, `VoucherPreviewPanel`, `CustomerExpensePanel`, `EmployeeClaimPanel` |
+| **Shared** | `_shared/transferStore.ts` (cross-module Bank↔Cash paired entries, in-memory) |
+
+**Patterns established this session (reuse these):**
+- **Collapsible top filter bar** — `BankFilters`/`CashFilters`/`ExpenseFilters` render a
+  clickable `card-header` button ("Filters" + active-count `badge-accent` + chevron); body
+  shown only when expanded; collapsed by default; placed **above** the KPI/balance cards.
+- **Balance/summary KPI card** — `BankBalanceCard` (label, value, tone credit/debit, accent,
+  sub). The single reusable money tile across all finance modules.
+- **Ledger table** — `.crm-table` with search + sort + pagination + column-visibility +
+  (bulk-select where applicable) + row-click drawer; row highlight for imported/adjusted/reversed.
+- **Slide-in drawer** — `.detail-overlay` + `.detail-pane`; entry forms and detail views.
+- **RBAC capability object** — `deriveCaps`/`deriveExpenseCaps` from `roles.ts` predicates;
+  buttons/actions gate on `caps.canAdd/canApprove/canEdit/...`.
+
+> **Mobile (2026-06-03):** added `ExpenseClaimScreen` + `ConveyanceScreen` (now **15 screens**),
+> new `MIcon` glyphs `camera/car/pin/route/rupee`, Finance section in `MeScreen`, and
+> Log-Expense/Log-Conveyance in the `QuickLogSheet` FAB. All `.m-*` classes; no Google API.
 
 ## Usage rules
 - **Reuse before building.** A header → `SheetLayout`; a status pill → `Badge`/`StageBadge`;

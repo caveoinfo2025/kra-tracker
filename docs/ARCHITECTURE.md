@@ -29,8 +29,32 @@ src/
     <route>/page.tsx     Server component: getSession() → Prisma → <XClient/>
     <route>/XClient.tsx  "use client" UI
     api/**/route.ts      52 REST handlers
-    admin/               AdminClient (settings, 10 tabs) + RolesClient (RBAC matrix)
-    mobile/              Mobile web app: components/ + screens/ (12) + mobile.css
+    admin/               AdminClient (settings, 14 tabs incl. Finance Ops/Approvals/Masters) + RolesClient
+    settings/            SettingsHub (26-card navigation grid, 7 sections) + sub-pages
+                           administration/ → AdminClient
+                           users-roles/ → RolesClient
+                           workflow/approval-engine/ → ApprovalEngineClient (mock data)
+    finance/             Finance Phase 2 UI (2026-06-03, UI-only, MOCK data):
+                           page.tsx + FinanceDashboardClient (Dashboard)
+                           bank-book/  (data.ts + 9 components + client)
+                           cash-book/  (data.ts + 8 components + client)
+                           expenses/   (data.ts + 11 components + client + new/ entry form)
+                             expenses/categories/  🆕 (2026-06-04) Expense Category engine:
+                                 data.ts + ExpenseCategoriesClient + 5 components
+                                 (CategoryTable/Filters/Form/Drawer/TemplateLoader)
+                           vendors/    → REDIRECTS to /masters/vendors (global master)
+                           claims|advances|conveyance|approvals|vouchers|reports/
+                           _shared/transferStore.ts (cross-module Bank↔Cash entries)
+    masters/             🆕 Global CRM masters (2026-06-04, UI-only, MOCK data):
+                           vendors/    data.ts + VendorMasterClient + 10 components
+                                       (Table/Filters/Form/Profile[9-tab]/Branch/Contact/
+                                        Bank/Document/Usage managers + GSTRegistrationPanel)
+                           customers/  data.ts + CustomerMasterClient + 13 components
+                                       (Table/Filters/Form/Profile[12-tab]/Site/Contact/GST/
+                                        Hierarchy/Asset/Profitability/Document/Timeline/
+                                        Relationship). Extends the existing Customer model;
+                                        legacy operational list stays at /customers.
+    mobile/              Mobile web app: components/ + screens/ (15) + mobile.css
     login/               Sign-in + dev quick-login
     globals.css          Design-system tokens + component classes
   components/            Navbar, Topbar, SidebarLinks, DevBar, Badge, ProgressBar,
@@ -42,6 +66,40 @@ src/
   types/                 Shared serialized DTO types
 docs/                    This documentation set
 ```
+
+> **Role-Adaptive Dashboard pattern (2026-06-04):** `dashboard/page.tsx` reads `Employee.isManager`
+> + `Employee.role` fresh from the DB on every request (same pattern as Navbar — avoids stale JWT).
+> Computes `roleVariant: "manager" | "opsHead" | "techHead" | "employee"` and passes it to
+> `DashboardClient`. `showSales = roleVariant === "manager"` gates the sales funnel, pipeline KPI
+> tiles, and team chart. `showTeam = isManager || roleVariant === "opsHead" || "techHead"` gates the
+> team KRA panel and approvals quick-access. This discriminator pattern is the recommended way to
+> gate new role-specific sections — add a branch to `roleVariant`, not a new boolean prop.
+
+> **Settings Hub pattern (2026-06-04):** `src/app/settings/SettingsHub.tsx` is a 26-card navigation
+> grid organized into 7 sections. Each card has `href`, `icon`, `label`, `description`, optional
+> `badge`. The grid renders via `CARDS` array filtered by `section`. Add new config pages by
+> appending to `CARDS`; the section header appears automatically.
+
+> **Global Masters pattern (2026-06-04):** `/masters/vendors` and `/masters/customers` follow
+> the same server-page → `"use client"` orchestrator pattern with **mock data** in a co-located
+> `data.ts` (types + mock + `deriveCaps` RBAC + helpers). They are **global CRM masters** — one
+> record referenced by every module — and deliberately do **NOT** add Prisma models: Vendor
+> Master's shape targets the existing Phase-1 `Vendor`; Customer Master's shape **extends the
+> existing `Customer` model** (it does not duplicate it — the legacy DB-backed `/customers`
+> import/dedupe page is untouched). **Cross-module reuse:** Customer Master imports the GST
+> validator + `GSTRegistrationPanel`/`GSTINBadge` from `masters/vendors`, and both masters reuse
+> `finance/expenses/components/ExpenseSummaryCard` for KPI tiles. Tabbed profile drawers
+> (`VendorProfile`/`CustomerProfile`) host the linked-module tabs (Opportunities, Projects,
+> Support, Finance, etc.) on mock relationship data.
+
+> **Finance Phase 2 UI pattern (2026-06-03):** the finance pages follow the same
+> server-page → `"use client"` orchestrator pattern, but the orchestrators hold **mock data**
+> from a co-located `data.ts` instead of Prisma results — there are **no finance API routes or
+> schema changes** yet. Each `data.ts` defines the types + mock + helpers + `deriveCaps` RBAC,
+> which become the contract for the real backend. Cash Book / Expense Register reuse Bank Book
+> components (e.g. `CashBalanceCard` re-exports `BankBalanceCard`) to keep the modules
+> identical. Cross-module Bank↔Cash transfers use `finance/_shared/transferStore.ts`
+> (in-memory; persists across client-side nav only).
 
 ## 3. Application Design (data-flow pattern)
 1. **Server component** (`page.tsx`) calls `getSession()`. No user → `redirect("/login")`;
@@ -63,7 +121,7 @@ independently auth-checked.
 | `payments.ts` | `recordPayment` (+opening-balance reconcile), `syncCollectionTotals`, `applyAdvance`, `paymentsToday`, notification fan-out. |
 | `rbac.ts` | `PAGES` registry (14 pages × view/create/edit/delete), `DEFAULT_ROLES`, `seedDefaultRoles`, `hasPermission`. |
 | `roles.ts` | Hardcoded predicates: `isAccounts`, `isOperationsHead`, `canSeeAllCollections`, `canManagePayments`, `hasManagerReach`, `usesFinanceNav`. |
-| `settings.ts` | 106-key config store: defaults + metadata; `getSetting`/`setSetting`/`getAllSettings`. |
+| `settings.ts` | 122-key config store: defaults + metadata; `getSetting`/`setSetting`/`getAllSettings`. 16 new keys added 2026-06-04 across Finance, Approvals, Masters categories. |
 | `crm-service.ts` | External CRM master data (categories/OEMs/products/customers) with mock fallback. |
 | `card-parser.ts` | Heuristic business-card OCR text → structured lead. |
 | `customer-import.ts` | Dedupe CRM names into the Customer master. |

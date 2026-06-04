@@ -77,6 +77,16 @@ export default function MIcon({ name, size = 18, color = "currentColor" }: MIcon
       return <svg {...p}><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>;
     case "bar-chart":
       return <svg {...p}><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>;
+    case "camera":
+      return <svg {...p}><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>;
+    case "car":
+      return <svg {...p}><path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13"/><path d="M4 13h16v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><circle cx="7.5" cy="15.5" r="0.8" fill={color}/><circle cx="16.5" cy="15.5" r="0.8" fill={color}/></svg>;
+    case "pin":
+      return <svg {...p}><path d="M12 21s-6.5-5.5-6.5-11a6.5 6.5 0 1 1 13 0c0 5.5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.5"/></svg>;
+    case "route":
+      return <svg {...p}><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.5"/></svg>;
+    case "rupee":
+      return <svg {...p}><path d="M7 4h10M7 8h10M16 4c0 4-3 5-6 5h-1l7 7"/></svg>;
     default:
       return null;
   }

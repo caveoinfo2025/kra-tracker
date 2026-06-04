@@ -6,6 +6,56 @@ infrastructure / security reseller). It runs the sales pipeline, captures activi
 **auto-computes weekly KRA performance** from those sheets, manages billing/collections +
 payments, and gives managers team dashboards. A mobile app supports field reps.
 
+> **2026-06-04 Session 2 — Role-Adaptive Dashboard rules:**
+> - **Director / Head of Sales (Manager):** sees full sales pipeline — funnel breakdown, pipeline
+>   KPIs (pipeline/won), team pipeline chart, team collection summary.
+> - **Operations Head:** sees Finance/HR/Collections focus — team KRA average + pending approvals
+>   KPIs, Team KRA Progress card instead of sales funnel, approvals quick-access panel
+>   (Expenses/Advances/Conveyance/Payments categories).
+> - **Technical Head:** same team-oriented view as Operations Head — KRA/tasks-focused dashboard.
+> - **Employee:** standard personal dashboard — own KRA, own collections, personal stats.
+> - Role is read **live from DB on every dashboard load** — no stale JWT delays.
+
+> **2026-06-04 Session 2 — Settings & Admin rules:**
+> - All new configuration keys (`finance.*`, `approvals.*`, `masters.*`) default to safe/reasonable
+>   values. `finance.expense_receipt_required_above = 500` (₹). `approvals.auto_approve_below_amount
+>   = 0` (off by default). `masters.gstin_validation_enabled = true`.
+> - **Settings Hub (`/settings`)** is navigation-only — it never mutates config. All config writes
+>   go through `/settings/administration` → `AdminClient` → `POST /api/settings`.
+
+> **2026-06-04 Session 1 — Global Masters + Expense Categories UI rules (prototyped, mock):**
+> - **Expense Categories** (`/finance/expenses/categories`) — a **configuration-driven category
+>   engine**: each category carries usage flags (General/Customer/Employee/Advance/Conveyance/
+>   Vendor), allowed payment modes, document rules (bill always/amount-based/optional + threshold),
+>   GST config (rate + goods/services + input-credit), approval rule (always / above ₹ threshold +
+>   approvers), grade-based HR limits (daily/monthly per grade), customer-cost linkage, and Tally
+>   ledger mapping. Parent/sub-category hierarchy; load-from-template (7 default groups).
+> - **GSTIN validation rule (shared, both masters):** GSTIN must be 15 chars matching the format
+>   regex; the **first 2 digits = state code must match the site/branch state** — on mismatch the
+>   UI shows "GST state code does not match …". Full Indian state-code map in `vendors/data.ts`,
+>   reused by Customer Master. One validator, both masters.
+> - **Vendor Master = GLOBAL master:** one `Vendor` record referenced by Finance/Expense/
+>   Procurement/Inventory/Projects/Support/Assets/Tally. A vendor has multiple branches, each
+>   with its own GST; multiple contacts; multiple bank accounts; documents with expiry alerts.
+> - **Customer Master = GLOBAL master:** one `Customer` record referenced by CRM Sales/Opps/
+>   Quotations/Orders/Projects/Support/AMC/Assets/Finance/Profitability/Engineer-Visits/
+>   Conveyance. Supports parent→child **hierarchy** (group company → subsidiaries), multiple
+>   **sites** (each with own GST + geo lat/long for conveyance distance), contacts (decision
+>   role), commercial terms (payment/credit/rating/currency/tax), assets (warranty/AMC/SLA),
+>   documents, and **profitability** (revenue − product/service/travel/expense costs = gross
+>   margin). **Duplicate detection** on create warns on name / PAN / GSTIN / email-domain match.
+>   These are UI behaviours only until the backend enforces them.
+>
+> **2026-06-03 — Finance Phase 2 UI rules (prototyped, mock):** Expense types = General /
+> Customer / Employee / Vendor. **Customer expenses** capture customer/project/SO and feed a
+> profitability cost-impact preview. **Employee claims** can adjust against an advance balance
+> (advance − claim = remaining). **GST** auto-splits CGST/SGST (intra) or IGST (inter) from a
+> taxable amount + rate. **Approval flow:** Created → Manager Approval → Accounts Approval →
+> Paid (statuses: Draft/Pending/Approved/Rejected/Paid). **Cash reconciliation** flags a
+> variance (short/excess) and requires remarks. **Bank↔Cash transfers** post paired ledger
+> legs. **Vouchers** number `CI/YY-YY/00001`. These are UI behaviours only until the backend
+> enforces them server-side.
+
 ## User roles
 | Role | Reach |
 |---|---|

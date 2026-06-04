@@ -1,5 +1,39 @@
 # Security Model
 
+> **2026-06-04 Session 2 — Dashboard role gating (added, server-side):**
+> `roleVariant` is computed server-side in `dashboard/page.tsx` from a live Prisma `findUnique` —
+> it is NOT derived from the JWT. An employee cannot manipulate the dashboard variant by
+> impersonating a role. The `isOpsHead` and `isTechHead` checks run on the server; only their
+> presentational outputs (section visibility) are passed to the client. No new attack surface.
+
+> **2026-06-04 Session 1 — Global Masters + Expense Categories access control (added, code; no auth
+> mechanism change):** Per-module **capability tiers** derive from `roles.ts` predicates in each
+> module's `data.ts`:
+> - **Expense Categories** (`deriveCatCaps`) — gate page on `canManageFinance` (Employees
+>   redirected to `/finance/expenses`). Accounts Admin = full CRUD + rule config; Accounts Team
+>   & Manager = view + export; Employee = no access.
+> - **Vendor Master** (`deriveVendorCaps`) — all authenticated users can view; Accounts Admin =
+>   full incl. bank/GST; Accounts Team = edit + bank/GST + finance; Manager = create/edit/disable
+>   (no bank/GST); Staff = view only. Finance/usage data gated on `canViewFinance`.
+> - **Customer Master** (`deriveCustomerCaps`) — all authenticated users can view; Sales Admin
+>   (Manager/Ops Head) = full incl. GST/commercial/finance/disable; Finance (Accounts) = edit +
+>   GST + commercial + finance (no create/disable); Sales Team = create/edit (no finance/commercial
+>   visibility). Finance/profitability tabs + commercial block gated on `canViewFinance`.
+> ⚠️ **Client-side gating only** for these new UI modules — enforce server-side when their CRUD
+> APIs are built (same dual-RBAC caveat as the rest of the app). The new global masters live at
+> `/masters/*` (Vendor, Customer); the legacy operational `/customers` DB page keeps its existing
+> manager-gated import/dedupe.
+
+> **2026-06-03 — Finance Phase 2 UI access control (added, code; no auth mechanism change):**
+> `canManageFinance(user)` added to `src/lib/roles.ts` (manager / Accounts / Operations Head).
+> Finance pages gate on it (own-data pages allow any authenticated user). Per-page **capability
+> tiers** derive in each module's `data.ts` (`deriveCaps`/`deriveExpenseCaps`):
+> **Accounts Admin** (Ops Head) — full incl. delete/adjust/approve; **Accounts Team** (Accounts)
+> — create/edit/submit/export; **Manager** — approve/view; **Employee/Branch User** — own data,
+> create own claim. Buttons/actions (Approve, Mark Reconciled, Cash Adjustment, Export, bulk
+> ops) are gated on these caps. ⚠️ This is **client-side gating only** for now — enforce on the
+> server when the finance APIs are built (same dual-RBAC caveat as the rest of the app).
+
 ## Authentication method
 - **NextAuth v5 (beta)** with the **Microsoft Entra ID (Azure AD)** OAuth provider.
   There are **no local passwords** — users sign in with their `@caveoinfosystems.com`
