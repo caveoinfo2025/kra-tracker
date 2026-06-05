@@ -4,6 +4,7 @@ import { X, Plus } from "lucide-react";
 import {
   Expense, ExpenseType, EXPENSE_TYPES, PAYMENT_MODES, CATEGORIES, FY, fmtINR, todayISO,
 } from "../data";
+import { useMasterValues } from "@/hooks/useMasterValues";
 import GSTInputSection, { GSTState, EMPTY_GST, gstTotal } from "./GSTInputSection";
 import ExpenseAttachmentViewer, { AttachmentItem } from "./ExpenseAttachmentViewer";
 import CustomerExpensePanel from "./CustomerExpensePanel";
@@ -36,6 +37,7 @@ export default function ExpenseForm({
   onSave: (e: Omit<Expense, "id" | "expenseNo" | "approvalHistory">, submit: boolean) => void;
 }) {
   const ed = initial;
+  const expenseCategories = useMasterValues("EXPENSE_CATEGORY_LIST", Object.keys(CATEGORIES));
   // Basic
   const [date, setDate] = useState(ed?.date ?? todayISO());
   const [branch, setBranch] = useState(ed?.branch ?? "Head Office");
@@ -138,7 +140,7 @@ export default function ExpenseForm({
               <div><label className={labelCls}>Expense Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} /></div>
               <div><label className={labelCls}>Branch</label><select value={branch} onChange={(e) => setBranch(e.target.value)} className={inputCls}>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select></div>
               <div><label className={labelCls}>Expense Type</label><select value={type} onChange={(e) => setType(e.target.value as ExpenseType)} className={inputCls}>{EXPENSE_TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-              <div><label className={labelCls}>Category</label><select value={category} onChange={(e) => { setCategory(e.target.value); setSubCategory(""); }} className={inputCls}><option value="">Select…</option>{Object.keys(CATEGORIES).map((c) => <option key={c}>{c}</option>)}</select></div>
+              <div><label className={labelCls}>Category</label><select value={category} onChange={(e) => { setCategory(e.target.value); setSubCategory(""); }} className={inputCls}><option value="">Select…</option>{expenseCategories.map((c) => <option key={c}>{c}</option>)}</select></div>
               <div><label className={labelCls}>Sub Category</label><select value={subCategory} onChange={(e) => setSubCategory(e.target.value)} className={inputCls} disabled={!category}><option value="">{category ? "Select…" : "Pick category first"}</option>{subs.map((s) => <option key={s}>{s}</option>)}</select></div>
               <div className="sm:col-span-2"><label className={labelCls}>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Narration" /></div>
             </div>
