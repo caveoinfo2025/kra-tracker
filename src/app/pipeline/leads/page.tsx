@@ -18,7 +18,8 @@ export default async function LeadsPage({
 
   const where = {
     ...(isManager ? {} : { assignedToId: empId }),
-    ...(stage ? { stage } : {}),
+    // PROPOSAL_SENT leads are converted to Opportunities — exclude from Leads view
+    stage: stage ? stage : { not: "PROPOSAL_SENT" },
     ...(q ? {
       OR: [
         { title:         { contains: q } },

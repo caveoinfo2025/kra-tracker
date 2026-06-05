@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { executeAutomation } from "@/lib/crm-engine";
 
 const LEAD_INCLUDE = {
   assignedTo: { select: { id: true, name: true } },
@@ -30,7 +31,8 @@ export async function GET(req: Request) {
 
   const where = {
     ...(isManager ? {} : { assignedToId: empId }),
-    ...(stageFilter  ? { stage: stageFilter }      : {}),
+    // PROPOSAL_SENT leads are converted to Opportunities — exclude from Leads view by default
+    stage: stageFilter ? stageFilter : { not: "PROPOSAL_SENT" },
     ...(sourceFilter ? { source: sourceFilter }    : {}),
     ...(empFilter    ? { assignedToId: Number(empFilter) } : {}),
     ...(oemFilter    ? { oemId: oemFilter }         : {}),
@@ -115,6 +117,14 @@ export async function POST(req: Request) {
       leadId:        lead.id,
     },
   });
+
+  // Fire-and-forget: trigger automation rules for lead.created event
+  executeAutomation("lead.created", {
+    leadId:      lead.id,
+    assignedToId: empId,
+    stage:       lead.stage,
+    companyName: lead.companyName,
+  }).catch(() => {/* never block response */});
 
   return NextResponse.json(lead, { status: 201 });
 }

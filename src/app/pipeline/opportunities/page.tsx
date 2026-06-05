@@ -35,7 +35,11 @@ export default async function OpportunitiesPage({
     take: 200,
   });
 
-  const legacyWhere = isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 };
+  // Only show legacy deals that have NOT yet been promoted to a real CrmOpportunity
+  const legacyWhere = {
+    crmOpportunityId: null,
+    ...(isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 }),
+  };
 
   const [employees, legacyRows] = await Promise.all([
     isManager

@@ -14,8 +14,9 @@ import { LeadStageBadge } from "@/components/pipeline/StageBadge";
 import { LeadCard } from "@/components/pipeline/LeadCard";
 import { KanbanBoard, KanbanColumn } from "@/components/pipeline/KanbanBoard";
 import { CrmSelect } from "@/components/pipeline/CrmSelect";
+import { useMasterValues } from "@/hooks/useMasterValues";
 
-// ── New-lead form modal (unchanged) ──────────────────────────────────────────
+// ── New-lead form modal ───────────────────────────────────────────────────────
 
 function LeadFormModal({
   employees,
@@ -23,12 +24,14 @@ function LeadFormModal({
   isManager,
   onClose,
   onCreated,
+  sources,
 }: {
   employees: { id: number; name: string }[];
   currentEmployeeId?: number;
   isManager: boolean;
   onClose: () => void;
   onCreated: (l: LeadSerialized) => void;
+  sources: string[];
 }) {
   const [form, setForm] = useState({
     title: "", companyName: "", contactPerson: "", email: "", phone: "",
@@ -102,7 +105,7 @@ function LeadFormModal({
               <label className="block text-xs font-medium text-gray-600 mb-1">Source</label>
               <select value={form.source} onChange={(e) => f("source", e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
-                {LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}
+                {sources.map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>
@@ -183,6 +186,8 @@ type MergedLead = {
   expectedValue?: number;
   source?: string;
   updatedAt?: string;
+  createdAt?: string;
+  opportunityId?: number; // set when lead has reached PROPOSAL_SENT
 };
 
 // ── Bulk import ───────────────────────────────────────────────────────────────
@@ -464,6 +469,7 @@ export default function LeadsClient({
   initialSearch?: string;
 }) {
   const router = useRouter();
+  const leadSources = useMasterValues("LEAD_SOURCE_LIST", LEAD_SOURCES);
 
   const [leads,           setLeads]           = useState(initialLeads);
   const [view,            setView]            = useState<"table" | "kanban">(initialView);
@@ -509,6 +515,8 @@ export default function LeadsClient({
         expectedValue: l.expectedValue,
         source:        l.source,
         updatedAt:     l.updatedAt,
+        createdAt:     l.createdAt,
+        opportunityId: l.opportunity?.id,
       }));
 
     return crmItems;
@@ -520,7 +528,7 @@ export default function LeadsClient({
   // Qualified Leads → leads in QUALIFIED or later stages
   // Appointments    → leads in POC_DEMO stage
 
-  const QUALIFIED_STAGES = ["QUALIFIED", "REQUIREMENT_GATHERED", "SOLUTION_PROPOSED", "POC_DEMO", "PROPOSAL_SENT"];
+  const QUALIFIED_STAGES = ["QUALIFIED", "REQUIREMENT_GATHERED", "SOLUTION_PROPOSED", "POC_DEMO"];
 
   const scopedLeads     = empF ? leads.filter((l) => String(l.assignedToId) === empF) : leads;
   const kraOutbound     = scopedLeads.length;
@@ -528,19 +536,15 @@ export default function LeadsClient({
   const kraQualified    = scopedLeads.filter((l) => QUALIFIED_STAGES.includes(l.stage)).length;
   const kraAppointments = scopedLeads.filter((l) => l.stage === "POC_DEMO").length;
 
-  // CRM stats from filtered merged set
+  // CRM stats — PROPOSAL_SENT leads are now in Opportunities, so not counted here
   const crmLeads    = merged.length;
   const crmQual     = merged.filter((m) =>
-    ["QUALIFIED","REQUIREMENT_GATHERED","SOLUTION_PROPOSED","POC_DEMO","PROPOSAL_SENT"].includes(m.stage)).length;
-  const crmProposal = merged.filter((m) => m.stage === "PROPOSAL_SENT").length;
+    ["QUALIFIED","REQUIREMENT_GATHERED","SOLUTION_PROPOSED","POC_DEMO"].includes(m.stage)).length;
 
-  // ── Kanban columns ─────────────────────────────────────────────────────────
+  // ── Kanban columns — PROPOSAL_SENT removed (leads convert to Opportunities) ─
 
-  const qualStages = LEAD_STAGES.filter((s) => s !== "PROPOSAL_SENT");
-  const kanbanCols: KanbanColumn<MergedLead>[] = [
-    ...qualStages,
-    "PROPOSAL_SENT" as string,
-  ].map((s) => ({
+  const kanbanStages = LEAD_STAGES.filter((s) => s !== "PROPOSAL_SENT");
+  const kanbanCols: KanbanColumn<MergedLead>[] = kanbanStages.map((s) => ({
     key:   s,
     label: LEAD_STAGE_LABELS[s as keyof typeof LEAD_STAGE_LABELS] ?? s,
     color: s === "NEW_LEAD"            ? "bg-slate-200 text-slate-700"
@@ -562,6 +566,11 @@ export default function LeadsClient({
     });
     if (res.ok) {
       const updated = await res.json();
+      // PROPOSAL_SENT → opportunity auto-created: navigate to Opportunities
+      if (toStage === "PROPOSAL_SENT" && updated.opportunity?.id) {
+        router.push(`/pipeline/opportunities/${updated.opportunity.id}`);
+        return;
+      }
       setLeads((p) => p.map((l) => l.id === updated.id
         ? { ...l, stage: updated.stage, opportunity: updated.opportunity } : l));
       router.refresh();
@@ -573,11 +582,10 @@ export default function LeadsClient({
   return (
     <div className="space-y-4">
       {/* CRM lead stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "Total Leads",  value: crmLeads,    color: "text-[#CC2229]" },
-          { label: "Qualified+",   value: crmQual,     color: "text-indigo-700" },
-          { label: "At Proposal",  value: crmProposal, color: "text-amber-700" },
+          { label: "Active Leads", value: crmLeads, color: "text-[#CC2229]" },
+          { label: "Qualified+",   value: crmQual,  color: "text-indigo-700" },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -616,12 +624,14 @@ export default function LeadsClient({
           <select value={stageF} onChange={(e) => setStageF(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
             <option value="">All Stages</option>
-            {LEAD_STAGES.map((s) => <option key={s} value={s}>{LEAD_STAGE_LABELS[s]}</option>)}
+            {LEAD_STAGES.filter((s) => s !== "PROPOSAL_SENT").map((s) => (
+              <option key={s} value={s}>{LEAD_STAGE_LABELS[s]}</option>
+            ))}
           </select>
           <select value={sourceF} onChange={(e) => setSourceF(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
             <option value="">All Sources</option>
-            {LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}
+            {leadSources.map((s) => <option key={s}>{s}</option>)}
           </select>
           {isManager && (
             <select value={empF} onChange={(e) => setEmpF(e.target.value)}
@@ -654,7 +664,7 @@ export default function LeadsClient({
         </div>
       </div>
 
-      <p className="text-xs text-gray-500">{merged.length} CRM leads</p>
+      <p className="text-xs text-gray-500">{merged.length} active leads</p>
 
       {/* New lead modal */}
       {showLeadForm && (
@@ -664,6 +674,7 @@ export default function LeadsClient({
           isManager={isManager}
           onClose={() => setShowLeadForm(false)}
           onCreated={handleLeadCreated}
+          sources={leadSources}
         />
       )}
 
@@ -704,36 +715,67 @@ export default function LeadsClient({
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Company / Contact", "Stage", "Value", "Source", "Owner", "Updated", ""].map((h) => (
+                  {["Company / Contact", "Stage", "SLA", "Value", "Source", "Owner", "Updated", ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {merged.map((m) => (
-                  <tr key={m.uid} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900">{m.companyName}</p>
-                      <p className="text-xs text-gray-400">{m.contactPerson}</p>
-                      {m.leadTitle && <p className="text-xs text-gray-500 italic">{m.leadTitle}</p>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <LeadStageBadge stage={m.stage} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="font-semibold text-[#CC2229]">
-                        {(m.expectedValue ?? 0) > 0 ? `₹${(m.expectedValue ?? 0).toFixed(1)}L` : "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{m.source}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{m.ownerName}</td>
-                    <td className="px-4 py-3 text-xs text-gray-400">{m.updatedAt?.slice(0, 10)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <Link href={`/pipeline/leads/${m.crmId}`}
-                        className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
-                    </td>
-                  </tr>
-                ))}
+                {merged.map((m) => {
+                  const slaStatus = m.createdAt ? (() => {
+                    const elapsedH = (Date.now() - new Date(m.createdAt).getTime()) / 3_600_000;
+                    if (m.stage === "NEW_LEAD") {
+                      if (elapsedH >= 4)  return { label: "Breach", cls: "bg-red-100 text-red-700" };
+                      if (elapsedH >= 3)  return { label: "At risk", cls: "bg-amber-100 text-amber-700" };
+                      return { label: "OK", cls: "bg-green-50 text-green-700" };
+                    }
+                    const days = Math.floor(elapsedH / 24);
+                    if (days > 30) return { label: `${days}d stale`, cls: "bg-red-100 text-red-700" };
+                    if (days > 14) return { label: `${days}d`, cls: "bg-amber-100 text-amber-700" };
+                    return null;
+                  })() : null;
+
+                  return (
+                    <tr key={m.uid} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-900">{m.companyName}</p>
+                        <p className="text-xs text-gray-400">{m.contactPerson}</p>
+                        {m.leadTitle && <p className="text-xs text-gray-500 italic">{m.leadTitle}</p>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <LeadStageBadge stage={m.stage} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {slaStatus ? (
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${slaStatus.cls}`}>
+                            {slaStatus.label}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-[#CC2229]">
+                          {(m.expectedValue ?? 0) > 0 ? `₹${(m.expectedValue ?? 0).toFixed(1)}L` : "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{m.source}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600">{m.ownerName}</td>
+                      <td className="px-4 py-3 text-xs text-gray-400">{m.updatedAt?.slice(0, 10)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {m.opportunityId ? (
+                          <Link href={`/pipeline/opportunities/${m.opportunityId}`}
+                            className="text-xs text-amber-700 hover:underline font-medium">
+                            Opportunity →
+                          </Link>
+                        ) : (
+                          <Link href={`/pipeline/leads/${m.crmId}`}
+                            className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

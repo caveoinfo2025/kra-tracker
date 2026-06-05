@@ -26,8 +26,26 @@ type OppWithLead = OpportunitySerialized & {
   _count?: { tasks: number; meetings: number };
 };
 
-// Stage labels for legacy SalesFunnel rows (matches the sales-funnel form)
-const LEGACY_STAGES = ["Lead", "Qualified", "Solutioning", "Proposal Sent", "Negotiation", "Closed Won", "Closed Lost"];
+// SLA thresholds for opportunity proposal response (kept in sync with SLA seed)
+const SLA_PROPOSAL_RESPONSE_H = 48; // PROPOSAL_SENT → response within 48h
+
+function oppSlaBadge(stage: string, updatedAt: string) {
+  if (!["PROPOSAL_SENT", "FOLLOW_UP"].includes(stage)) return null;
+  const elapsedH = (Date.now() - new Date(updatedAt).getTime()) / 3_600_000;
+  if (elapsedH >= SLA_PROPOSAL_RESPONSE_H)
+    return (
+      <span className="text-[9px] bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded-full">
+        SLA
+      </span>
+    );
+  if (elapsedH >= SLA_PROPOSAL_RESPONSE_H * 0.75)
+    return (
+      <span className="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-full">
+        ⚠SLA
+      </span>
+    );
+  return null;
+}
 
 // ── Column colours ────────────────────────────────────────────────────────────
 
@@ -42,11 +60,12 @@ const OPP_COL_COLORS: Record<string, string> = {
 
 // ── Kanban card ───────────────────────────────────────────────────────────────
 
-function OppCard({ opp, onEdit }: { opp: OppWithLead; onEdit?: (o: OppWithLead) => void }) {
+function OppCard({ opp, onPromote, promoting }: { opp: OppWithLead; onPromote?: (o: OppWithLead) => void; promoting?: boolean }) {
   const days = opp.expectedClosureDate
     ? Math.ceil((new Date(opp.expectedClosureDate).getTime() - Date.now()) / 86400000)
     : null;
   const poDateStr = opp.poDate ? opp.poDate.slice(0, 10) : null;
+  const slaBadge = !opp.isLegacy ? oppSlaBadge(opp.stage, opp.updatedAt) : null;
 
   const body = (
     <div className={`bg-white rounded-lg p-3 shadow-sm border transition-all ${
@@ -58,11 +77,14 @@ function OppCard({ opp, onEdit }: { opp: OppWithLead; onEdit?: (o: OppWithLead) 
         <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1">
           {opp.lead.companyName}
         </p>
-        {opp.isLegacy && (
-          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-            Legacy
-          </span>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {slaBadge}
+          {opp.isLegacy && (
+            <span className="text-[9px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+              Legacy
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-xs text-gray-500 mb-2 line-clamp-1">{opp.lead.title}</p>
 
@@ -91,12 +113,13 @@ function OppCard({ opp, onEdit }: { opp: OppWithLead; onEdit?: (o: OppWithLead) 
 
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
         <p className="text-xs text-gray-400 truncate flex-1">{opp.lead.assignedTo.name}</p>
-        {opp.isLegacy && onEdit && (
+        {opp.isLegacy && onPromote && (
           <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(opp); }}
-            className="text-xs text-[#CC2229] hover:underline font-medium shrink-0"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPromote(opp); }}
+            disabled={promoting}
+            className="text-xs text-[#CC2229] hover:underline font-medium shrink-0 disabled:opacity-50"
           >
-            Edit
+            {promoting ? "Opening…" : "Open →"}
           </button>
         )}
       </div>
@@ -110,104 +133,6 @@ function OppCard({ opp, onEdit }: { opp: OppWithLead; onEdit?: (o: OppWithLead) 
     <Link href={`/pipeline/opportunities/${opp.id}`} style={{ textDecoration: "none" }}>
       {body}
     </Link>
-  );
-}
-
-// ── Legacy edit modal ───────────────────────────────────────────────────────────
-// Lets users update an imported SalesFunnel deal — set/correct its stage and the
-// mandatory PO Date for Closed Won orders.
-
-function LegacyEditModal({
-  opp, onClose, onSaved,
-}: {
-  opp: OppWithLead;
-  onClose: () => void;
-  onSaved: (legacyId: number, patch: Partial<OppWithLead>) => void;
-}) {
-  const [stage, setStage]   = useState(opp.legacyStage ?? "Closed Won");
-  const [poDate, setPoDate] = useState(opp.poDate?.slice(0, 10) ?? "");
-  const [value, setValue]   = useState(String(opp.value));
-  const [saving, setSaving] = useState(false);
-  const [err, setErr]       = useState("");
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setErr("");
-    if (stage === "Closed Won" && !poDate) {
-      setErr("PO Date is required for Closed Won orders.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/sales-funnel/${opp.legacyId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stage,
-          poDate: poDate || null,
-          dealValueLakhs: Number(value),
-        }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setErr(d.error ?? "Save failed");
-        return;
-      }
-      onSaved(opp.legacyId!, {
-        legacyStage: stage,
-        poDate: poDate || null,
-        value: Number(value),
-        stage: stage === "Closed Won" ? "WON"
-             : stage === "Closed Lost" ? "LOST"
-             : stage === "Negotiation" ? "NEGOTIATION" : "PROPOSAL_SENT",
-      });
-    } catch {
-      setErr("Network error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h3 className="text-lg font-bold mb-1">Edit Legacy Deal</h3>
-        <p className="text-sm text-gray-500 mb-4">{opp.lead.companyName} — {opp.lead.title}</p>
-        {err && <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{err}</div>}
-        <form onSubmit={save} className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Stage</label>
-            <select value={stage} onChange={(e) => setStage(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
-              {LEGACY_STAGES.map((s) => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Deal Value (₹L)</label>
-            <input type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
-          </div>
-          {stage === "Closed Won" && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                PO Date <span className="text-red-500">*</span>
-                <span className="text-gray-400 ml-1">(used as close date)</span>
-              </label>
-              <input type="date" required value={poDate} onChange={(e) => setPoDate(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
-            </div>
-          )}
-          <div className="flex gap-3 pt-2">
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-[#CC2229] text-white text-sm font-semibold py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
-              {saving ? "Saving…" : "Save"}
-            </button>
-            <button type="button" onClick={onClose}
-              className="flex-1 border text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-50">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 }
 
@@ -232,13 +157,26 @@ export default function OpportunitiesClient({
   const [view,   setView]   = useState<"table" | "kanban">(initialView);
   const [empF,   setEmpF]   = useState("");
   const [search, setSearch] = useState(initialSearch);
-  const [editLegacy, setEditLegacy] = useState<OppWithLead | null>(null);
+  const [promotingId, setPromotingId] = useState<number | null>(null);
 
-  // Apply a legacy edit to the in-memory list (id is negative for legacy rows)
-  function applyLegacyEdit(legacyId: number, patch: Partial<OppWithLead>) {
-    setOpps((p) => p.map((o) => o.id === -legacyId ? { ...o, ...patch } : o));
-    setEditLegacy(null);
-    router.refresh();
+  // Promote a legacy SalesFunnel deal to a real CrmOpportunity, then open it.
+  // Gives imported deals the full edit + close-won/lost flow.
+  async function promoteLegacy(opp: OppWithLead) {
+    if (!opp.legacyId || promotingId) return;
+    setPromotingId(opp.legacyId);
+    try {
+      const res = await fetch("/api/pipeline/opportunities/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ salesFunnelId: opp.legacyId }),
+      });
+      if (res.ok) {
+        const d = await res.json() as { opportunityId: number };
+        router.push(`/pipeline/opportunities/${d.opportunityId}`);
+        return;
+      }
+    } catch { /* fall through */ }
+    setPromotingId(null);
   }
 
   // ── KRA-aligned pipeline metrics ──────────────────────────────────────────
@@ -380,7 +318,7 @@ export default function OpportunitiesClient({
         <KanbanBoard<OppWithLead>
           columns={kanbanCols}
           getId={(o) => o.id}
-          renderCard={(o) => <OppCard opp={o} onEdit={setEditLegacy} />}
+          renderCard={(o) => <OppCard opp={o} onPromote={promoteLegacy} promoting={promotingId === o.legacyId} />}
           onMove={handleKanbanMove}
         />
       )}
@@ -444,8 +382,10 @@ export default function OpportunitiesClient({
                       <td className="px-4 py-3 text-xs text-gray-600">{o.lead.assignedTo.name}</td>
                       <td className="px-4 py-3">
                         {o.isLegacy ? (
-                          <button onClick={() => setEditLegacy(o)}
-                            className="text-xs text-[#CC2229] hover:underline font-medium">Edit</button>
+                          <button onClick={() => promoteLegacy(o)} disabled={promotingId === o.legacyId}
+                            className="text-xs text-[#CC2229] hover:underline font-medium disabled:opacity-50">
+                            {promotingId === o.legacyId ? "Opening…" : "Open →"}
+                          </button>
                         ) : (
                           <Link href={`/pipeline/opportunities/${o.id}`}
                             className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
@@ -460,14 +400,6 @@ export default function OpportunitiesClient({
         </div>
       )}
 
-      {/* ── Legacy edit modal ── */}
-      {editLegacy && (
-        <LegacyEditModal
-          opp={editLegacy}
-          onClose={() => setEditLegacy(null)}
-          onSaved={applyLegacyEdit}
-        />
-      )}
     </div>
   );
 }

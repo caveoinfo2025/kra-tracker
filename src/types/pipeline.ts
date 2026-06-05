@@ -92,9 +92,15 @@ export type OpportunitySerialized = {
   leadId: number;
   stage: string;
   value: number;
+  discountPct: number;
   expectedClosureDate: string | null;
   probability: number;
   lostReason: string;
+  // Closed Won fields
+  dealValueExTax: number;
+  netProfitLakhs: number;
+  poNumber: string;
+  poDate: string | null;
   status: string;
   createdAt: string;
   updatedAt: string;

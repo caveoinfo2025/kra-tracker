@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 import CustomerNameCombobox from "@/components/CustomerNameCombobox";
+import { useMasterValues } from "@/hooks/useMasterValues";
 
 type Lead = {
   id: number; date: string; employeeId: number; employee: { name: string };
@@ -12,7 +13,7 @@ type Lead = {
 };
 type Employee = { id: number; name: string };
 
-const LEAD_SOURCES = ["Outbound Calls", "Existing Customer", "Referral", "OEM Lead", "Website", "Event", "Partner"];
+const DEFAULT_LEAD_SOURCES = ["Outbound Calls", "Existing Customer", "Referral", "OEM Lead", "Website", "Event", "Partner"] as const;
 const ACTIVITY_TYPES = ["Call", "Connect", "Meeting", "Demo", "Follow-up", "Proposal Discussion", "Collection Follow-up"];
 const LEAD_STATUSES = ["New", "Contacted", "Qualified", "Disqualified", "Converted", "Nurture"];
 
@@ -31,6 +32,7 @@ export default function LeadGenClient({
   initialLeads: Lead[]; employees: Employee[]; isManager: boolean; currentEmployeeId?: number;
 }) {
   const router = useRouter();
+  const leadSources = useMasterValues("LEAD_SOURCE_LIST", DEFAULT_LEAD_SOURCES);
   const [leads, setLeads] = useState(initialLeads);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -230,7 +232,7 @@ export default function LeadGenClient({
                   <select value={form.leadSource} onChange={(e) => f("leadSource", e.target.value)}
                     className="w-full border rounded-lg px-3 py-2 text-sm">
                     <option value="">Select</option>
-                    {LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}
+                    {leadSources.map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </div>
               </div>

@@ -375,6 +375,11 @@ export default function LeadDetailClient({
       if (res.ok) {
         const updated = await res.json();
         setLead((p) => ({ ...p, stage: updated.stage, opportunity: updated.opportunity }));
+        // PROPOSAL_SENT → opportunity auto-created: navigate directly to it
+        if (stage === "PROPOSAL_SENT" && updated.opportunity?.id) {
+          router.push(`/pipeline/opportunities/${updated.opportunity.id}`);
+          return;
+        }
         router.refresh();
         // Entering POC/Demo → prompt to assign presales
         if (stage === "POC_DEMO") setShowPoc(true);
