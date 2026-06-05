@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { WorkflowAuditEntry } from "@/lib/workflow-engine";
@@ -53,7 +53,7 @@ export default function WorkflowAudit({ entityType, entityId }: Props) {
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
         <input
           className="input"
-          placeholder="Search actor or action…"
+          placeholder="Search actor or actionâ€¦"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ flex: 1 }}
@@ -65,7 +65,7 @@ export default function WorkflowAudit({ entityType, entityId }: Props) {
       </div>
 
       {loading ? (
-        <div style={{ color: "var(--fg-4)", padding: 32, textAlign: "center" }}>Loading…</div>
+        <div style={{ color: "var(--fg-4)", padding: 32, textAlign: "center" }}>Loadingâ€¦</div>
       ) : filtered.length === 0 ? (
         <div style={{ color: "var(--fg-4)", padding: 32, textAlign: "center" }}>No audit entries found.</div>
       ) : (
@@ -100,7 +100,7 @@ export default function WorkflowAudit({ entityType, entityId }: Props) {
                     {e.entityType === "APPROVAL_REQUEST" ? `Request #${e.entityId}` : `Workflow #${e.entityId}`}
                   </td>
                   <td style={{ fontSize: 12, color: "var(--fg-4)", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {e.details ?? "—"}
+                    {e.details ?? "â€”"}
                   </td>
                 </tr>
               ))}
@@ -111,3 +111,4 @@ export default function WorkflowAudit({ entityType, entityId }: Props) {
     </div>
   );
 }
+

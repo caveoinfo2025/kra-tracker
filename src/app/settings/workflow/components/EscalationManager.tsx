@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { EscalationRule, WorkflowDefinition } from "@/lib/workflow-engine";
@@ -59,7 +59,7 @@ export default function EscalationManager({ canEdit }: Props) {
           <div style={{ fontWeight: 600 }}>Escalation Rules</div>
           <div style={{ fontSize: 13, color: "var(--fg-4)" }}>Automatically remind or escalate overdue approval requests</div>
         </div>
-        {canEdit && <button className="btn-primary" onClick={() => setShowForm(true)}>+ New Rule</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ New Rule</button>}
       </div>
 
       {showForm && (
@@ -69,7 +69,7 @@ export default function EscalationManager({ canEdit }: Props) {
             <div>
               <label className="form-label">Workflow</label>
               <select className="input" value={form.workflowId} onChange={(e) => setForm({ ...form, workflowId: e.target.value })}>
-                <option value="">Select workflow…</option>
+                <option value="">Select workflowâ€¦</option>
                 {workflows.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
@@ -97,14 +97,14 @@ export default function EscalationManager({ canEdit }: Props) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-            <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+            <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Savingâ€¦" : "Save"}</button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>Loading…</div>
+        <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>Loadingâ€¦</div>
       ) : rules.length === 0 ? (
         <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>No escalation rules defined.</div>
       ) : (
@@ -122,7 +122,7 @@ export default function EscalationManager({ canEdit }: Props) {
                     <span style={{ background: "#f9731618", color: "#f97316", borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{r.action}</span>
                   </td>
                   <td style={{ fontSize: 13 }}>{r.maxTriggers}</td>
-                  <td style={{ fontSize: 13, color: "var(--fg-4)" }}>{r.repeatEvery ? `Every ${r.repeatEvery}h` : "—"}</td>
+                  <td style={{ fontSize: 13, color: "var(--fg-4)" }}>{r.repeatEvery ? `Every ${r.repeatEvery}h` : "â€”"}</td>
                   <td>
                     <span style={{ background: r.isActive ? "#22c55e18" : "#6b728018", color: r.isActive ? "#22c55e" : "#6b7280", borderRadius: 4, padding: "2px 8px", fontSize: 11 }}>
                       {r.isActive ? "Yes" : "No"}
@@ -137,3 +137,4 @@ export default function EscalationManager({ canEdit }: Props) {
     </div>
   );
 }
+

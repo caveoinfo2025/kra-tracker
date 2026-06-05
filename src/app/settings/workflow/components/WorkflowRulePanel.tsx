@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { WorkflowDefinition } from "@/lib/workflow-engine";
@@ -55,7 +55,7 @@ export default function WorkflowRulePanel({ canEdit }: Props) {
     return (
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button className="btn-ghost" onClick={() => { setCreating(false); setSelected(null); }}>← Back</button>
+          <button className="btn btn-ghost" onClick={() => { setCreating(false); setSelected(null); }}>â† Back</button>
           <div style={{ fontWeight: 600 }}>{creating ? "New Workflow" : selected?.name}</div>
         </div>
         <WorkflowDesigner
@@ -72,7 +72,7 @@ export default function WorkflowRulePanel({ canEdit }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Toolbar */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <input className="input" placeholder="Search workflows…" value={filter.search} onChange={(e) => setFilter({ ...filter, search: e.target.value })} style={{ flex: 1, minWidth: 180 }} />
+        <input className="input" placeholder="Search workflowsâ€¦" value={filter.search} onChange={(e) => setFilter({ ...filter, search: e.target.value })} style={{ flex: 1, minWidth: 180 }} />
         <select className="input" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })} style={{ width: 140 }}>
           <option value="ALL">All statuses</option>
           <option value="ACTIVE">Active</option>
@@ -83,7 +83,7 @@ export default function WorkflowRulePanel({ canEdit }: Props) {
           <option value="ALL">All modules</option>
           {modules.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
-        {canEdit && <button className="btn-primary" onClick={() => setCreating(true)}>+ New Workflow</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}>+ New Workflow</button>}
       </div>
 
       {/* KPI row */}
@@ -98,7 +98,7 @@ export default function WorkflowRulePanel({ canEdit }: Props) {
 
       {/* Table */}
       {loading ? (
-        <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>Loading…</div>
+        <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>Loadingâ€¦</div>
       ) : filtered.length === 0 ? (
         <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>No workflows found.</div>
       ) : (
@@ -123,9 +123,9 @@ export default function WorkflowRulePanel({ canEdit }: Props) {
                   </td>
                   {canEdit && (
                     <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: "nowrap" }}>
-                      {wf.status === "DRAFT"    && <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => handleStatusChange(wf, "ACTIVE")}>Activate</button>}
-                      {wf.status === "ACTIVE"   && <button className="btn-ghost" style={{ fontSize: 12, color: "#ef4444" }} onClick={() => handleStatusChange(wf, "INACTIVE")}>Deactivate</button>}
-                      {wf.status === "INACTIVE" && <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => handleStatusChange(wf, "ACTIVE")}>Re-activate</button>}
+                      {wf.status === "DRAFT"    && <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => handleStatusChange(wf, "ACTIVE")}>Activate</button>}
+                      {wf.status === "ACTIVE"   && <button className="btn btn-ghost" style={{ fontSize: 12, color: "#ef4444" }} onClick={() => handleStatusChange(wf, "INACTIVE")}>Deactivate</button>}
+                      {wf.status === "INACTIVE" && <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => handleStatusChange(wf, "ACTIVE")}>Re-activate</button>}
                     </td>
                   )}
                 </tr>
@@ -137,3 +137,4 @@ export default function WorkflowRulePanel({ canEdit }: Props) {
     </div>
   );
 }
+

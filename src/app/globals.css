@@ -868,3 +868,56 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* ── CSS token aliases (settings module compatibility) ── */
+:root {
+  --primary:           var(--accent);
+  --primary-hover:     var(--accent-hover);
+  --foreground:        var(--fg-1);
+  --muted-foreground:  var(--fg-3);
+  --card:              var(--bg-elev);
+  --background:        var(--bg-elev);
+  --accent-bg:         var(--bg-muted);
+}
+
+/* ── Utility button aliases ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  border: 1px solid transparent; height: 34px;
+  font-family: var(--font-sans); cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out); white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-secondary { background: var(--bg-elev); color: var(--fg-1); border-color: var(--border); }
+.btn-secondary:hover:not(:disabled) { background: var(--bg-muted); border-color: var(--border-strong); }
+.btn-ghost { background: transparent; color: var(--fg-2); border-color: transparent; }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-muted); color: var(--fg-1); }
+.btn-sm { height: 28px !important; padding: 0 10px !important; font-size: 12px !important; }
+.btn-danger { background: #ef4444; color: #fff; border-color: transparent; }
+.btn-danger:hover:not(:disabled) { background: #dc2626; }
+
+/* ── Form utilities ── */
+.input {
+  display: block; width: 100%;
+  padding: 8px 10px; font-size: 13px;
+  border-radius: 7px; border: 1px solid var(--border);
+  background: var(--bg-elev); color: var(--fg-1);
+  font-family: var(--font-sans);
+  transition: border-color var(--duration-fast);
+  box-sizing: border-box;
+}
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(200,16,46,0.12); }
+.input:disabled { background: var(--bg-muted); color: var(--fg-3); cursor: not-allowed; }
+.input::placeholder { color: var(--fg-4); }
+textarea.input { resize: vertical; }
+
+.form-label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--fg-2); margin-bottom: 5px;
+}
+.form-hint {
+  font-size: 11px; color: var(--fg-4); margin-top: 3px;
+}

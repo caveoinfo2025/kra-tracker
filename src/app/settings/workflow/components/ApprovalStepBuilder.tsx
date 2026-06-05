@@ -66,9 +66,9 @@ export default function ApprovalStepBuilder({ steps, onChange, disabled }: Props
             </div>
             {!disabled && (
               <div style={{ display: "flex", gap: 4 }}>
-                <button className="btn-ghost" style={{ padding: "2px 8px" }} onClick={() => moveStep(i, -1)} disabled={i === 0}>↑</button>
-                <button className="btn-ghost" style={{ padding: "2px 8px" }} onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1}>↓</button>
-                <button className="btn-ghost" style={{ padding: "2px 8px", color: "#ef4444" }} onClick={() => removeStep(i)}>Remove</button>
+                <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px" }} onClick={() => moveStep(i, -1)} disabled={i === 0}>↑</button>
+                <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px" }} onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1}>↓</button>
+                <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px", color: "#ef4444" }} onClick={() => removeStep(i)}>Remove</button>
               </div>
             )}
           </div>
@@ -110,7 +110,7 @@ export default function ApprovalStepBuilder({ steps, onChange, disabled }: Props
       ))}
 
       {!disabled && (
-        <button className="btn-ghost" onClick={addStep} style={{ alignSelf: "flex-start", fontSize: 13 }}>
+        <button className="btn btn-ghost btn-sm" onClick={addStep} style={{ alignSelf: "flex-start", fontSize: 13 }}>
           + Add Approval Step
         </button>
       )}

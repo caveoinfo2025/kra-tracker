@@ -62,9 +62,9 @@ export default function TriggerSelector({ module, triggerEvent, onChange, disabl
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
       <div>
-        <label style={labelStyle}>Module *</label>
+        <label className="form-label">Module *</label>
         <select
-          style={selectStyle}
+          className="input"
           value={module}
           disabled={disabled}
           onChange={(e) => { onChange("module", e.target.value); onChange("triggerEvent", ""); }}
@@ -74,13 +74,13 @@ export default function TriggerSelector({ module, triggerEvent, onChange, disabl
             <option key={m} value={m}>{MODULE_LABELS[m] ?? m}</option>
           ))}
         </select>
-        <p style={hintStyle}>The business area this workflow applies to</p>
+        <p className="form-hint">The business area this workflow applies to</p>
       </div>
 
       <div>
-        <label style={labelStyle}>Trigger Event *</label>
+        <label className="form-label">Trigger Event *</label>
         <select
-          style={selectStyle}
+          className="input"
           value={triggerEvent}
           disabled={disabled || !module}
           onChange={(e) => onChange("triggerEvent", e.target.value)}
@@ -90,22 +90,8 @@ export default function TriggerSelector({ module, triggerEvent, onChange, disabl
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
-        <p style={hintStyle}>The business event that starts this approval workflow</p>
+        <p className="form-hint">The business event that starts this approval workflow</p>
       </div>
     </div>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block", fontSize: 12, fontWeight: 600,
-  color: "var(--foreground)", marginBottom: 6,
-};
-const selectStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", fontSize: 13,
-  borderRadius: 8, border: "1px solid var(--border)",
-  background: "var(--background)", color: "var(--foreground)",
-  appearance: "auto",
-};
-const hintStyle: React.CSSProperties = {
-  fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, marginBottom: 0,
-};

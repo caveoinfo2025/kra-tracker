@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { DelegationRule } from "@/lib/workflow-engine";
@@ -58,7 +58,7 @@ export default function DelegationManager({ canEdit }: Props) {
           <div style={{ fontSize: 13, color: "var(--fg-4)" }}>Route approvals to a delegate when you are unavailable</div>
         </div>
         {canEdit && (
-          <button className="btn-primary" onClick={() => setShowForm(true)}>+ New Delegation</button>
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ New Delegation</button>
         )}
       </div>
 
@@ -73,7 +73,7 @@ export default function DelegationManager({ canEdit }: Props) {
             </div>
             <div>
               <label className="form-label">Module (optional)</label>
-              <input className="input" placeholder="FINANCE, CRM, … or leave blank for all" value={form.module} onChange={(e) => setForm({ ...form, module: e.target.value })} />
+              <input className="input" placeholder="FINANCE, CRM, â€¦ or leave blank for all" value={form.module} onChange={(e) => setForm({ ...form, module: e.target.value })} />
             </div>
             <div>
               <label className="form-label">Start Date</label>
@@ -86,18 +86,18 @@ export default function DelegationManager({ canEdit }: Props) {
           </div>
           <div>
             <label className="form-label">Reason</label>
-            <input className="input" placeholder="Annual leave, travel, …" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+            <input className="input" placeholder="Annual leave, travel, â€¦" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-            <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+            <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Savingâ€¦" : "Save"}</button>
           </div>
         </div>
       )}
 
       {/* List */}
       {loading ? (
-        <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>Loading…</div>
+        <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>Loadingâ€¦</div>
       ) : delegations.length === 0 ? (
         <div style={{ color: "var(--fg-4)", textAlign: "center", padding: 32 }}>No delegation rules. Create one to route approvals when you are unavailable.</div>
       ) : (
@@ -123,18 +123,18 @@ export default function DelegationManager({ canEdit }: Props) {
                     <td style={{ fontSize: 13 }}>User #{d.toUser}</td>
                     <td style={{ fontSize: 13 }}>{d.module ?? "All"}</td>
                     <td style={{ fontSize: 12, color: "var(--fg-4)", whiteSpace: "nowrap" }}>
-                      {new Date(d.startDate).toLocaleDateString("en-IN")} → {new Date(d.endDate).toLocaleDateString("en-IN")}
+                      {new Date(d.startDate).toLocaleDateString("en-IN")} â†’ {new Date(d.endDate).toLocaleDateString("en-IN")}
                     </td>
                     <td>
                       <span style={{ background: isActive ? "#22c55e18" : "#6b728018", color: isActive ? "#22c55e" : "#6b7280", borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>
                         {isActive ? "Active" : d.status}
                       </span>
                     </td>
-                    <td style={{ fontSize: 12, color: "var(--fg-4)" }}>{d.reason ?? "—"}</td>
+                    <td style={{ fontSize: 12, color: "var(--fg-4)" }}>{d.reason ?? "â€”"}</td>
                     {canEdit && (
                       <td>
                         {d.status === "ACTIVE" && (
-                          <button className="btn-ghost" style={{ fontSize: 12, color: "#ef4444" }} onClick={() => handleRevoke(d.id)}>Revoke</button>
+                          <button className="btn btn-ghost" style={{ fontSize: 12, color: "#ef4444" }} onClick={() => handleRevoke(d.id)}>Revoke</button>
                         )}
                       </td>
                     )}
@@ -148,3 +148,4 @@ export default function DelegationManager({ canEdit }: Props) {
     </div>
   );
 }
+
