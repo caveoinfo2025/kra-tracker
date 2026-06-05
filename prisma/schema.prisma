@@ -164,6 +164,7 @@ model SalesFunnel {
   pocFlag           Boolean   @default(false)
   remarks           String    @default("") @db.Text
   createdAt         DateTime  @default(now())
+  crmOpportunityId  Int?      // set when this legacy deal is promoted to a real CrmOpportunity
 
   @@index([employeeId])
   @@index([stage, status])
@@ -346,7 +347,13 @@ model CrmOpportunity {
   value               Float     @default(0)
   expectedClosureDate DateTime?
   probability         Int       @default(50)
+  discountPct         Float     @default(0)   // discount % requested (0-100); triggers approval when > 0
   lostReason          String    @default("") @db.Text
+  // Closed Won fields — required when stage → WON
+  dealValueExTax      Float     @default(0)   // deal value excluding tax (₹L)
+  netProfitLakhs      Float     @default(0)   // net profit (absolute, ₹L)
+  poNumber            String    @default("")  // purchase order number
+  poDate              DateTime?               // PO date
   status              String    @default("active")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -1471,6 +1478,140 @@ model VendorPolicy {
 
   @@map("vendor_policy")
   @@index([companyId])
+  @@index([status])
+}
+
+// ── 34. PipelineDefinition — named sales process with ordered stages ──────────
+// Multiple pipelines can coexist (e.g. "Enterprise Sales", "Renewal Pipeline").
+// isDefault=true pipeline is used when no pipeline is explicitly selected.
+model PipelineDefinition {
+  id          Int      @id @default(autoincrement())
+  companyId   Int?
+  name        String
+  code        String   @unique
+  description String   @default("") @db.Text
+  isDefault   Boolean  @default(false)
+  status      String   @default("active") // active|archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stages PipelineStage[]
+
+  @@map("pipeline_definition")
+  @@index([companyId])
+  @@index([status])
+}
+
+// ── 35. PipelineStage — one stage inside a PipelineDefinition ────────────────
+// stageCode links back to OPP_STAGES for backward compat with existing CRM.
+// stageType: OPEN | WON | LOST
+// mandatoryFieldsJson: JSON array of field names, e.g. ["amount","expectedClosureDate"]
+model PipelineStage {
+  id                  Int                @id @default(autoincrement())
+  pipelineId          Int
+  pipeline            PipelineDefinition @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stageName           String
+  stageCode           String
+  sequence            Int
+  probability         Int                @default(50)
+  stageType           String             @default("OPEN") // OPEN|WON|LOST
+  requiresApproval    Boolean            @default(false)
+  mandatoryFieldsJson String             @default("[]") @db.Text
+  entryRuleId         Int?
+  exitRuleId          Int?
+  status              String             @default("active")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("pipeline_stage")
+  @@index([pipelineId])
+  @@index([pipelineId, sequence])
+}
+
+// ── 36. Territory — named geographic/segment territory ────────────────────────
+model Territory {
+  id          Int      @id @default(autoincrement())
+  companyId   Int?
+  name        String
+  description String   @default("") @db.Text
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rules TerritoryRule[]
+
+  @@map("territory")
+  @@index([companyId])
+  @@index([status])
+}
+
+// ── 37. TerritoryRule — one condition line inside a Territory ─────────────────
+// conditionJson: {field:"state",operator:"eq",value:"Tamil Nadu"}
+model TerritoryRule {
+  id            Int       @id @default(autoincrement())
+  territoryId   Int
+  territory     Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  conditionJson String    @db.Text
+  createdAt     DateTime  @default(now())
+
+  @@map("territory_rule")
+  @@index([territoryId])
+}
+
+// ── 38. AccountAssignmentRule — priority-ordered assignment routing ────────────
+// assignToType: USER | TEAM | ROLE | QUEUE
+// conditionJson: {and:[{field,operator,value},...]}
+model AccountAssignmentRule {
+  id            Int      @id @default(autoincrement())
+  name          String
+  priority      Int      @default(10)
+  conditionJson String   @db.Text
+  assignToType  String   // USER|TEAM|ROLE|QUEUE
+  assignToId    Int?
+  assignToName  String   @default("")
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("account_assignment_rule")
+  @@index([status, priority])
+}
+
+// ── 39. CRMAutomationRule — event-driven no-code automation ──────────────────
+// event: LEAD_CREATED | LEAD_CONVERTED | OPPORTUNITY_CREATED | STAGE_CHANGED |
+//        DEAL_WON | DEAL_LOST | NO_ACTIVITY | RENEWAL_DUE
+// actionJson: {type:"CREATE_TASK",params:{title,daysFromNow,assignToType}}
+model CRMAutomationRule {
+  id            Int      @id @default(autoincrement())
+  name          String
+  event         String
+  conditionJson String   @default("{}") @db.Text
+  actionJson    String   @db.Text
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("crm_automation_rule")
+  @@index([event, status])
+}
+
+// ── 40. SLARule — response / follow-up time targets ──────────────────────────
+// module: CRM | SUPPORT | FINANCE
+// event:  LEAD_RESPONSE | OPPORTUNITY_FOLLOW_UP | PROPOSAL_DUE | etc.
+model SLARule {
+  id                 Int      @id @default(autoincrement())
+  module             String
+  event              String
+  label              String   @default("")
+  durationHours      Int
+  warningHours       Int      @default(0) // 0 = warn at 80% of durationHours
+  escalationPolicyId Int?
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("sla_rule")
+  @@index([module, event])
   @@index([status])
 }
 
