@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
   Building2, ShieldCheck, GitBranch, Database,
-  ScrollText, Target, ChevronRight,
+  ScrollText, Target, ChevronRight, SlidersHorizontal,
 } from "lucide-react";
 
 interface SettingsItem {
@@ -32,6 +32,14 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        ShieldCheck,
     iconColor:   "#C8102E",
     iconBg:      "rgba(200,16,46,0.1)",
+  },
+  {
+    href:        "/settings/crm",
+    label:       "CRM Administration",
+    description: "Pipelines, territories, assignment rules and automation",
+    icon:        SlidersHorizontal,
+    iconColor:   "#FF6B00",
+    iconBg:      "rgba(255,107,0,0.1)",
   },
   {
     href:        "/settings/workflow",
