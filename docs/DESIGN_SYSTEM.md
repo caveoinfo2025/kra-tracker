@@ -4,6 +4,39 @@ Defined as CSS custom properties in `src/app/globals.css` (`:root`). Tailwind v4
 present but most styling uses these tokens + hand-written component classes.
 **Reuse tokens — never hardcode hex values in components.**
 
+> **2026-06-05 — CSS utility aliases added to `globals.css`:**
+>
+> **Token aliases** (for settings module compatibility):
+> - `--primary` = `--accent` (#C8102E)
+> - `--foreground` = `--fg-1`
+> - `--muted-foreground` = `--fg-3`
+> - `--card` = `--bg-elev`
+> - `--background` = `--bg-elev`
+>
+> **New utility classes:**
+> - `.btn` — base button (inline-flex, h:34px, font-sans, cursor:pointer)
+> - `.btn-primary` — red accent background + white text
+> - `.btn-secondary` — elevated bg + border + fg-1 text
+> - `.btn-ghost` — transparent bg + fg-2 text
+> - `.btn-sm` — h:28px, smaller padding
+> - `.btn-danger` — #ef4444 background
+> - `.input` — block, full-width, border, bg-elev, fg-1, border-radius:7px
+> - `.form-label` — 12px bold fg-2, display:block
+> - `.form-hint` — 11px fg-4, margin-top:4px
+>
+> **Inline style pattern (preferred for new settings components):**
+> After encountering CSS class resolution issues (PowerShell BOM corruption, Turbopack caching),
+> all Phase 6/7 settings components use inline styles with design token vars directly:
+> ```tsx
+> const input: CSSProperties = {
+>   padding: "9px 12px", border: "1px solid var(--border)",
+>   background: "var(--bg-elev)", color: "var(--fg-1)",
+>   borderRadius: 7, fontSize: 13, boxSizing: "border-box",
+> };
+> ```
+> Use `var(--caveo-red)` for primary actions, `var(--fg-1/2/3/4)` for text hierarchy,
+> `var(--bg-elev/muted)` for backgrounds, `var(--border/border-strong)` for borders.
+
 > **2026-06-04 Session 2:** **no token/theme changes.** Settings Hub 26-card grid and AdminClient
 > 14-tab expansion reuse existing tokens and component classes. Dashboard role-adaptive sections
 > reuse `.kpi`, `.card`, `.crm-table`. The `roleVariant` discriminator adds no visual tokens —

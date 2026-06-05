@@ -1,7 +1,26 @@
 # API Reference
 
-REST handlers under `src/app/api/**/route.ts`. **52 routes.** All call `getSession()`
-and return JSON.
+REST handlers under `src/app/api/**/route.ts`. **76 routes** (was 52; +24 for Admin Console Phases 5–7). All call `getSession()` and return JSON.
+
+> **2026-06-05 — 24 new routes added (Admin Console Phases 6 & 7):**
+>
+> **Workflow Engine (9 routes):**
+> - `GET/POST /api/workflows` — list workflows + create new
+> - `GET/PATCH /api/workflows/[id]` — get detail + update (name/description/steps/status)
+> - `POST /api/workflows/start` — start an approval request for an entity
+> - `GET /api/workflows/audit` — workflow audit log
+> - `GET /api/approvals` — list approval requests (`?inbox=true` for current user's pending)
+> - `POST /api/approvals/[id]/action` — APPROVE/REJECT/RETURN/DELEGATE/CANCEL
+> - `GET/POST /api/delegations` — list + create delegation rules
+> - `DELETE /api/delegations/[id]` — revoke delegation
+> - `GET/POST /api/escalation-rules` — list + create escalation rules
+>
+> **Master Data (5 routes):**
+> - `GET/POST /api/admin/masters` — multi-type (stats/categories/definitions/validation-rules/audit)
+> - `GET/POST /api/admin/masters/values` — list values for a definition + create/update value
+> - `GET/POST /api/admin/masters/overrides` — list + upsert company/branch overrides
+> - `GET/POST /api/admin/customer-policy` — get/upsert customer governance policy
+> - `GET/POST /api/admin/vendor-policy` — get/upsert vendor governance policy
 
 > **2026-06-04 (Sessions 1 & 2):** **No API routes added/changed.** Role-Adaptive Dashboard
 > (`dashboard/page.tsx`) performs a direct Prisma `findUnique` on the server — no new API. Settings

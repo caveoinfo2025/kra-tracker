@@ -19,36 +19,19 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-04, end of session 2)
-- **Database is MySQL/MariaDB 11.8.** **Finance Phase 1 (DB) is committed/pushed** (`1747f9e`).
-- **Finance Operations — Phase 2 UI (2026-06-03)** built end-to-end, UI-ONLY mock, UNCOMMITTED.
-- **🆕 2026-06-04 Session 2 additions (all uncommitted):**
-  - **Role-Adaptive Dashboard** — `roleVariant` discriminator; Operations Head + Technical Head
-    see team-oriented views; only Managers see the sales funnel. Live DB role refresh.
-  - **Settings Hub** expanded: 10 → 26 cards across 7 sections.
-  - **AdminClient** expanded: 11 → 14 tabs (Finance Ops, Approvals, Masters added).
-  - **`settings.ts`** extended: 16 new setting defaults across Finance, Approvals, Masters categories.
-  - **`docs/ADMIN_ARCHITECTURE_PLAN.md`** created: 10-section enterprise migration plan targeting
-    a 12-module Admin Console (6 phases, 12 sprints, full DB architecture).
-- **🆕 2026-06-04 Session 1 — three enterprise UI modules added, UI-ONLY on MOCK data, UNCOMMITTED:**
-  1. **Expense Categories** (`/finance/expenses/categories`, 8 files) — configuration-driven
-     category engine (usage flags, payment modes, document rules, GST, approval, grade limits,
-     customer-cost, Tally mapping; parent/sub hierarchy; load-from-template).
-  2. **Global Vendor Master** (`/masters/vendors`, 14 files) — one `Vendor` for Finance/Expense/
-     Procurement/Inventory/Projects/Support/Assets/Tally; branches+GST, contacts, banks, docs,
-     9-tab profile, GSTIN validator. `/finance/vendors` redirects here.
-  3. **Global Customer Master** (`/masters/customers`, 16 files) — one `Customer` for CRM Sales/
-     Opps/Quotations/Orders/Projects/Support/AMC/Assets/Finance/Profitability/Engineer-Visits/
-     Conveyance; hierarchy, multi-site+GST+geo, contacts, commercial, assets, profitability,
-     12-tab profile, duplicate detection. **Extends** the existing `Customer` model (does NOT
-     duplicate; legacy `/customers` DB import/dedupe untouched).
-- New sidebar **Masters** section (Customer + Vendor). **No API routes, no schema changes.**
-  Money in ₹ rupees. `npx tsc --noEmit` clean; pages verified `200` live.
-- **Also fixed:** dev login (orphaned `next dev` on port 3000 served a stale route tree →
-  `/api/dev/switch` 404). Recovery: kill orphan, clear `.next`, restart.
-- **Decision pending (asked Vijesh):** consolidate the two "Customer Master" nav entries
-  (new global `/masters/customers` vs legacy operational `/customers`).
-- **Prod note:** unchanged. Confirm `200` on `/login` before/after the next push.
+## 0. Current status (2026-06-05, end of session 3 — Admin Console Phases 6 & 7 + DB Migration)
+- **Database is MySQL/MariaDB 11.8 (migrated 2026-06-02). Dev DB fully migrated with all pending migrations.**
+- **All Admin Console phases 1–7 are committed** (`f4e2d3a`, `fc40e16` + several fix commits).
+- **Dev DB migrations applied this session:**
+  - `20260604120000_policy_engine_foundation` — PolicyCategory, Policy, PolicyRule, PolicyVersion, PolicyAudit, ConfigurationVersion
+  - `20260604180000_workflow_engine` — workflow_definition...workflow_audit_log (7 tables)
+  - `20260604220000_master_data_management` — master_category...vendor_policy (8 tables)
+- **Seeds applied:** admin foundation (65 permissions, 6 roles), 3 default policies, 5 default workflows, 8 master categories + ~40 master values, global CustomerPolicy + VendorPolicy.
+- **🆕 Phase 6 (2026-06-04 → committed):** Enterprise Approval Workflow Engine — `src/lib/workflow-engine/` (7 service files), 9 API routes, 9 UI components (`WorkflowCenter`, `WorkflowDesigner`, etc.), `WorkflowRulePanel` with live DB data showing 5 seeded workflows.
+- **🆕 Phase 7 (2026-06-04 → committed):** Enterprise Master Data Management — `src/lib/master-data/` (7 service files), 5 API routes, `/settings/masters` (8-tab admin UI), `prisma/seed-master-defaults.ts`.
+- **🆕 UI fixes (2026-06-05):** Workflow duplicate tabs removed; settings sidebar → single Settings link; settings page → clean 6-item list; WorkflowDesigner encoding/styling fixed; WorkflowRulePanel shows human-readable module/trigger labels; inline styles throughout for CSS reliability.
+- **Working tree is clean. No uncommitted changes.**
+- **Prod note:** All changes are on `master` branch locally but NOT pushed to production. Confirm with Vijesh before `git push origin master`.
 
 ## 2. Roles (Employee.role + isManager)
 | Role | Access summary |

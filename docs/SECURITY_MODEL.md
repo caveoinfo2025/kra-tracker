@@ -1,5 +1,19 @@
 # Security Model
 
+> **2026-06-05 — DB-driven RBAC now active (migrations applied):**
+> `src/lib/access-control/` is now backed by live DB tables. 65 permissions across 6 roles seeded.
+> All Admin Console pages use `hasPermission(userId, module, resource, action)` with graceful
+> predicate fallback (`isManager || isOpsHead`) while DB roles are being assigned to employees.
+> The two RBAC systems (DB-driven `access-control/` + legacy `roles.ts` predicates) coexist.
+> **canEdit fallback**: All settings pages grant edit rights to managers even if DB permissions
+> not explicitly assigned (`canEdit || isOpsHead || isManager`) — safe for dev, tighten for prod.
+
+> **Phase 6 Workflow Engine access gates:**
+> - `GET /api/workflows` — any authenticated user
+> - `POST /api/workflows` — authenticated; service checks no duplicate code
+> - `POST /api/workflows/start` — any authenticated user can trigger
+> - `POST /api/approvals/[id]/action` — action validated against approver identity by `getPendingForApprover`
+
 > **2026-06-04 Session 2 — Dashboard role gating (added, server-side):**
 > `roleVariant` is computed server-side in `dashboard/page.tsx` from a live Prisma `findUnique` —
 > it is NOT derived from the JWT. An employee cannot manipulate the dashboard variant by

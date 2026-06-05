@@ -21,19 +21,39 @@ auth.config.ts           Edge-safe: provider + LIVE authorized callback (run by 
 src/proxy.ts             Next.js 16 edge middleware: runs authConfig.auth, gates all routes
 prisma.config.ts         Prisma datasource (reads DATABASE_URL for the CLI)
 prisma/
-  schema.prisma          32 models · provider=mysql · @db.Text + indexes (22 core + 10 Finance Phase 1)
-  migrations/            2: 20260601000000_init_mysql + 20260602120000_finance_operations_phase1
-  seed.ts                Finance config seed (prisma db seed); seed-dev-{users,finance}.ts are DEV-ONLY
+  schema.prisma          55+ models · provider=mysql · @db.Text + @@map + indexes
+                         (core CRM + Finance Phase 1 + Admin Phase 2 + Policy + Workflow + Master Data)
+  migrations/            5 migrations:
+                           20260601000000_init_mysql (baseline)
+                           20260602120000_finance_operations_phase1
+                           20260604000000_admin_console_foundation (PascalCase tables)
+                           20260604120000_policy_engine_foundation (PascalCase tables)
+                           20260604180000_workflow_engine (snake_case tables — @@map required)
+                           20260604220000_master_data_management (snake_case tables — @@map required)
+  seed.ts                Finance config seed (prisma db seed via prisma.config.ts)
+  seed-admin-foundation.ts  6 roles, 65 permissions, data access policies (DEV)
+  seed-policy-defaults.ts   6 policy categories, 3 default policies (DEV)
+  seed-workflow-defaults.ts 5 default workflows (DEV)
+  seed-master-defaults.ts   8 master categories, ~40 values, global policies (DEV)
+  seed-dev-{users,finance}.ts DEV-ONLY sample data
 src/
   app/
     <route>/page.tsx     Server component: getSession() → Prisma → <XClient/>
     <route>/XClient.tsx  "use client" UI
     api/**/route.ts      52 REST handlers
     admin/               AdminClient (settings, 14 tabs incl. Finance Ops/Approvals/Masters) + RolesClient
-    settings/            SettingsHub (26-card navigation grid, 7 sections) + sub-pages
-                           administration/ → AdminClient
-                           users-roles/ → RolesClient
-                           workflow/approval-engine/ → ApprovalEngineClient (mock data)
+    settings/            AdminConsole (clean 6-item list: Org, IAM, Workflow, Masters, Policy, Performance)
+                           page.tsx → AdminConsole (simple single-page list)
+                           organization/ → OrgManagementClient (8-tab)
+                           identity/ → IdentityClient (6-tab)
+                           policies/ → PolicyEngineClient (7-tab)
+                           workflow/ → redirect to workflow/approval-engine/
+                           workflow/approval-engine/ → WorkflowCenter (5-tab: Workflows|Designer|Delegation|Escalation|Audit)
+                             WorkflowCenter uses WorkflowRulePanel/WorkflowDesigner/DelegationManager/
+                             EscalationManager/WorkflowAudit — all live DB data
+                           masters/ → MasterDataClient (8-tab: Overview|Categories|Values|Overrides|
+                             Customer Policy|Vendor Policy|Validation Rules|Audit)
+                           data/adminModules.ts — 6 active settings destinations
     finance/             Finance Phase 2 UI (2026-06-03, UI-only, MOCK data):
                            page.tsx + FinanceDashboardClient (Dashboard)
                            bank-book/  (data.ts + 9 components + client)

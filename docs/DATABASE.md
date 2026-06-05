@@ -3,15 +3,22 @@
 **Engine:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02) · **ORM:** Prisma 7.8
 (driver-adapter mode, `@prisma/adapter-mariadb`) · **Schema:** `prisma/schema.prisma`
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
-**32 models, 2 migrations** (22 core + 10 Finance Operations Phase 1).
+**55+ models, 6 migrations.** Dev DB fully migrated (2026-06-05).
 
-> **2026-06-04 (Sessions 1 & 2):** **No schema/migration/model changes.** All work this day was
-> UI-only on mock data (Expense Categories, Vendor Master, Customer Master, Role-Adaptive
-> Dashboard, Settings Hub, AdminClient expansion). `docs/ADMIN_ARCHITECTURE_PLAN.md` defines the
-> future DB models to be added in Phases 2–5 of the Admin Console migration — these include
-> `Company`, `Branch`, `Department`, `Team`, `Designation`, `RoleModulePermission`,
-> `DataAccessPolicy`, `WorkflowDefinition`, `WorkflowRule`, `WorkflowLevel`, `ApprovalRequest`,
-> `ApprovalHistory`, `DelegationRule`, `ConfigurationVersion`. None are in schema.prisma yet.
+> **2026-06-05 — DB Migration applied.** All 4 pending Admin Console migrations are now live on
+> `u686730471_caveodev`. Admin Console Phase 2 (12 models), Policy Engine Phase 5 (6 models),
+> Workflow Engine Phase 6 (7 models), Master Data Phase 7 (8 models).
+
+> **@@map pattern (Phases 6 & 7 only):** Migrations for workflow engine and master data used
+> snake_case SQL table names (`workflow_definition`, `master_category`, etc.) while Prisma model
+> names are PascalCase. `@@map("snake_case")` directives were added to all 15 affected models so
+> Prisma resolves the correct table. Phases 2 & 5 used PascalCase in both SQL and model names —
+> no @@map needed there.
+
+> **Seed actor:** All Phase 5–7 seeds that reference an Employee FK (creator, performer) use
+> `{ connect: { id: N } }` relation syntax (not bare FK integer) because Prisma 7 validates
+> required relations at create time. The actor ID is resolved dynamically from `findFirst` or
+> hardcoded to `2` (Vijesh Vijayan, first dev employee).
 
 > **2026-06-04 (Session 1):** **No schema/migration/model changes this session.** Expense Categories,
 > Vendor Master, and Customer Master are all **UI-only on mock data** (in each module's

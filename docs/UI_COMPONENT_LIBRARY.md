@@ -3,6 +3,34 @@
 > Companion to `DESIGN_SYSTEM.md` (tokens). This catalogs the actual components and how
 > to use them.
 
+> **2026-06-05 — Phase 6 & 7 Settings Components:**
+>
+> **Workflow Engine (`src/app/settings/workflow/`):**
+> - `WorkflowCenter` — 5-tab shell (Workflows|Designer|Delegation|Escalation|Audit). No Overview tab (removed duplicate). Props: `canEdit, engineCaps: {isManager, isOpsHead, currentUser}`.
+> - `WorkflowRulePanel` — live workflow list with search/filter toolbar, 3 KPI summary cards, sortable table with human-readable Module/Trigger labels. Clicking a row opens `WorkflowDesigner` in edit mode.
+> - `WorkflowDesigner` — 2-step form (Details → Approval Steps). Empty state with "New Workflow" CTA. **Uses inline styles only** (no CSS class dependency). Props: `canEdit, workflow?, onSaved?, onCancel?`.
+> - `TriggerSelector` — module + trigger dropdowns with human-readable labels. **Uses inline styles only.** Maps SCREAMING_SNAKE_CASE event codes to readable text.
+> - `ApprovalStepBuilder` — numbered step cards. Add/remove/reorder steps. Each step has `ApproverSelector` + mode/timeout/flags.
+> - `ApproverSelector` — 5-type radio cards: USER|ROLE|REPORTING_MANAGER|DEPARTMENT_HEAD|POLICY_BASED.
+> - `DelegationManager` — delegation list + create form (from/to employee, date range, module scope).
+> - `EscalationManager` — escalation rule list + create form (after hours, action type, escalatee).
+> - `WorkflowAudit` — audit log table with search + action filter.
+>
+> **Master Data (`src/app/settings/masters/`):**
+> - `MasterDataClient` — 8-tab shell. Props: `canEdit, currentUserId`.
+> - `MasterDashboard` — stat cards (categories/definitions/values/overrides counts) + architecture explainer.
+> - `MasterCategoryList` — category table + inline create form.
+> - `MasterValueManager` — definition picker → values table + add form.
+> - `OverrideManager` — company/branch override table + upsert form.
+> - `CustomerGovernance` — customer policy edit panel (GST/PAN/duplicate threshold/credit approval).
+> - `VendorGovernance` — vendor policy edit panel (GST/PAN/bank verification/approval required).
+> - `ValidationRules` — per-definition validation rule list + create form with optional Policy Engine integration.
+> - `MasterAudit` — audit log with text filter.
+>
+> **Settings Page (`src/app/settings/AdminConsole.tsx`):**
+> - Simple 6-item list: Organization, Identity & Access, Workflow Engine, Master Data, Policy Engine, Performance. Each item is a `<Link>` with icon, label, description, hover effect.
+> - No search, no stats, no recent changes — intentionally minimal.
+
 > **2026-06-02:** **Mobile finance screens added** (`5ba865a`) — a new
 > `src/app/mobile/screens/CollectionsScreen.tsx` (read-only invoices with overdue alerts +
 > Open/Overdue/All segments), a **Leads | Opportunities** segment in `PipelineScreen`, and

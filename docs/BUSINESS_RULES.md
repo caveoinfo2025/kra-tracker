@@ -6,6 +6,24 @@ infrastructure / security reseller). It runs the sales pipeline, captures activi
 **auto-computes weekly KRA performance** from those sheets, manages billing/collections +
 payments, and gives managers team dashboards. A mobile app supports field reps.
 
+> **2026-06-05 — Workflow Engine business rules:**
+> - Workflows are defined with a **module** (FINANCE/CRM/MASTERS/HR/PROCUREMENT/ADMIN) and a **trigger event** (e.g. EXPENSE_SUBMITTED).
+> - A workflow has 1+ sequential approval steps, each with: approver type (USER/ROLE/REPORTING_MANAGER/DEPARTMENT_HEAD/POLICY_BASED), approval mode (SEQUENTIAL/PARALLEL), timeout hours, mandatory flag.
+> - New workflows are created in **DRAFT** status. Must be manually activated.
+> - Approval requests are tracked per entity (entityType + entityId). `startApproval()` creates the request and resolves the first step's approvers.
+> - **Delegation**: an employee can delegate approval rights to another for a date range + optional module scope.
+> - **Escalation**: after `afterHours` without action, a rule can REMIND/ESCALATE/AUTO_APPROVE/AUTO_REJECT. Repeats up to `maxTriggers` times.
+> - Currently 5 default workflows seeded: Expense Approval, Customer Creation, Large Deal Approval, Discount Approval, Vendor Creation.
+
+> **2026-06-05 — Master Data business rules:**
+> - **Three-layer value resolution**: Global values → Company override → Branch override. Branch wins.
+> - Overrides can **rename** a value (customValue) or **disable** it (isEnabled=false). Disabled values are filtered out.
+> - `getMasterValues({ masterCode, companyId?, branchId? })` resolves all three layers in a single DB query (no N+1).
+> - Master definitions have `allowCompanyOverride` and `allowBranchOverride` flags. Overrides are ignored if the flag is false.
+> - 8 default categories seeded: Payment Terms, Lead Sources, Industry Sectors, Expense Categories, Deal Stages, Customer Types, Priority Levels, Document Types.
+> - **CustomerPolicy**: global rule for GST requirement, PAN requirement, duplicate threshold, credit approval.
+> - **VendorPolicy**: global rule for GST, PAN, bank verification, approval required.
+
 > **2026-06-04 Session 2 — Role-Adaptive Dashboard rules:**
 > - **Director / Head of Sales (Manager):** sees full sales pipeline — funnel breakdown, pipeline
 >   KPIs (pipeline/won), team pipeline chart, team collection summary.

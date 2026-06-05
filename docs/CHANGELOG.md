@@ -3,6 +3,57 @@
 Reverse-chronological log of notable changes. **Update at the end of every session.**
 Dates from git history (branch `master`).
 
+## [2026-06-05] — Session Summary (Admin Console Phase 6 & 7 + DB Migration + UI Fixes)
+
+### Added
+- **Phase 6 — Workflow Engine**: `src/lib/workflow-engine/` (7 service files: audit, resolver, delegation, escalation, workflow, approval, index) + 9 API routes (`/api/workflows/*`, `/api/approvals/*`, `/api/delegations/*`, `/api/escalation-rules`) + 9 UI components (`WorkflowCenter`, `WorkflowDesigner`, `TriggerSelector`, `ApprovalStepBuilder`, `ApproverSelector`, `WorkflowRulePanel`, `DelegationManager`, `EscalationManager`, `WorkflowAudit`)
+- **Phase 7 — Master Data Management**: `src/lib/master-data/` (7 service files) + 5 API routes + 8 UI components + `prisma/seed-master-defaults.ts` (8 categories, ~40 values, global policies)
+- **CSS utility aliases in globals.css**: `.btn`, `.btn-primary`, `.btn-ghost`, `.btn-secondary`, `.btn-sm`, `.input`, `.form-label`, `.form-hint` + token aliases (`--primary`, `--foreground`, `--card`, `--background`, `--muted-foreground`)
+
+### Fixed
+- Workflow 404: added `/settings/workflow/page.tsx` redirect to `/settings/workflow/approval-engine`
+- Duplicate workflow tabs: removed `Overview` tab that loaded legacy `ApprovalEngineClient` (had its own 6-tab strip with mock data)
+- `canEdit` fallback: extended to include `isManager` on both workflow and masters pages
+- WorkflowDesigner `Designer` tab was incorrectly rendering `WorkflowRulePanel` — now renders actual designer form
+- Settings sidebar: removed separate Administration/Users-Roles/Approval-Engine nav links, single `Settings` link
+- Settings page: replaced 13-module enterprise grid with clean 6-item list
+- Encoding corruption: fixed `â†` / `â€¦` (mangled Unicode from PowerShell Set-Content without `-Encoding utf8`) in WorkflowRulePanel + WorkflowDesigner
+- CSS class resolution: switched all workflow components from broken `className="btn-primary"` (non-existent) to inline styles using design tokens
+- `@@map` directives added to 15 schema models (Phase 6 workflow + Phase 7 master models used snake_case table names in migration SQL)
+- Seed relation syntax: `createdBy: 1` → `creator: { connect: { id } }` (Prisma 7 requires relation syntax)
+- WorkflowRulePanel table: Module/Trigger columns now show human-readable labels (Finance, CRM/Sales, Expense Submitted, etc.)
+
+### Database Changes
+- Applied migration `20260604120000_policy_engine_foundation` (PolicyCategory, Policy, PolicyRule, PolicyVersion, PolicyAudit, ConfigurationVersion)
+- Applied migration `20260604180000_workflow_engine` (workflow_definition, workflow_step, approval_request, approval_action, delegation_rule, escalation_rule, workflow_audit_log)
+- Applied migration `20260604220000_master_data_management` (master_category, master_definition, master_value, master_override, master_validation_rule, master_audit, customer_policy, vendor_policy)
+- Seeds: admin foundation (65 permissions, 6 roles), policy defaults (3), workflow defaults (5), master data defaults (8 categories + ~40 values)
+- `npx prisma generate` run after migration to update client with new models
+
+### Files Modified
+- `prisma/schema.prisma` — 15 new `@@map` directives; 8 Phase 7 models + 7 Phase 6 models
+- `prisma/seed-policy-defaults.ts` — relation syntax fix (`category: { connect }`, `creator: { connect }`)
+- `prisma/seed-workflow-defaults.ts` — SYSTEM_ACTOR 1→2, `createdBy` → `creator: { connect }`
+- `src/app/globals.css` — CSS utility aliases + token aliases
+- `src/app/settings/workflow/WorkflowCenter.tsx` — removed Overview tab, fixed Designer tab
+- `src/app/settings/workflow/components/WorkflowRulePanel.tsx` — full rewrite (encoding fix + inline styles + human-readable labels)
+- `src/app/settings/workflow/components/WorkflowDesigner.tsx` — full rewrite (inline styles, clean form layout)
+- `src/app/settings/workflow/components/TriggerSelector.tsx` — full rewrite (inline styles, readable option labels)
+- `src/app/settings/workflow/components/ApprovalStepBuilder.tsx` — btn class fix
+- `src/app/settings/workflow/components/DelegationManager.tsx` — btn class fix
+- `src/app/settings/workflow/components/EscalationManager.tsx` — btn class fix
+- `src/app/settings/workflow/components/WorkflowAudit.tsx` — btn class fix
+- `src/app/settings/workflow/page.tsx` — NEW: redirect to approval-engine
+- `src/app/settings/workflow/approval-engine/page.tsx` — `canEdit || isManager` fallback
+- `src/app/settings/masters/page.tsx` — `canEdit || isManager` fallback
+- `src/app/settings/AdminConsole.tsx` — replaced enterprise grid with 6-item clean list
+- `src/components/SidebarLinks.tsx` — Settings section simplified to single link; removed isOpsHead prop
+- `src/components/Navbar.tsx` — removed isOpsHead prop pass
+- `src/lib/access-control/permissions.ts` — added Settings/Masters/VIEW+EDIT
+- `src/app/settings/data/adminModules.ts` — Masters status beta→active
+- `docs/CHANGELOG.md` — this entry
+- `docs/NEXT_SESSION.md` — updated
+
 ## Current State
 - All core modules present on `master` / `sales.caveoinfosystems.com`: auth, pipeline,
   KRA engine + reviews/commits/certifications, collections + payments + advances +
