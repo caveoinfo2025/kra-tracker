@@ -8,7 +8,7 @@ import {
   Target, Users, Upload, BarChart3, Building2, Smartphone,
   BookUser, Landmark, Banknote, Store, Wallet, MapPin, Layers, Tag,
   ClipboardList, FilePlus, ChevronDown, CheckSquare as Inbox,
-  GitBranch, Settings2, Shield, Settings,
+  Settings,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -37,7 +37,6 @@ interface SidebarLinksProps {
   isManager: boolean;
   isAccounts: boolean;
   showSettings?: boolean;
-  isOpsHead?: boolean;
 }
 
 // ─── Role-based nav groups ─────────────────────────────────────────────────────
@@ -346,7 +345,7 @@ function EmployeeFinanceSectionNav({ isActive }: { isActive: (href: string, exac
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SidebarLinks({ isManager, isAccounts, showSettings = false, isOpsHead = false }: SidebarLinksProps) {
+export default function SidebarLinks({ isManager, isAccounts, showSettings = false }: SidebarLinksProps) {
   const pathname = usePathname();
 
   const groups = isAccounts
@@ -401,29 +400,14 @@ export default function SidebarLinks({ isManager, isAccounts, showSettings = fal
         </nav>
       </CollapsibleSection>
 
-      {/* ── Settings (Operations Head + Head of Sales + managers) ── */}
+      {/* ── Settings ── */}
       {showSettings && (
         <CollapsibleSection label="Settings" hasActiveChild={isActive("/settings")}>
           <nav className="sidebar-nav">
-            <Link href="/settings" className={"nav-link" + (pathname === "/settings" ? " is-active" : "")}>
+            <Link href="/settings" className={"nav-link" + (isActive("/settings") ? " is-active" : "")}>
               <Settings size={15} className="nav-icon" strokeWidth={1.6} />
               <span>Settings</span>
             </Link>
-            <Link href="/settings/administration" className={"nav-link" + (isActive("/settings/administration") ? " is-active" : "")}>
-              <Settings2 size={15} className="nav-icon" strokeWidth={1.6} />
-              <span>Administration</span>
-            </Link>
-            <Link href="/settings/users-roles" className={"nav-link" + (isActive("/settings/users-roles") ? " is-active" : "")}>
-              <Shield size={15} className="nav-icon" strokeWidth={1.6} />
-              <span>Users &amp; Roles</span>
-            </Link>
-            {/* Approval Engine config only visible to Operations Head + managers */}
-            {(isOpsHead || isManager) && (
-              <Link href="/settings/workflow/approval-engine" className={"nav-link" + (isActive("/settings/workflow/approval-engine") ? " is-active" : "")}>
-                <GitBranch size={15} className="nav-icon" strokeWidth={1.6} />
-                <span>Approval Engine</span>
-              </Link>
-            )}
           </nav>
         </CollapsibleSection>
       )}

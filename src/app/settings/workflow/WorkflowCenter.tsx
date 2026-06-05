@@ -3,16 +3,10 @@
 import { useState } from "react";
 import { GitBranch } from "lucide-react";
 import WorkflowRulePanel  from "./components/WorkflowRulePanel";
+import WorkflowDesigner   from "./components/WorkflowDesigner";
 import DelegationManager  from "./components/DelegationManager";
 import EscalationManager  from "./components/EscalationManager";
 import WorkflowAudit      from "./components/WorkflowAudit";
-
-// Keep legacy overview / approval-inbox tabs by lazily importing existing components
-import dynamic from "next/dynamic";
-const ApprovalEngineClient = dynamic(
-  () => import("./approval-engine/ApprovalEngineClient"),
-  { ssr: false, loading: () => <div style={{ padding: 32, color: "var(--fg-4)" }}>Loading…</div> },
-);
 
 interface Props {
   canEdit:    boolean;
@@ -23,31 +17,18 @@ interface Props {
   };
 }
 
-type Tab = "overview" | "workflows" | "designer" | "delegation" | "escalation" | "audit";
+type Tab = "workflows" | "designer" | "delegation" | "escalation" | "audit";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "overview",    label: "Overview" },
-  { key: "workflows",   label: "Workflows" },
-  { key: "designer",    label: "Designer" },
-  { key: "delegation",  label: "Delegation" },
-  { key: "escalation",  label: "Escalation" },
-  { key: "audit",       label: "Audit" },
+  { key: "workflows",  label: "Workflows"  },
+  { key: "designer",   label: "Designer"   },
+  { key: "delegation", label: "Delegation" },
+  { key: "escalation", label: "Escalation" },
+  { key: "audit",      label: "Audit"      },
 ];
 
-export default function WorkflowCenter({ canEdit, engineCaps }: Props) {
-  const [tab, setTab] = useState<Tab>("overview");
-
-  // Build ApprovalCaps for the legacy ApprovalEngineClient
-  const caps = {
-    roleLabel:             engineCaps.isOpsHead ? "Operations Head" : engineCaps.isManager ? "Manager" : "Employee",
-    canConfigureWorkflows: canEdit,
-    canViewAllRequests:    engineCaps.isOpsHead || engineCaps.isManager,
-    canApprove:            true,
-    canDelegate:           true,
-    canManageDelegations:  canEdit || engineCaps.isOpsHead,
-    canViewAnalytics:      engineCaps.isManager || engineCaps.isOpsHead,
-    currentUser:           engineCaps.currentUser,
-  };
+export default function WorkflowCenter({ canEdit, engineCaps: _caps }: Props) {
+  const [tab, setTab] = useState<Tab>("workflows");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -57,7 +38,7 @@ export default function WorkflowCenter({ canEdit, engineCaps }: Props) {
           <GitBranch size={20} color="var(--caveo-red)" />
         </div>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 17 }}>Approval Workflow Engine</div>
+          <div style={{ fontWeight: 700, fontSize: 17 }}>Workflow Engine</div>
           <div style={{ fontSize: 13, color: "var(--fg-4)" }}>Configure multi-level approval workflows, delegation rules and escalation policies</div>
         </div>
         {!canEdit && (
@@ -75,29 +56,11 @@ export default function WorkflowCenter({ canEdit, engineCaps }: Props) {
       </div>
 
       {/* Content */}
-      {tab === "overview" && (
-        <ApprovalEngineClient caps={caps} />
-      )}
-
-      {tab === "workflows" && (
-        <WorkflowRulePanel canEdit={canEdit} />
-      )}
-
-      {tab === "designer" && (
-        <WorkflowRulePanel canEdit={canEdit} />
-      )}
-
-      {tab === "delegation" && (
-        <DelegationManager canEdit={canEdit} />
-      )}
-
-      {tab === "escalation" && (
-        <EscalationManager canEdit={canEdit} />
-      )}
-
-      {tab === "audit" && (
-        <WorkflowAudit />
-      )}
+      {tab === "workflows"  && <WorkflowRulePanel canEdit={canEdit} />}
+      {tab === "designer"   && <WorkflowDesigner  canEdit={canEdit} />}
+      {tab === "delegation" && <DelegationManager canEdit={canEdit} />}
+      {tab === "escalation" && <EscalationManager canEdit={canEdit} />}
+      {tab === "audit"      && <WorkflowAudit />}
     </div>
   );
 }

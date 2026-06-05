@@ -67,7 +67,6 @@ export default async function Navbar() {
         isManager={isManager}
         isAccounts={isAccounts}
         showSettings={showSettings}
-        isOpsHead={opsHead}
       />
 
       {/* ── Footer: user chip + sign out ── */}

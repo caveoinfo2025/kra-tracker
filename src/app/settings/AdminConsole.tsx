@@ -1,134 +1,142 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { ADMIN_MODULES, ADMIN_STATS } from "./data/adminModules";
-import AdminHeader from "./components/AdminHeader";
-import AdminSearch from "./components/AdminSearch";
-import AdminStatsCard from "./components/AdminStatsCard";
-import AdminModuleCard from "./components/AdminModuleCard";
-import RecentChanges from "./components/RecentChanges";
-import QuickActions from "./components/QuickActions";
+import Link from "next/link";
+import {
+  Building2, ShieldCheck, GitBranch, Database,
+  ScrollText, Target, ChevronRight,
+} from "lucide-react";
+
+interface SettingsItem {
+  href:        string;
+  label:       string;
+  description: string;
+  icon:        React.ElementType;
+  iconColor:   string;
+  iconBg:      string;
+  status?:     "beta" | "coming-soon";
+}
+
+const SETTINGS_ITEMS: SettingsItem[] = [
+  {
+    href:        "/settings/organization",
+    label:       "Organization",
+    description: "Companies, branches, departments and teams",
+    icon:        Building2,
+    iconColor:   "#0066FF",
+    iconBg:      "rgba(0,102,255,0.1)",
+  },
+  {
+    href:        "/settings/identity",
+    label:       "Identity & Access",
+    description: "Users, roles and permissions",
+    icon:        ShieldCheck,
+    iconColor:   "#C8102E",
+    iconBg:      "rgba(200,16,46,0.1)",
+  },
+  {
+    href:        "/settings/workflow",
+    label:       "Workflow Engine",
+    description: "Approval workflows, delegation and escalation",
+    icon:        GitBranch,
+    iconColor:   "#FF6B00",
+    iconBg:      "rgba(255,107,0,0.1)",
+  },
+  {
+    href:        "/settings/masters",
+    label:       "Master Data",
+    description: "Global masters, overrides and governance policies",
+    icon:        Database,
+    iconColor:   "#0066FF",
+    iconBg:      "rgba(0,102,255,0.1)",
+  },
+  {
+    href:        "/settings/policies",
+    label:       "Policy Engine",
+    description: "Business rules, thresholds and policy enforcement",
+    icon:        ScrollText,
+    iconColor:   "#C8102E",
+    iconBg:      "rgba(200,16,46,0.1)",
+  },
+  {
+    href:        "/settings/performance",
+    label:       "Performance",
+    description: "KRA, KPI targets and review cycles",
+    icon:        Target,
+    iconColor:   "#FF6B00",
+    iconBg:      "rgba(255,107,0,0.1)",
+  },
+];
 
 export default function AdminConsole() {
-  const [query, setQuery] = useState("");
-
-  const filteredModules = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return ADMIN_MODULES;
-    return ADMIN_MODULES.filter(
-      (m) =>
-        m.name.toLowerCase().includes(q) ||
-        m.description.toLowerCase().includes(q) ||
-        m.ownerRole.toLowerCase().includes(q),
-    );
-  }, [query]);
-
   return (
-    <div style={{ maxWidth: 1180, padding: "28px 32px" }}>
+    <div style={{ maxWidth: 680, padding: "32px 32px" }}>
       {/* Header */}
-      <AdminHeader moduleCount={ADMIN_MODULES.length} />
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--foreground)", margin: 0 }}>
+          Settings
+        </h1>
+        <p style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 4 }}>
+          Configure your CRM, workflows, masters and access controls.
+        </p>
+      </div>
 
-      {/* Divider */}
-      <div style={{ borderBottom: "1px solid var(--border)", marginBottom: 24 }} />
+      {/* Settings list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {SETTINGS_ITEMS.map(({ href, label, description, icon: Icon, iconColor, iconBg, status }) => (
+          <Link
+            key={href}
+            href={href}
+            style={{
+              display:        "flex",
+              alignItems:     "center",
+              gap:            14,
+              padding:        "14px 16px",
+              borderRadius:   10,
+              border:         "1px solid var(--border)",
+              background:     "var(--card)",
+              textDecoration: "none",
+              color:          "inherit",
+              transition:     "background 0.12s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "var(--accent)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "var(--card)")}
+          >
+            {/* Icon */}
+            <div style={{
+              width:        38,
+              height:       38,
+              borderRadius: 8,
+              background:   iconBg,
+              display:      "flex",
+              alignItems:   "center",
+              justifyContent: "center",
+              flexShrink:   0,
+            }}>
+              <Icon size={18} color={iconColor} strokeWidth={1.8} />
+            </div>
 
-      {/* Quick stats */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: 12,
-        marginBottom: 28,
-      }}>
-        {ADMIN_STATS.map((stat) => (
-          <AdminStatsCard key={stat.label} stat={stat} />
+            {/* Text */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
+                  {label}
+                </span>
+                {status === "beta" && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "1px 6px",
+                    borderRadius: 10, background: "rgba(255,107,0,0.12)", color: "#FF6B00",
+                  }}>BETA</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+                {description}
+              </div>
+            </div>
+
+            {/* Arrow */}
+            <ChevronRight size={15} color="var(--muted-foreground)" strokeWidth={2} style={{ flexShrink: 0 }} />
+          </Link>
         ))}
-      </div>
-
-      {/* Search */}
-      <AdminSearch
-        value={query}
-        onChange={setQuery}
-        resultCount={query ? filteredModules.length : undefined}
-      />
-
-      {/* Module grid */}
-      <div style={{ marginBottom: 36 }}>
-        {/* Section label */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 14,
-        }}>
-          <div style={{
-            fontSize: 11,
-            fontWeight: 700,
-            textTransform: "uppercase" as const,
-            letterSpacing: "0.1em",
-            color: "var(--fg-4)",
-          }}>
-            {query ? `Results (${filteredModules.length})` : `Configuration Modules (${ADMIN_MODULES.length})`}
-          </div>
-        </div>
-
-        {filteredModules.length > 0 ? (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: 12,
-          }}>
-            {filteredModules.map((mod) => (
-              <AdminModuleCard key={mod.id} module={mod} />
-            ))}
-          </div>
-        ) : (
-          <div style={{
-            textAlign: "center",
-            padding: "48px 24px",
-            border: "1px dashed var(--border)",
-            borderRadius: "var(--radius-lg)",
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)" }}>
-              No modules match &ldquo;{query}&rdquo;
-            </div>
-            <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 6 }}>
-              Try searching by module name, description, or owner role
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom row: Recent Changes + Quick Actions */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 16,
-      }}>
-        <RecentChanges />
-        <QuickActions />
-      </div>
-
-      {/* Footer note */}
-      <div style={{
-        marginTop: 24,
-        padding: "12px 16px",
-        background: "var(--bg-muted)",
-        borderRadius: "var(--radius-md)",
-        border: "1px solid var(--border)",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}>
-        <div style={{
-          width: 6, height: 6,
-          borderRadius: "50%",
-          background: "var(--infra-blue)",
-          flexShrink: 0,
-        }} />
-        <span style={{ fontSize: 11.5, color: "var(--fg-3)" }}>
-          <strong style={{ color: "var(--fg-2)" }}>Enterprise Admin Console — Phase 1.</strong>
-          {" "}Modules marked <em>Planned</em> are under active development. Current settings
-          remain accessible via <strong style={{ color: "var(--fg-2)" }}>Settings → Administration</strong>.
-        </span>
       </div>
     </div>
   );
