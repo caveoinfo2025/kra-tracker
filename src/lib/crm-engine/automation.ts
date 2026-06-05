@@ -137,9 +137,26 @@ async function dispatchAction(
         }
         return { executed: true };
       }
-      case "send_notification":
-        // Placeholder — hook into your notification system
+      case "send_notification": {
+        const recipientIds = await resolveNotificationRecipients(action, context);
+        if (recipientIds.length === 0) return { executed: true };
+
+        const title = interpolate(String(action.title ?? "CRM notification"), context);
+        const body  = interpolate(String(action.body  ?? ""), context);
+        const link  = interpolate(String(action.link  ?? ""), context);
+
+        await prisma.notification.createMany({
+          data: recipientIds.map((recipientId) => ({
+            recipientId,
+            type: "crm",
+            title,
+            body,
+            link,
+          })),
+          skipDuplicates: true,
+        });
         return { executed: true };
+      }
       default:
         return { executed: false, error: `Unknown action type: ${action.type}` };
     }
@@ -162,4 +179,50 @@ function matchesCondition(
     }
   }
   return true;
+}
+
+// Replace {{key}} placeholders in a string with values from the context object.
+function interpolate(template: string, ctx: Record<string, unknown>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) =>
+    ctx[key] !== undefined ? String(ctx[key]) : `{{${key}}}`
+  );
+}
+
+/**
+ * Resolve the list of employee IDs to notify.
+ *
+ * Action JSON supports:
+ *   recipientIds: number[]          – explicit employee IDs
+ *   recipientRole: "managers"       – all employees with isManager=true
+ *                  "assignee"       – the assignedToId from context
+ *                  "owner"          – the ownerId / createdById from context
+ */
+async function resolveNotificationRecipients(
+  action: AutomationAction,
+  context: Record<string, unknown>
+): Promise<number[]> {
+  const ids = new Set<number>();
+
+  // Direct IDs
+  if (Array.isArray(action.recipientIds)) {
+    for (const id of action.recipientIds) ids.add(Number(id));
+  }
+
+  // Role-based
+  const role = action.recipientRole as string | undefined;
+  if (role === "managers") {
+    const managers = await prisma.employee.findMany({
+      where: { isManager: true },
+      select: { id: true },
+    });
+    managers.forEach((m) => ids.add(m.id));
+  } else if (role === "assignee") {
+    const assignedToId = context.assignedToId ?? context.assigneeId;
+    if (assignedToId) ids.add(Number(assignedToId));
+  } else if (role === "owner") {
+    const ownerId = context.ownerId ?? context.createdById;
+    if (ownerId) ids.add(Number(ownerId));
+  }
+
+  return [...ids];
 }
