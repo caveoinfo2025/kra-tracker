@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, ChevronRight } from "lucide-react";
 import { WorkflowDefinition, WorkflowStep } from "@/lib/workflow-engine";
 import TriggerSelector     from "./TriggerSelector";
 import ApprovalStepBuilder from "./ApprovalStepBuilder";
@@ -22,44 +22,23 @@ function blankForm() {
 // ── Empty state ────────────────────────────────────────────────────────────────
 function DesignerEmpty({ onNew }: { onNew: () => void }) {
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "60px 32px", gap: 16, textAlign: "center",
-    }}>
-      <div style={{
-        width: 52, height: 52, borderRadius: 12,
-        background: "rgba(200,16,46,0.08)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px 32px", gap: 16, textAlign: "center" }}>
+      <div style={{ width: 52, height: 52, borderRadius: 12, background: "rgba(200,16,46,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Plus size={24} color="var(--caveo-red)" strokeWidth={2} />
       </div>
       <div>
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: "var(--fg-1)" }}>
-          Create a New Workflow
-        </div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", marginBottom: 6 }}>Create a New Workflow</div>
         <div style={{ fontSize: 13, color: "var(--fg-3)", maxWidth: 360, lineHeight: 1.6 }}>
           Define the trigger event, approval steps and escalation rules for a new automated workflow.
         </div>
       </div>
-      <button
-        onClick={onNew}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "10px 22px", fontSize: 13, fontWeight: 600,
-          borderRadius: 8, border: "none", cursor: "pointer",
-          background: "var(--caveo-red)", color: "#fff",
-        }}
-      >
-        New Workflow
-      </button>
+      <button onClick={onNew} style={primaryBtn}>New Workflow</button>
     </div>
   );
 }
 
 // ── Workflow form ──────────────────────────────────────────────────────────────
-function WorkflowForm({
-  workflow, canEdit, onSaved, onCancel,
-}: {
+function WorkflowForm({ workflow, canEdit, onSaved, onCancel }: {
   workflow?: WorkflowDefinition | null;
   canEdit:   boolean;
   onSaved?:  (wf: WorkflowDefinition) => void;
@@ -68,8 +47,8 @@ function WorkflowForm({
   const editing  = !!workflow;
   const disabled = !canEdit;
 
-  const [step,  setStep]  = useState<"details" | "steps">("details");
-  const [form,  setForm]  = useState(() =>
+  const [step,   setStep]   = useState<"details" | "steps">("details");
+  const [form,   setForm]   = useState(() =>
     workflow
       ? { name: workflow.name, code: workflow.code, description: workflow.description, module: workflow.module, triggerEvent: workflow.triggerEvent }
       : blankForm()
@@ -88,62 +67,46 @@ function WorkflowForm({
 
   async function handleSave() {
     if (!form.name || !form.code || !form.module || !form.triggerEvent) {
-      setStep("details");
-      setError("Name, Code, Module and Trigger Event are required.");
-      return;
+      setStep("details"); setError("Name, Code, Module and Trigger Event are required."); return;
     }
-    if (steps.length === 0) {
-      setError("Add at least one approval step before saving.");
-      return;
-    }
-    setError(null);
-    setSaving(true);
+    if (steps.length === 0) { setError("Add at least one approval step before saving."); return; }
+    setError(null); setSaving(true);
     try {
-      const payload = { ...form, steps };
       const res = editing
-        ? await fetch(`/api/workflows/${workflow!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-        : await fetch("/api/workflows",                  { method: "POST",  headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        ? await fetch(`/api/workflows/${workflow!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, steps }) })
+        : await fetch("/api/workflows",                  { method: "POST",  headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, steps }) });
       const data = await res.json() as { workflow?: WorkflowDefinition; error?: string };
       if (!res.ok) { setError(data.error ?? "Save failed."); return; }
       if (data.workflow && onSaved) onSaved(data.workflow);
-    } catch {
-      setError("Network error — please try again.");
-    } finally {
-      setSaving(false);
-    }
+    } catch { setError("Network error. Please try again."); }
+    finally  { setSaving(false); }
   }
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div style={{ maxWidth: 720 }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--fg-1)" }}>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>
           {editing ? `Edit: ${workflow!.name}` : "New Workflow"}
         </h2>
-        <p style={{ fontSize: 13, color: "var(--fg-3)", marginTop: 4 }}>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--fg-3)" }}>
           {editing ? "Update workflow details and approval steps." : "Configure the trigger, details and approval chain."}
         </p>
       </div>
 
-      {/* Step pills */}
-      <div style={{ display: "flex", marginBottom: 24 }}>
+      {/* Step switcher */}
+      <div style={{ display: "flex", marginBottom: 24, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", width: "fit-content" }}>
         {(["details", "steps"] as const).map((s, i) => {
           const active = step === s;
-          const label  = s === "details" ? "1 · Details" : `2 · Approval Steps (${steps.length})`;
+          const label  = s === "details" ? "1  Details" : `2  Approval Steps (${steps.length})`;
           return (
-            <button
-              key={s}
-              onClick={() => setStep(s)}
-              style={{
-                padding:    "8px 20px", fontSize: 13, cursor: "pointer",
-                fontWeight: active ? 600 : 400,
-                border:     "1px solid var(--border)",
-                borderLeft: i === 1 ? "none" : "1px solid var(--border)",
-                borderRadius: i === 0 ? "7px 0 0 7px" : "0 7px 7px 0",
-                background: active ? "var(--accent)" : "var(--bg-elev)",
-                color:      active ? "#fff"          : "var(--fg-3)",
-              }}
-            >
+            <button key={s} onClick={() => setStep(s)} style={{
+              padding: "9px 20px", fontSize: 13, fontWeight: active ? 600 : 400,
+              background: active ? "var(--caveo-red)" : "var(--bg-elev)",
+              color: active ? "#fff" : "var(--fg-3)",
+              border: "none", borderRight: i === 0 ? "1px solid var(--border)" : "none",
+              cursor: "pointer",
+            }}>
               {label}
             </button>
           );
@@ -155,24 +118,25 @@ function WorkflowForm({
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={card}>
             <div style={cardTitle}>Workflow Identity</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
               <div>
-                <label className="form-label">Name *</label>
-                <input className="input" value={form.name} disabled={disabled}
+                <div style={label}>Name *</div>
+                <input style={disabled ? disabledInput : activeInput} value={form.name} disabled={disabled}
                   placeholder="e.g. Expense Approval"
                   onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div>
-                <label className="form-label">Code *</label>
-                <input className="input" value={form.code} disabled={disabled || editing}
+                <div style={label}>Code *</div>
+                <input style={disabled || editing ? disabledInput : activeInput} value={form.code} disabled={disabled || editing}
                   placeholder="EXPENSE_APPROVAL"
                   onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase().replace(/\s+/g, "_") })} />
-                {!editing && <p className="form-hint">Auto-formatted. Cannot be changed after creation.</p>}
+                {!editing && <div style={hint}>Auto-formatted. Cannot be changed after creation.</div>}
               </div>
             </div>
-            <div>
-              <label className="form-label">Description</label>
-              <textarea className="input" rows={2} value={form.description} disabled={disabled}
+            <div style={{ marginTop: 16 }}>
+              <div style={label}>Description</div>
+              <textarea style={{ ...(disabled ? disabledInput : activeInput), resize: "vertical" as const }} rows={2}
+                value={form.description} disabled={disabled}
                 placeholder="What does this workflow approve? Who does it involve?"
                 onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </div>
@@ -191,7 +155,7 @@ function WorkflowForm({
 
           {canEdit && (
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn btn-primary" onClick={() => setStep("steps")} style={{ gap: 6 }}>
+              <button onClick={() => setStep("steps")} style={{ ...primaryBtn, gap: 6 }}>
                 Next: Approval Steps <ChevronRight size={14} />
               </button>
             </div>
@@ -204,8 +168,8 @@ function WorkflowForm({
         <div>
           <div style={card}>
             <div style={cardTitle}>Approval Chain</div>
-            <p style={{ fontSize: 12, color: "var(--fg-3)", marginBottom: 16, marginTop: 0 }}>
-              Define who approves at each step, in what order, and what happens if they don't respond in time.
+            <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 0, marginBottom: 16 }}>
+              Define who approves at each step, in what order, and the timeout before escalation.
             </p>
             <ApprovalStepBuilder steps={steps} onChange={setSteps} disabled={disabled} />
           </div>
@@ -214,10 +178,12 @@ function WorkflowForm({
 
           {canEdit && (
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-              <button className="btn btn-secondary" onClick={() => setStep("details")}>← Back</button>
-              {onCancel && <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>}
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? "Saving…" : editing ? "Save Changes" : "Create Workflow"}
+              <button onClick={() => setStep("details")} style={secondaryBtn}>
+                <ArrowLeft size={13} /> Back
+              </button>
+              {onCancel && <button onClick={onCancel} style={ghostBtnSt}>Cancel</button>}
+              <button onClick={handleSave} disabled={saving} style={primaryBtn}>
+                {saving ? "Saving..." : editing ? "Save Changes" : "Create Workflow"}
               </button>
             </div>
           )}
@@ -227,7 +193,7 @@ function WorkflowForm({
   );
 }
 
-// ── Default export: Designer host ──────────────────────────────────────────────
+// ── Default export ─────────────────────────────────────────────────────────────
 export default function WorkflowDesigner({ canEdit, workflow, onSaved, onCancel }: Props) {
   const [showForm, setShowForm] = useState(!!workflow);
 
@@ -245,13 +211,47 @@ export default function WorkflowDesigner({ canEdit, workflow, onSaved, onCancel 
   );
 }
 
-// ── Shared styles ──────────────────────────────────────────────────────────────
+// ── Shared inline styles ───────────────────────────────────────────────────────
 const card: React.CSSProperties = {
   background: "var(--bg-elev)", border: "1px solid var(--border)",
   borderRadius: 10, padding: "20px 24px",
 };
 const cardTitle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 700, marginBottom: 14, color: "var(--fg-1)",
+  fontSize: 13, fontWeight: 700, color: "var(--fg-1)", marginBottom: 16,
+};
+const label: React.CSSProperties = {
+  fontSize: 12, fontWeight: 600, color: "var(--fg-2)", marginBottom: 6,
+};
+const hint: React.CSSProperties = {
+  fontSize: 11, color: "var(--fg-4)", marginTop: 4,
+};
+const baseInput: React.CSSProperties = {
+  display: "block", width: "100%", boxSizing: "border-box",
+  padding: "9px 12px", fontSize: 13, borderRadius: 7,
+  border: "1px solid var(--border)", fontFamily: "var(--font-sans)",
+};
+const activeInput: React.CSSProperties = {
+  ...baseInput, background: "var(--bg-elev)", color: "var(--fg-1)",
+};
+const disabledInput: React.CSSProperties = {
+  ...baseInput, background: "var(--bg-muted)", color: "var(--fg-3)", cursor: "not-allowed",
+};
+const primaryBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  padding: "9px 20px", fontSize: 13, fontWeight: 600,
+  borderRadius: 7, border: "none", cursor: "pointer",
+  background: "var(--caveo-red)", color: "#fff",
+};
+const secondaryBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  padding: "9px 16px", fontSize: 13, fontWeight: 500,
+  borderRadius: 7, border: "1px solid var(--border)",
+  background: "var(--bg-elev)", color: "var(--fg-2)", cursor: "pointer",
+};
+const ghostBtnSt: React.CSSProperties = {
+  padding: "9px 16px", fontSize: 13, fontWeight: 500,
+  borderRadius: 7, border: "1px solid var(--border)",
+  background: "transparent", color: "var(--fg-3)", cursor: "pointer",
 };
 const errorBox: React.CSSProperties = {
   background: "rgba(239,68,68,0.08)", color: "#ef4444",

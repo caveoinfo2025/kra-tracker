@@ -7,23 +7,18 @@ interface Props {
   disabled?:    boolean;
 }
 
-interface TriggerDef {
-  value: string;
-  label: string;
-}
-
-const MODULE_TRIGGERS: Record<string, TriggerDef[]> = {
+const MODULE_TRIGGERS: Record<string, Array<{ value: string; label: string }>> = {
   FINANCE: [
-    { value: "EXPENSE_SUBMITTED",   label: "Expense Submitted"   },
-    { value: "ADVANCE_REQUESTED",   label: "Advance Requested"   },
-    { value: "PAYMENT_APPROVED",    label: "Payment Approved"    },
-    { value: "VOUCHER_CREATED",     label: "Voucher Created"     },
+    { value: "EXPENSE_SUBMITTED", label: "Expense Submitted"    },
+    { value: "ADVANCE_REQUESTED", label: "Advance Requested"    },
+    { value: "PAYMENT_APPROVED",  label: "Payment Approved"     },
+    { value: "VOUCHER_CREATED",   label: "Voucher Created"      },
   ],
   CRM: [
-    { value: "OPPORTUNITY_LARGE_DEAL",       label: "Large Deal Opportunity"  },
-    { value: "DISCOUNT_REQUESTED",           label: "Discount Requested"      },
-    { value: "CONTRACT_SUBMITTED",           label: "Contract Submitted"      },
-    { value: "CUSTOMER_CREATION_REQUESTED",  label: "Customer Creation"       },
+    { value: "OPPORTUNITY_LARGE_DEAL",       label: "Large Deal Opportunity" },
+    { value: "DISCOUNT_REQUESTED",           label: "Discount Requested"     },
+    { value: "CONTRACT_SUBMITTED",           label: "Contract Submitted"     },
+    { value: "CUSTOMER_CREATION_REQUESTED",  label: "Customer Creation"      },
   ],
   MASTERS: [
     { value: "CUSTOMER_CREATION_REQUESTED", label: "Customer Creation" },
@@ -39,9 +34,9 @@ const MODULE_TRIGGERS: Record<string, TriggerDef[]> = {
     { value: "VENDOR_ONBOARDING",  label: "Vendor Onboarding" },
   ],
   ADMIN: [
-    { value: "USER_ACCESS_CHANGE", label: "User Access Change" },
-    { value: "POLICY_CHANGE",      label: "Policy Change"      },
-    { value: "CONFIG_CHANGE",      label: "Configuration Change" },
+    { value: "USER_ACCESS_CHANGE", label: "User Access Change"    },
+    { value: "POLICY_CHANGE",      label: "Policy Change"         },
+    { value: "CONFIG_CHANGE",      label: "Configuration Change"  },
   ],
 };
 
@@ -54,44 +49,52 @@ const MODULE_LABELS: Record<string, string> = {
   ADMIN:       "Administration",
 };
 
-const MODULES = Object.keys(MODULE_TRIGGERS);
-
 export default function TriggerSelector({ module, triggerEvent, onChange, disabled }: Props) {
   const triggers = MODULE_TRIGGERS[module] ?? [];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
       <div>
-        <label className="form-label">Module *</label>
+        <div style={lbl}>Module *</div>
         <select
-          className="input"
+          style={disabled ? disabledSel : activeSel}
           value={module}
           disabled={disabled}
           onChange={(e) => { onChange("module", e.target.value); onChange("triggerEvent", ""); }}
         >
-          <option value="">Select module…</option>
-          {MODULES.map((m) => (
+          <option value="">Select module...</option>
+          {Object.keys(MODULE_TRIGGERS).map((m) => (
             <option key={m} value={m}>{MODULE_LABELS[m] ?? m}</option>
           ))}
         </select>
-        <p className="form-hint">The business area this workflow applies to</p>
+        <div style={hnt}>The business area this workflow applies to</div>
       </div>
 
       <div>
-        <label className="form-label">Trigger Event *</label>
+        <div style={lbl}>Trigger Event *</div>
         <select
-          className="input"
+          style={disabled || !module ? disabledSel : activeSel}
           value={triggerEvent}
           disabled={disabled || !module}
           onChange={(e) => onChange("triggerEvent", e.target.value)}
         >
-          <option value="">Select event…</option>
+          <option value="">Select event...</option>
           {triggers.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
-        <p className="form-hint">The business event that starts this approval workflow</p>
+        <div style={hnt}>The event that starts this approval workflow</div>
       </div>
     </div>
   );
 }
+
+const base: React.CSSProperties = {
+  display: "block", width: "100%", boxSizing: "border-box",
+  padding: "9px 12px", fontSize: 13, borderRadius: 7,
+  border: "1px solid var(--border)",
+};
+const activeSel:   React.CSSProperties = { ...base, background: "var(--bg-elev)", color: "var(--fg-1)" };
+const disabledSel: React.CSSProperties = { ...base, background: "var(--bg-muted)", color: "var(--fg-3)", cursor: "not-allowed" };
+const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "var(--fg-2)", marginBottom: 6 };
+const hnt: React.CSSProperties = { fontSize: 11, color: "var(--fg-4)", marginTop: 4 };
