@@ -23,7 +23,7 @@ export default async function ApprovalEnginePage() {
 
   // Fallback to legacy predicate while the permission table is being populated
   const effectiveView = canView || isManager || isOpsHead;
-  const effectiveEdit = canEdit || isOpsHead;
+  const effectiveEdit = canEdit || isOpsHead || isManager;
 
   if (!effectiveView) redirect("/approvals");
 

@@ -21,7 +21,7 @@ export default async function MastersPage() {
   ]);
 
   const effectiveView = canView || isOpsHead || isManager;
-  const effectiveEdit = canEdit || isOpsHead;
+  const effectiveEdit = canEdit || isOpsHead || isManager;
 
   if (!effectiveView) redirect("/settings");
 
