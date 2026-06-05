@@ -99,7 +99,7 @@ export const ADMIN_MODULES: AdminModule[] = [
     description: "Global masters and overrides",
     route: "/settings/masters",
     icon: Database,
-    status: "beta",
+    status: "active",
     ownerRole: "Ops Head / Accounts",
     ...BLUE,
   },
