@@ -1,19 +1,57 @@
 "use client";
 
 interface Props {
-  module:      string;
+  module:       string;
   triggerEvent: string;
-  onChange:    (field: "module" | "triggerEvent", value: string) => void;
-  disabled?:   boolean;
+  onChange:     (field: "module" | "triggerEvent", value: string) => void;
+  disabled?:    boolean;
 }
 
-const MODULE_TRIGGERS: Record<string, string[]> = {
-  FINANCE:    ["EXPENSE_SUBMITTED", "ADVANCE_REQUESTED", "PAYMENT_APPROVED", "VOUCHER_CREATED"],
-  CRM:        ["OPPORTUNITY_LARGE_DEAL", "DISCOUNT_REQUESTED", "CONTRACT_SUBMITTED", "CUSTOMER_CREATION_REQUESTED"],
-  MASTERS:    ["CUSTOMER_CREATION_REQUESTED", "VENDOR_CREATION_REQUESTED"],
-  HR:         ["LEAVE_APPLIED", "SALARY_REVISION", "ASSET_REQUESTED"],
-  PROCUREMENT:["PURCHASE_REQUESTED", "VENDOR_ONBOARDING"],
-  ADMIN:      ["USER_ACCESS_CHANGE", "POLICY_CHANGE", "CONFIG_CHANGE"],
+interface TriggerDef {
+  value: string;
+  label: string;
+}
+
+const MODULE_TRIGGERS: Record<string, TriggerDef[]> = {
+  FINANCE: [
+    { value: "EXPENSE_SUBMITTED",   label: "Expense Submitted"   },
+    { value: "ADVANCE_REQUESTED",   label: "Advance Requested"   },
+    { value: "PAYMENT_APPROVED",    label: "Payment Approved"    },
+    { value: "VOUCHER_CREATED",     label: "Voucher Created"     },
+  ],
+  CRM: [
+    { value: "OPPORTUNITY_LARGE_DEAL",       label: "Large Deal Opportunity"  },
+    { value: "DISCOUNT_REQUESTED",           label: "Discount Requested"      },
+    { value: "CONTRACT_SUBMITTED",           label: "Contract Submitted"      },
+    { value: "CUSTOMER_CREATION_REQUESTED",  label: "Customer Creation"       },
+  ],
+  MASTERS: [
+    { value: "CUSTOMER_CREATION_REQUESTED", label: "Customer Creation" },
+    { value: "VENDOR_CREATION_REQUESTED",   label: "Vendor Creation"   },
+  ],
+  HR: [
+    { value: "LEAVE_APPLIED",   label: "Leave Application" },
+    { value: "SALARY_REVISION", label: "Salary Revision"   },
+    { value: "ASSET_REQUESTED", label: "Asset Request"     },
+  ],
+  PROCUREMENT: [
+    { value: "PURCHASE_REQUESTED", label: "Purchase Request"  },
+    { value: "VENDOR_ONBOARDING",  label: "Vendor Onboarding" },
+  ],
+  ADMIN: [
+    { value: "USER_ACCESS_CHANGE", label: "User Access Change" },
+    { value: "POLICY_CHANGE",      label: "Policy Change"      },
+    { value: "CONFIG_CHANGE",      label: "Configuration Change" },
+  ],
+};
+
+const MODULE_LABELS: Record<string, string> = {
+  FINANCE:     "Finance",
+  CRM:         "CRM / Sales",
+  MASTERS:     "Master Data",
+  HR:          "HR",
+  PROCUREMENT: "Procurement",
+  ADMIN:       "Administration",
 };
 
 const MODULES = Object.keys(MODULE_TRIGGERS);
@@ -22,34 +60,52 @@ export default function TriggerSelector({ module, triggerEvent, onChange, disabl
   const triggers = MODULE_TRIGGERS[module] ?? [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
       <div>
-        <label className="form-label">Module *</label>
+        <label style={labelStyle}>Module *</label>
         <select
-          className="input"
+          style={selectStyle}
           value={module}
           disabled={disabled}
-          onChange={(e) => onChange("module", e.target.value)}
+          onChange={(e) => { onChange("module", e.target.value); onChange("triggerEvent", ""); }}
         >
           <option value="">Select module…</option>
-          {MODULES.map((m) => <option key={m} value={m}>{m}</option>)}
+          {MODULES.map((m) => (
+            <option key={m} value={m}>{MODULE_LABELS[m] ?? m}</option>
+          ))}
         </select>
-        <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 4 }}>The business module this workflow applies to</div>
+        <p style={hintStyle}>The business area this workflow applies to</p>
       </div>
 
       <div>
-        <label className="form-label">Trigger Event *</label>
+        <label style={labelStyle}>Trigger Event *</label>
         <select
-          className="input"
+          style={selectStyle}
           value={triggerEvent}
           disabled={disabled || !module}
           onChange={(e) => onChange("triggerEvent", e.target.value)}
         >
-          <option value="">Select trigger…</option>
-          {triggers.map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value="">Select event…</option>
+          {triggers.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
         </select>
-        <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 4 }}>The event that starts this approval workflow</div>
+        <p style={hintStyle}>The business event that starts this approval workflow</p>
       </div>
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: "block", fontSize: 12, fontWeight: 600,
+  color: "var(--foreground)", marginBottom: 6,
+};
+const selectStyle: React.CSSProperties = {
+  width: "100%", padding: "9px 12px", fontSize: 13,
+  borderRadius: 8, border: "1px solid var(--border)",
+  background: "var(--background)", color: "var(--foreground)",
+  appearance: "auto",
+};
+const hintStyle: React.CSSProperties = {
+  fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, marginBottom: 0,
+};
