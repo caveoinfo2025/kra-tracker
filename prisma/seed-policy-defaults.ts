@@ -140,6 +140,11 @@ async function main() {
 
   const policyModel    = (prisma as never as { policy:     PolicyModel     }).policy;
   const ruleModel      = (prisma as never as { policyRule: PolicyRuleModel }).policyRule;
+  const employeeModel  = (prisma as never as { employee:   { findFirst: (a: unknown) => Promise<{ id: number } | null> } }).employee;
+
+  // Find the first available employee to act as system creator
+  const systemActor = await employeeModel.findFirst({ orderBy: { id: "asc" } } as never);
+  const actorId = systemActor?.id ?? 2;
 
   for (const def of DEFAULT_POLICIES) {
     const catId = catMap[def.categoryCode];
@@ -153,7 +158,8 @@ async function main() {
 
     const policy = await policyModel.create({
       data: {
-        categoryId:    catId,
+        category:      { connect: { id: catId } },
+        creator:       { connect: { id: actorId } },
         code:          def.code,
         name:          def.name,
         description:   def.description,

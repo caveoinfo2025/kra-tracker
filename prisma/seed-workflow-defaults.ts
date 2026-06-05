@@ -9,7 +9,7 @@ import prismaDefault from "../src/lib/prisma";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = prismaDefault as any;
 
-const SYSTEM_ACTOR = 1; // System / Super Admin employee id
+const SYSTEM_ACTOR = 2; // First dev employee (Vijesh Vijayan, id 2)
 
 const WORKFLOWS = [
   {
@@ -91,7 +91,7 @@ async function main() {
         triggerEvent:  wf.triggerEvent,
         status:        "ACTIVE",
         version:       1,
-        createdBy:     SYSTEM_ACTOR,
+        creator:       { connect: { id: SYSTEM_ACTOR } },
         steps:         { create: wf.steps },
       },
     });

@@ -41,8 +41,16 @@ function DesignerEmpty({ onNew }: { onNew: () => void }) {
           Define the trigger event, approval steps and escalation rules for a new automated workflow.
         </div>
       </div>
-      <button className="btn btn-primary" onClick={onNew}>
-        <Plus size={14} /> New Workflow
+      <button
+        onClick={onNew}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "10px 22px", fontSize: 13, fontWeight: 600,
+          borderRadius: 8, border: "none", cursor: "pointer",
+          background: "var(--caveo-red)", color: "#fff",
+        }}
+      >
+        New Workflow
       </button>
     </div>
   );

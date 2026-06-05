@@ -42,7 +42,7 @@ model Employee {
   pipelineActivities CrmActivity[] @relation("ActivityPerformedBy")
   pipelineNotes      CrmNote[]     @relation("NoteAuthor")
 
-  // ── Finance Operations Module (Phase 1) ──
+  // â”€â”€ Finance Operations Module (Phase 1) â”€â”€
   ledgerEntries            Ledger[]          @relation("LedgerRecordedBy")
   expenses                 Expense[]         @relation("ExpenseEmployee")
   expensesApproved         Expense[]         @relation("ExpenseApprovedBy")
@@ -53,13 +53,13 @@ model Employee {
   travelClaimsApproved     TravelClaim[]     @relation("TravelClaimApprovedBy")
   auditLogs                AuditLog[]        @relation("AuditPerformedBy")
 
-  // ── Admin Console Phase 2 (back-references — no DB columns on Employee) ──
+  // â”€â”€ Admin Console Phase 2 (back-references â€” no DB columns on Employee) â”€â”€
   employeeProfile  EmployeeProfile?  @relation("ProfileEmployee")
   reporteeProfiles EmployeeProfile[] @relation("ProfileReportingManager")
   teamLeadOf       Team[]            @relation("TeamLead")
   userRoles        UserRole[]
 
-  // ── Phase 5 — Policy Engine (back-references — no DB columns on Employee) ──
+  // â”€â”€ Phase 5 â€” Policy Engine (back-references â€” no DB columns on Employee) â”€â”€
   policiesCreated      Policy[]               @relation("PolicyCreatedBy")
   policiesApproved     Policy[]               @relation("PolicyApprovedBy")
   policyVersions       PolicyVersion[]        @relation("PolicyVersionCreatedBy")
@@ -67,7 +67,7 @@ model Employee {
   configVersionsChanged  ConfigurationVersion[] @relation("ConfigVersionChangedBy")
   configVersionsReviewed ConfigurationVersion[] @relation("ConfigVersionReviewedBy")
 
-  // ── Phase 6 — Workflow Engine (back-references — no DB columns on Employee) ──
+  // â”€â”€ Phase 6 â€” Workflow Engine (back-references â€” no DB columns on Employee) â”€â”€
   workflowsCreated     WorkflowDefinition[] @relation("WorkflowCreatedBy")
   approvalRequests     ApprovalRequest[]    @relation("WorkflowRequestedBy")
   approvalActions      ApprovalAction[]     @relation("ApprovalActionBy")
@@ -76,7 +76,7 @@ model Employee {
   escalationTargets    EscalationRule[]     @relation("EscalationTarget")
   workflowAuditLogs    WorkflowAuditLog[]   @relation("WorkflowAuditActor")
 
-  // ── Phase 7 — Master Data Management (back-references — no DB columns on Employee) ──
+  // â”€â”€ Phase 7 â€” Master Data Management (back-references â€” no DB columns on Employee) â”€â”€
   masterAudits  MasterAudit[] @relation("MasterAuditPerformedBy")
 
   @@index([reportsToId])
@@ -492,10 +492,10 @@ model RolePageAccess {
 }
 
 // ============================================================
-// Finance Operations Module — Phase 1 (database only)
-// Provider: mysql · money in ₹ Lakhs (Float -> DOUBLE) · long text uses @db.Text
+// Finance Operations Module â€” Phase 1 (database only)
+// Provider: mysql Â· money in â‚¹ Lakhs (Float -> DOUBLE) Â· long text uses @db.Text
 // Every FK + hot-filter column is indexed. No API/UI in this phase.
-// Module → model map:
+// Module â†’ model map:
 //   Account        -> FinAccount       (chart of accounts: cash + bank)
 //   Ledger         -> Ledger           (general ledger entries)
 //   Expense        -> Expense          (expense register; category + attachments inline)
@@ -507,7 +507,7 @@ model RolePageAccess {
 //   AuditLog       -> AuditLog         (generic financial audit trail)
 // ============================================================
 
-// ── Account: chart of accounts (cash & bank) ──
+// â”€â”€ Account: chart of accounts (cash & bank) â”€â”€
 model FinAccount {
   id             Int      @id @default(autoincrement())
   name           String
@@ -518,7 +518,7 @@ model FinAccount {
   ifscCode       String   @default("")
   accountHolder  String   @default("")
   openingBalance Float    @default(0)
-  currentBalance Float    @default(0) // CACHED — written by the cash/bank service only
+  currentBalance Float    @default(0) // CACHED â€” written by the cash/bank service only
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -529,7 +529,7 @@ model FinAccount {
   @@index([isActive])
 }
 
-// ── Ledger: general ledger entries posted against an account ──
+// â”€â”€ Ledger: general ledger entries posted against an account â”€â”€
 model Ledger {
   id             Int        @id @default(autoincrement())
   account        FinAccount @relation(fields: [accountId], references: [id])
@@ -560,7 +560,7 @@ model Ledger {
   @@index([recordedById])
 }
 
-// ── Vendor master ──
+// â”€â”€ Vendor master â”€â”€
 model Vendor {
   id            Int      @id @default(autoincrement())
   name          String
@@ -587,7 +587,7 @@ model Vendor {
   @@index([isActive])
 }
 
-// ── Expense register (category + attachments held inline for Phase 1) ──
+// â”€â”€ Expense register (category + attachments held inline for Phase 1) â”€â”€
 model Expense {
   id              Int       @id @default(autoincrement())
   category        String    @default("") // category name
@@ -623,7 +623,7 @@ model Expense {
   @@index([voucherId])
 }
 
-// ── Voucher ──
+// â”€â”€ Voucher â”€â”€
 model Voucher {
   id          Int       @id @default(autoincrement())
   voucherNo   String    @unique // CI/26-27/00001
@@ -651,7 +651,7 @@ model Voucher {
   @@index([createdById])
 }
 
-// ── Voucher sequence: atomic per-financial-year numbering (supports Voucher) ──
+// â”€â”€ Voucher sequence: atomic per-financial-year numbering (supports Voucher) â”€â”€
 model VoucherSequence {
   id            Int      @id @default(autoincrement())
   financialYear String   @unique // "26-27"
@@ -659,7 +659,7 @@ model VoucherSequence {
   updatedAt     DateTime @updatedAt
 }
 
-// ── Employee advance ──
+// â”€â”€ Employee advance â”€â”€
 model EmployeeAdvance {
   id                   Int       @id @default(autoincrement())
   advanceNo            String    @unique // CI/ADV/26-27/00001
@@ -679,7 +679,7 @@ model EmployeeAdvance {
   disbursedFromId      Int? // soft ref to FinAccount.id
   settledDate          DateTime?
   settledAmountLakhs   Float?
-  balanceLakhs         Float     @default(0) // CACHED: disbursed − settled
+  balanceLakhs         Float     @default(0) // CACHED: disbursed âˆ’ settled
   voucher              Voucher?  @relation(fields: [voucherId], references: [id])
   voucherId            Int?
   remarks              String    @default("") @db.Text
@@ -692,7 +692,7 @@ model EmployeeAdvance {
   @@index([voucherId])
 }
 
-// ── Travel claim: local conveyance / travel reimbursement (GPS-aware) ──
+// â”€â”€ Travel claim: local conveyance / travel reimbursement (GPS-aware) â”€â”€
 model TravelClaim {
   id           Int       @id @default(autoincrement())
   claimNo      String    @unique // CI/TRV/26-27/00001
@@ -707,7 +707,7 @@ model TravelClaim {
   toLng        Float?
   distanceKm   Float     @default(0)
   mode         String    @default("bike") // bike|car|auto|public
-  ratePerKm    Float     @default(0) // ₹ per km (snapshot from HR policy)
+  ratePerKm    Float     @default(0) // â‚¹ per km (snapshot from HR policy)
   amountRupees Float     @default(0)
   amountLakhs  Float     @default(0)
   purpose      String    @default("") @db.Text
@@ -726,7 +726,7 @@ model TravelClaim {
   @@index([voucherId])
 }
 
-// ── Approval rule: configurable amount-limit approval policy ──
+// â”€â”€ Approval rule: configurable amount-limit approval policy â”€â”€
 model ApprovalRule {
   id               Int      @id @default(autoincrement())
   name             String
@@ -746,7 +746,7 @@ model ApprovalRule {
   @@index([isActive])
 }
 
-// ── Audit log: generic financial audit trail ──
+// â”€â”€ Audit log: generic financial audit trail â”€â”€
 model AuditLog {
   id            Int      @id @default(autoincrement())
   entityType    String // expense|voucher|ledger|account|advance|travel_claim|vendor|approval
@@ -765,13 +765,13 @@ model AuditLog {
 }
 
 // ============================================================
-// Admin Console — Phase 2 Foundation
-// Org Structure · Employee Profile Extension · Enterprise RBAC
-// Provider: mysql · All String long-text → @db.Text
+// Admin Console â€” Phase 2 Foundation
+// Org Structure Â· Employee Profile Extension Â· Enterprise RBAC
+// Provider: mysql Â· All String long-text â†’ @db.Text
 // Every FK + filter column is indexed. No workflow/finance yet.
 // ============================================================
 
-// ── 1. Tenant — top-level organisation group ──────────────────
+// â”€â”€ 1. Tenant â€” top-level organisation group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model Tenant {
   id        Int       @id @default(autoincrement())
   name      String
@@ -786,7 +786,7 @@ model Tenant {
   @@index([status])
 }
 
-// ── 2. Company ────────────────────────────────────────────────
+// â”€â”€ 2. Company â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model Company {
   id          Int      @id @default(autoincrement())
   tenantId    Int
@@ -812,7 +812,7 @@ model Company {
   @@index([status])
 }
 
-// ── 3. Branch ─────────────────────────────────────────────────
+// â”€â”€ 3. Branch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model Branch {
   id         Int      @id @default(autoincrement())
   companyId  Int
@@ -834,7 +834,7 @@ model Branch {
   @@index([status])
 }
 
-// ── 4. Department ─────────────────────────────────────────────
+// â”€â”€ 4. Department â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model Department {
   id          Int      @id @default(autoincrement())
   companyId   Int
@@ -853,7 +853,7 @@ model Department {
   @@index([status])
 }
 
-// ── 5. Team ───────────────────────────────────────────────────
+// â”€â”€ 5. Team â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model Team {
   id           Int      @id @default(autoincrement())
   departmentId Int
@@ -872,7 +872,7 @@ model Team {
   @@index([status])
 }
 
-// ── 6. Designation ────────────────────────────────────────────
+// â”€â”€ 6. Designation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model Designation {
   id          Int      @id @default(autoincrement())
   companyId   Int
@@ -890,11 +890,11 @@ model Designation {
   @@index([status])
 }
 
-// ── 7. EmployeeProfile — enterprise HR record (extends Employee) ──
+// â”€â”€ 7. EmployeeProfile â€” enterprise HR record (extends Employee) â”€â”€
 // employmentStatus: DRAFT | ACTIVE | SUSPENDED | INACTIVE
 model EmployeeProfile {
   id                 Int       @id @default(autoincrement())
-  userId             Int       @unique // FK → Employee.id (Employee IS the auth user)
+  userId             Int       @unique // FK â†’ Employee.id (Employee IS the auth user)
   employeeCode       String    @default("")
   companyId          Int?
   branchId           Int?
@@ -924,7 +924,7 @@ model EmployeeProfile {
   @@index([employmentStatus])
 }
 
-// ── 8. Role — enterprise role (additive; AppRole legacy kept) ──
+// â”€â”€ 8. Role â€” enterprise role (additive; AppRole legacy kept) â”€â”€
 // isSystemRole: true means not deletable via UI
 model Role {
   id           Int      @id @default(autoincrement())
@@ -946,8 +946,8 @@ model Role {
   @@index([status])
 }
 
-// ── 9. Permission — granular action catalogue ─────────────────
-// Unique per (module, resource, action) — same across all tenants.
+// â”€â”€ 9. Permission â€” granular action catalogue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Unique per (module, resource, action) â€” same across all tenants.
 model Permission {
   id          Int    @id @default(autoincrement())
   module      String // CRM | Finance | Workflow | Settings | Reports | Masters
@@ -961,7 +961,7 @@ model Permission {
   @@index([module])
 }
 
-// ── 10. RolePermission — grants permission to a role ──────────
+// â”€â”€ 10. RolePermission â€” grants permission to a role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
@@ -976,10 +976,10 @@ model RolePermission {
   @@index([permissionId])
 }
 
-// ── 11. UserRole — multiple roles per employee ────────────────
+// â”€â”€ 11. UserRole â€” multiple roles per employee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model UserRole {
   id        Int      @id @default(autoincrement())
-  userId    Int      // FK → Employee.id
+  userId    Int      // FK â†’ Employee.id
   roleId    Int
   createdAt DateTime @default(now())
 
@@ -991,7 +991,7 @@ model UserRole {
   @@index([roleId])
 }
 
-// ── 12. DataAccessPolicy — per-role data visibility scope ─────
+// â”€â”€ 12. DataAccessPolicy â€” per-role data visibility scope â”€â”€â”€â”€â”€
 // scope: OWN | TEAM | DEPARTMENT | BRANCH | COMPANY | ALL
 // filterJson: optional JSON string for additional WHERE constraints
 model DataAccessPolicy {
@@ -1010,11 +1010,11 @@ model DataAccessPolicy {
   @@index([scope])
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Phase 5 — Policy Engine
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Phase 5 â€” Policy Engine
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-// ── 13. PolicyCategory — groups policies by domain ────────────
+// â”€â”€ 13. PolicyCategory â€” groups policies by domain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model PolicyCategory {
   id          Int      @id @default(autoincrement())
   name        String
@@ -1029,7 +1029,7 @@ model PolicyCategory {
   @@index([status])
 }
 
-// ── 14. Policy — a versioned, lifecycle-managed business rule ─
+// â”€â”€ 14. Policy â€” a versioned, lifecycle-managed business rule â”€
 // scopeType: GLOBAL | COMPANY | BRANCH | DEPARTMENT | ROLE | USER
 // status:    DRAFT | REVIEW | ACTIVE | INACTIVE | ARCHIVED
 model Policy {
@@ -1062,7 +1062,7 @@ model Policy {
   @@index([scopeType, scopeId])
 }
 
-// ── 15. PolicyRule — individual IF/THEN rule inside a policy ──
+// â”€â”€ 15. PolicyRule â€” individual IF/THEN rule inside a policy â”€â”€
 model PolicyRule {
   id            Int      @id @default(autoincrement())
   policyId      Int
@@ -1080,7 +1080,7 @@ model PolicyRule {
   @@index([priority])
 }
 
-// ── 16. PolicyVersion — immutable snapshot per publish cycle ──
+// â”€â”€ 16. PolicyVersion â€” immutable snapshot per publish cycle â”€â”€
 model PolicyVersion {
   id            Int      @id @default(autoincrement())
   policyId      Int
@@ -1097,7 +1097,7 @@ model PolicyVersion {
   @@index([policyId])
 }
 
-// ── 17. PolicyAudit — every change to a policy ───────────────
+// â”€â”€ 17. PolicyAudit â€” every change to a policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model PolicyAudit {
   id          Int      @id @default(autoincrement())
   policyId    Int
@@ -1114,7 +1114,7 @@ model PolicyAudit {
   @@index([performedBy])
 }
 
-// ── 18. ConfigurationVersion — Draft→Review→Published settings ─
+// â”€â”€ 18. ConfigurationVersion â€” Draftâ†’Reviewâ†’Published settings â”€
 // Enables lifecycle management for AppSetting values.
 // getSetting() reads the latest published version; falls back to AppSetting row.
 model ConfigurationVersion {
@@ -1138,11 +1138,11 @@ model ConfigurationVersion {
   @@index([changedById])
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Phase 6 — Workflow Engine
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Phase 6 â€” Workflow Engine
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-// ── 19. WorkflowDefinition — a named, versioned approval workflow ──
+// â”€â”€ 19. WorkflowDefinition â€” a named, versioned approval workflow â”€â”€
 // status:  DRAFT | ACTIVE | INACTIVE
 // module:  CRM | FINANCE | HR | SECURITY | MASTERS | WORKFLOW | PROCUREMENT | PROJECTS
 model WorkflowDefinition {
@@ -1164,12 +1164,13 @@ model WorkflowDefinition {
   requests        ApprovalRequest[]
   escalationRules EscalationRule[]
 
+  @@map("workflow_definition")
   @@index([module, triggerEvent])
   @@index([status])
   @@index([createdBy])
 }
 
-// ── 20. WorkflowStep — one level/step inside a workflow definition ──
+// â”€â”€ 20. WorkflowStep â€” one level/step inside a workflow definition â”€â”€
 // approvalType: USER | ROLE | REPORTING_MANAGER | DEPARTMENT_HEAD | POLICY_BASED
 // approvalMode: SEQUENTIAL | PARALLEL
 model WorkflowStep {
@@ -1191,11 +1192,12 @@ model WorkflowStep {
   actions         ApprovalAction[]
   escalationRules EscalationRule[]
 
+  @@map("workflow_step")
   @@index([workflowId])
   @@index([stepNumber])
 }
 
-// ── 21. ApprovalRequest — a live approval in-flight for a business entity ──
+// â”€â”€ 21. ApprovalRequest â€” a live approval in-flight for a business entity â”€â”€
 // status: PENDING | APPROVED | REJECTED | RETURNED | CANCELLED
 model ApprovalRequest {
   id          Int       @id @default(autoincrement())
@@ -1215,13 +1217,14 @@ model ApprovalRequest {
   requester Employee           @relation("WorkflowRequestedBy", fields: [requestedBy], references: [id])
   actions   ApprovalAction[]
 
+  @@map("approval_request")
   @@index([workflowId])
   @@index([requestedBy])
   @@index([status])
   @@index([entityType, entityId])
 }
 
-// ── 22. ApprovalAction — a single action on a request (approve/reject/etc.) ──
+// â”€â”€ 22. ApprovalAction â€” a single action on a request (approve/reject/etc.) â”€â”€
 // action: APPROVE | REJECT | RETURN | DELEGATE
 model ApprovalAction {
   id         Int      @id @default(autoincrement())
@@ -1237,12 +1240,13 @@ model ApprovalAction {
   step     WorkflowStep    @relation(fields: [stepId],    references: [id])
   approver Employee        @relation("ApprovalActionBy",  fields: [approverId], references: [id])
 
+  @@map("approval_action")
   @@index([requestId])
   @@index([stepId])
   @@index([approverId])
 }
 
-// ── 23. DelegationRule — user delegates approval rights for a date range ──
+// â”€â”€ 23. DelegationRule â€” user delegates approval rights for a date range â”€â”€
 // status: ACTIVE | INACTIVE | EXPIRED
 model DelegationRule {
   id        Int      @id @default(autoincrement())
@@ -1259,12 +1263,13 @@ model DelegationRule {
   from Employee @relation("DelegationFrom", fields: [fromUser], references: [id])
   to   Employee @relation("DelegationTo",   fields: [toUser],   references: [id])
 
+  @@map("delegation_rule")
   @@index([fromUser])
   @@index([toUser])
   @@index([status])
 }
 
-// ── 24. EscalationRule — time-based escalation config for a step ──
+// â”€â”€ 24. EscalationRule â€” time-based escalation config for a step â”€â”€
 // action: REMIND | ESCALATE | AUTO_APPROVE | AUTO_REJECT
 model EscalationRule {
   id          Int      @id @default(autoincrement())
@@ -1283,11 +1288,12 @@ model EscalationRule {
   step      WorkflowStep?      @relation(fields: [stepId],     references: [id])
   escalatee Employee?          @relation("EscalationTarget",   fields: [escalateTo], references: [id])
 
+  @@map("escalation_rule")
   @@index([workflowId])
   @@index([stepId])
 }
 
-// ── 25. WorkflowAuditLog — every lifecycle event in the workflow engine ──
+// â”€â”€ 25. WorkflowAuditLog â€” every lifecycle event in the workflow engine â”€â”€
 // entityType: WORKFLOW_DEFINITION | APPROVAL_REQUEST
 // action: CREATED | ASSIGNED | APPROVED | REJECTED | ESCALATED | DELEGATED | RETURNED | CANCELLED | COMPLETED
 model WorkflowAuditLog {
@@ -1301,16 +1307,17 @@ model WorkflowAuditLog {
 
   actor Employee @relation("WorkflowAuditActor", fields: [actorId], references: [id])
 
+  @@map("workflow_audit_log")
   @@index([entityType, entityId])
   @@index([actorId])
   @@index([createdAt])
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Phase 7 — Master Data Management
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Phase 7 â€” Master Data Management
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-// ── 26. MasterCategory — groups master definitions by domain ──
+// â”€â”€ 26. MasterCategory â€” groups master definitions by domain â”€â”€
 model MasterCategory {
   id          Int      @id @default(autoincrement())
   name        String
@@ -1322,10 +1329,11 @@ model MasterCategory {
 
   definitions MasterDefinition[]
 
+  @@map("master_category")
   @@index([status])
 }
 
-// ── 27. MasterDefinition — defines a named master (e.g. OEM, Industry) ──
+// â”€â”€ 27. MasterDefinition â€” defines a named master (e.g. OEM, Industry) â”€â”€
 model MasterDefinition {
   id                   Int     @id @default(autoincrement())
   categoryId           Int
@@ -1343,11 +1351,12 @@ model MasterDefinition {
   values          MasterValue[]
   validationRules MasterValidationRule[]
 
+  @@map("master_definition")
   @@index([categoryId])
   @@index([status])
 }
 
-// ── 28. MasterValue — a single item inside a master ──────────
+// â”€â”€ 28. MasterValue â€” a single item inside a master â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // code is unique per definition; parentId allows hierarchy (sub-categories)
 model MasterValue {
   id                 Int     @id @default(autoincrement())
@@ -1367,13 +1376,14 @@ model MasterValue {
   children   MasterValue[]    @relation("MasterValueParent")
   overrides  MasterOverride[]
 
+  @@map("master_value")
   @@unique([masterDefinitionId, code])
   @@index([masterDefinitionId])
   @@index([parentId])
   @@index([status])
 }
 
-// ── 29. MasterOverride — company / branch level customisation ──
+// â”€â”€ 29. MasterOverride â€” company / branch level customisation â”€â”€
 // scopeType: COMPANY | BRANCH
 model MasterOverride {
   id            Int     @id @default(autoincrement())
@@ -1387,12 +1397,13 @@ model MasterOverride {
 
   masterValue MasterValue @relation(fields: [masterValueId], references: [id], onDelete: Cascade)
 
+  @@map("master_override")
   @@unique([masterValueId, scopeType, scopeId])
   @@index([masterValueId])
   @@index([scopeType, scopeId])
 }
 
-// ── 30. MasterValidationRule — links a master to a Policy Engine rule ──
+// â”€â”€ 30. MasterValidationRule â€” links a master to a Policy Engine rule â”€â”€
 model MasterValidationRule {
   id                 Int     @id @default(autoincrement())
   masterDefinitionId Int
@@ -1402,11 +1413,12 @@ model MasterValidationRule {
 
   definition MasterDefinition @relation(fields: [masterDefinitionId], references: [id], onDelete: Cascade)
 
+  @@map("master_validation_rule")
   @@index([masterDefinitionId])
   @@index([policyId])
 }
 
-// ── 31. MasterAudit — change trail for all master operations ──
+// â”€â”€ 31. MasterAudit â€” change trail for all master operations â”€â”€
 // masterType: DEFINITION | VALUE | OVERRIDE | POLICY
 model MasterAudit {
   id          Int      @id @default(autoincrement())
@@ -1420,12 +1432,13 @@ model MasterAudit {
 
   performer Employee @relation("MasterAuditPerformedBy", fields: [performedBy], references: [id])
 
+  @@map("master_audit")
   @@index([masterId, masterType])
   @@index([performedBy])
   @@index([createdAt])
 }
 
-// ── 32. CustomerPolicy — governance rules per company / customer type ──
+// â”€â”€ 32. CustomerPolicy â€” governance rules per company / customer type â”€â”€
 model CustomerPolicy {
   id                     Int     @id @default(autoincrement())
   companyId              Int?
@@ -1438,12 +1451,13 @@ model CustomerPolicy {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
+  @@map("customer_policy")
   @@index([companyId])
   @@index([customerType])
   @@index([status])
 }
 
-// ── 33. VendorPolicy — governance rules per company ───────────
+// â”€â”€ 33. VendorPolicy â€” governance rules per company â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 model VendorPolicy {
   id                       Int     @id @default(autoincrement())
   companyId                Int?
@@ -1455,6 +1469,8 @@ model VendorPolicy {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
+  @@map("vendor_policy")
   @@index([companyId])
   @@index([status])
 }
+
