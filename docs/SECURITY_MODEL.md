@@ -1,5 +1,14 @@
 # Security Model
 
+> **2026-06-05 (Session 4) — CRM Admin + opportunity-close access control:**
+> - All `/api/admin/crm/*` routes are **manager-gated** (`session.user.isManager`, else 403).
+> - `/settings/crm` page redirects non-managers to `/dashboard`.
+> - **Opportunity close lock:** `PATCH /api/pipeline/opportunities/[id]` returns **403** when a
+>   non-manager edits a deal already in WON/LOST. WON/LOST also require their mandatory fields.
+> - **Legacy promotion** (`/api/pipeline/opportunities/promote`) is allowed for managers or the
+>   owning employee only.
+> - Approval/automation hooks are server-side and fire-and-forget; they never weaken the save path.
+
 > **2026-06-05 — DB-driven RBAC now active (migrations applied):**
 > `src/lib/access-control/` is now backed by live DB tables. 65 permissions across 6 roles seeded.
 > All Admin Console pages use `hasPermission(userId, module, resource, action)` with graceful

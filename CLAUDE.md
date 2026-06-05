@@ -240,3 +240,36 @@ Three enterprise UI modules added — **all mock data, no API routes, no schema/
 - **Dev-login gotcha reinforced:** an orphaned `next dev` on port 3000 serves a stale Turbopack
   route tree where `/api/dev/switch` 404s → quick-login fails. Recovery: kill the port-3000
   process, `rm -rf .next`, restart (gotcha #10).
+
+---
+
+## CRM Administration Engine (Phase 8) + Pipeline Lifecycle (2026-06-05, UNCOMMITTED)
+
+**Phase 8 = `/settings/crm`** — config engine for the sales pipeline. Service layer
+`src/lib/crm-engine/` (`pipeline`, `territory`, `assignment`, `automation`, `sla`, `index`),
+7 API routes under `/api/admin/crm/`, 5-tab admin UI (`CRMAdminClient` + `PipelineDesigner`,
+`TerritoryManager`, `AssignmentRuleBuilder`, `AutomationBuilder`, `SLAManager`), seed
+`prisma/seed-crm-defaults.ts`. CRM Admin is a **card on the Settings page**, not a sidebar link.
+
+**4 migrations applied this session** (Hostinger has no shadow DB → hand-write SQL, apply via a
+one-off `node apply-*.mjs` using the `mariadb` driver, then `prisma migrate resolve --applied
+<name>` → `prisma generate` → **restart dev server**):
+- `20260605000000_opportunity_discount_pct`, `20260605010000_crm_admin_engine`,
+  `20260605020000_opportunity_won_fields`, `20260605030000_legacy_promote_and_net_profit`.
+
+**Rules / gotchas for this area:**
+- **Prisma acronym casing:** use `prisma.cRMAutomationRule` and `prisma.sLARule`; import types as
+  `CRMAutomationRuleModel` / `SLARuleModel` from `@/generated/prisma/models/<Name>`. crm-engine
+  re-exports friendly aliases (`CRMAutomationRule`, `SLARule`).
+- **Pre-migration safe:** every crm-engine DB call is try/catch-guarded (returns `[]`/`null`).
+- **`netProfitLakhs`** (renamed from `netMargin`) is an **absolute ₹ Lakhs** value, NOT a %.
+- **PROPOSAL_SENT leads are hidden from the Leads view** (`stage: { not: "PROPOSAL_SENT" }` in both
+  the server page and the GET API) — they live on Opportunities. Don't "fix" this as a bug.
+- **WON/LOST opportunities are locked** — UI hides the edit form; API 403s non-managers. Closing
+  requires PO Number + Deal Value (Won) or reason (Lost).
+- **Legacy SalesFunnel deals promote to real opportunities** via "Open →" →
+  `/api/pipeline/opportunities/promote` (idempotent via `SalesFunnel.crmOpportunityId`). The old
+  limited `LegacyEditModal` was removed. Promoted rows are filtered from the legacy list.
+- **Approval + automation hooks are fire-and-forget** — never let them block or fail a CRM save.
+- **Pipeline stages in the DB are kept in sync with `src/types/pipeline.ts`** (`OPP_STAGES` /
+  `LEAD_STAGES`). Do NOT hardcode new stages elsewhere.

@@ -3,6 +3,27 @@
 > Companion to `DESIGN_SYSTEM.md` (tokens). This catalogs the actual components and how
 > to use them.
 
+> **2026-06-05 (Session 4) — CRM Admin + pipeline components:**
+>
+> **CRM Administration (`src/app/settings/crm/`):**
+> - `CRMAdminClient` — 5-tab shell (Pipelines, Territories, Assignment Rules, Automation, SLA).
+> - `PipelineDesigner` — expandable pipeline cards, inline stage add/edit, stage-type badges,
+>   default-pipeline star toggle.
+> - `TerritoryManager`, `AssignmentRuleBuilder`, `AutomationBuilder`, `SLAManager` — CRUD list +
+>   inline create forms; each fetches from its `/api/admin/crm/*` route.
+>
+> **Pipeline (`src/app/pipeline/`):**
+> - `OppDetailClient` — rewritten: open-deal edit form + **CloseModal** (Close Won: Deal Value
+>   ex-tax, Net Profit ₹L, PO Number, PO Date / Close Lost: reason) + **locked read-only** WON/LOST
+>   summary with green/red detail cards.
+> - `LeadCard` — SLA badge (red/amber/green by stage + age); converted leads link to their opp.
+> - `LeadsClient` — added SLA column; PROPOSAL_SENT leads hidden; stats relabeled.
+> - `OpportunitiesClient` — legacy deals now show **"Open →"** (promote-and-navigate) instead of the
+>   removed `LegacyEditModal`; SLA badge on cards.
+>
+> **Reusable pattern:** the Close modal validates required fields client-side AND the API re-
+> validates server-side (defence in depth). Money inputs use `step="0.01"` and display `₹X.XXL`.
+
 > **2026-06-05 — Phase 6 & 7 Settings Components:**
 >
 > **Workflow Engine (`src/app/settings/workflow/`):**

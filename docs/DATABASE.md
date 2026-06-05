@@ -3,11 +3,29 @@
 **Engine:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02) · **ORM:** Prisma 7.8
 (driver-adapter mode, `@prisma/adapter-mariadb`) · **Schema:** `prisma/schema.prisma`
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
-**55+ models, 6 migrations.** Dev DB fully migrated (2026-06-05).
+**60+ models, 10 migrations.** Dev DB fully migrated (2026-06-05, session 4).
 
-> **2026-06-05 — DB Migration applied.** All 4 pending Admin Console migrations are now live on
-> `u686730471_caveodev`. Admin Console Phase 2 (12 models), Policy Engine Phase 5 (6 models),
-> Workflow Engine Phase 6 (7 models), Master Data Phase 7 (8 models).
+> **2026-06-05 (Session 4) — CRM Admin Engine + Opportunity close fields.** 4 new migrations
+> applied to `u686730471_caveodev` (hand-written SQL → `node apply-*.mjs` → `migrate resolve`):
+> - **`20260605000000_opportunity_discount_pct`** — `CrmOpportunity.discountPct DOUBLE DEFAULT 0`
+>   (non-zero triggers the `DISCOUNT_APPROVAL` workflow).
+> - **`20260605010000_crm_admin_engine`** — 7 tables: `pipeline_definition`, `pipeline_stage`,
+>   `territory`, `territory_rule`, `account_assignment_rule`, `crm_automation_rule`, `sla_rule`
+>   (all `@@map`-ped snake_case; `pipeline_stage.pipelineId`→`pipeline_definition` and
+>   `territory_rule.territoryId`→`territory` are `ON DELETE CASCADE`).
+> - **`20260605020000_opportunity_won_fields`** — `CrmOpportunity` + `dealValueExTax DOUBLE`,
+>   `netMargin DOUBLE`, `poNumber VARCHAR(191)`, `poDate DATETIME(3) NULL`.
+> - **`20260605030000_legacy_promote_and_net_profit`** — `CrmOpportunity.netMargin` **renamed** to
+>   `netProfitLakhs` (absolute ₹L, not %); `SalesFunnel.crmOpportunityId INT NULL` (tracks legacy→
+>   opportunity promotion; idempotency + funnel-hide key).
+>
+> **Prisma acronym casing (CRM-admin models):** accessors are `prisma.cRMAutomationRule` and
+> `prisma.sLARule`; type imports are `CRMAutomationRuleModel` / `SLARuleModel` from
+> `@/generated/prisma/models/<Name>`. `src/lib/crm-engine/` re-exports friendly aliases.
+
+> **2026-06-05 (Session 3) — DB Migration applied.** All 4 pending Admin Console migrations are
+> live on `u686730471_caveodev`. Admin Console Phase 2 (12 models), Policy Engine Phase 5 (6
+> models), Workflow Engine Phase 6 (7 models), Master Data Phase 7 (8 models).
 
 > **@@map pattern (Phases 6 & 7 only):** Migrations for workflow engine and master data used
 > snake_case SQL table names (`workflow_definition`, `master_category`, etc.) while Prisma model

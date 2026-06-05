@@ -4,6 +4,11 @@ Defined as CSS custom properties in `src/app/globals.css` (`:root`). Tailwind v4
 present but most styling uses these tokens + hand-written component classes.
 **Reuse tokens — never hardcode hex values in components.**
 
+> **2026-06-05 (Session 4) — No token changes.** New CRM-admin + pipeline components use Tailwind
+> utility classes with the brand red `var(--caveo-red)` / `#CC2229`. Stage/SLA badges follow the
+> existing semantic palette: green = won/ok, amber = warning/at-risk, red = lost/breach,
+> blue/indigo = open stages. No new design tokens were introduced.
+
 > **2026-06-05 — CSS utility aliases added to `globals.css`:**
 >
 > **Token aliases** (for settings module compatibility):

@@ -1,5 +1,21 @@
 # Business Rules
 
+> **2026-06-05 (Session 4) — Pipeline lifecycle + CRM approvals (UNCOMMITTED):**
+> - **Lead → Opportunity:** a `CrmLead` reaching **PROPOSAL_SENT** auto-creates a `CrmOpportunity`
+>   and is hidden from the Leads view (lives on Opportunities only).
+> - **Opportunity close:** **Closed Won** requires `poNumber` + `dealValueExTax` (>0); **Closed
+>   Lost** requires `lostReason`. WON/LOST deals are read-only (API returns 403 for non-managers).
+>   `netProfitLakhs` is an **absolute ₹ Lakhs** value (not a %).
+> - **CRM approval triggers** (fire-and-forget, never block the save): opportunity value first
+>   crossing **₹50L** → `LARGE_DEAL_APPROVAL`; discount first set **>0%** → `DISCOUNT_APPROVAL`;
+>   expense submitted **>₹0.10L** → `EXPENSE_APPROVAL`.
+> - **Legacy promotion:** an imported SalesFunnel deal becomes a real opportunity on "Open →"
+>   (idempotent via `SalesFunnel.crmOpportunityId`); the legacy row is then hidden from the funnel.
+> - **CRM automation rules** (configurable at `/settings/crm`) run on `lead.created`,
+>   `opportunity.stage_changed`, `opportunity.won`, `opportunity.lost`.
+> - **SLA targets** (configurable): lead first-contact 4h, follow-up 24h, opportunity proposal
+>   response 48h — surfaced as badges/columns; not yet enforced/escalated.
+
 ## Application purpose
 Internal **Sales CRM + KRA performance tracker** for **Caveo Infosystems** (IT
 infrastructure / security reseller). It runs the sales pipeline, captures activity sheets,

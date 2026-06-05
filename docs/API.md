@@ -1,8 +1,40 @@
 # API Reference
 
-REST handlers under `src/app/api/**/route.ts`. **76 routes** (was 52; +24 for Admin Console Phases 5–7). All call `getSession()` and return JSON.
+REST handlers under `src/app/api/**/route.ts`. **~85 routes** (+9 this session for CRM Admin
+Engine + expenses + promote). All call `getSession()` and return JSON.
 
-> **2026-06-05 — 24 new routes added (Admin Console Phases 6 & 7):**
+> **2026-06-05 (Session 4) — 9 new routes (CRM Admin Engine + Approval wiring + Promotion):**
+>
+> **CRM Administration Engine (7 routes, all manager-gated, under `/api/admin/crm/`):**
+> - `GET/POST /api/admin/crm/pipelines` — list pipelines (with stages) + create pipeline
+> - `GET/PATCH /api/admin/crm/pipelines/[id]` — get detail + update pipeline / stage ops
+>   (`addStage` / `updateStage` / `deleteStageId` / `reorderStageIds`)
+> - `GET/POST /api/admin/crm/territories` — list + create territory (+ rules)
+> - `GET/PATCH /api/admin/crm/territories/[id]` — get + update / `addRule` / `deleteRuleId`
+> - `GET/POST/PATCH /api/admin/crm/assignment` — assignment rules (PATCH body `{id, delete?}` or fields)
+> - `GET/POST/PATCH /api/admin/crm/automation` — automation rules (filter `?event=`)
+> - `GET/POST/PATCH /api/admin/crm/sla` — SLA rules (filter `?module=`)
+>
+> **Expenses (1 route):**
+> - `GET/POST /api/expenses` — list (manager=all, else own) + create. On `submit:true` with
+>   `amountLakhs > 0.10`, triggers `EXPENSE_APPROVAL` via `startApproval()`. Returns
+>   `{ expense, approvalRequestId }`.
+>
+> **Opportunity promotion (1 route):**
+> - `POST /api/pipeline/opportunities/promote` — body `{ salesFunnelId }`. Promotes a legacy
+>   SalesFunnel deal → CrmLead + CrmOpportunity (transaction), sets `SalesFunnel.crmOpportunityId`,
+>   returns `{ opportunityId }`. Idempotent (returns existing id if already promoted). RBAC:
+>   manager or owning employee.
+>
+> **Changed existing routes:**
+> - `PATCH /api/pipeline/opportunities/[id]` — now accepts `discountPct`, `dealValueExTax`,
+>   `netProfitLakhs`, `poNumber`, `poDate`; validates WON (PO Number + Deal Value) / LOST (reason);
+>   returns **403** if a non-manager edits a WON/LOST deal; fires `LARGE_DEAL_APPROVAL` /
+>   `DISCOUNT_APPROVAL` + `executeAutomation()` for stage changes.
+> - `POST /api/pipeline/leads` — fires `executeAutomation("lead.created", …)`.
+> - `GET /api/pipeline/leads` — defaults `stage: { not: "PROPOSAL_SENT" }` (converted leads hidden).
+
+> **2026-06-05 (Session 3) — 24 new routes added (Admin Console Phases 6 & 7):**
 >
 > **Workflow Engine (9 routes):**
 > - `GET/POST /api/workflows` — list workflows + create new

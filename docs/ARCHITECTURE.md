@@ -1,5 +1,17 @@
 # Architecture
 
+> **2026-06-05 (Session 4) — CRM Administration Engine + pipeline lifecycle.**
+> New service layer **`src/lib/crm-engine/`** (`index`, `pipeline`, `territory`, `assignment`,
+> `automation`, `sla`) mirrors the Phase 6/7 engine pattern (service → API → UI). Every DB call is
+> try/catch-guarded so missing tables never crash a page (pre-migration safe). Admin UI at
+> **`src/app/settings/crm/`** (`page.tsx` SSR → `CRMAdminClient` 5-tab → 5 components). API under
+> **`src/app/api/admin/crm/`** (7 routes). New cross-cutting hooks: opportunity PATCH and leads POST
+> now call `startApproval()` (workflow-engine) and `executeAutomation()` (crm-engine) **fire-and-
+> forget**. New flows: lead→opportunity auto-conversion at PROPOSAL_SENT, opportunity close-won/lost
+> with locked terminal state, and **legacy SalesFunnel → CrmOpportunity promotion**
+> (`/api/pipeline/opportunities/promote`). `src/hooks/useMasterValues.ts` + `/api/master-values`
+> feed CRM dropdowns from the Master Data engine.
+
 ## 1. Technology Stack
 | Layer | Choice | Notes |
 |---|---|---|

@@ -19,19 +19,19 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-05, end of session 3 — Admin Console Phases 6 & 7 + DB Migration)
-- **Database is MySQL/MariaDB 11.8 (migrated 2026-06-02). Dev DB fully migrated with all pending migrations.**
-- **All Admin Console phases 1–7 are committed** (`f4e2d3a`, `fc40e16` + several fix commits).
-- **Dev DB migrations applied this session:**
-  - `20260604120000_policy_engine_foundation` — PolicyCategory, Policy, PolicyRule, PolicyVersion, PolicyAudit, ConfigurationVersion
-  - `20260604180000_workflow_engine` — workflow_definition...workflow_audit_log (7 tables)
-  - `20260604220000_master_data_management` — master_category...vendor_policy (8 tables)
-- **Seeds applied:** admin foundation (65 permissions, 6 roles), 3 default policies, 5 default workflows, 8 master categories + ~40 master values, global CustomerPolicy + VendorPolicy.
-- **🆕 Phase 6 (2026-06-04 → committed):** Enterprise Approval Workflow Engine — `src/lib/workflow-engine/` (7 service files), 9 API routes, 9 UI components (`WorkflowCenter`, `WorkflowDesigner`, etc.), `WorkflowRulePanel` with live DB data showing 5 seeded workflows.
-- **🆕 Phase 7 (2026-06-04 → committed):** Enterprise Master Data Management — `src/lib/master-data/` (7 service files), 5 API routes, `/settings/masters` (8-tab admin UI), `prisma/seed-master-defaults.ts`.
-- **🆕 UI fixes (2026-06-05):** Workflow duplicate tabs removed; settings sidebar → single Settings link; settings page → clean 6-item list; WorkflowDesigner encoding/styling fixed; WorkflowRulePanel shows human-readable module/trigger labels; inline styles throughout for CSS reliability.
-- **Working tree is clean. No uncommitted changes.**
-- **Prod note:** All changes are on `master` branch locally but NOT pushed to production. Confirm with Vijesh before `git push origin master`.
+## 0. Current status (2026-06-05, end of session 4 — CRM Admin Engine Phase 8 + Approval Wiring + Pipeline Flow)
+- **Database is MySQL/MariaDB 11.8. Dev DB has 4 NEW migrations applied this session** (via SSH-apply + `migrate resolve`):
+  - `20260605000000_opportunity_discount_pct` — `CrmOpportunity.discountPct`
+  - `20260605010000_crm_admin_engine` — 7 CRM-admin tables (pipeline_definition, pipeline_stage, territory, territory_rule, account_assignment_rule, crm_automation_rule, sla_rule)
+  - `20260605020000_opportunity_won_fields` — dealValueExTax, netMargin, poNumber, poDate
+  - `20260605030000_legacy_promote_and_net_profit` — netMargin→netProfitLakhs, SalesFunnel.crmOpportunityId
+- **🆕 Phase 8 (2026-06-05 → UNCOMMITTED):** Enterprise CRM Administration Engine — `src/lib/crm-engine/` (6 files), 7 API routes under `/api/admin/crm/`, `/settings/crm` (5-tab admin: Pipelines, Territories, Assignment Rules, Automation, SLA), `seed-crm-defaults.ts`. CRM Admin is reachable from the **Settings** page card (no standalone sidebar link).
+- **🆕 Approval Engine wired into CRM flows (UNCOMMITTED):** `startApproval()` fire-and-forget on large-deal opportunity save (>₹50L → `LARGE_DEAL_APPROVAL`), discount set (>0% → `DISCOUNT_APPROVAL`), and expense submit (>₹0.10L → `EXPENSE_APPROVAL`, new `/api/expenses`).
+- **🆕 Pipeline flow upgrades (UNCOMMITTED):** PROPOSAL_SENT leads auto-move to Opportunities (hidden from Leads view); opportunity **full edit + Close Won/Lost** flow with locked read-only terminal state; **legacy/imported deals promotable** to real opportunities ("Open →"); **net profit now absolute ₹L** (was %); SLA indicators on lead/opp cards + leads table.
+- **Pipeline stages aligned with live constants** — DB pipelines match `OPP_STAGES`/`LEAD_STAGES`.
+- **⚠️ Working tree has LARGE uncommitted changes** (14 modified + ~10 new dirs). Sessions 1–3 (Finance Phase 1 + Admin Console Phases 1–7) ARE committed; this session is NOT.
+- **STOP point honored:** user asked to NOT implement the Finance Operations backend module this round.
+- **Prod note:** Nothing pushed to production. Confirm with Vijesh before commit + `git push origin master`.
 
 ## 2. Roles (Employee.role + isManager)
 | Role | Access summary |
@@ -119,6 +119,25 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   role changes apply without code edits (and, after one re-login, without sign-out).
 - **Security hardening** — ownership checks on `[id]` routes, API returns 401 JSON,
   signOut clears the dev cookie, mandatory PO date for Closed Won.
+- **CRM Administration Engine — Phase 8** *(2026-06-05, UNCOMMITTED)* — `/settings/crm`, a config
+  engine for the sales pipeline: `src/lib/crm-engine/` (pipeline, territory, assignment, automation,
+  sla services), 7 API routes (`/api/admin/crm/*`), 5-tab admin UI (`PipelineDesigner`,
+  `TerritoryManager`, `AssignmentRuleBuilder`, `AutomationBuilder`, `SLAManager`), seeded with an
+  Opportunity Pipeline (7 stages = OPP_STAGES), a Lead Pipeline (7 stages = LEAD_STAGES), 3
+  automation rules and 5 SLA rules. **Does not modify live CRM screens; all DB calls are
+  try/catch-guarded.** Automation rules fire on real events (`lead.created`,
+  `opportunity.stage_changed/won/lost`). Reachable via the Settings page card.
+- **Approval Engine wired into CRM** *(2026-06-05, UNCOMMITTED)* — opportunity save triggers
+  `LARGE_DEAL_APPROVAL` (>₹50L) and `DISCOUNT_APPROVAL` (discount first >0%); expense submit triggers
+  `EXPENSE_APPROVAL` (>₹0.10L). All via `startApproval()` fire-and-forget — a missing/unconfigured
+  workflow silently skips and the save never fails.
+- **Pipeline lifecycle flow** *(2026-06-05, UNCOMMITTED)* — leads auto-convert to opportunities at
+  PROPOSAL_SENT (hidden from Leads, surfaced in Opportunities, auto-navigate on transition);
+  opportunity detail page has a full edit form + **Close Won** (Deal Value ex-tax, Net Profit ₹L,
+  PO Number, PO Date) and **Close Lost** (reason) modals; WON/LOST deals are **locked read-only**
+  (non-managers blocked at the API). **Legacy SalesFunnel deals are promotable** to real
+  CrmOpportunities ("Open →" → `/api/pipeline/opportunities/promote`), giving imported deals the
+  full edit/close experience. SLA badges on lead/opp cards + a leads-table SLA column.
 
 ## 4. Pending / Backlog
 > Confirm with the user before assuming priority — this is inferred from gaps, not a committed roadmap.
@@ -137,6 +156,28 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   ownership checks). Also fix the stale "src/middleware.ts" comment in `auth.config.ts`.
 
 ## 4b. In-progress / Decisions this session
+
+### Session 4 (2026-06-05) — CRM Admin Engine + Approval wiring + Pipeline flow
+- **Legacy deals promote to real opportunities** rather than enhancing the limited legacy modal.
+  Rationale: gives imported deals the *same* full edit + Close-Won/Lost experience and aligns with
+  the SalesFunnel → CRM migration direction. Idempotent via `SalesFunnel.crmOpportunityId`; promoted
+  rows are filtered out of the legacy list (`crmOpportunityId: null`). Old `LegacyEditModal` removed.
+- **Net profit stored as absolute ₹ Lakhs**, not a percentage — column renamed `netMargin` →
+  `netProfitLakhs`. (User-requested; clearer for finance reconciliation.)
+- **PROPOSAL_SENT is the lead→opportunity boundary** — such leads are hidden from the Leads view at
+  the DB layer (`stage: { not: "PROPOSAL_SENT" }`) so they appear *only* on Opportunities. Avoids
+  double-listing the same deal.
+- **WON/LOST are terminal + locked** — UI hides the edit form and the API returns 403 for
+  non-managers editing a closed deal. Closing requires PO Number + Deal Value (Won) or reason (Lost).
+- **Approval/automation hooks are fire-and-forget** — wrapped in try/catch so CRM saves never fail
+  if the workflow/automation engine is unconfigured.
+- **Migration mechanics on Hostinger (no shadow DB)** — hand-write SQL → apply via one-off
+  `node apply-*.mjs` (mariadb driver) → `prisma migrate resolve --applied` → `prisma generate` →
+  restart dev server. Used for all 4 migrations this session.
+- **Prisma acronym casing** — client accessors are `prisma.cRMAutomationRule` / `prisma.sLARule`;
+  type imports are `CRMAutomationRuleModel` / `SLARuleModel`. crm-engine re-exports friendly aliases.
+
+
 - **IN PROGRESS — Finance Operations Module, Phase 1 (database only).** Implemented + tested
   on the dev DB; **uncommitted**. Working tree: `M schema.prisma, prisma.config.ts, package.json`
   and new `prisma/migrations/20260602120000_finance_operations_phase1/`, `prisma/seed.ts`,
@@ -229,6 +270,16 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 18. **Orphaned `next dev` breaks dev login** — a stray process on port 3000 serves a stale
     Turbopack route tree where `/api/dev/switch` 404s, so quick-login can't set the cookie.
     Recovery: kill the port-3000 process, `rm -rf .next`, restart. (CLAUDE.md gotcha #10.)
+19. **Session-4 work is large & uncommitted** — Phase 8 CRM Admin Engine, approval wiring, and the
+    pipeline lifecycle flow span 14 modified + ~10 new files/dirs. None committed. `next build` not
+    yet run against this batch — run it before pushing.
+20. **`netProfitLakhs` semantics changed mid-session** — rows closed-Won *before* the `netMargin`→
+    `netProfitLakhs` rename may hold a leftover "%" number now interpreted as ₹L. Dev test data only.
+21. **CRM-admin seed ran twice early in the session** producing duplicate stages; cleaned up via a
+    one-off script. If re-seeding, the seed `upsertStage` is keyed by create (not upsert) — guard
+    against duplicates or truncate `pipeline_stage` first.
+22. **`scripts/db-copy-prod-to-dev.mjs`** (untracked) copies prod → dev DB; contains/uses live DB
+    creds. Treat as sensitive; do not commit with secrets.
 
 ## 6. Business Rules
 - **Money** is in ₹ Lakhs everywhere (1 Cr = 100 L).
@@ -247,6 +298,15 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   finance roles (Accounts, Operations Head) see all collections/payments.
 - **A payment notification** fans out to the invoice's sales rep + every manager.
 - **Customer master** dedupes names case-insensitively across leads/collections/funnel/leadgen.
+- **Lead → Opportunity:** moving a `CrmLead` to **PROPOSAL_SENT** auto-creates a `CrmOpportunity`
+  and hides the lead from the Leads view (it now lives on Opportunities).
+- **Opportunity close (CRM):** **Closed Won** requires `poNumber` + `dealValueExTax` (>0);
+  **Closed Lost** requires `lostReason`. Once WON/LOST, the deal is read-only (API 403 for
+  non-managers). `netProfitLakhs` is an absolute ₹L figure (not a %).
+- **CRM Approvals:** opportunity value first crossing ₹50L → `LARGE_DEAL_APPROVAL`; discount first
+  set >0% → `DISCOUNT_APPROVAL`; expense submitted >₹0.10L → `EXPENSE_APPROVAL`. All fire-and-forget.
+- **Legacy promotion:** an imported SalesFunnel deal becomes a real opportunity on "Open →"
+  (idempotent via `SalesFunnel.crmOpportunityId`); the legacy row is then hidden from the funnel.
 
 ## 7. Workflows
 - **Dev cycle:** edit → verify on dev server (`localhost:3000`) → **confirm with user** →
@@ -261,9 +321,13 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   change UI standards. Reuse components, preserve logic, update docs.
 
 ## 8. Technical Debt
-- **Enterprise Admin Console not yet started (2026-06-04).** Architecture plan is in
-  `docs/ADMIN_ARCHITECTURE_PLAN.md`. The current `/settings/administration` flat-tab panel is the
-  interim solution. Phase 1 of the migration (routing skeleton) is the next step.
+- **Session-4 work (Phase 8 CRM Admin + pipeline flow) is uncommitted** — commit + `next build`
+  before pushing. `executeAutomation`'s `send_notification` action is a stub (no Notification wiring
+  yet). CRM-admin seed `upsertStage` creates (not upserts) → re-running can duplicate stages.
+- **Enterprise Admin Console (Phases 1–8) is built** (`/settings/*` incl. `/settings/crm`).
+  Architecture plan in `docs/ADMIN_ARCHITECTURE_PLAN.md`. Remaining: the legacy
+  `/settings/administration` flat-tab panel still coexists with the newer per-module pages —
+  converge or retire it.
 - **Two "Customer Master" surfaces (2026-06-04).** The new global `/masters/customers` (enterprise
   UI, mock) and the legacy operational `/customers` (real DB + CRM import/dedupe) both exist and
   both appear in the sidebar. Non-destructive by design, but must converge: fold import/dedupe into
@@ -293,20 +357,20 @@ infrastructure / security solutions reseller). It gives the sales team and manag
   `better-sqlite3` deps; orphaned `public/maintenance.html`; pre-`1ab4f7d` JWT re-login.
 
 ## 9. Recommended Next Steps (ordered)
-1. **Commit the uncommitted UI** (confirm with Vijesh; stage in chunks — dashboard-role-variant,
-   settings-expansion, finance-ui, expense-categories, vendor-master, customer-master, nav).
-   All UI-only/mock, safe to merge.
-2. **Begin Admin Console Phase 1** (`docs/ADMIN_ARCHITECTURE_PLAN.md`) — create the
-   `src/app/admin-console/` skeleton with layout + 12-module landing page. Zero DB changes.
-3. **Decide Customer Master consolidation** — converge `/masters/customers` (new global) with
-   `/customers` (legacy import/dedupe) into one master backed by the existing `Customer` model.
-4. **Wire backend behind the screens** — Expense Register CRUD first (Phase-1 models exist);
-   then Customer/Vendor masters → **extend** the existing `Customer`/`Vendor` models + child
-   tables (sites/branches/contacts/banks/assets); then Expense Categories → a config table.
+1. **Commit this session's work** (confirm with Vijesh; stage in chunks):
+   approval-wiring → crm-engine (Phase 8) → pipeline lead→opp flow + SLA → opportunity
+   full-edit/close/legacy-promotion. Run `npx tsc --noEmit` + `npx next build` first.
+2. **Decide whether to push** — Phase 8 + pipeline flow touch live CRM screens (additively).
+   Verify `200` on prod `/login`, then `git push origin master` after Vijesh confirms.
+3. **Finish automation dispatch** — `executeAutomation` `send_notification` is a stub; wire it to
+   the `Notification` model so automation rules actually notify.
+4. **Earlier backlog still open** — commit the Finance/Masters UI mock modules (sessions 2–3);
+   begin Finance Operations backend (Expense Register CRUD) **only when asked** (was a STOP point);
+   consolidate the two Customer Master nav entries.
 5. **Ledger persistence** — `src/lib/finance/bank-ledger.ts` per `BANK_LEDGER_MAPPING.md`.
 6. Carryover: service-worker dev fix; wrap `recordPayment`/`applyAdvance` in `$transaction`;
-   `@db.Decimal(12,4)` money; rotate dev DB creds + prune Remote-MySQL whitelist; remove
-   `better-sqlite3`; mitigate `xlsx@0.18.5`; remove orphaned `public/maintenance.html`.
+   `@db.Decimal(12,4)` money; rotate dev DB creds (`Caveo@2026`) + prune Remote-MySQL whitelist;
+   remove `better-sqlite3`; mitigate `xlsx@0.18.5`; remove orphaned `public/maintenance.html`.
 
 ---
 

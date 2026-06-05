@@ -3,6 +3,57 @@
 Reverse-chronological log of notable changes. **Update at the end of every session.**
 Dates from git history (branch `master`).
 
+## [2026-06-05 — Session 4] — CRM Admin Engine (Phase 8) + Approval Wiring + Lead→Opp Flow + Opp Close + Legacy Promotion
+
+> **All UNCOMMITTED.** Verified in the preview browser. Dev DB has 4 new migrations applied.
+
+### Added
+- **Approval Engine wired into CRM flows** (fire-and-forget; never blocks a save):
+  - `opportunities/[id]` PATCH → `startApproval()` for `LARGE_DEAL_APPROVAL` (value first crosses ₹50L) and `DISCOUNT_APPROVAL` (discountPct first > 0%).
+  - New `POST /api/expenses` → `EXPENSE_APPROVAL` when submitted with amount > ₹0.10L (plus a `GET` list with manager/owner scope).
+- **Phase 8 — Enterprise CRM Administration Engine** at `/settings/crm`:
+  - Service layer `src/lib/crm-engine/` (6 files: `index`, `pipeline`, `territory`, `assignment`, `automation`, `sla`) — all DB calls try/catch-guarded for pre-migration safety.
+  - 7 API routes under `/api/admin/crm/`: `pipelines`, `pipelines/[id]`, `territories`, `territories/[id]`, `assignment`, `automation`, `sla` (manager-gated).
+  - UI: `page.tsx` (SSR) + `CRMAdminClient` (5-tab) + 5 components — `PipelineDesigner`, `TerritoryManager`, `AssignmentRuleBuilder`, `AutomationBuilder`, `SLAManager`.
+  - Seed `prisma/seed-crm-defaults.ts` — default "Opportunity Pipeline" (7 stages) + "Lead Pipeline" (7 stages) + 3 automation rules + 5 SLA rules.
+- **Automation execution wired to live CRM events** — `executeAutomation()` called on `lead.created` (leads POST) and `opportunity.stage_changed` / `opportunity.won` / `opportunity.lost` (opportunity PATCH). Dispatcher supports `assign_lead`, `update_stage`, `create_task`, `send_notification` (last is a placeholder).
+- **SLA indicators** — `LeadCard` SLA badges (NEW_LEAD 4h first-contact, 24h follow-up), opportunity kanban-card SLA badge (48h proposal response), and a new **SLA column** in the leads table.
+- **Lead → Opportunity full-edit flow** — opportunity detail page (`OppDetailClient`) gains a complete edit form for open deals + a **Close Won** modal (Deal Value ex-tax *, Net Profit ₹L, PO Number *, PO Date) and **Close Lost** modal (reason *).
+- **Legacy/imported deal promotion** — `POST /api/pipeline/opportunities/promote` converts a SalesFunnel deal into a real CrmLead + CrmOpportunity (idempotent via `SalesFunnel.crmOpportunityId`), giving imported deals the full edit/close experience. "Open →" button replaces the old limited "Edit Legacy Deal" modal.
+
+### Changed
+- **CRM Admin relocated under Settings** — added as a card in `AdminConsole.tsx` (`/settings` list); removed the standalone "CRM Admin" sidebar link from `SidebarLinks.tsx`.
+- **Pipeline stages aligned with live constants** — DB "Opportunity Pipeline" now exactly matches `OPP_STAGES` and "Lead Pipeline" matches `LEAD_STAGES` from `src/types/pipeline.ts`.
+- **PROPOSAL_SENT leads removed from the Leads view** — both `pipeline/leads/page.tsx` and `/api/pipeline/leads` GET default to `stage: { not: "PROPOSAL_SENT" }`. Stage dropdown drops the option; stats relabeled (Active Leads / Qualified+); kanban + table no longer show converted leads. Changing a lead to PROPOSAL_SENT now auto-navigates to its opportunity.
+- **Net profit is absolute ₹L (was %)** — DB column `CrmOpportunity.netMargin` renamed to `netProfitLakhs`; all labels and displays show `₹X.XXL` instead of `X.X%`.
+- **Closed opportunities are locked** — WON/LOST deals render a read-only summary; the API blocks edits to terminal deals for non-managers (403). Closing requires the mandatory fields (PO Number + Deal Value for Won; reason for Lost).
+
+### Database Changes
+- `20260605000000_opportunity_discount_pct` — `CrmOpportunity.discountPct DOUBLE DEFAULT 0`.
+- `20260605010000_crm_admin_engine` — 7 tables: `pipeline_definition`, `pipeline_stage`, `territory`, `territory_rule`, `account_assignment_rule`, `crm_automation_rule`, `sla_rule`.
+- `20260605020000_opportunity_won_fields` — `dealValueExTax`, `netMargin`, `poNumber`, `poDate` on `CrmOpportunity`.
+- `20260605030000_legacy_promote_and_net_profit` — `CrmOpportunity.netMargin` → `netProfitLakhs`; `SalesFunnel.crmOpportunityId INT NULL`.
+- Seeded default pipelines/automations/SLA via `seed-crm-defaults.ts`; aligned pipeline stages via one-off script.
+
+### Files Modified
+- `prisma/schema.prisma` — CrmOpportunity (+discountPct, +dealValueExTax, +netProfitLakhs, +poNumber, +poDate), SalesFunnel (+crmOpportunityId), 7 new CRM-admin models.
+- `src/types/pipeline.ts` — OpportunitySerialized gains discountPct, dealValueExTax, netProfitLakhs, poNumber, poDate.
+- `src/app/api/pipeline/opportunities/[id]/route.ts` — approval triggers, automation calls, WON/LOST validation + lock, new fields.
+- `src/app/api/pipeline/leads/route.ts` — PROPOSAL_SENT exclusion + `lead.created` automation.
+- `src/app/pipeline/leads/page.tsx`, `LeadsClient.tsx`, `LeadDetailClient.tsx`, `src/components/pipeline/LeadCard.tsx` — PROPOSAL_SENT hiding, SLA column/badges, auto-navigate to opportunity.
+- `src/app/pipeline/opportunities/OpportunitiesClient.tsx` — legacy "Open →" promotion (removed LegacyEditModal), SLA badge.
+- `src/app/pipeline/opportunities/[id]/OppDetailClient.tsx` — full rewrite (edit form + Close modals + locked state).
+- `src/app/pipeline/opportunities/page.tsx` — hide promoted legacy rows.
+- `src/app/settings/AdminConsole.tsx` — CRM Administration card.
+
+### New files / directories (untracked)
+- `src/lib/crm-engine/` (6), `src/app/api/admin/crm/` (7 routes), `src/app/settings/crm/` (page + client + 5 components), `src/app/api/expenses/route.ts`, `src/app/api/pipeline/opportunities/promote/route.ts`, `prisma/seed-crm-defaults.ts`, 4 migration dirs.
+
+### Config Changes
+- None (no env / build config changes).
+
+---
+
 ## [2026-06-05] — Session Summary (Admin Console Phase 6 & 7 + DB Migration + UI Fixes)
 
 ### Added

@@ -1,67 +1,64 @@
 # Next Session — Resume Here
 
 > Quick-start state for the next coding session. Overwritten at the end of every session.
-> Last updated: 2026-06-05 — Admin Console Phases 6 & 7 complete, DB migrated, UI cleaned up.
+> Last updated: 2026-06-05 — Phase 8 CRM Admin Engine + Approval wiring + Lead→Opp flow + Opp close-won/lost + legacy promotion.
 
 ## Where to continue
 
-**Working tree is clean. All work is committed. Dev DB is fully migrated.**
+**⚠️ Working tree has LARGE uncommitted changes this session (14 modified + ~10 new dirs). NOTHING is committed yet. Confirm with Vijesh, then commit in logical chunks before pushing.**
 
+Dev DB has 4 NEW migrations applied this session (all via SSH-apply + `migrate resolve`):
 ```
-git log --oneline -8
-857afe0 fix: clean WorkflowRulePanel, WorkflowDesigner and TriggerSelector UI
-c84323c fix: @@map directives, seed relation syntax, designer button style
-ab4967a fix: add CSS utility aliases and fix workflow component class names
-25fe870 fix: clean up WorkflowDesigner and TriggerSelector UI
-74bc057 fix: workflow duplicate tabs, simplified sidebar and settings page
-143428d fix: workflow 404 redirect + manager canEdit fallback
-fc40e16 feat(master-data): enterprise master data management — Phase 7
-f4e2d3a feat(workflow-engine): enterprise approval workflow engine — Phase 6
+20260605000000_opportunity_discount_pct          → CrmOpportunity.discountPct
+20260605010000_crm_admin_engine                  → 7 CRM admin tables
+20260605020000_opportunity_won_fields            → dealValueExTax, netMargin, poNumber, poDate
+20260605030000_legacy_promote_and_net_profit     → netMargin→netProfitLakhs, SalesFunnel.crmOpportunityId
 ```
 
 ## Last completed task
 
-All of the following are complete and committed this session:
+All complete and **verified in browser**, all **UNCOMMITTED**:
 
-- **Phase 6** — Enterprise Approval Workflow Engine (`src/lib/workflow-engine/` + 9 API routes + 9 UI components)
-- **Phase 7** — Enterprise Master Data Management (`src/lib/master-data/` + 5 API routes + 8 UI components)
-- **DB migrations applied** — all 4 pending migrations deployed to `u686730471_caveodev`
-- **Seeds applied** — admin foundation (65 permissions, 6 roles), policy defaults (3 policies), workflow defaults (5 workflows), master data defaults (8 categories, ~40 values)
-- **UI fixes** — workflow duplicate tabs removed, sidebar simplified (single Settings link), settings page redesigned (simple list), WorkflowDesigner encoding fixed, inline styles throughout
+1. **Approval Engine wired into CRM flows** (fire-and-forget, never blocks save):
+   - Opportunity PATCH → `LARGE_DEAL_APPROVAL` (value first crosses ₹50L) + `DISCOUNT_APPROVAL` (discountPct first > 0)
+   - New `POST /api/expenses` → `EXPENSE_APPROVAL` (amount > ₹0.10L on submit)
+2. **Phase 8 — CRM Administration Engine** at `/settings/crm` (5 tabs: Pipelines, Territories, Assignment Rules, Automation, SLA Rules). Service layer `src/lib/crm-engine/` (6 files), 7 API routes under `/api/admin/crm/`, seed `prisma/seed-crm-defaults.ts`.
+3. **CRM Admin moved under Settings** — card in `AdminConsole.tsx`; removed standalone sidebar link.
+4. **Pipeline stages aligned with live data** — "Opportunity Pipeline" (OPP_STAGES) + "Lead Pipeline" (LEAD_STAGES) seeded to match `src/types/pipeline.ts` exactly.
+5. **Automation wired to live events** — `executeAutomation()` on `lead.created` + `opportunity.stage_changed/won/lost`.
+6. **SLA indicators** — LeadCard badges, opp-card badge, leads-table SLA column.
+7. **Lead → Opportunity auto-move on PROPOSAL_SENT** — PROPOSAL_SENT leads excluded from Leads view (DB-level `stage: { not: "PROPOSAL_SENT" }`); stage→PROPOSAL_SENT auto-navigates to the opportunity; stage dropdown + stats updated.
+8. **Opportunity full edit + Close Won/Lost flow** — `OppDetailClient` rewrite: Close Won modal (Deal Value ex-tax *, Net Profit ₹L, PO Number *, PO Date), Close Lost modal (reason *). WON/LOST become **locked read-only** (non-managers blocked at API with 403).
+9. **Legacy/imported deal promotion** — "Open →" on a legacy SalesFunnel deal calls `POST /api/pipeline/opportunities/promote` → creates CrmLead + CrmOpportunity, sets `SalesFunnel.crmOpportunityId`, navigates to the full detail page. Idempotent. Removed the limited `LegacyEditModal`.
+10. **Net profit is now absolute ₹L** (was %) — DB col `netMargin`→`netProfitLakhs`; all labels/displays show `₹X.XXL`.
 
 ## Recommended next steps
 
-1. **Wire `getMasterValues()` into CRM dropdowns** — replace hardcoded arrays:
-   - Lead source picker → `getMasterValues({ masterCode: "LEAD_SOURCE_LIST" })`
-   - Deal stage picker → `getMasterValues({ masterCode: "DEAL_STAGE_LIST" })`
-   - Expense category picker → `getMasterValues({ masterCode: "EXPENSE_CATEGORY_LIST" })`
-
-2. **Wire Approval Engine into CRM flows** — call `startApproval()`:
-   - Large-deal opportunity save → trigger `OPPORTUNITY_LARGE_DEAL`
-   - Expense submit → trigger `EXPENSE_SUBMITTED`
-   - Discount request → trigger `DISCOUNT_REQUESTED`
-
-3. **Backend wiring for Finance module** — Expense Register CRUD; Customer/Vendor Masters to live DB.
-
-4. **Consolidate Customer Master** — two nav entries pending: `/masters/customers` (new global) vs `/customers` (legacy CRM import). Either redirect legacy or merge.
-
-5. **Push to production** — all work is on `master` branch, confirm with Vijesh before `git push`.
+1. **Commit the uncommitted work** (confirm with Vijesh; stage in chunks):
+   - `feat(approvals): wire startApproval into opportunity/discount/expense`
+   - `feat(crm-engine): Phase 8 CRM Administration Engine + /settings/crm`
+   - `feat(pipeline): lead→opportunity auto-move on PROPOSAL_SENT + SLA badges`
+   - `feat(pipeline): opportunity full edit, close-won/lost, legacy promotion, net profit in ₹L`
+2. **STOP point honored** — user said do NOT implement the Finance Operations backend module this round.
+3. **Wire `executeAutomation` dispatch actions** — `send_notification` is a placeholder; hook into the `Notification` model.
+4. **Promote-on-bulk** — consider a "Promote all legacy" admin action (currently one-at-a-time via "Open →").
+5. **Push to production** — only after commit + `next build` + Vijesh confirms.
 
 ## Current blockers
 
-- **None** — dev DB is migrated, code is clean, server is running.
-- When creating a new workflow in the Designer, the workflow is saved as DRAFT. To make it ACTIVE, go to Workflows tab and click "Activate".
-- Production is unchanged — confirm `200` on `/login` before any push.
+- **None functional** — all features verified in the preview browser.
+- Dev DB user `u686730471_devuser` is capped at **500 connections/hour** — heavy seeding/migration loops can exhaust it (recovers after ~1h). Not a code bug.
+- Production unchanged — confirm `200` on `/login` before any push.
 
 ## Start commands
 
 ```powershell
-npm run dev                       # http://localhost:3000 → /login → quick-login
+npm run dev                       # http://localhost:3000 → /login → quick-login as Vijesh (Manager)
 
 # Re-apply migrations if needed (already applied to dev):
 $env:DATABASE_URL="mysql://u686730471_devuser:Caveo%402026@srv2201.hstgr.io:3306/u686730471_caveodev"
 npx prisma migrate deploy
-npx prisma generate
+npx prisma generate               # then RESTART dev server (Turbopack caches old client)
 
 # Pre-push:
 npx prisma validate ; npx tsc --noEmit ; npx next build
@@ -69,11 +66,12 @@ npx prisma validate ; npx tsc --noEmit ; npx next build
 
 ## Context to restore (non-obvious)
 
-- **@@map directives** — Models WorkflowDefinition→`workflow_definition`, WorkflowStep→`workflow_step`, ApprovalRequest→`approval_request`, ApprovalAction→`approval_action`, DelegationRule→`delegation_rule`, EscalationRule→`escalation_rule`, WorkflowAuditLog→`workflow_audit_log`, MasterCategory→`master_category` (etc. for all Phase 7 models) are mapped because the migration SQL used snake_case while Prisma defaults to PascalCase.
-- **CSS utility aliases** — `globals.css` now has `.btn`, `.btn-primary`, `.btn-ghost`, `.btn-secondary`, `.input`, `.form-label`, `.form-hint` + token aliases (`--primary`, `--foreground`, etc.) for settings module components.
-- **Inline styles preferred** — after encountering CSS class resolution issues (PowerShell BOM + caching), all new workflow/settings components use explicit inline styles with `var(--caveo-red)`, `var(--fg-1)`, `var(--bg-elev)`, `var(--border)` tokens rather than CSS classes.
-- **session.user.employeeId** (not `.id`) — critical: the session user has `employeeId` as the integer FK. All Phase 6/7 API routes use `session.user.employeeId!`.
-- **Dev users**: Vijesh Vijayan (Head of Sales, isManager: true); Deepak Sharma (Operations Head). `/api/dev/switch` to switch.
-- **Workflow creator relation** — `WorkflowDefinition.createdBy` maps to `creator Employee` relation. When seeding, use `creator: { connect: { id } }` not bare `createdBy: id`.
-- **Three-layer master resolution** — `getMasterValues({ masterCode, companyId?, branchId? })` resolves Global → Company override → Branch override. Branch wins. Single DB query for all overrides.
-- **Two RBAC systems coexist** — legacy `roles.ts` predicates + DB-driven `src/lib/access-control/`. All settings pages use both with `||` fallback. When DB permissions are seeded via `seed-admin-foundation.ts`, the DB check takes over.
+- **Prisma acronym casing** — generated client uses `prisma.cRMAutomationRule` and `prisma.sLARule` (lowercased first letter of the acronym), and model type imports are `CRMAutomationRuleModel`/`SLARuleModel` from `@/generated/prisma/models/<Name>`. The crm-engine service files re-export friendly aliases (`CRMAutomationRule`, `SLARule`).
+- **Hostinger has no shadow DB** → `prisma migrate dev` fails (P3014). Pattern used all session: write migration SQL by hand → apply via a one-off `node apply-*.mjs` (mariadb driver) → `prisma migrate resolve --applied <name>` → `prisma generate` → **restart dev server**.
+- **netProfitLakhs** is the renamed column (was `netMargin`). It is an **absolute ₹ Lakhs** value now, NOT a percentage. Existing test rows seeded before the rename may hold a stale "%" number.
+- **Legacy promotion is idempotent** via `SalesFunnel.crmOpportunityId`; promoted rows are filtered out of the legacy list (`crmOpportunityId: null`). A customer can still show 2 rows if it has multiple distinct SalesFunnel deals — that's expected, not a duplicate.
+- **PROPOSAL_SENT leads are intentionally hidden** from the Leads page (both server page and `/api/pipeline/leads` GET use `stage: { not: "PROPOSAL_SENT" }` as default). They live on the Opportunities page.
+- **crm-engine is pre-migration-safe** — every DB call is wrapped in try/catch returning safe defaults `[]`/`null`, so missing tables never crash a page.
+- **Turbopack new-file gotcha bit us repeatedly** — after creating a new API route file, the route 404s until you touch an existing file in it (or restart). Editing existing files hot-reloads fine.
+- **session.user.employeeId** (not `.id`) — all new API routes use `session.user.employeeId!`.
+- **Approval triggers are fire-and-forget** — wrapped so a missing/unconfigured workflow silently skips; the save never fails because of approvals.
