@@ -93,6 +93,7 @@ export default function ApprovalInbox({ requests, caps, onView, onApprove, onRej
               <th className="num">Amount</th>
               <th>Submitted</th>
               <th>Pending Since</th>
+              <th>SLA</th>
               <th>Priority</th>
               <th>Level</th>
               <th>Status</th>
@@ -101,7 +102,7 @@ export default function ApprovalInbox({ requests, caps, onView, onApprove, onRej
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} style={{ textAlign: "center", padding: 32, color: "var(--fg-4)", fontSize: 13 }}>
+              <tr><td colSpan={12} style={{ textAlign: "center", padding: 32, color: "var(--fg-4)", fontSize: 13 }}>
                 No {seg} requests
               </td></tr>
             )}
@@ -137,6 +138,13 @@ export default function ApprovalInbox({ requests, caps, onView, onApprove, onRej
                       <Clock size={11} /> {timeSince(r.submittedAt)}
                     </span>
                   ) : "—"}
+                </td>
+                <td>
+                  {r.breachedSLA
+                    ? <span className="badge badge-danger" style={{ fontSize: 10 }}>Breached</span>
+                    : r.slaDeadline
+                      ? <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{fmtDateTime(r.slaDeadline)}</span>
+                      : <span style={{ fontSize: 11, color: "var(--fg-4)" }}>—</span>}
                 </td>
                 <td><span className={`badge ${priorityBadge(r.priority)}`}>{r.priority}</span></td>
                 <td style={{ fontSize: 12 }}>

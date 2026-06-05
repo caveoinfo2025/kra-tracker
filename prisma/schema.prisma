@@ -67,6 +67,18 @@ model Employee {
   configVersionsChanged  ConfigurationVersion[] @relation("ConfigVersionChangedBy")
   configVersionsReviewed ConfigurationVersion[] @relation("ConfigVersionReviewedBy")
 
+  // ── Phase 6 — Workflow Engine (back-references — no DB columns on Employee) ──
+  workflowsCreated     WorkflowDefinition[] @relation("WorkflowCreatedBy")
+  approvalRequests     ApprovalRequest[]    @relation("WorkflowRequestedBy")
+  approvalActions      ApprovalAction[]     @relation("ApprovalActionBy")
+  delegationsFrom      DelegationRule[]     @relation("DelegationFrom")
+  delegationsTo        DelegationRule[]     @relation("DelegationTo")
+  escalationTargets    EscalationRule[]     @relation("EscalationTarget")
+  workflowAuditLogs    WorkflowAuditLog[]   @relation("WorkflowAuditActor")
+
+  // ── Phase 7 — Master Data Management (back-references — no DB columns on Employee) ──
+  masterAudits  MasterAudit[] @relation("MasterAuditPerformedBy")
+
   @@index([reportsToId])
 }
 
@@ -1124,4 +1136,325 @@ model ConfigurationVersion {
   @@unique([settingKey, version])
   @@index([settingKey, status])
   @@index([changedById])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 6 — Workflow Engine
+// ═══════════════════════════════════════════════════════════════
+
+// ── 19. WorkflowDefinition — a named, versioned approval workflow ──
+// status:  DRAFT | ACTIVE | INACTIVE
+// module:  CRM | FINANCE | HR | SECURITY | MASTERS | WORKFLOW | PROCUREMENT | PROJECTS
+model WorkflowDefinition {
+  id            Int      @id @default(autoincrement())
+  name          String
+  code          String   @unique
+  description   String   @default("") @db.Text
+  module        String
+  triggerEvent  String
+  status        String   @default("DRAFT")
+  conditionJson String?  @db.Text  // optional JSON condition for auto-trigger matching
+  version       Int      @default(1)
+  createdBy     Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  creator         Employee         @relation("WorkflowCreatedBy", fields: [createdBy], references: [id])
+  steps           WorkflowStep[]
+  requests        ApprovalRequest[]
+  escalationRules EscalationRule[]
+
+  @@index([module, triggerEvent])
+  @@index([status])
+  @@index([createdBy])
+}
+
+// ── 20. WorkflowStep — one level/step inside a workflow definition ──
+// approvalType: USER | ROLE | REPORTING_MANAGER | DEPARTMENT_HEAD | POLICY_BASED
+// approvalMode: SEQUENTIAL | PARALLEL
+model WorkflowStep {
+  id              Int      @id @default(autoincrement())
+  workflowId      Int
+  stepNumber      Int
+  stepName        String
+  approvalType    String   @default("REPORTING_MANAGER")
+  approverId      Int?     // employee id (for USER type)
+  approverRoleId  Int?     // role id (for ROLE type)
+  approvalMode    String   @default("SEQUENTIAL")
+  isMandatory     Boolean  @default(true)
+  timeoutHours    Int      @default(24)
+  requireComments Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workflow        WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  actions         ApprovalAction[]
+  escalationRules EscalationRule[]
+
+  @@index([workflowId])
+  @@index([stepNumber])
+}
+
+// ── 21. ApprovalRequest — a live approval in-flight for a business entity ──
+// status: PENDING | APPROVED | REJECTED | RETURNED | CANCELLED
+model ApprovalRequest {
+  id          Int       @id @default(autoincrement())
+  workflowId  Int
+  entityType  String    // EXPENSE | DEAL | VENDOR | CUSTOMER | DISCOUNT | ADVANCE | etc.
+  entityId    String    // string ID of the business entity
+  requestedBy Int
+  status      String    @default("PENDING")
+  currentStep Int       @default(1)
+  contextJson String?   @db.Text  // snapshot of entity data at submission
+  submittedAt DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workflow  WorkflowDefinition @relation(fields: [workflowId], references: [id])
+  requester Employee           @relation("WorkflowRequestedBy", fields: [requestedBy], references: [id])
+  actions   ApprovalAction[]
+
+  @@index([workflowId])
+  @@index([requestedBy])
+  @@index([status])
+  @@index([entityType, entityId])
+}
+
+// ── 22. ApprovalAction — a single action on a request (approve/reject/etc.) ──
+// action: APPROVE | REJECT | RETURN | DELEGATE
+model ApprovalAction {
+  id         Int      @id @default(autoincrement())
+  requestId  Int
+  stepId     Int
+  approverId Int
+  action     String   // APPROVE | REJECT | RETURN | DELEGATE
+  comments   String?  @db.Text
+  toUserId   Int?     // target employee for DELEGATE action
+  createdAt  DateTime @default(now())
+
+  request  ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  step     WorkflowStep    @relation(fields: [stepId],    references: [id])
+  approver Employee        @relation("ApprovalActionBy",  fields: [approverId], references: [id])
+
+  @@index([requestId])
+  @@index([stepId])
+  @@index([approverId])
+}
+
+// ── 23. DelegationRule — user delegates approval rights for a date range ──
+// status: ACTIVE | INACTIVE | EXPIRED
+model DelegationRule {
+  id        Int      @id @default(autoincrement())
+  fromUser  Int
+  toUser    Int
+  module    String?  // null = all modules
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("ACTIVE")
+  reason    String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  from Employee @relation("DelegationFrom", fields: [fromUser], references: [id])
+  to   Employee @relation("DelegationTo",   fields: [toUser],   references: [id])
+
+  @@index([fromUser])
+  @@index([toUser])
+  @@index([status])
+}
+
+// ── 24. EscalationRule — time-based escalation config for a step ──
+// action: REMIND | ESCALATE | AUTO_APPROVE | AUTO_REJECT
+model EscalationRule {
+  id          Int      @id @default(autoincrement())
+  workflowId  Int
+  stepId      Int?     // null = any step in this workflow
+  afterHours  Int      @default(24)
+  escalateTo  Int?     // FK Employee (for ESCALATE action)
+  action      String   @default("REMIND")
+  repeatEvery Int?     // hours between repeats (for REMIND)
+  maxTriggers Int      @default(3)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workflow  WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  step      WorkflowStep?      @relation(fields: [stepId],     references: [id])
+  escalatee Employee?          @relation("EscalationTarget",   fields: [escalateTo], references: [id])
+
+  @@index([workflowId])
+  @@index([stepId])
+}
+
+// ── 25. WorkflowAuditLog — every lifecycle event in the workflow engine ──
+// entityType: WORKFLOW_DEFINITION | APPROVAL_REQUEST
+// action: CREATED | ASSIGNED | APPROVED | REJECTED | ESCALATED | DELEGATED | RETURNED | CANCELLED | COMPLETED
+model WorkflowAuditLog {
+  id         Int      @id @default(autoincrement())
+  entityType String
+  entityId   Int
+  action     String
+  actorId    Int
+  details    String?  @db.Text  // JSON context
+  createdAt  DateTime @default(now())
+
+  actor Employee @relation("WorkflowAuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 7 — Master Data Management
+// ═══════════════════════════════════════════════════════════════
+
+// ── 26. MasterCategory — groups master definitions by domain ──
+model MasterCategory {
+  id          Int      @id @default(autoincrement())
+  name        String
+  code        String   @unique
+  description String   @default("") @db.Text
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  definitions MasterDefinition[]
+
+  @@index([status])
+}
+
+// ── 27. MasterDefinition — defines a named master (e.g. OEM, Industry) ──
+model MasterDefinition {
+  id                   Int     @id @default(autoincrement())
+  categoryId           Int
+  name                 String
+  code                 String  @unique
+  description          String  @default("") @db.Text
+  allowCompanyOverride Boolean @default(true)
+  allowBranchOverride  Boolean @default(false)
+  requiresApproval     Boolean @default(false)
+  status               String  @default("ACTIVE")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  category        MasterCategory         @relation(fields: [categoryId], references: [id])
+  values          MasterValue[]
+  validationRules MasterValidationRule[]
+
+  @@index([categoryId])
+  @@index([status])
+}
+
+// ── 28. MasterValue — a single item inside a master ──────────
+// code is unique per definition; parentId allows hierarchy (sub-categories)
+model MasterValue {
+  id                 Int     @id @default(autoincrement())
+  masterDefinitionId Int
+  parentId           Int?
+  value              String
+  code               String
+  description        String  @default("") @db.Text
+  metadataJson       String? @db.Text
+  sortOrder          Int     @default(0)
+  status             String  @default("ACTIVE")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  definition MasterDefinition @relation(fields: [masterDefinitionId], references: [id], onDelete: Cascade)
+  parent     MasterValue?     @relation("MasterValueParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children   MasterValue[]    @relation("MasterValueParent")
+  overrides  MasterOverride[]
+
+  @@unique([masterDefinitionId, code])
+  @@index([masterDefinitionId])
+  @@index([parentId])
+  @@index([status])
+}
+
+// ── 29. MasterOverride — company / branch level customisation ──
+// scopeType: COMPANY | BRANCH
+model MasterOverride {
+  id            Int     @id @default(autoincrement())
+  masterValueId Int
+  scopeType     String  // COMPANY | BRANCH
+  scopeId       Int
+  customValue   String  @default("")
+  isEnabled     Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  masterValue MasterValue @relation(fields: [masterValueId], references: [id], onDelete: Cascade)
+
+  @@unique([masterValueId, scopeType, scopeId])
+  @@index([masterValueId])
+  @@index([scopeType, scopeId])
+}
+
+// ── 30. MasterValidationRule — links a master to a Policy Engine rule ──
+model MasterValidationRule {
+  id                 Int     @id @default(autoincrement())
+  masterDefinitionId Int
+  policyId           Int?
+  ruleName           String
+  isActive           Boolean @default(true)
+
+  definition MasterDefinition @relation(fields: [masterDefinitionId], references: [id], onDelete: Cascade)
+
+  @@index([masterDefinitionId])
+  @@index([policyId])
+}
+
+// ── 31. MasterAudit — change trail for all master operations ──
+// masterType: DEFINITION | VALUE | OVERRIDE | POLICY
+model MasterAudit {
+  id          Int      @id @default(autoincrement())
+  masterId    Int
+  masterType  String
+  action      String   // CREATED | UPDATED | STATUS_CHANGED | OVERRIDE_ADDED | VALUE_IMPORTED
+  oldValue    String?  @db.Text
+  newValue    String?  @db.Text
+  performedBy Int
+  createdAt   DateTime @default(now())
+
+  performer Employee @relation("MasterAuditPerformedBy", fields: [performedBy], references: [id])
+
+  @@index([masterId, masterType])
+  @@index([performedBy])
+  @@index([createdAt])
+}
+
+// ── 32. CustomerPolicy — governance rules per company / customer type ──
+model CustomerPolicy {
+  id                     Int     @id @default(autoincrement())
+  companyId              Int?
+  customerType           String  @default("ALL")
+  gstRequired            Boolean @default(true)
+  panRequired            Boolean @default(false)
+  duplicateThreshold     Int     @default(80)
+  creditApprovalRequired Boolean @default(false)
+  status                 String  @default("ACTIVE")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([customerType])
+  @@index([status])
+}
+
+// ── 33. VendorPolicy — governance rules per company ───────────
+model VendorPolicy {
+  id                       Int     @id @default(autoincrement())
+  companyId                Int?
+  gstRequired              Boolean @default(true)
+  panRequired              Boolean @default(false)
+  bankVerificationRequired Boolean @default(false)
+  approvalRequired         Boolean @default(true)
+  status                   String  @default("ACTIVE")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
 }

@@ -10,13 +10,14 @@ interface Props {
   allRequests: ApprovalRequest[];
 }
 
-type WorkspaceTab = "inbox" | "approved" | "rejected" | "my-requests";
+type WorkspaceTab = "inbox" | "approved" | "rejected" | "delegated" | "my-requests";
 
 const WORKSPACE_TABS: { key: WorkspaceTab; label: string }[] = [
-  { key: "inbox",       label: "Pending" },
-  { key: "approved",    label: "Approved" },
-  { key: "rejected",    label: "Rejected" },
-  { key: "my-requests", label: "My Requests" },
+  { key: "inbox",        label: "Pending" },
+  { key: "approved",     label: "Approved" },
+  { key: "rejected",     label: "Rejected" },
+  { key: "delegated",    label: "Delegated" },
+  { key: "my-requests",  label: "My Requests" },
 ];
 
 export default function ApprovalInboxPage({ caps, allRequests }: Props) {
@@ -26,17 +27,19 @@ export default function ApprovalInboxPage({ caps, allRequests }: Props) {
 
   /* Filter by workspace tab */
   const tabRequests = requests.filter((r) => {
-    if (workspaceTab === "inbox")       return r.status === "Pending";
-    if (workspaceTab === "approved")    return r.status === "Approved";
-    if (workspaceTab === "rejected")    return r.status === "Rejected";
-    if (workspaceTab === "my-requests") return r.requestedBy === caps.currentUser;
+    if (workspaceTab === "inbox")        return r.status === "Pending";
+    if (workspaceTab === "approved")     return r.status === "Approved";
+    if (workspaceTab === "rejected")     return r.status === "Rejected";
+    if (workspaceTab === "delegated")    return r.history?.some((h) => h.action === "Delegated");
+    if (workspaceTab === "my-requests")  return r.requestedBy === caps.currentUser;
     return true;
   });
 
   const counts = {
-    inbox:        requests.filter((r) => r.status === "Pending").length,
-    approved:     requests.filter((r) => r.status === "Approved").length,
-    rejected:     requests.filter((r) => r.status === "Rejected").length,
+    inbox:         requests.filter((r) => r.status === "Pending").length,
+    approved:      requests.filter((r) => r.status === "Approved").length,
+    rejected:      requests.filter((r) => r.status === "Rejected").length,
+    delegated:     requests.filter((r) => r.history?.some((h) => h.action === "Delegated")).length,
     "my-requests": requests.filter((r) => r.requestedBy === caps.currentUser).length,
   } as Record<WorkspaceTab, number>;
 

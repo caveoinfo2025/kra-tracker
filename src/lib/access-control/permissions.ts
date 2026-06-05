@@ -110,6 +110,8 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   { module: "Settings", resource: "Identity",       action: "EDIT",   description: "Manage users, roles, permissions, and data access policies" },
   { module: "Settings", resource: "Policy",         action: "VIEW",   description: "View business policy rules and configurations" },
   { module: "Settings", resource: "Policy",         action: "EDIT",   description: "Create, edit and publish business policy rules" },
+  { module: "Settings", resource: "Workflow",       action: "VIEW",   description: "View approval workflow engine configurations" },
+  { module: "Settings", resource: "Workflow",       action: "EDIT",   description: "Create, edit and deploy approval workflows" },
 
   // ── Reports ───────────────────────────────────────────────────────────────
   { module: "Reports", resource: "Dashboard", action: "VIEW",   description: "Access dashboards" },
@@ -127,4 +129,8 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   { module: "Masters", resource: "VendorMaster",   action: "CREATE", description: "Add vendors to master" },
   { module: "Masters", resource: "VendorMaster",   action: "EDIT",   description: "Edit vendor records" },
   { module: "Masters", resource: "VendorMaster",   action: "DELETE", description: "Remove vendor records" },
+
+  // ── Settings / Masters ────────────────────────────────────────────────────
+  { module: "Settings", resource: "Masters", action: "VIEW", description: "View master data management (categories, definitions, values)" },
+  { module: "Settings", resource: "Masters", action: "EDIT", description: "Create and manage master data categories, definitions, values and overrides" },
 ];

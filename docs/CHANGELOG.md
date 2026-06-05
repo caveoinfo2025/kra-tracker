@@ -61,6 +61,50 @@ Dates from git history (branch `master`).
   `prisma/seed-policy-defaults.ts` (6 categories, 3 default policies). `settings.ts` extended with
   `getPublishedSetting`/`draftSetting`/`publishSettingVersion`. `tsc` clean, `next build` clean.
   **Migration NOT yet applied to dev/prod DB — all API routes fail-open to mock data until then.**
+- **🆕 2026-06-04 — Admin Console Phase 6 — Enterprise Approval Workflow Engine implemented, UNCOMMITTED:**
+  Generic, reusable multi-level approval engine. **Service layer** (`src/lib/workflow-engine/`): `audit.ts`
+  (WorkflowAuditLog read/write, 11 action types), `resolver.ts` (resolveApprovers — USER/ROLE/REPORTING_MANAGER/
+  DEPARTMENT_HEAD/POLICY_BASED), `delegation.ts` (getActiveDelegate/createDelegation/revokeDelegation/listDelegations),
+  `escalation.ts` (getEscalationRules/createEscalationRule/checkAndTriggerEscalations), `workflow.ts`
+  (listWorkflows/getWorkflow/getWorkflowByCode/createWorkflow/updateWorkflow), `approval.ts`
+  (startApproval/listApprovalRequests/getPendingForApprover/approveRequest/rejectRequest/returnRequest/
+  delegateRequest/cancelRequest), `index.ts` (unified re-export). 7 new DB models + offline migration SQL
+  `20260604180000_workflow_engine` (WorkflowDefinition, WorkflowStep, ApprovalRequest, ApprovalAction,
+  DelegationRule, EscalationRule, WorkflowAuditLog). **Admin UI** (`src/app/settings/workflow/`):
+  `WorkflowCenter.tsx` (7-tab shell replacing ApprovalEngineClient), `WorkflowDesigner.tsx` (full create/edit with
+  2-section form), `TriggerSelector.tsx`, `ApprovalStepBuilder.tsx`, `ApproverSelector.tsx`, `WorkflowRulePanel.tsx`,
+  `DelegationManager.tsx`, `EscalationManager.tsx`, `WorkflowAudit.tsx`. Page updated to use `hasPermission()` with
+  legacy predicate fallback. **API routes**: `GET/POST /api/workflows`, `GET/PATCH /api/workflows/[id]`,
+  `POST /api/workflows/start`, `GET /api/workflows/audit`, `GET /api/approvals`, `POST /api/approvals/[id]/action`,
+  `GET/POST /api/delegations`, `DELETE /api/delegations/[id]`, `GET/POST /api/escalation-rules`. 2 new permissions
+  added (`Settings/Workflow/VIEW+EDIT`). `ApprovalInboxPage` upgraded with Delegated tab + SLA column in inbox.
+  ApprovalInbox table `colSpan` corrected. Seed: `prisma/seed-workflow-defaults.ts` (5 default workflows). All
+  pre-migration safe (fail-open). `tsc` clean, `next build` clean. Migration NOT yet applied.
+- **🆕 2026-06-04 — Admin Console Phase 7 — Enterprise Master Data Management implemented, UNCOMMITTED:**
+  Full master data management system at `/settings/masters` — 8 tabs (Overview, Categories, Values,
+  Overrides, Customer Policy, Vendor Policy, Validation Rules, Audit Log). **Service layer**
+  (`src/lib/master-data/`): `audit.ts` (logMasterEvent/getMasterAudit/listMasterAudit), `masters.ts`
+  (three-layer resolution: Global → Company override → Branch override; listCategories/createCategory/
+  listDefinitions/getDefinitionByCode/createDefinition/updateDefinitionStatus/listValues/getMasterValues/
+  createValue/updateValue), `override.ts` (listOverrides/createOverride/updateOverride/upsertOverride),
+  `validation.ts` (listValidationRules/createValidationRule/validateMasterData — integrates Policy Engine),
+  `customer-policy.ts` (getCustomerPolicy/listCustomerPolicies/upsertCustomerPolicy),
+  `vendor-policy.ts` (getVendorPolicy/listVendorPolicies/upsertVendorPolicy), `index.ts` (unified re-export).
+  8 new DB models (MasterCategory, MasterDefinition, MasterValue, MasterOverride, MasterValidationRule,
+  MasterAudit, CustomerPolicy, VendorPolicy) + offline migration SQL `20260604220000_master_data_management`.
+  **Admin UI** (`src/app/settings/masters/`): server auth gate (`page.tsx`), `MasterDataClient.tsx`
+  (8-tab shell), `MasterDashboard.tsx` (stat cards + architecture explainer), `MasterCategoryList.tsx`
+  (table + inline create form), `MasterValueManager.tsx` (definition selector + values table + add form),
+  `OverrideManager.tsx` (override table + upsert form), `CustomerGovernance.tsx` (policy edit panel),
+  `VendorGovernance.tsx` (policy edit panel), `ValidationRules.tsx` (per-definition rule list + add form),
+  `MasterAudit.tsx` (audit log with filter). **API routes**: `GET/POST /api/admin/masters` (multi-type:
+  stats/categories/definitions/validation-rules/audit), `GET/POST /api/admin/masters/values`,
+  `GET/POST /api/admin/masters/overrides`, `GET/POST /api/admin/customer-policy`,
+  `GET/POST /api/admin/vendor-policy`. 2 new permissions (`Settings/Masters/VIEW+EDIT`) added to
+  PERMISSION_CATALOGUE. Masters module status set to `"active"` in `adminModules.ts`. Seed:
+  `prisma/seed-master-defaults.ts` (8 categories, ~40 values, global CustomerPolicy + VendorPolicy).
+  All pre-migration safe (fail-open). `tsc` clean, `next build` clean — `/settings/masters` in route list.
+  **Migration NOT yet applied.**
 - **Latest commit:** `ce29704` (session memory snapshot). **All work from 2026-06-04 is uncommitted.**
 - **Prod note:** unchanged; confirm `200` on `/login` before/after any push. Pre-`1ab4f7d`
   JWTs still need one sign-out + in to pick up live role.

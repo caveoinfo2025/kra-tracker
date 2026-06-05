@@ -1,30 +1,41 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/dev-session";
-import SheetLayout from "@/components/SheetLayout";
-import { isOperationsHead } from "@/lib/roles";
-import { deriveCaps } from "./data";
-import ApprovalEngineClient from "./ApprovalEngineClient";
+import { getSession }    from "@/lib/dev-session";
+import { hasPermission } from "@/lib/access-control";
+import { isOperationsHead, hasManagerReach } from "@/lib/roles";
+import SheetLayout       from "@/components/SheetLayout";
+import WorkflowCenter    from "../WorkflowCenter";
 
 export default async function ApprovalEnginePage() {
   const session = await getSession();
   if (!session?.user) redirect("/login");
 
   const user      = session.user;
+  const userId    = user.employeeId!;
   const isOpsHead = isOperationsHead(user);
-  const isManager = !!user.isManager;
+  const isManager = !!user.isManager || hasManagerReach(user);
   const userName  = user.employeeName ?? user.name ?? "You";
 
-  // Only managers and above can view this configuration page
-  if (!isManager && !isOpsHead) redirect("/approvals");
+  // DB-driven permission check; falls back to role predicate when DB tables are empty
+  const [canView, canEdit] = await Promise.all([
+    hasPermission(userId, "Settings", "Workflow", "VIEW"),
+    hasPermission(userId, "Settings", "Workflow", "EDIT"),
+  ]);
 
-  const caps = deriveCaps({ isManager, isOpsHead, userName });
+  // Fallback to legacy predicate while the permission table is being populated
+  const effectiveView = canView || isManager || isOpsHead;
+  const effectiveEdit = canEdit || isOpsHead;
+
+  if (!effectiveView) redirect("/approvals");
 
   return (
     <SheetLayout
       title="Approval Engine"
       description="Configure multi-level approval workflows across Finance, Procurement, HR, Sales and all CRM modules."
     >
-      <ApprovalEngineClient caps={caps} />
+      <WorkflowCenter
+        canEdit={effectiveEdit}
+        engineCaps={{ isManager, isOpsHead, currentUser: userName }}
+      />
     </SheetLayout>
   );
 }
