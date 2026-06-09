@@ -133,4 +133,8 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   // ── Settings / Masters ────────────────────────────────────────────────────
   { module: "Settings", resource: "Masters", action: "VIEW", description: "View master data management (categories, definitions, values)" },
   { module: "Settings", resource: "Masters", action: "EDIT", description: "Create and manage master data categories, definitions, values and overrides" },
+
+  // ── Settings / Finance Administration (Phase 9) ───────────────────────────
+  { module: "Settings", resource: "Finance", action: "VIEW", description: "View finance administration (expense categories, conveyance, credit, voucher, collection)" },
+  { module: "Settings", resource: "Finance", action: "EDIT", description: "Create and modify finance policies, expense limits, conveyance rates, credit limits, voucher configs and collection rules" },
 ];

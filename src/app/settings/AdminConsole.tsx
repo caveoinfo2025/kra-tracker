@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
   Building2, ShieldCheck, GitBranch, Database,
-  ScrollText, Target, ChevronRight, SlidersHorizontal,
+  ScrollText, Target, ChevronRight, SlidersHorizontal, Banknote,
 } from "lucide-react";
 
 interface SettingsItem {
@@ -72,6 +72,14 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Target,
     iconColor:   "#FF6B00",
     iconBg:      "rgba(255,107,0,0.1)",
+  },
+  {
+    href:        "/settings/finance",
+    label:       "Finance Administration",
+    description: "Expense policies, conveyance rates, credit limits, vouchers and collection rules",
+    icon:        Banknote,
+    iconColor:   "#00AA55",
+    iconBg:      "rgba(0,170,85,0.1)",
   },
 ];
 
