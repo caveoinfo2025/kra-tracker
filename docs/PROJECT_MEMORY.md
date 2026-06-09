@@ -19,19 +19,37 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-05, end of session 4 — CRM Admin Engine Phase 8 + Approval Wiring + Pipeline Flow)
-- **Database is MySQL/MariaDB 11.8. Dev DB has 4 NEW migrations applied this session** (via SSH-apply + `migrate resolve`):
-  - `20260605000000_opportunity_discount_pct` — `CrmOpportunity.discountPct`
-  - `20260605010000_crm_admin_engine` — 7 CRM-admin tables (pipeline_definition, pipeline_stage, territory, territory_rule, account_assignment_rule, crm_automation_rule, sla_rule)
-  - `20260605020000_opportunity_won_fields` — dealValueExTax, netMargin, poNumber, poDate
-  - `20260605030000_legacy_promote_and_net_profit` — netMargin→netProfitLakhs, SalesFunnel.crmOpportunityId
-- **🆕 Phase 8 (2026-06-05 → UNCOMMITTED):** Enterprise CRM Administration Engine — `src/lib/crm-engine/` (6 files), 7 API routes under `/api/admin/crm/`, `/settings/crm` (5-tab admin: Pipelines, Territories, Assignment Rules, Automation, SLA), `seed-crm-defaults.ts`. CRM Admin is reachable from the **Settings** page card (no standalone sidebar link).
-- **🆕 Approval Engine wired into CRM flows (UNCOMMITTED):** `startApproval()` fire-and-forget on large-deal opportunity save (>₹50L → `LARGE_DEAL_APPROVAL`), discount set (>0% → `DISCOUNT_APPROVAL`), and expense submit (>₹0.10L → `EXPENSE_APPROVAL`, new `/api/expenses`).
-- **🆕 Pipeline flow upgrades (UNCOMMITTED):** PROPOSAL_SENT leads auto-move to Opportunities (hidden from Leads view); opportunity **full edit + Close Won/Lost** flow with locked read-only terminal state; **legacy/imported deals promotable** to real opportunities ("Open →"); **net profit now absolute ₹L** (was %); SLA indicators on lead/opp cards + leads table.
-- **Pipeline stages aligned with live constants** — DB pipelines match `OPP_STAGES`/`LEAD_STAGES`.
-- **⚠️ Working tree has LARGE uncommitted changes** (14 modified + ~10 new dirs). Sessions 1–3 (Finance Phase 1 + Admin Console Phases 1–7) ARE committed; this session is NOT.
-- **STOP point honored:** user asked to NOT implement the Finance Operations backend module this round.
-- **Prod note:** Nothing pushed to production. Confirm with Vijesh before commit + `git push origin master`.
+## 0. Current status (2026-06-09, end of session 5 — Phase 9 Finance Administration Engine)
+
+### Committed this session (4 commits, all clean — 0 TS errors)
+- `7f4980d` — Phase 9 schema + migration + seed
+- `d557a8a` — Finance engine service layer (7 files)
+- `5aea747` — Finance Admin API routes (7 routes)
+- `7df039d` — Finance Admin UI + Settings card + permissions
+
+### ⚠️ Migration NOT yet applied to dev DB
+Migration `20260605050000_finance_admin_engine` is committed but the 8 tables haven't been
+created yet. **To activate Phase 9 on dev:**
+1. Whitelist current IP in hPanel → Remote MySQL
+2. `$env:DATABASE_URL="mysql://…"; node prisma/apply-finance-admin.mjs`
+3. `$env:DATABASE_URL="mysql://…"; npx prisma migrate resolve --applied 20260605050000_finance_admin_engine`
+4. `npx tsx prisma/seed-finance-admin.ts`
+5. Restart dev server (new files created — Turbopack requires restart)
+
+Until migration is applied, all finance-engine DB calls return empty arrays (try/catch fail-open).
+
+### Phase 9 deliverables — `/settings/finance`
+- 8-tab admin: Overview / Expense Categories / Conveyance / Advance Policy / Customer Credit / Voucher Config / Collection Rules / Audit
+- `src/lib/finance-engine/` (7 files): validateExpense(), calculateConveyance(), generateVoucherNumber(), checkCustomerCredit()
+- `/api/admin/finance/` (7 routes): policies, expenses, conveyance, advance, credit, voucher, collection
+- `Settings/Finance/VIEW` + `Settings/Finance/EDIT` added to PERMISSION_CATALOGUE
+
+### Previously committed (sessions 1–4)
+- Sessions 1–3: Finance Phase 1 DB layer, Admin Console Phases 1–7 UI (all committed)
+- Session 4: Phase 8 CRM Admin Engine, 4 migrations applied to dev DB, Approval wiring,
+  Pipeline lifecycle upgrades, Legacy promotion. All committed.
+
+### Prod note: Nothing pushed to production. Confirm with Vijesh before `git push origin master`.
 
 ## 2. Roles (Employee.role + isManager)
 | Role | Access summary |

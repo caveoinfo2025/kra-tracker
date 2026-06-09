@@ -3,6 +3,64 @@
 Reverse-chronological log of notable changes. **Update at the end of every session.**
 Dates from git history (branch `master`).
 
+## [2026-06-09 — Session 5] — Phase 9: Finance Administration Engine
+
+### Added — 4 commits (7f4980d → 7df039d)
+
+**Schema & Migration**
+- `prisma/schema.prisma`: 8 new models — `FinancePolicy`, `ExpenseCategory`, `ExpenseLimitRule`, `ConveyancePolicy`, `AdvancePolicy`, `CustomerCreditPolicy`, `VoucherConfiguration`, `CollectionPolicy`. Fixed Unicode smart-quote corruption in schema comments that caused 31 Prisma validation errors (all `@default("")` values had `"…"` replaced with ASCII `"`).
+- Migration `20260605050000_finance_admin_engine`: hand-written SQL, 8 tables, InnoDB, utf8mb4_unicode_ci, DOUBLE for money, all FK-columns indexed.
+- `prisma/apply-finance-admin.mjs`: one-off apply script (mariadb driver). **⚠ Requires IP whitelisted in hPanel → Remote MySQL before running.**
+- `prisma/seed-finance-admin.ts`: 5 expense categories (TRAVEL/FOOD/HOTEL/INTERNET/CERTIFICATION), 3 conveyance rates (Bike/Car/Two-Wheeler), 3 credit policies (STANDARD/PREMIUM/GOVERNMENT), 3 voucher configs (EXP/PAY/REC), 1 advance policy, 1 collection policy.
+
+**Service Layer (`src/lib/finance-engine/`)**
+- `index.ts` — barrel exports
+- `expense.ts` — `listExpenseCategories`, `createExpenseCategory`, `updateExpenseCategory`, `listExpenseLimitRules`, `upsertExpenseLimitRule`, `validateExpense()` (fail-open)
+- `conveyance.ts` — `listConveyancePolicies`, `createConveyancePolicy`, `updateConveyancePolicy`, `calculateConveyance()`
+- `advance.ts` — `listAdvancePolicies`, `createAdvancePolicy`, `updateAdvancePolicy`
+- `credit.ts` — `listCreditPolicies`, `createCreditPolicy`, `updateCreditPolicy`, `checkCustomerCredit()` (fail-open)
+- `voucher.ts` — `listVoucherConfigs`, `createVoucherConfig`, `updateVoucherConfig`, `generateVoucherNumber()` (FY reset + 3 format options)
+- `collection.ts` — `listCollectionPolicies`, `createCollectionPolicy`, `updateCollectionPolicy`, `getCollectionAction()`
+
+**API Routes (`/api/admin/finance/`)**
+- `policies/route.ts` — GET/POST/PATCH `FinancePolicy` (type-validated)
+- `expenses/route.ts` — GET/POST (type=category|limit_rule) / PATCH
+- `conveyance/route.ts`, `advance/route.ts`, `credit/route.ts`, `voucher/route.ts`, `collection/route.ts` — GET/POST/PATCH for each policy type
+- All routes guard with `getSession()` + `isManager`
+
+**Admin UI (`/settings/finance`)**
+- `page.tsx` — SSR auth gate (manager-only), loads all 7 policy lists in parallel
+- `FinanceAdminClient.tsx` — 8-tab shell
+- `FinanceDashboard.tsx` — stat cards + 4-panel summary grid
+- `ExpensePolicyManager.tsx` — category CRUD + receipt/approval flags
+- `ConveyancePolicyManager.tsx` — per-vehicle rate, monthly limit, map/override options
+- `AdvancePolicyManager.tsx` — max advance (₹L) + settlement days
+- `CreditPolicyManager.tsx` — per-customerType default/max credit limits + payment terms
+- `VoucherConfigurator.tsx` — prefix, format (PREFIX-YEAR-SEQ / PREFIX-SEQ / custom), live preview
+- `CollectionRules.tsx` — reminder/escalation/hold day inputs + timeline visualisation
+- `FinanceAudit.tsx` — reads AuditLog filtered to finance entity types; grouped by entity type
+
+### Changed
+- `AdminConsole.tsx` — Finance Administration card added (Banknote icon, green, `/settings/finance`)
+- `permissions.ts` — `Settings/Finance/VIEW` + `Settings/Finance/EDIT` added to `PERMISSION_CATALOGUE`
+
+### Pending (apply to dev DB)
+1. Whitelist current IP in hPanel → Remote MySQL
+2. `$env:DATABASE_URL="mysql://…"; node prisma/apply-finance-admin.mjs`
+3. `$env:DATABASE_URL="mysql://…"; npx prisma migrate resolve --applied 20260605050000_finance_admin_engine`
+4. `npx tsx prisma/seed-finance-admin.ts`
+5. Restart dev server (Turbopack — new files)
+6. Verify `/settings/finance` renders correctly
+
+### Not yet done (future sessions)
+- Vendor Finance Rules tab (reuses `masters/vendors` policies — deferred)
+- `hasPermission()` check using `Settings/Finance/VIEW` (currently uses `isManager`)
+- Policy Engine integration — `evaluatePolicy()` hook in `validateExpense()`
+- Workflow Engine integration — `startApproval()` trigger in `validateExpense()` / `checkCustomerCredit()`
+- Master Data integration — vehicle type and customer type dropdowns from master values
+
+---
+
 ## [2026-06-05 — Session 4] — CRM Admin Engine (Phase 8) + Approval Wiring + Lead→Opp Flow + Opp Close + Legacy Promotion
 
 > **All UNCOMMITTED.** Verified in the preview browser. Dev DB has 4 new migrations applied.
