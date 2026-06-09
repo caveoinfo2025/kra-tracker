@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
   Building2, ShieldCheck, GitBranch, Database,
-  ScrollText, Target, ChevronRight, SlidersHorizontal, Banknote,
+  ScrollText, Target, ChevronRight, SlidersHorizontal, Banknote, Bell,
 } from "lucide-react";
 
 interface SettingsItem {
@@ -80,6 +80,14 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Banknote,
     iconColor:   "#00AA55",
     iconBg:      "rgba(0,170,85,0.1)",
+  },
+  {
+    href:        "/settings/communication",
+    label:       "Communication Center",
+    description: "Event registry, notification rules, templates, channels and delivery logs",
+    icon:        Bell,
+    iconColor:   "#7C3AED",
+    iconBg:      "rgba(124,58,237,0.1)",
   },
 ];
 

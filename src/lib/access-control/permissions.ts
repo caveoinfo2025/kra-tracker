@@ -141,4 +141,10 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   // ── Settings / Performance Management (Phase 10) ─────────────────────────
   { module: "Settings", resource: "Performance", action: "VIEW", description: "View performance management (periods, KRA library, templates, targets, reviews)" },
   { module: "Settings", resource: "Performance", action: "EDIT", description: "Create and modify performance periods, KRA metrics, templates, employee targets and review workflows" },
+
+  // ── Settings / Communication Center (Phase 11) ───────────────────────────
+  { module: "Settings", resource: "CommunicationAdmin",    action: "VIEW", description: "View communication center (events, rules, templates, channels, delivery logs)" },
+  { module: "Settings", resource: "CommunicationAdmin",    action: "EDIT", description: "Create and manage notification events, rules, templates and channel configuration" },
+  { module: "Settings", resource: "CommunicationTemplate", action: "EDIT", description: "Create and edit notification templates with variable substitution" },
+  { module: "Settings", resource: "CommunicationLog",      action: "VIEW", description: "View notification delivery logs and audit trail" },
 ];

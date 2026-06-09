@@ -1940,3 +1940,143 @@ model PerformanceAudit {
   @@map("performance_audit")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 11: Communication Center
+// 7 models: CommunicationEvent, NotificationChannel, NotificationTemplate,
+// NotificationRule, NotificationQueue, NotificationDeliveryLog, CommunicationAudit
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CommunicationEvent {
+  id          Int      @id @default(autoincrement())
+  module      String
+  eventCode   String   @unique
+  eventName   String
+  description String   @default("") @db.Text
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  templates NotificationTemplate[]
+  rules     NotificationRule[]
+  queue     NotificationQueue[]
+
+  @@index([module])
+  @@index([status])
+  @@map("communication_event")
+}
+
+model NotificationChannel {
+  id          Int      @id @default(autoincrement())
+  channelName String
+  channelCode String   @unique
+  provider    String   @default("")
+  status      String   @default("inactive")
+  configJson  String   @default("") @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  templates NotificationTemplate[]
+
+  @@index([status])
+  @@map("notification_channel")
+}
+
+model NotificationTemplate {
+  id            Int                  @id @default(autoincrement())
+  event         CommunicationEvent?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventId       Int?
+  channel       NotificationChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  channelId     Int?
+  templateName  String
+  subject       String               @default("")
+  body          String               @default("") @db.Text
+  variablesJson String               @default("") @db.Text
+  status        String               @default("active")
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  queue NotificationQueue[]
+
+  @@index([eventId])
+  @@index([channelId])
+  @@index([status])
+  @@map("notification_template")
+}
+
+model NotificationRule {
+  id            Int                @id @default(autoincrement())
+  event         CommunicationEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  eventId       Int
+  policyId      Int?
+  ruleName      String
+  conditionJson String             @default("") @db.Text
+  recipientJson String             @default("") @db.Text
+  channelJson   String             @default("") @db.Text
+  frequencyJson String             @default("") @db.Text
+  status        String             @default("active")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([eventId])
+  @@index([status])
+  @@map("notification_rule")
+}
+
+model NotificationQueue {
+  id              Int                  @id @default(autoincrement())
+  event           CommunicationEvent   @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  eventId         Int
+  template        NotificationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId      Int?
+  recipientUserId Int?
+  channel         String               @default("IN_APP")
+  payloadJson     String               @default("") @db.Text
+  status          String               @default("PENDING")
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  failureReason   String               @default("") @db.Text
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  deliveryLogs NotificationDeliveryLog[]
+
+  @@index([eventId])
+  @@index([recipientUserId])
+  @@index([status])
+  @@index([channel])
+  @@index([scheduledAt])
+  @@map("notification_queue")
+}
+
+model NotificationDeliveryLog {
+  id           Int               @id @default(autoincrement())
+  queue        NotificationQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  queueId      Int
+  channel      String
+  provider     String            @default("")
+  status       String            @default("PENDING")
+  responseJson String            @default("") @db.Text
+  createdAt    DateTime          @default(now())
+
+  @@index([queueId])
+  @@index([status])
+  @@index([channel])
+  @@map("notification_delivery_log")
+}
+
+model CommunicationAudit {
+  id          Int      @id @default(autoincrement())
+  entityType  String
+  entityId    Int
+  action      String
+  oldValue    String   @default("") @db.Text
+  newValue    String   @default("") @db.Text
+  performedBy Int
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([performedBy])
+  @@index([createdAt])
+  @@map("communication_audit")
+}
+
