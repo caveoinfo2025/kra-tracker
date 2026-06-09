@@ -42,7 +42,7 @@ model Employee {
   pipelineActivities CrmActivity[] @relation("ActivityPerformedBy")
   pipelineNotes      CrmNote[]     @relation("NoteAuthor")
 
-  // â”€â”€ Finance Operations Module (Phase 1) â”€â”€
+  // â"€â"€ Finance Operations Module (Phase 1) â"€â"€
   ledgerEntries            Ledger[]          @relation("LedgerRecordedBy")
   expenses                 Expense[]         @relation("ExpenseEmployee")
   expensesApproved         Expense[]         @relation("ExpenseApprovedBy")
@@ -53,13 +53,13 @@ model Employee {
   travelClaimsApproved     TravelClaim[]     @relation("TravelClaimApprovedBy")
   auditLogs                AuditLog[]        @relation("AuditPerformedBy")
 
-  // â”€â”€ Admin Console Phase 2 (back-references â€” no DB columns on Employee) â”€â”€
+  // â"€â"€ Admin Console Phase 2 (back-references â€" no DB columns on Employee) â"€â"€
   employeeProfile  EmployeeProfile?  @relation("ProfileEmployee")
   reporteeProfiles EmployeeProfile[] @relation("ProfileReportingManager")
   teamLeadOf       Team[]            @relation("TeamLead")
   userRoles        UserRole[]
 
-  // â”€â”€ Phase 5 â€” Policy Engine (back-references â€” no DB columns on Employee) â”€â”€
+  // â"€â"€ Phase 5 â€" Policy Engine (back-references â€" no DB columns on Employee) â"€â"€
   policiesCreated      Policy[]               @relation("PolicyCreatedBy")
   policiesApproved     Policy[]               @relation("PolicyApprovedBy")
   policyVersions       PolicyVersion[]        @relation("PolicyVersionCreatedBy")
@@ -67,7 +67,7 @@ model Employee {
   configVersionsChanged  ConfigurationVersion[] @relation("ConfigVersionChangedBy")
   configVersionsReviewed ConfigurationVersion[] @relation("ConfigVersionReviewedBy")
 
-  // â”€â”€ Phase 6 â€” Workflow Engine (back-references â€” no DB columns on Employee) â”€â”€
+  // â"€â"€ Phase 6 â€" Workflow Engine (back-references â€" no DB columns on Employee) â"€â"€
   workflowsCreated     WorkflowDefinition[] @relation("WorkflowCreatedBy")
   approvalRequests     ApprovalRequest[]    @relation("WorkflowRequestedBy")
   approvalActions      ApprovalAction[]     @relation("ApprovalActionBy")
@@ -76,7 +76,7 @@ model Employee {
   escalationTargets    EscalationRule[]     @relation("EscalationTarget")
   workflowAuditLogs    WorkflowAuditLog[]   @relation("WorkflowAuditActor")
 
-  // â”€â”€ Phase 7 â€” Master Data Management (back-references â€” no DB columns on Employee) â”€â”€
+  // â"€â"€ Phase 7 â€" Master Data Management (back-references â€" no DB columns on Employee) â"€â"€
   masterAudits  MasterAudit[] @relation("MasterAuditPerformedBy")
 
   @@index([reportsToId])
@@ -499,7 +499,7 @@ model RolePageAccess {
 }
 
 // ============================================================
-// Finance Operations Module â€” Phase 1 (database only)
+// Finance Operations Module â€" Phase 1 (database only)
 // Provider: mysql Â· money in â‚¹ Lakhs (Float -> DOUBLE) Â· long text uses @db.Text
 // Every FK + hot-filter column is indexed. No API/UI in this phase.
 // Module â†’ model map:
@@ -514,7 +514,7 @@ model RolePageAccess {
 //   AuditLog       -> AuditLog         (generic financial audit trail)
 // ============================================================
 
-// â”€â”€ Account: chart of accounts (cash & bank) â”€â”€
+// â"€â"€ Account: chart of accounts (cash & bank) â"€â"€
 model FinAccount {
   id             Int      @id @default(autoincrement())
   name           String
@@ -525,7 +525,7 @@ model FinAccount {
   ifscCode       String   @default("")
   accountHolder  String   @default("")
   openingBalance Float    @default(0)
-  currentBalance Float    @default(0) // CACHED â€” written by the cash/bank service only
+  currentBalance Float    @default(0) // CACHED â€" written by the cash/bank service only
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -536,7 +536,7 @@ model FinAccount {
   @@index([isActive])
 }
 
-// â”€â”€ Ledger: general ledger entries posted against an account â”€â”€
+// â"€â"€ Ledger: general ledger entries posted against an account â"€â"€
 model Ledger {
   id             Int        @id @default(autoincrement())
   account        FinAccount @relation(fields: [accountId], references: [id])
@@ -567,7 +567,7 @@ model Ledger {
   @@index([recordedById])
 }
 
-// â”€â”€ Vendor master â”€â”€
+// â"€â"€ Vendor master â"€â"€
 model Vendor {
   id            Int      @id @default(autoincrement())
   name          String
@@ -594,7 +594,7 @@ model Vendor {
   @@index([isActive])
 }
 
-// â”€â”€ Expense register (category + attachments held inline for Phase 1) â”€â”€
+// â"€â"€ Expense register (category + attachments held inline for Phase 1) â"€â"€
 model Expense {
   id              Int       @id @default(autoincrement())
   category        String    @default("") // category name
@@ -630,7 +630,7 @@ model Expense {
   @@index([voucherId])
 }
 
-// â”€â”€ Voucher â”€â”€
+// â"€â"€ Voucher â"€â"€
 model Voucher {
   id          Int       @id @default(autoincrement())
   voucherNo   String    @unique // CI/26-27/00001
@@ -658,7 +658,7 @@ model Voucher {
   @@index([createdById])
 }
 
-// â”€â”€ Voucher sequence: atomic per-financial-year numbering (supports Voucher) â”€â”€
+// â"€â"€ Voucher sequence: atomic per-financial-year numbering (supports Voucher) â"€â"€
 model VoucherSequence {
   id            Int      @id @default(autoincrement())
   financialYear String   @unique // "26-27"
@@ -666,7 +666,7 @@ model VoucherSequence {
   updatedAt     DateTime @updatedAt
 }
 
-// â”€â”€ Employee advance â”€â”€
+// â"€â"€ Employee advance â"€â"€
 model EmployeeAdvance {
   id                   Int       @id @default(autoincrement())
   advanceNo            String    @unique // CI/ADV/26-27/00001
@@ -699,7 +699,7 @@ model EmployeeAdvance {
   @@index([voucherId])
 }
 
-// â”€â”€ Travel claim: local conveyance / travel reimbursement (GPS-aware) â”€â”€
+// â"€â"€ Travel claim: local conveyance / travel reimbursement (GPS-aware) â"€â"€
 model TravelClaim {
   id           Int       @id @default(autoincrement())
   claimNo      String    @unique // CI/TRV/26-27/00001
@@ -733,7 +733,7 @@ model TravelClaim {
   @@index([voucherId])
 }
 
-// â”€â”€ Approval rule: configurable amount-limit approval policy â”€â”€
+// â"€â"€ Approval rule: configurable amount-limit approval policy â"€â"€
 model ApprovalRule {
   id               Int      @id @default(autoincrement())
   name             String
@@ -753,7 +753,7 @@ model ApprovalRule {
   @@index([isActive])
 }
 
-// â”€â”€ Audit log: generic financial audit trail â”€â”€
+// â"€â"€ Audit log: generic financial audit trail â"€â"€
 model AuditLog {
   id            Int      @id @default(autoincrement())
   entityType    String // expense|voucher|ledger|account|advance|travel_claim|vendor|approval
@@ -771,14 +771,160 @@ model AuditLog {
   @@index([createdAt])
 }
 
+// Finance Administration Engine - Phase 9
+// 8 models: FinancePolicy, ExpenseCategory, ExpenseLimitRule, ConveyancePolicy,
+// AdvancePolicy, CustomerCreditPolicy, VoucherConfiguration, CollectionPolicy
+
+model FinancePolicy {
+  id          Int      @id @default(autoincrement())
+  companyId   Int?
+  policyName  String
+  policyType  String
+  policyCode  String   @default("")
+  description String   @default("") @db.Text
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([policyType])
+  @@index([status])
+  @@map("finance_policy")
+}
+
+model ExpenseCategory {
+  id               Int      @id @default(autoincrement())
+  companyId        Int?
+  name             String
+  code             String   @unique
+  description      String   @default("") @db.Text
+  requiresReceipt  Boolean  @default(false)
+  requiresApproval Boolean  @default(false)
+  parentId         Int?
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  parent     ExpenseCategory?   @relation("CatParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children   ExpenseCategory[]  @relation("CatParent")
+  limitRules ExpenseLimitRule[]
+
+  @@index([companyId])
+  @@index([parentId])
+  @@index([status])
+  @@map("expense_category")
+}
+
+model ExpenseLimitRule {
+  id                Int             @id @default(autoincrement())
+  expenseCategory   ExpenseCategory @relation(fields: [expenseCategoryId], references: [id], onDelete: Cascade)
+  expenseCategoryId Int
+  scopeType         String
+  scopeId           String
+  dailyLimit        Float           @default(0)
+  monthlyLimit      Float           @default(0)
+  yearlyLimit       Float           @default(0)
+  policyCode        String          @default("")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([expenseCategoryId])
+  @@index([scopeType, scopeId])
+  @@map("expense_limit_rule")
+}
+
+model ConveyancePolicy {
+  id                       Int      @id @default(autoincrement())
+  companyId                Int?
+  vehicleType              String
+  ratePerKm                Float    @default(0)
+  monthlyLimitRupees       Float    @default(0)
+  googleMapRequired        Boolean  @default(false)
+  allowManualOverride      Boolean  @default(true)
+  overrideApprovalRequired Boolean  @default(false)
+  status                   String   @default("active")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([vehicleType])
+  @@index([status])
+  @@map("conveyance_policy")
+}
+
+model AdvancePolicy {
+  id               Int      @id @default(autoincrement())
+  companyId        Int?
+  maxAdvanceLakhs  Float    @default(0)
+  settlementDays   Int      @default(30)
+  approvalRequired Boolean  @default(true)
+  policyCode       String   @default("")
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("advance_policy")
+}
+
+model CustomerCreditPolicy {
+  id                      Int      @id @default(autoincrement())
+  companyId               Int?
+  customerType            String   @default("STANDARD")
+  defaultCreditLimitLakhs Float    @default(0)
+  maxCreditLimitLakhs     Float    @default(0)
+  approvalAboveLimit      Boolean  @default(true)
+  paymentTermsDays        Int      @default(30)
+  status                  String   @default("active")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([customerType])
+  @@map("customer_credit_policy")
+}
+
+model VoucherConfiguration {
+  id                 Int      @id @default(autoincrement())
+  companyId          Int?
+  voucherType        String
+  prefix             String   @default("")
+  numberFormat       String   @default("PREFIX-YEAR-SEQ")
+  runningNumber      Int      @default(0)
+  financialYearReset Boolean  @default(true)
+  financialYear      String   @default("")
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([voucherType])
+  @@map("voucher_configuration")
+}
+
+model CollectionPolicy {
+  id             Int      @id @default(autoincrement())
+  companyId      Int?
+  reminderDays   Int      @default(7)
+  escalationDays Int      @default(14)
+  creditHoldDays Int      @default(30)
+  policyCode     String   @default("")
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("collection_policy")
+}
+
 // ============================================================
-// Admin Console â€” Phase 2 Foundation
+// Admin Console — Phase 2 Foundation
 // Org Structure Â· Employee Profile Extension Â· Enterprise RBAC
 // Provider: mysql Â· All String long-text â†’ @db.Text
 // Every FK + filter column is indexed. No workflow/finance yet.
 // ============================================================
 
-// â”€â”€ 1. Tenant â€” top-level organisation group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 1. Tenant â€" top-level organisation group â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model Tenant {
   id        Int       @id @default(autoincrement())
   name      String
@@ -793,7 +939,7 @@ model Tenant {
   @@index([status])
 }
 
-// â”€â”€ 2. Company â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 2. Company â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model Company {
   id          Int      @id @default(autoincrement())
   tenantId    Int
@@ -819,7 +965,7 @@ model Company {
   @@index([status])
 }
 
-// â”€â”€ 3. Branch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 3. Branch â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model Branch {
   id         Int      @id @default(autoincrement())
   companyId  Int
@@ -841,7 +987,7 @@ model Branch {
   @@index([status])
 }
 
-// â”€â”€ 4. Department â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 4. Department â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model Department {
   id          Int      @id @default(autoincrement())
   companyId   Int
@@ -860,7 +1006,7 @@ model Department {
   @@index([status])
 }
 
-// â”€â”€ 5. Team â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 5. Team â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model Team {
   id           Int      @id @default(autoincrement())
   departmentId Int
@@ -879,7 +1025,7 @@ model Team {
   @@index([status])
 }
 
-// â”€â”€ 6. Designation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 6. Designation â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model Designation {
   id          Int      @id @default(autoincrement())
   companyId   Int
@@ -897,7 +1043,7 @@ model Designation {
   @@index([status])
 }
 
-// â”€â”€ 7. EmployeeProfile â€” enterprise HR record (extends Employee) â”€â”€
+// â"€â"€ 7. EmployeeProfile â€" enterprise HR record (extends Employee) â"€â"€
 // employmentStatus: DRAFT | ACTIVE | SUSPENDED | INACTIVE
 model EmployeeProfile {
   id                 Int       @id @default(autoincrement())
@@ -931,7 +1077,7 @@ model EmployeeProfile {
   @@index([employmentStatus])
 }
 
-// â”€â”€ 8. Role â€” enterprise role (additive; AppRole legacy kept) â”€â”€
+// â"€â"€ 8. Role â€" enterprise role (additive; AppRole legacy kept) â"€â"€
 // isSystemRole: true means not deletable via UI
 model Role {
   id           Int      @id @default(autoincrement())
@@ -953,8 +1099,8 @@ model Role {
   @@index([status])
 }
 
-// â”€â”€ 9. Permission â€” granular action catalogue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Unique per (module, resource, action) â€” same across all tenants.
+// â"€â"€ 9. Permission â€" granular action catalogue â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Unique per (module, resource, action) â€" same across all tenants.
 model Permission {
   id          Int    @id @default(autoincrement())
   module      String // CRM | Finance | Workflow | Settings | Reports | Masters
@@ -968,7 +1114,7 @@ model Permission {
   @@index([module])
 }
 
-// â”€â”€ 10. RolePermission â€” grants permission to a role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 10. RolePermission â€" grants permission to a role â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
@@ -983,7 +1129,7 @@ model RolePermission {
   @@index([permissionId])
 }
 
-// â”€â”€ 11. UserRole â€” multiple roles per employee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 11. UserRole â€" multiple roles per employee â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model UserRole {
   id        Int      @id @default(autoincrement())
   userId    Int      // FK â†’ Employee.id
@@ -998,7 +1144,7 @@ model UserRole {
   @@index([roleId])
 }
 
-// â”€â”€ 12. DataAccessPolicy â€” per-role data visibility scope â”€â”€â”€â”€â”€
+// â"€â"€ 12. DataAccessPolicy â€" per-role data visibility scope â"€â"€â"€â"€â"€
 // scope: OWN | TEAM | DEPARTMENT | BRANCH | COMPANY | ALL
 // filterJson: optional JSON string for additional WHERE constraints
 model DataAccessPolicy {
@@ -1018,10 +1164,10 @@ model DataAccessPolicy {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Phase 5 â€” Policy Engine
+// Phase 5 â€" Policy Engine
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-// â”€â”€ 13. PolicyCategory â€” groups policies by domain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 13. PolicyCategory â€" groups policies by domain â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model PolicyCategory {
   id          Int      @id @default(autoincrement())
   name        String
@@ -1036,7 +1182,7 @@ model PolicyCategory {
   @@index([status])
 }
 
-// â”€â”€ 14. Policy â€” a versioned, lifecycle-managed business rule â”€
+// â"€â"€ 14. Policy â€" a versioned, lifecycle-managed business rule â"€
 // scopeType: GLOBAL | COMPANY | BRANCH | DEPARTMENT | ROLE | USER
 // status:    DRAFT | REVIEW | ACTIVE | INACTIVE | ARCHIVED
 model Policy {
@@ -1069,7 +1215,7 @@ model Policy {
   @@index([scopeType, scopeId])
 }
 
-// â”€â”€ 15. PolicyRule â€” individual IF/THEN rule inside a policy â”€â”€
+// â"€â"€ 15. PolicyRule â€" individual IF/THEN rule inside a policy â"€â"€
 model PolicyRule {
   id            Int      @id @default(autoincrement())
   policyId      Int
@@ -1087,7 +1233,7 @@ model PolicyRule {
   @@index([priority])
 }
 
-// â”€â”€ 16. PolicyVersion â€” immutable snapshot per publish cycle â”€â”€
+// â"€â"€ 16. PolicyVersion â€" immutable snapshot per publish cycle â"€â"€
 model PolicyVersion {
   id            Int      @id @default(autoincrement())
   policyId      Int
@@ -1104,7 +1250,7 @@ model PolicyVersion {
   @@index([policyId])
 }
 
-// â”€â”€ 17. PolicyAudit â€” every change to a policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 17. PolicyAudit â€" every change to a policy â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model PolicyAudit {
   id          Int      @id @default(autoincrement())
   policyId    Int
@@ -1121,7 +1267,7 @@ model PolicyAudit {
   @@index([performedBy])
 }
 
-// â”€â”€ 18. ConfigurationVersion â€” Draftâ†’Reviewâ†’Published settings â”€
+// â"€â"€ 18. ConfigurationVersion â€" Draftâ†’Reviewâ†’Published settings â"€
 // Enables lifecycle management for AppSetting values.
 // getSetting() reads the latest published version; falls back to AppSetting row.
 model ConfigurationVersion {
@@ -1146,10 +1292,10 @@ model ConfigurationVersion {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Phase 6 â€” Workflow Engine
+// Phase 6 â€" Workflow Engine
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-// â”€â”€ 19. WorkflowDefinition â€” a named, versioned approval workflow â”€â”€
+// â"€â"€ 19. WorkflowDefinition â€" a named, versioned approval workflow â"€â"€
 // status:  DRAFT | ACTIVE | INACTIVE
 // module:  CRM | FINANCE | HR | SECURITY | MASTERS | WORKFLOW | PROCUREMENT | PROJECTS
 model WorkflowDefinition {
@@ -1177,7 +1323,7 @@ model WorkflowDefinition {
   @@index([createdBy])
 }
 
-// â”€â”€ 20. WorkflowStep â€” one level/step inside a workflow definition â”€â”€
+// â"€â"€ 20. WorkflowStep â€" one level/step inside a workflow definition â"€â"€
 // approvalType: USER | ROLE | REPORTING_MANAGER | DEPARTMENT_HEAD | POLICY_BASED
 // approvalMode: SEQUENTIAL | PARALLEL
 model WorkflowStep {
@@ -1204,7 +1350,7 @@ model WorkflowStep {
   @@index([stepNumber])
 }
 
-// â”€â”€ 21. ApprovalRequest â€” a live approval in-flight for a business entity â”€â”€
+// â"€â"€ 21. ApprovalRequest â€" a live approval in-flight for a business entity â"€â"€
 // status: PENDING | APPROVED | REJECTED | RETURNED | CANCELLED
 model ApprovalRequest {
   id          Int       @id @default(autoincrement())
@@ -1231,7 +1377,7 @@ model ApprovalRequest {
   @@index([entityType, entityId])
 }
 
-// â”€â”€ 22. ApprovalAction â€” a single action on a request (approve/reject/etc.) â”€â”€
+// â"€â"€ 22. ApprovalAction â€" a single action on a request (approve/reject/etc.) â"€â"€
 // action: APPROVE | REJECT | RETURN | DELEGATE
 model ApprovalAction {
   id         Int      @id @default(autoincrement())
@@ -1253,7 +1399,7 @@ model ApprovalAction {
   @@index([approverId])
 }
 
-// â”€â”€ 23. DelegationRule â€” user delegates approval rights for a date range â”€â”€
+// â"€â"€ 23. DelegationRule â€" user delegates approval rights for a date range â"€â"€
 // status: ACTIVE | INACTIVE | EXPIRED
 model DelegationRule {
   id        Int      @id @default(autoincrement())
@@ -1276,7 +1422,7 @@ model DelegationRule {
   @@index([status])
 }
 
-// â”€â”€ 24. EscalationRule â€” time-based escalation config for a step â”€â”€
+// â"€â"€ 24. EscalationRule â€" time-based escalation config for a step â"€â"€
 // action: REMIND | ESCALATE | AUTO_APPROVE | AUTO_REJECT
 model EscalationRule {
   id          Int      @id @default(autoincrement())
@@ -1300,7 +1446,7 @@ model EscalationRule {
   @@index([stepId])
 }
 
-// â”€â”€ 25. WorkflowAuditLog â€” every lifecycle event in the workflow engine â”€â”€
+// â"€â"€ 25. WorkflowAuditLog â€" every lifecycle event in the workflow engine â"€â"€
 // entityType: WORKFLOW_DEFINITION | APPROVAL_REQUEST
 // action: CREATED | ASSIGNED | APPROVED | REJECTED | ESCALATED | DELEGATED | RETURNED | CANCELLED | COMPLETED
 model WorkflowAuditLog {
@@ -1321,10 +1467,10 @@ model WorkflowAuditLog {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Phase 7 â€” Master Data Management
+// Phase 7 â€" Master Data Management
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-// â”€â”€ 26. MasterCategory â€” groups master definitions by domain â”€â”€
+// â"€â"€ 26. MasterCategory â€" groups master definitions by domain â"€â"€
 model MasterCategory {
   id          Int      @id @default(autoincrement())
   name        String
@@ -1340,7 +1486,7 @@ model MasterCategory {
   @@index([status])
 }
 
-// â”€â”€ 27. MasterDefinition â€” defines a named master (e.g. OEM, Industry) â”€â”€
+// â"€â"€ 27. MasterDefinition â€" defines a named master (e.g. OEM, Industry) â"€â"€
 model MasterDefinition {
   id                   Int     @id @default(autoincrement())
   categoryId           Int
@@ -1363,7 +1509,7 @@ model MasterDefinition {
   @@index([status])
 }
 
-// â”€â”€ 28. MasterValue â€” a single item inside a master â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 28. MasterValue â€" a single item inside a master â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 // code is unique per definition; parentId allows hierarchy (sub-categories)
 model MasterValue {
   id                 Int     @id @default(autoincrement())
@@ -1390,7 +1536,7 @@ model MasterValue {
   @@index([status])
 }
 
-// â”€â”€ 29. MasterOverride â€” company / branch level customisation â”€â”€
+// â"€â"€ 29. MasterOverride â€" company / branch level customisation â"€â"€
 // scopeType: COMPANY | BRANCH
 model MasterOverride {
   id            Int     @id @default(autoincrement())
@@ -1410,7 +1556,7 @@ model MasterOverride {
   @@index([scopeType, scopeId])
 }
 
-// â”€â”€ 30. MasterValidationRule â€” links a master to a Policy Engine rule â”€â”€
+// â"€â"€ 30. MasterValidationRule â€" links a master to a Policy Engine rule â"€â"€
 model MasterValidationRule {
   id                 Int     @id @default(autoincrement())
   masterDefinitionId Int
@@ -1425,7 +1571,7 @@ model MasterValidationRule {
   @@index([policyId])
 }
 
-// â”€â”€ 31. MasterAudit â€” change trail for all master operations â”€â”€
+// â"€â"€ 31. MasterAudit â€" change trail for all master operations â"€â"€
 // masterType: DEFINITION | VALUE | OVERRIDE | POLICY
 model MasterAudit {
   id          Int      @id @default(autoincrement())
@@ -1445,7 +1591,7 @@ model MasterAudit {
   @@index([createdAt])
 }
 
-// â”€â”€ 32. CustomerPolicy â€” governance rules per company / customer type â”€â”€
+// â"€â"€ 32. CustomerPolicy â€" governance rules per company / customer type â"€â"€
 model CustomerPolicy {
   id                     Int     @id @default(autoincrement())
   companyId              Int?
@@ -1464,7 +1610,7 @@ model CustomerPolicy {
   @@index([status])
 }
 
-// â”€â”€ 33. VendorPolicy â€” governance rules per company â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ 33. VendorPolicy â€" governance rules per company â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 model VendorPolicy {
   id                       Int     @id @default(autoincrement())
   companyId                Int?
