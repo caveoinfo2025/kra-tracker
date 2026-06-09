@@ -14,17 +14,20 @@ const sql       = readFileSync(
 const url = process.env.DATABASE_URL;
 if (!url) { console.error("DATABASE_URL not set"); process.exit(1); }
 
-// Strip Passenger backslash-escaping of % before parsing
+// Strip Passenger backslash-escaping of % before parsing, then URL-decode password
 const clean = url.replace(/\\%/g, "%");
 const m     = clean.match(/^mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
 if (!m) { console.error("Cannot parse DATABASE_URL"); process.exit(1); }
-const [, user, password, host, port, database] = m;
+const [, user, rawPassword, host, port, database] = m;
+const password = decodeURIComponent(rawPassword); // handles %40 → @, %25 → %, etc.
 
 const conn = await createConnection({ host, port: Number(port), user, password, database });
 
 const statements = sql
   .split(";")
   .map(s => s.trim())
+  // Strip leading comment lines from each statement before filtering/executing
+  .map(s => s.replace(/^(--[^\n]*\n)+/g, "").trim())
   .filter(s => s.length > 0 && !s.startsWith("--"));
 
 for (const stmt of statements) {
