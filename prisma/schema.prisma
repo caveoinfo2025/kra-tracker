@@ -1761,3 +1761,182 @@ model SLARule {
   @@index([status])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 10: Enterprise Performance Management Engine
+// 9 models: PerformancePeriod, KRAMetric, KRATemplate, KRATemplateItem,
+// EmployeeTarget, TeamTarget, KRAAchievement, PerformanceReview, PerformanceAudit
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PerformancePeriod {
+  id            Int      @id @default(autoincrement())
+  companyId     Int?
+  name          String
+  financialYear String   @default("")
+  periodType    String   @default("YEARLY")
+  startDate     DateTime
+  endDate       DateTime
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employeeTargets EmployeeTarget[]
+  teamTargets     TeamTarget[]
+
+  @@index([companyId])
+  @@index([periodType])
+  @@index([status])
+  @@index([financialYear])
+  @@map("performance_period")
+}
+
+model KRAMetric {
+  id                Int      @id @default(autoincrement())
+  companyId         Int?
+  name              String
+  code              String   @unique
+  description       String   @default("") @db.Text
+  metricType        String   @default("CUSTOM")
+  calculationSource String   @default("MANUAL")
+  formulaJson       String   @default("") @db.Text
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  templateItems KRATemplateItem[]
+  achievements  KRAAchievement[]
+
+  @@index([companyId])
+  @@index([metricType])
+  @@index([status])
+  @@map("kra_metric")
+}
+
+model KRATemplate {
+  id           Int      @id @default(autoincrement())
+  companyId    Int?
+  name         String
+  description  String   @default("") @db.Text
+  roleId       Int?
+  departmentId Int?
+  status       String   @default("draft")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  items KRATemplateItem[]
+
+  @@index([companyId])
+  @@index([roleId])
+  @@index([departmentId])
+  @@index([status])
+  @@map("kra_template")
+}
+
+model KRATemplateItem {
+  id             Int         @id @default(autoincrement())
+  template       KRATemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateId     Int
+  metric         KRAMetric   @relation(fields: [metricId], references: [id], onDelete: Restrict)
+  metricId       Int
+  weightage      Float       @default(0)
+  targetType     String      @default("AMOUNT")
+  minimumTarget  Float       @default(0)
+  expectedTarget Float       @default(0)
+  stretchTarget  Float       @default(0)
+  sortOrder      Int         @default(0)
+  status         String      @default("active")
+
+  @@index([templateId])
+  @@index([metricId])
+  @@map("kra_template_item")
+}
+
+model EmployeeTarget {
+  id                Int               @id @default(autoincrement())
+  employeeProfileId Int
+  period            PerformancePeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  periodId          Int
+  templateId        Int?
+  targetJson        String            @default("") @db.Text
+  status            String            @default("active")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  achievements KRAAchievement[]
+  reviews      PerformanceReview[]
+
+  @@index([employeeProfileId])
+  @@index([periodId])
+  @@index([templateId])
+  @@index([status])
+  @@map("employee_target")
+}
+
+model TeamTarget {
+  id         Int               @id @default(autoincrement())
+  teamId     Int
+  period     PerformancePeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  periodId   Int
+  targetJson String            @default("") @db.Text
+  status     String            @default("active")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([teamId])
+  @@index([periodId])
+  @@map("team_target")
+}
+
+model KRAAchievement {
+  id               Int            @id @default(autoincrement())
+  employeeTarget   EmployeeTarget @relation(fields: [employeeTargetId], references: [id], onDelete: Cascade)
+  employeeTargetId Int
+  metric           KRAMetric      @relation(fields: [metricId], references: [id], onDelete: Restrict)
+  metricId         Int
+  actualValue      Float          @default(0)
+  achievementPct   Float          @default(0)
+  weightedScore    Float          @default(0)
+  sourceReference  String         @default("")
+  calculatedAt     DateTime       @default(now())
+  status           String         @default("active")
+
+  @@index([employeeTargetId])
+  @@index([metricId])
+  @@map("kra_achievement")
+}
+
+model PerformanceReview {
+  id               Int            @id @default(autoincrement())
+  employeeTarget   EmployeeTarget @relation(fields: [employeeTargetId], references: [id], onDelete: Cascade)
+  employeeTargetId Int
+  reviewerId       Int
+  workflowRequestId Int?
+  selfRating       Float          @default(0)
+  managerRating    Float          @default(0)
+  finalRating      Float          @default(0)
+  comments         String         @default("") @db.Text
+  status           String         @default("DRAFT")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([employeeTargetId])
+  @@index([reviewerId])
+  @@index([status])
+  @@map("performance_review")
+}
+
+model PerformanceAudit {
+  id          Int      @id @default(autoincrement())
+  entityType  String
+  entityId    Int
+  action      String
+  oldValue    String   @default("") @db.Text
+  newValue    String   @default("") @db.Text
+  performedBy Int
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([performedBy])
+  @@index([createdAt])
+  @@map("performance_audit")
+}
+

@@ -137,4 +137,8 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   // ── Settings / Finance Administration (Phase 9) ───────────────────────────
   { module: "Settings", resource: "Finance", action: "VIEW", description: "View finance administration (expense categories, conveyance, credit, voucher, collection)" },
   { module: "Settings", resource: "Finance", action: "EDIT", description: "Create and modify finance policies, expense limits, conveyance rates, credit limits, voucher configs and collection rules" },
+
+  // ── Settings / Performance Management (Phase 10) ─────────────────────────
+  { module: "Settings", resource: "Performance", action: "VIEW", description: "View performance management (periods, KRA library, templates, targets, reviews)" },
+  { module: "Settings", resource: "Performance", action: "EDIT", description: "Create and modify performance periods, KRA metrics, templates, employee targets and review workflows" },
 ];
