@@ -3,6 +3,94 @@
 Reverse-chronological log of notable changes. **Update at the end of every session.**
 Dates from git history (branch `master`).
 
+## [2026-06-10 — Session 6] — Phase 12: Integration Center + Phase 13: Enterprise Security Center
+
+### Added — Phase 12: Integration Center (`/settings/integrations`)
+
+**Schema & Migration**
+- Migration `20260610080000_integration_center`: 5 tables — `integration_provider`, `integration_connection`, `integration_usage_rule`, `integration_log`, `api_key_reference`.
+- `prisma/apply-integration-center.mjs`: one-off apply script (mariadb driver). Applied to dev DB.
+- `prisma/seed-integration-defaults.mjs`: 11 providers seeded INACTIVE (SMTP, M365, Google Workspace, GST, PAN, Google Maps, WhatsApp Business, SMS Gateway, Teams Webhook, Tally Export, Generic Webhook).
+
+**Service Layer (`src/lib/integration-engine/`)**
+- `providers.ts` — `listProviders`, `getProvider`, `createProvider`, `updateProviderStatus`
+- `connections.ts` — `listConnections`, `getConnection`, `createConnection`, `updateConnection`, `recordTestResult`
+- `credentials.ts` — `listCredentials`, `createCredential`, `updateCredential`, `resolveSecret` (server-only). `secretRef` stores env var NAME only — never the raw value. `isResolved` boolean tells UI if the env var is set.
+- `logs.ts` — `logIntegrationAttempt` (fail-silent), `listIntegrationLogs`
+- `test.ts` — `testConnection` dry-run (no live external calls by default); records result + logs attempt
+- `index.ts` — barrel re-exports + public API docs
+
+**API Routes (`/api/admin/integrations/`)**
+- `providers/route.ts` — GET/POST/PATCH
+- `connections/route.ts` — GET/POST/PATCH; `secretRef` masked as `"[set]"` in all responses
+- `credentials/route.ts` — GET/POST/PATCH; validates env var name (no spaces)
+- `test/route.ts` — POST
+- `logs/route.ts` — GET
+
+**Admin UI (`/settings/integrations`)**
+- `page.tsx` — SSR; loads all lists in parallel; strips secretRef before passing to client
+- `IntegrationAdminClient.tsx` — 10-tab client: Overview, Providers, Connections, Credentials, Email, GST/PAN, Google Maps, WhatsApp/SMS, Accounting, Logs
+- **New Connection inline form** (provider dropdown, connection name, auth type, secretRef env var field)
+- **New Credential inline form** (name, key type, env var name auto-uppercased, description)
+
+**Permissions & Navigation**
+- `permissions.ts` — `Settings/IntegrationAdmin/VIEW`, `Settings/IntegrationAdmin/EDIT`, `Settings/IntegrationLog/VIEW` added
+- `AdminConsole.tsx` — Integration Center card (Plug icon, blue, `/settings/integrations`)
+
+---
+
+### Added — Phase 13: Enterprise Security Center (`/settings/security`)
+
+**Schema & Migration**
+- Migration `20260610090000_security_center`: 7 tables — `security_policy`, `password_policy`, `mfa_policy`, `session_policy`, `access_restriction_policy`, `data_protection_policy`, `security_event_log`.
+- `prisma/apply-security-center.mjs`: apply script. Applied to dev DB.
+- `prisma/seed-security-defaults.mjs`: 5 default policies seeded — Password (length=8, expiry=90d, 5 attempts), MFA (disabled, EMAIL method), Session (8h idle/max, concurrent allowed), Access (no restrictions), Data Protection (1000-record limit, mobile/email/pan/aadhar masked).
+
+**Service Layer (`src/lib/security-engine/`)**
+- `password-policy.ts` — `getPasswordPolicy`, `upsertPasswordPolicy`, `validatePasswordPolicy` → `PasswordValidationResult { valid, failures }`
+- `mfa.ts` — `getMFAPolicy`, `upsertMFAPolicy`, `isMFARequired(policy, userRole)`
+- `session.ts` — `getSessionPolicy`, `upsertSessionPolicy`, `validateSession(policy, sessionAgeMinutes, idleMinutes)`
+- `access-policy.ts` — `getAccessPolicy`, `upsertAccessPolicy`, `checkIPAccess`, `checkBusinessHours`
+- `data-protection.ts` — `getDataProtectionPolicy`, `upsertDataProtectionPolicy`, `canExportData`, `maskField`
+- `security-log.ts` — `logSecurityEvent` (fail-silent), `listSecurityLogs`, `countRecentFailedLogins`. 14 event types.
+- `index.ts` — `evaluateSecurityPolicy({userId, action, context})` → `{ decision: "ALLOW"|"BLOCK"|"REQUIRE_MFA"|"REQUIRE_APPROVAL", reasons }`. **Fail-open**: returns `ALLOW` on any error — preserves backward compatibility.
+
+**API Routes (`/api/admin/security/`)**
+- `policies/route.ts` — GET (all policies summary)
+- `password/route.ts`, `mfa/route.ts`, `session/route.ts`, `access/route.ts`, `data-protection/route.ts` — GET/POST/PATCH; each logs `POLICY_CHANGED` event on save
+- `logs/route.ts` — GET with userId/eventType/limit/offset filters
+
+**Admin UI (`/settings/security`)**
+- `page.tsx` — SSR auth gate (manager-only); loads all 5 policies + 50 recent logs in parallel
+- `SecurityAdminClient.tsx` — 8-tab client: Overview, Authentication, Password Policy, MFA, Sessions, Access Rules, Data Protection, Logs
+  - Overview: 8 KPI cards + Active Policies checklist + Recent Security Events list
+  - Authentication: read-only posture panel (SSO + security checks, backward-compatible)
+  - Password Policy: number inputs + toggle components for complexity rules
+  - MFA: enable toggle, method buttons, roles input, remember device days
+  - Sessions: idle timeout, max hours, concurrent session toggles
+  - Access Rules: IP allowlist textarea, business hours pickers + day selectors
+  - Data Protection: export limit, approval/download toggles, sensitive field chip selector
+  - Logs: table with colored event type badges, refresh button
+  - `Toggle` inline component, `SaveBar` red save button, `savePolicy()` POST/PATCH helper
+
+**Permissions & Navigation**
+- `permissions.ts` — `Settings/SecurityAdmin/VIEW`, `Settings/SecurityAdmin/EDIT`, `Settings/SecurityLog/VIEW` added
+- `AdminConsole.tsx` — Security Center card (Lock icon, caveo-red, `/settings/security`)
+
+**Security constraints (in effect for all future work):**
+- Do NOT replace existing authentication; do NOT break login/logout; do NOT force MFA
+- Do NOT invalidate current users; do NOT store passwords; do NOT expose security secrets
+- All policies are non-enforcing until explicitly integrated into auth flows
+- Fail-open: `evaluateSecurityPolicy` always returns `ALLOW` on error
+- `secretRef` stores only env var NAME; never the raw value; masked as `"[set]"` in API responses
+
+### Verified in browser
+- `/settings` AdminConsole shows both new cards (Integration Center + Security Center) ✓
+- `/settings/security` loads with all 8 tabs; Overview shows seeded policy data ✓
+- TypeScript check: exit code 0 (no errors) ✓
+
+---
+
 ## [2026-06-09 — Session 5] — Phase 9: Finance Administration Engine
 
 ### Added — 4 commits (7f4980d → 7df039d)

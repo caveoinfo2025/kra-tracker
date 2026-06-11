@@ -2,11 +2,18 @@
  * Functional tests — Desktop webapp
  * Covers: auth redirect, all primary routes, key UI elements
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { isDatabaseAvailable } from './helpers/environment';
 import { loginAs, EMP_ID, MGR_ID, assertNoServerError } from './helpers';
 
 // ── Auth ──────────────────────────────────────────────────────────────
 test.describe('Authentication', () => {
+  let dbAvailable = false;
+
+  test.beforeAll(async ({ request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
+  });
+
   test('unauthenticated root redirects to /login', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/login/);
@@ -22,6 +29,8 @@ test.describe('Authentication', () => {
   });
 
   test('authenticated user can reach dashboard', async ({ browser }) => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     const ctx = await browser.newContext();
     await loginAs(ctx, EMP_ID);
     const page = await ctx.newPage();
@@ -35,14 +44,19 @@ test.describe('Authentication', () => {
 // ── Core pages (employee) ────────────────────────────────────────────
 test.describe('Core Pages — Employee view', () => {
   test.use({ storageState: undefined });
-  let ctx: any, page: any;
+  let dbAvailable = false;
+  let ctx: BrowserContext | undefined;
+  let page: Page;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
     ctx = await browser.newContext();
     await loginAs(ctx, EMP_ID);
     page = await ctx.newPage();
   });
-  test.afterAll(() => ctx.close());
+  test.afterAll(async () => {
+    await ctx?.close();
+  });
 
   const routes = [
     { path: '/dashboard',            label: 'Dashboard' },
@@ -58,6 +72,8 @@ test.describe('Core Pages — Employee view', () => {
 
   for (const { path, label } of routes) {
     test(`${label} (${path}) loads`, async () => {
+      test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       await expect(page).not.toHaveURL(/\/login/);
@@ -68,6 +84,8 @@ test.describe('Core Pages — Employee view', () => {
   }
 
   test('pipeline lead detail loads (first lead)', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/pipeline/leads');
     await page.waitForLoadState('networkidle');
     // Try clicking first lead link if present
@@ -84,16 +102,23 @@ test.describe('Core Pages — Employee view', () => {
 
 // ── Manager-only features ────────────────────────────────────────────
 test.describe('Manager view', () => {
-  let ctx: any, page: any;
+  let dbAvailable = false;
+  let ctx: BrowserContext | undefined;
+  let page: Page;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
     ctx = await browser.newContext();
     await loginAs(ctx, MGR_ID);
     page = await ctx.newPage();
   });
-  test.afterAll(() => ctx.close());
+  test.afterAll(async () => {
+    await ctx?.close();
+  });
 
   test('employees list accessible to manager', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/employees');
     await page.waitForLoadState('networkidle');
     await expect(page).not.toHaveURL(/\/login/);
@@ -101,6 +126,8 @@ test.describe('Manager view', () => {
   });
 
   test('pipeline analytics accessible to manager', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/pipeline/analytics');
     await page.waitForLoadState('networkidle');
     await expect(page).not.toHaveURL(/\/login/);
@@ -108,6 +135,8 @@ test.describe('Manager view', () => {
   });
 
   test('import page accessible to manager', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/import');
     await page.waitForLoadState('networkidle');
     await expect(page).not.toHaveURL(/\/login/);
@@ -117,16 +146,23 @@ test.describe('Manager view', () => {
 
 // ── RBAC: employee cannot access manager-only pages ──────────────────
 test.describe('RBAC enforcement', () => {
-  let ctx: any, page: any;
+  let dbAvailable = false;
+  let ctx: BrowserContext | undefined;
+  let page: Page;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
     ctx = await browser.newContext();
     await loginAs(ctx, EMP_ID);  // regular employee
     page = await ctx.newPage();
   });
-  test.afterAll(() => ctx.close());
+  test.afterAll(async () => {
+    await ctx?.close();
+  });
 
   test('employees/new requires manager', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/employees/new');
     await page.waitForLoadState('networkidle');
     // Should redirect, show Forbidden, or at minimum not expose raw data

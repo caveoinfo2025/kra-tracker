@@ -48,6 +48,7 @@ export default function NewEmployeeForm() {
           <input
             type={f.type}
             required
+            data-testid={`employee-${f.name}-input`}
             placeholder={f.placeholder}
             value={form[f.name as keyof typeof form]}
             onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
@@ -59,6 +60,7 @@ export default function NewEmployeeForm() {
         <button
           type="submit"
           disabled={loading}
+          data-testid="employee-save-button"
           className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] transition disabled:opacity-50"
         >
           {loading ? "Saving…" : "Save Employee"}
@@ -66,6 +68,7 @@ export default function NewEmployeeForm() {
         <button
           type="button"
           onClick={() => router.back()}
+          data-testid="employee-cancel-button"
           className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 transition"
         >
           Cancel

@@ -5,6 +5,29 @@
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
 **60+ models, 10 migrations.** Dev DB fully migrated (2026-06-05, session 4).
 
+> **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
+> Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
+>
+> **`20260610080000_integration_center`** — 5 tables:
+> - `integration_provider` — `name, code(unique), category(EMAIL/GST/MAPS/WHATSAPP/SMS/WEBHOOK/ACCOUNTING/CALENDAR/ERP/CUSTOM), baseUrl?, status, configJson(@db.Text)`
+> - `integration_connection` — `providerId→integration_provider, connectionName, authType, secretRef(env var NAME only), configJson(@db.Text), status, lastTestAt?, lastTestStatus, lastTestMessage?`
+> - `integration_usage_rule` — `connectionId, module, resource, action, isEnabled, conditionJson?`
+> - `integration_log` — `connectionId, eventType, status, requestSummary, responseCode?, durationMs?, errorMessage?, createdAt`
+> - `api_key_reference` — `name, keyType(API_KEY/OAUTH_TOKEN/WEBHOOK_SECRET/BASIC_AUTH/BEARER_TOKEN/CUSTOM), environmentVariableName(unique), description?, isActive, createdAt, updatedAt`
+>
+> **Prisma model casing gotcha (Phase 12):** `APIKeyReference` → `prisma.aPIKeyReference` (Prisma lowercases the leading acronym).
+>
+> **`20260610090000_security_center`** — 7 tables:
+> - `security_policy` — `policyType(unique), configJson(@db.Text), status, updatedAt`
+> - `password_policy` — `minimumLength, requireUppercase, requireLowercase, requireNumber, requireSpecialCharacter, expiryDays, passwordHistoryCount, failedAttemptLimit, lockDurationMinutes, status`
+> - `mfa_policy` — `enabled(BOOL), requiredRolesJson(@db.Text), methodsJson(@db.Text), rememberDeviceDays, status`
+> - `session_policy` — `idleTimeoutMinutes, maxSessionHours, allowConcurrentLogin, maxConcurrentSessions, rememberMeAllowed, status`
+> - `access_restriction_policy` — `ipRestrictionEnabled, allowedIpJson(@db.Text), businessHourRestriction, allowedHoursJson(@db.Text), locationRestrictionJson(@db.Text), status`
+> - `data_protection_policy` — `exportLimit, exportApprovalRequired, downloadRestriction, sensitiveFieldsJson(@db.Text), maskingRulesJson(@db.Text), status`
+> - `security_event_log` — `userId?, eventType, ipAddress?, userAgent?, details(@db.Text), severity, createdAt`. 14 event types: LOGIN_SUCCESS/FAILED, LOGOUT, PASSWORD_CHANGED, ROLE_CHANGED, EXPORT_REQUESTED/BLOCKED, ACCESS_DENIED, MFA_CHALLENGED/PASSED/FAILED, POLICY_CHANGED, SESSION_EXPIRED, ACCOUNT_LOCKED.
+>
+> **Prisma model casing gotcha (Phase 13):** `MFAPolicy` → `prisma.mFAPolicy`.
+>
 > **2026-06-05 (Session 4) — CRM Admin Engine + Opportunity close fields.** 4 new migrations
 > applied to `u686730471_caveodev` (hand-written SQL → `node apply-*.mjs` → `migrate resolve`):
 > - **`20260605000000_opportunity_discount_pct`** — `CrmOpportunity.discountPct DOUBLE DEFAULT 0`

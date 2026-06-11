@@ -2080,3 +2080,214 @@ model CommunicationAudit {
   @@map("communication_audit")
 }
 
+// ── Phase 12: Integration Center ─────────────────────────────────────────────
+
+model IntegrationProvider {
+  id          Int      @id @default(autoincrement())
+  name        String
+  code        String   @unique
+  category    String   @default("CUSTOM_API")
+  description String   @default("") @db.Text
+  logoUrl     String?
+  docsUrl     String?
+  status      String   @default("INACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  connections IntegrationConnection[]
+
+  @@index([category])
+  @@index([status])
+  @@map("integration_provider")
+}
+
+model IntegrationConnection {
+  id             Int                  @id @default(autoincrement())
+  provider       IntegrationProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  providerId     Int
+  companyId      Int?
+  connectionName String
+  authType       String               @default("ENV_REFERENCE")
+  configJson     String               @default("{}") @db.Text
+  secretRef      String?
+  status         String               @default("INACTIVE")
+  lastTestedAt   DateTime?
+  lastTestStatus String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  usageRules IntegrationUsageRule[]
+  logs       IntegrationLog[]
+
+  @@index([providerId])
+  @@index([companyId])
+  @@index([status])
+  @@map("integration_connection")
+}
+
+model IntegrationUsageRule {
+  id           Int                   @id @default(autoincrement())
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId Int
+  module       String
+  event        String
+  policyId     Int?
+  status       String                @default("ACTIVE")
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([connectionId])
+  @@index([module])
+  @@map("integration_usage_rule")
+}
+
+model IntegrationLog {
+  id                  Int                   @id @default(autoincrement())
+  connection          IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId        Int
+  module              String                @default("")
+  event               String                @default("")
+  requestSummaryJson  String                @default("{}") @db.Text
+  responseSummaryJson String                @default("{}") @db.Text
+  status              String                @default("SUCCESS")
+  errorMessage        String?               @db.Text
+  createdAt           DateTime              @default(now())
+
+  @@index([connectionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("integration_log")
+}
+
+model APIKeyReference {
+  id                      Int      @id @default(autoincrement())
+  companyId               Int?
+  name                    String
+  keyType                 String   @default("API_KEY")
+  environmentVariableName String   @unique
+  description             String   @default("") @db.Text
+  status                  String   @default("ACTIVE")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@map("api_key_reference")
+}
+
+// ── Phase 13: Security Center ─────────────────────────────────────────────────
+
+model SecurityPolicy {
+  id         Int      @id @default(autoincrement())
+  companyId  Int?
+  policyName String
+  policyType String   @default("PASSWORD")
+  policyJson String   @default("{}") @db.Text
+  status     String   @default("DRAFT")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([policyType])
+  @@index([status])
+  @@map("security_policy")
+}
+
+model PasswordPolicy {
+  id                     Int      @id @default(autoincrement())
+  companyId              Int?
+  minimumLength          Int      @default(8)
+  requireUppercase       Boolean  @default(true)
+  requireLowercase       Boolean  @default(true)
+  requireNumber          Boolean  @default(true)
+  requireSpecialCharacter Boolean @default(false)
+  expiryDays             Int      @default(90)
+  passwordHistoryCount   Int      @default(5)
+  failedAttemptLimit     Int      @default(5)
+  lockDurationMinutes    Int      @default(30)
+  status                 String   @default("ACTIVE")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("password_policy")
+}
+
+model MFAPolicy {
+  id                Int      @id @default(autoincrement())
+  companyId         Int?
+  enabled           Boolean  @default(false)
+  requiredRolesJson String   @default("[]") @db.Text
+  methodsJson       String   @default("[\"EMAIL\"]") @db.Text
+  rememberDeviceDays Int     @default(30)
+  status            String   @default("ACTIVE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("mfa_policy")
+}
+
+model SessionPolicy {
+  id                    Int      @id @default(autoincrement())
+  companyId             Int?
+  idleTimeoutMinutes    Int      @default(480)
+  maxSessionHours       Int      @default(8)
+  allowConcurrentLogin  Boolean  @default(true)
+  maxConcurrentSessions Int      @default(3)
+  rememberMeAllowed     Boolean  @default(true)
+  status                String   @default("ACTIVE")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("session_policy")
+}
+
+model AccessRestrictionPolicy {
+  id                      Int      @id @default(autoincrement())
+  companyId               Int?
+  ipRestrictionEnabled    Boolean  @default(false)
+  allowedIpJson           String   @default("[]") @db.Text
+  businessHourRestriction Boolean  @default(false)
+  allowedHoursJson        String   @default("{\"start\":\"09:00\",\"end\":\"18:00\",\"days\":[1,2,3,4,5]}") @db.Text
+  locationRestrictionJson String   @default("{}") @db.Text
+  status                  String   @default("ACTIVE")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("access_restriction_policy")
+}
+
+model DataProtectionPolicy {
+  id                     Int      @id @default(autoincrement())
+  companyId              Int?
+  exportLimit            Int      @default(1000)
+  exportApprovalRequired Boolean  @default(false)
+  downloadRestriction    Boolean  @default(false)
+  sensitiveFieldsJson    String   @default("[]") @db.Text
+  maskingRulesJson       String   @default("[]") @db.Text
+  status                 String   @default("ACTIVE")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("data_protection_policy")
+}
+
+model SecurityEventLog {
+  id           Int      @id @default(autoincrement())
+  userId       Int?
+  eventType    String
+  metadataJson String   @default("{}") @db.Text
+  ipAddress    String?
+  userAgent    String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("security_event_log")
+}
+

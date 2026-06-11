@@ -491,6 +491,7 @@ export default function LeadDetailClient({
           <div className="flex gap-1 flex-wrap">
             {LEAD_STAGES.map((s) => (
               <button key={s} onClick={() => canEdit && changeStage(s)} disabled={loading || !canEdit}
+                data-testid={`lead-stage-${s.toLowerCase()}`}
                 className={`px-2 py-1 text-xs rounded-lg font-medium transition ${
                   lead.stage === s
                     ? "bg-[#CC2229] text-white"

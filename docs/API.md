@@ -3,6 +3,24 @@
 REST handlers under `src/app/api/**/route.ts`. **~85 routes** (+9 this session for CRM Admin
 Engine + expenses + promote). All call `getSession()` and return JSON.
 
+> **2026-06-10 (Session 6) — 12 new routes (Phase 12 Integration Center + Phase 13 Security Center):**
+>
+> **Integration Center (5 routes, all manager-gated, under `/api/admin/integrations/`):**
+> - `GET/POST/PATCH /api/admin/integrations/providers` — list/create/update integration providers
+> - `GET/POST/PATCH /api/admin/integrations/connections` — list/create/update connections. `secretRef` is **masked as `"[set]"` in ALL responses** — never returned in plaintext.
+> - `GET/POST/PATCH /api/admin/integrations/credentials` — list/create/update API key references. Validates env var name has no spaces. `isResolved` boolean tells UI if the env var is currently set.
+> - `POST /api/admin/integrations/test` — dry-run connectivity test by category (EMAIL/GST/MAPS/etc.). No live external calls. Records test result + logs attempt.
+> - `GET /api/admin/integrations/logs` — list integration execution logs (filter `?connectionId=&limit=`)
+>
+> **Security Center (7 routes, all manager-gated, under `/api/admin/security/`):**
+> - `GET /api/admin/security/policies` — summary of all active policies
+> - `GET/POST/PATCH /api/admin/security/password` — get/create/update password policy. Logs `POLICY_CHANGED` on save.
+> - `GET/POST/PATCH /api/admin/security/mfa` — get/create/update MFA policy. Logs `POLICY_CHANGED` on save.
+> - `GET/POST/PATCH /api/admin/security/session` — get/create/update session policy. Logs `POLICY_CHANGED` on save.
+> - `GET/POST/PATCH /api/admin/security/access` — get/create/update access restriction policy. Logs `POLICY_CHANGED` on save.
+> - `GET/POST/PATCH /api/admin/security/data-protection` — get/create/update data protection policy. Logs `POLICY_CHANGED` on save.
+> - `GET /api/admin/security/logs` — list security event logs (filter `?userId=&eventType=&limit=&offset=`)
+>
 > **2026-06-05 (Session 4) — 9 new routes (CRM Admin Engine + Approval wiring + Promotion):**
 >
 > **CRM Administration Engine (7 routes, all manager-gated, under `/api/admin/crm/`):**

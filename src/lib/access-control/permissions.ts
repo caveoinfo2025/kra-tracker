@@ -147,4 +147,14 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   { module: "Settings", resource: "CommunicationAdmin",    action: "EDIT", description: "Create and manage notification events, rules, templates and channel configuration" },
   { module: "Settings", resource: "CommunicationTemplate", action: "EDIT", description: "Create and edit notification templates with variable substitution" },
   { module: "Settings", resource: "CommunicationLog",      action: "VIEW", description: "View notification delivery logs and audit trail" },
+
+  // ── Settings / Integration Center (Phase 12) ─────────────────────────────
+  { module: "Settings", resource: "IntegrationAdmin", action: "VIEW", description: "View integration center (providers, connections, credentials, usage rules)" },
+  { module: "Settings", resource: "IntegrationAdmin", action: "EDIT", description: "Create and manage integration providers, connections and credential references" },
+  { module: "Settings", resource: "IntegrationLog",   action: "VIEW", description: "View integration execution logs and test results" },
+
+  // ── Settings / Security Center (Phase 13) ────────────────────────────────
+  { module: "Settings", resource: "SecurityAdmin", action: "VIEW", description: "View security center (password policy, MFA, sessions, access rules, data protection)" },
+  { module: "Settings", resource: "SecurityAdmin", action: "EDIT", description: "Create and manage security policies including password rules, MFA config and session limits" },
+  { module: "Settings", resource: "SecurityLog",   action: "VIEW", description: "View security event audit logs (logins, failures, policy changes, exports)" },
 ];

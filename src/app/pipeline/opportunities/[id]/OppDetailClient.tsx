@@ -125,6 +125,7 @@ function CloseModal({
                 </label>
                 <input
                   type="text" required
+                  data-testid="opportunity-po-number-input"
                   value={form.poNumber}
                   onChange={(e) => f("poNumber", e.target.value)}
                   placeholder="e.g. PO-2026-00123"
@@ -152,6 +153,7 @@ function CloseModal({
               </label>
               <textarea
                 required rows={3}
+                data-testid="opportunity-lost-reason-input"
                 value={form.lostReason}
                 onChange={(e) => f("lostReason", e.target.value)}
                 placeholder="e.g. Budget constraints, competitor pricing…"
@@ -163,6 +165,7 @@ function CloseModal({
           <div className="flex gap-2 pt-2">
             <button
               type="submit" disabled={saving}
+              data-testid="opportunity-close-confirm-button"
               className={`flex-1 text-white text-sm font-semibold py-2.5 rounded-lg transition disabled:opacity-50 ${
                 targetStage === "WON" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
               }`}
@@ -171,6 +174,7 @@ function CloseModal({
             </button>
             <button
               type="button" onClick={onCancel} disabled={saving}
+              data-testid="opportunity-close-cancel-button"
               className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
             >
               Cancel
@@ -377,6 +381,7 @@ export default function OppDetailClient({
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Stage</label>
                   <select
+                    data-testid="opportunity-stage-select"
                     value={form.stage}
                     onChange={(e) => handleStageChange(e.target.value)}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
@@ -441,6 +446,7 @@ export default function OppDetailClient({
               <div className="flex items-center gap-2 mt-4 flex-wrap">
                 <button
                   onClick={saveForm} disabled={saving}
+                  data-testid="opportunity-save-button"
                   className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "Save Changes"}
@@ -450,12 +456,14 @@ export default function OppDetailClient({
 
                 <button
                   onClick={() => setCloseTarget("WON")}
+                  data-testid="opportunity-close-won-button"
                   className="bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition"
                 >
                   ✓ Close Won
                 </button>
                 <button
                   onClick={() => setCloseTarget("LOST")}
+                  data-testid="opportunity-close-lost-button"
                   className="bg-gray-100 text-red-700 border border-red-200 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-red-50 transition"
                 >
                   ✗ Close Lost

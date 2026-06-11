@@ -94,6 +94,7 @@ export default function EditEmployeeForm({
           <input
             type={f.type}
             required
+            data-testid={`employee-${f.name}-input`}
             value={form[f.name as keyof typeof form]}
             onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
@@ -105,6 +106,7 @@ export default function EditEmployeeForm({
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Reports To</label>
         <select
+          data-testid="employee-reports-to-select"
           value={reportsToId}
           onChange={(e) => setReportsToId(e.target.value)}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
@@ -121,6 +123,7 @@ export default function EditEmployeeForm({
       <label className="flex items-center gap-2 text-sm text-gray-700">
         <input
           type="checkbox"
+          data-testid="employee-is-manager-checkbox"
           checked={isManager}
           onChange={(e) => setIsManager(e.target.checked)}
           className="accent-[#CC2229]"
@@ -132,6 +135,7 @@ export default function EditEmployeeForm({
         <button
           type="submit"
           disabled={loading}
+          data-testid="employee-save-button"
           className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] transition disabled:opacity-50"
         >
           {loading ? "Saving…" : "Save Changes"}
@@ -139,6 +143,7 @@ export default function EditEmployeeForm({
         <button
           type="button"
           onClick={() => router.back()}
+          data-testid="employee-cancel-button"
           className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 transition"
         >
           Cancel
@@ -149,6 +154,7 @@ export default function EditEmployeeForm({
           type="button"
           onClick={handleDelete}
           disabled={deleting}
+          data-testid="employee-delete-button"
           className="w-full border border-red-300 text-red-600 text-sm font-medium py-2 rounded-lg hover:bg-red-50 transition disabled:opacity-50"
         >
           {deleting ? "Deleting…" : "Delete Employee"}

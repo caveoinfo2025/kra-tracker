@@ -60,7 +60,7 @@ export default function ApprovalInbox({ requests, caps, onView, onApprove, onRej
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div className="seg-control">
           {SEGMENTS.map((s) => (
-            <button key={s.key} className={seg === s.key ? "active" : ""} onClick={() => setSeg(s.key)}>
+            <button key={s.key} className={seg === s.key ? "active" : ""} data-testid={`approval-segment-${s.key}`} onClick={() => setSeg(s.key)}>
               {s.label}
               {s.key === "overdue" && counts.overdue > 0 && (
                 <AlertTriangle size={10} style={{ marginLeft: 4, color: "var(--caveo-red)" }} />
@@ -157,10 +157,12 @@ export default function ApprovalInbox({ requests, caps, onView, onApprove, onRej
                     {r.status === "Pending" && r.currentApprover === caps.currentUser ? (
                       <div style={{ display: "flex", gap: 4 }}>
                         <button
+                          data-testid={`approval-quick-approve-${r.id}`}
                           className="btn-cav btn-cav-sm"
                           style={{ background: "var(--success)", color: "#fff", border: "none", fontSize: 11, padding: "3px 9px", borderRadius: 5 }}
                           onClick={() => onApprove(r)}>✓</button>
                         <button
+                          data-testid={`approval-quick-reject-${r.id}`}
                           className="btn-cav btn-cav-sm"
                           style={{ color: "var(--caveo-red)", borderColor: "rgba(200,16,46,0.3)", fontSize: 11, padding: "3px 9px", borderRadius: 5 }}
                           onClick={() => onReject(r)}>✗</button>

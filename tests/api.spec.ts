@@ -4,6 +4,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { EMP_ID, MGR_ID } from './helpers';
+import { isDatabaseAvailable } from './helpers/environment';
 
 const BASE = 'http://localhost:3000';
 
@@ -47,7 +48,15 @@ test.describe('API — unauthenticated requests return 401', () => {
 
 // ── Authenticated GET requests ────────────────────────────────────────
 test.describe('API — authenticated GET responses', () => {
+  let dbAvailable = false;
+
+  test.beforeAll(async ({ request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
+  });
+
   test('GET /api/pipeline/leads → 200 with rows array', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/pipeline/leads', {}, EMP_ID);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -57,6 +66,8 @@ test.describe('API — authenticated GET responses', () => {
   });
 
   test('GET /api/kras/me → 200 with array', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/kras/me', {}, EMP_ID);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -64,6 +75,8 @@ test.describe('API — authenticated GET responses', () => {
   });
 
   test('GET /api/daily-updates → 200 with array', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/daily-updates', {}, EMP_ID);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -71,6 +84,8 @@ test.describe('API — authenticated GET responses', () => {
   });
 
   test('GET /api/employees → 200 for manager', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/employees', {}, MGR_ID);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -78,11 +93,15 @@ test.describe('API — authenticated GET responses', () => {
   });
 
   test('GET /api/pipeline/analytics → 200 for manager', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/pipeline/analytics', {}, MGR_ID);
     expect(res.status).toBe(200);
   });
 
   test('GET /api/pipeline/tasks → 200', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/pipeline/tasks', {}, EMP_ID);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -93,7 +112,15 @@ test.describe('API — authenticated GET responses', () => {
 
 // ── Input validation ─────────────────────────────────────────────────
 test.describe('API — input validation', () => {
+  let dbAvailable = false;
+
+  test.beforeAll(async ({ request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
+  });
+
   test('POST /api/pipeline/leads with empty body does not crash (422 or 400)', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/pipeline/leads', {
       method: 'POST',
       body: JSON.stringify({}),
@@ -107,6 +134,8 @@ test.describe('API — input validation', () => {
   });
 
   test('GET /api/pipeline/leads with SQL injection attempt in q param', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const malicious = encodeURIComponent("' OR '1'='1");
     const res = await api(`/api/pipeline/leads?q=${malicious}`, {}, EMP_ID);
     expect(res.status).toBe(200); // Prisma uses parameterized queries — safe
@@ -115,6 +144,8 @@ test.describe('API — input validation', () => {
   });
 
   test('GET /api/pipeline/leads with XSS in q param returns sanitized JSON', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const xss = encodeURIComponent('<script>alert(1)</script>');
     const res = await api(`/api/pipeline/leads?q=${xss}`, {}, EMP_ID);
     expect(res.status).toBe(200);
@@ -125,6 +156,8 @@ test.describe('API — input validation', () => {
   });
 
   test('GET /api/employees/99999 (non-existent) → 404', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/employees/99999', {}, MGR_ID);
     expect([404, 400]).toContain(res.status);
   });
@@ -132,11 +165,19 @@ test.describe('API — input validation', () => {
 
 // ── RBAC ─────────────────────────────────────────────────────────────
 test.describe('API — RBAC enforcement', () => {
+  let dbAvailable = false;
+
+  test.beforeAll(async ({ request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
+  });
+
   test('regular employee cannot access all employees list', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/employees', {}, EMP_ID);
     // Either 403 or filtered result — should not expose all employees
     if (res.status === 200) {
-      const body = await res.json();
+      await res.json();
       // If it returns, it should only return own data or filtered set
       console.warn('[RBAC] /api/employees returned 200 for non-manager employee — verify it filters correctly');
     } else {
@@ -145,6 +186,8 @@ test.describe('API — RBAC enforcement', () => {
   });
 
   test('IDOR: employee cannot read another employee\'s KRAs via /api/employees/[id]/kras', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     // employee EMP_ID (5) tries to read manager's KRAs (id=4)
     const res = await api(`/api/employees/${MGR_ID}/kras`, {}, EMP_ID);
     // Should be 403 or empty result, not full data
@@ -163,7 +206,15 @@ test.describe('API — RBAC enforcement', () => {
 
 // ── Security headers ──────────────────────────────────────────────────
 test.describe('HTTP security headers', () => {
+  let dbAvailable = false;
+
+  test.beforeAll(async ({ request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
+  });
+
   test('responses include content-type header', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated routes are unavailable in this environment.');
+
     const res = await api('/api/pipeline/leads', {}, EMP_ID);
     expect(res.headers.get('content-type')).toContain('application/json');
   });

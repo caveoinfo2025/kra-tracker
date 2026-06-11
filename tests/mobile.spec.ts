@@ -2,13 +2,17 @@
  * Functional tests — Mobile UI at /mobile
  * Run with Pixel 5 viewport (393×851) and desktop Chrome
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { isDatabaseAvailable } from './helpers/environment';
 import { loginAs, EMP_ID, assertNoServerError } from './helpers';
 
 test.describe('Mobile App — /mobile', () => {
-  let ctx: any, page: any;
+  let dbAvailable = false;
+  let ctx: BrowserContext | undefined;
+  let page: Page;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, request }) => {
+    dbAvailable = await isDatabaseAvailable(request);
     ctx = await browser.newContext({
       viewport: { width: 393, height: 851 },
       userAgent: 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 Chrome/90 Mobile Safari/537.36',
@@ -16,9 +20,13 @@ test.describe('Mobile App — /mobile', () => {
     await loginAs(ctx, EMP_ID);
     page = await ctx.newPage();
   });
-  test.afterAll(() => ctx.close());
+  test.afterAll(async () => {
+    await ctx?.close();
+  });
 
   test('loads without crashing', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/mobile');
     await page.waitForLoadState('networkidle');
     await expect(page).not.toHaveURL(/\/login/);
@@ -28,6 +36,8 @@ test.describe('Mobile App — /mobile', () => {
   });
 
   test('renders Today / home screen', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/mobile');
     await page.waitForLoadState('networkidle');
     // Mobile root should have the fixed overlay structure
@@ -39,6 +49,8 @@ test.describe('Mobile App — /mobile', () => {
   });
 
   test('bottom nav: all tabs are clickable without crash', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/mobile');
     await page.waitForLoadState('networkidle');
 
@@ -58,6 +70,8 @@ test.describe('Mobile App — /mobile', () => {
   });
 
   test('pipeline / leads data loads in mobile view', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/mobile');
     await page.waitForLoadState('networkidle');
 
@@ -71,6 +85,8 @@ test.describe('Mobile App — /mobile', () => {
   });
 
   test('mobile page does not expose raw API errors to users', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.goto('/mobile');
     await page.waitForLoadState('networkidle');
     const body = await page.textContent('body') ?? '';
@@ -80,6 +96,8 @@ test.describe('Mobile App — /mobile', () => {
   });
 
   test('mobile page is responsive at 375px (iPhone SE width)', async () => {
+    test.skip(!dbAvailable, 'Database-backed authenticated pages are unavailable in this environment.');
+
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/mobile');
     await page.waitForLoadState('networkidle');

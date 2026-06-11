@@ -146,11 +146,13 @@ export default function UsersTab({ canEdit }: Props) {
                     <td style={{ padding: "11px 14px" }}>
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => setViewUser(u)}
+                          data-testid={`identity-user-view-${u.id}`}
                           style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: 11, color: "var(--fg-3)", display: "flex", alignItems: "center", gap: 4 }}>
                           <Eye size={11} strokeWidth={2} /> View
                         </button>
                         {canEdit && u.employmentStatus !== "INACTIVE" && (
                           <button onClick={() => handleQuickStatus(u, u.employmentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE")}
+                            data-testid={`identity-user-toggle-${u.id}`}
                             style={{ padding: "4px 8px", borderRadius: 4, border: `1px solid ${u.employmentStatus === "ACTIVE" ? "rgba(200,16,46,0.3)" : "rgba(31,157,85,0.3)"}`, background: "transparent", cursor: "pointer", fontSize: 11, color: u.employmentStatus === "ACTIVE" ? "var(--danger)" : "#1F9D55", display: "flex", alignItems: "center", gap: 4 }}>
                             <Power size={11} strokeWidth={2} /> {u.employmentStatus === "ACTIVE" ? "Suspend" : "Activate"}
                           </button>

@@ -5,12 +5,20 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma migrate deploy && prisma generate && next build",
+    "build:test": "node scripts/run-build-test.mjs",
     "start": "next start",
     "lint": "eslint",
+    "playwright:install": "set PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers&& playwright install chromium",
+    "test:e2e": "node scripts/run-playwright.mjs",
+    "test:e2e:smoke": "node scripts/run-playwright.mjs tests/smoke/homepage-login.spec.ts --project=Desktop Chrome",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:test:check": "node scripts/check-test-env.mjs",
+    "db:test:migrate": "node scripts/run-prisma-test.mjs migrate deploy",
+    "db:test:push": "node scripts/run-prisma-test.mjs db push",
+    "db:test:seed": "node scripts/run-prisma-test.mjs db seed"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.8.0",

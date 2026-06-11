@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
   Building2, ShieldCheck, GitBranch, Database,
-  ScrollText, Target, ChevronRight, SlidersHorizontal, Banknote, Bell,
+  ScrollText, Target, ChevronRight, SlidersHorizontal, Banknote, Bell, Plug, Lock,
 } from "lucide-react";
 
 interface SettingsItem {
@@ -88,6 +88,22 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Bell,
     iconColor:   "#7C3AED",
     iconBg:      "rgba(124,58,237,0.1)",
+  },
+  {
+    href:        "/settings/integrations",
+    label:       "Integration Center",
+    description: "External service connectors — email, GST, maps, WhatsApp, accounting and webhooks",
+    icon:        Plug,
+    iconColor:   "#0066FF",
+    iconBg:      "rgba(0,102,255,0.1)",
+  },
+  {
+    href:        "/settings/security",
+    label:       "Security Center",
+    description: "Password policy, MFA, session limits, access rules and data protection",
+    icon:        Lock,
+    iconColor:   "#C8102E",
+    iconBg:      "rgba(200,16,46,0.1)",
   },
 ];
 

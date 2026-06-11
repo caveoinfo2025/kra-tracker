@@ -19,37 +19,29 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-09, end of session 5 — Phase 9 Finance Administration Engine)
+## 0. Current status (2026-06-10, end of session 6 — Phase 12 Integration Center + Phase 13 Enterprise Security Center)
 
-### Committed this session (4 commits, all clean — 0 TS errors)
-- `7f4980d` — Phase 9 schema + migration + seed
-- `d557a8a` — Finance engine service layer (7 files)
-- `5aea747` — Finance Admin API routes (7 routes)
-- `7df039d` — Finance Admin UI + Settings card + permissions
+### This session (UNCOMMITTED — dev DB migrations applied, browser verified)
+- **Phase 12 — Integration Center** (`/settings/integrations`): 5 DB tables, service layer (5 files), 5 API routes, 10-tab UI, 11 seeded providers. Migrations applied to dev DB. TypeScript clean. ✓
+- **Phase 13 — Enterprise Security Center** (`/settings/security`): 7 DB tables, service layer (6 files + index), 7 API routes, 8-tab UI, 5 default policies seeded. Migrations applied to dev DB. TypeScript clean. Browser verified — all tabs + seeded data visible. ✓
 
-### ⚠️ Migration NOT yet applied to dev DB
-Migration `20260605050000_finance_admin_engine` is committed but the 8 tables haven't been
-created yet. **To activate Phase 9 on dev:**
-1. Whitelist current IP in hPanel → Remote MySQL
-2. `$env:DATABASE_URL="mysql://…"; node prisma/apply-finance-admin.mjs`
-3. `$env:DATABASE_URL="mysql://…"; npx prisma migrate resolve --applied 20260605050000_finance_admin_engine`
-4. `npx tsx prisma/seed-finance-admin.ts`
-5. Restart dev server (new files created — Turbopack requires restart)
+### ⚠️ STOP: Phase 13 is the final module
+Per user instruction: "STOP after Security Center. Do not implement Governance module."
 
-Until migration is applied, all finance-engine DB calls return empty arrays (try/catch fail-open).
+### ⚠️ All work UNCOMMITTED since session 4
+Sessions 5 + 6 changes are NOT committed. Everything from Phase 8 onwards lives only in the working tree. **Confirm with Vijesh before committing or pushing.**
 
-### Phase 9 deliverables — `/settings/finance`
-- 8-tab admin: Overview / Expense Categories / Conveyance / Advance Policy / Customer Credit / Voucher Config / Collection Rules / Audit
-- `src/lib/finance-engine/` (7 files): validateExpense(), calculateConveyance(), generateVoucherNumber(), checkCustomerCredit()
-- `/api/admin/finance/` (7 routes): policies, expenses, conveyance, advance, credit, voucher, collection
-- `Settings/Finance/VIEW` + `Settings/Finance/EDIT` added to PERMISSION_CATALOGUE
+### Migrations applied to dev DB (not yet committed to git)
+- `20260610080000_integration_center` — 5 tables, marked applied
+- `20260610090000_security_center` — 7 tables, marked applied
 
 ### Previously committed (sessions 1–4)
 - Sessions 1–3: Finance Phase 1 DB layer, Admin Console Phases 1–7 UI (all committed)
 - Session 4: Phase 8 CRM Admin Engine, 4 migrations applied to dev DB, Approval wiring,
   Pipeline lifecycle upgrades, Legacy promotion. All committed.
+- Session 5: Phase 9 Finance Administration Engine (committed, dev DB migration pending)
 
-### Prod note: Nothing pushed to production. Confirm with Vijesh before `git push origin master`.
+### Prod note: Nothing pushed to production since session 4. Confirm with Vijesh before `git push origin master`.
 
 ## 2. Roles (Employee.role + isManager)
 | Role | Access summary |
@@ -156,6 +148,19 @@ Until migration is applied, all finance-engine DB calls return empty arrays (try
   (non-managers blocked at the API). **Legacy SalesFunnel deals are promotable** to real
   CrmOpportunities ("Open →" → `/api/pipeline/opportunities/promote`), giving imported deals the
   full edit/close experience. SLA badges on lead/opp cards + a leads-table SLA column.
+- **Integration Center — Phase 12** *(2026-06-10, UNCOMMITTED, dev DB applied)* — `/settings/integrations`,
+  a 10-tab admin console for external service connectors: `src/lib/integration-engine/` (providers,
+  connections, credentials, logs, test); 5 API routes under `/api/admin/integrations/`; 11 seeded
+  INACTIVE providers (SMTP, M365, Google Workspace, GST, PAN, Google Maps, WhatsApp Business, SMS,
+  Teams Webhook, Tally, Generic Webhook). Credentials stored as env-var references (`secretRef`) only —
+  raw secrets never persisted. Dry-run `testConnection()` — no live external calls by default.
+- **Enterprise Security Center — Phase 13** *(2026-06-10, UNCOMMITTED, dev DB applied, browser verified)* —
+  `/settings/security`, an 8-tab configurable security policy console: `src/lib/security-engine/`
+  (password-policy, mfa, session, access-policy, data-protection, security-log, index); 7 API routes
+  under `/api/admin/security/`; 5 default policies seeded (password length 8/90d expiry, MFA disabled,
+  8h sessions, no IP restriction, 1000-record export limit). `evaluateSecurityPolicy()` is **fail-open**
+  — returns `ALLOW` on any error. **Policies are non-enforcing** until explicitly integrated into auth.
+  Existing login/sessions are completely unaffected. Security event log with 14 event types.
 
 ## 4. Pending / Backlog
 > Confirm with the user before assuming priority — this is inferred from gaps, not a committed roadmap.
@@ -173,7 +178,40 @@ Until migration is applied, all finance-engine DB calls return empty arrays (try
   it as the single boundary and trimming duplicate per-page `getSession()` redirects (keep
   ownership checks). Also fix the stale "src/middleware.ts" comment in `auth.config.ts`.
 
+## Technical Debt
+
+| Item | Introduced | Impact |
+|---|---|---|
+| `xlsx@0.18.5` HIGH advisory | Pre-session 1 | Import feature only; no remote trigger |
+| Finance Phase 2 UI on mock data | Session 2 | 11 pages + mobile screens need backend wiring |
+| Expense Categories / Vendor Master / Customer Master on mock data | Session 2 | Need backend APIs against existing Prisma models |
+| `netProfitLakhs` rows from pre-rename era | Session 4 | Seeded rows may hold stale "%" values |
+| Two coexisting RBAC systems | Pre-session 1 | `rbac.ts` DB matrix + `roles.ts` predicates both active |
+| Client-side-only RBAC on Global Masters | Session 2 | Vendor/Customer Master capabilities not server-enforced |
+| `canEdit || isOpsHead || isManager` fallback on settings pages | Session 3 | Dev-safe; needs tightening for prod |
+| Money fields as `DOUBLE` not `Decimal(12,4)` | Pre-session 1 | Finance totals accumulate float error |
+| Security policies non-enforcing | Session 6 | Engine built but not wired into auth |
+| Integration connections not making live calls | Session 6 | Dry-run only; needs wiring per integration type |
+
+## Recommended Next Steps
+
+1. **Commit + push Phases 12 & 13** (confirm with Vijesh). Suggested commits:
+   - `feat(integrations): Phase 12 Integration Center`
+   - `feat(security): Phase 13 Enterprise Security Center`
+2. **Wire password validation** — call `validatePasswordAgainstPolicy()` in any future password-change flow. Low risk; already fail-open.
+3. **Wire data export guard** — call `canExportData()` before any CSV/XLSX export route returns data. First real use of the security engine.
+4. **Commit earlier uncommitted work** (Phases 8–11 were committed to `master` but never pushed — verify `git log origin/master` vs `git log master`).
+5. **Finance backend wiring** — pick one Finance Phase 2 module (e.g. Bank Book) and wire it against the existing Phase-1 Prisma models. The `data.ts` type shapes are the contract.
+
 ## 4b. In-progress / Decisions this session
+
+### Session 6 (2026-06-10) — Integration Center + Security Center
+
+- **Credential storage decision:** `secretRef` stores env var NAME only (not the secret). Rationale: avoids secrets at rest in the DB entirely; ops team sets OS env vars; the UI shows `[set]` when the var is present. `resolveSecret()` is server-only and never exposed in API responses.
+- **Fail-open is mandatory for security engine:** `evaluateSecurityPolicy()` returns `ALLOW` on any error. Rationale: a policy engine bug should never lock users out of the system. Enforcing policies must be an explicit, deliberate integration step.
+- **Phase 13 is final:** user directive "STOP after Security Center. Do not implement Governance module." All Settings Admin phases (8–13) are now complete.
+- **MFA policy disabled by default:** seeded with `enabled=false`; `isMFARequired()` always returns false unless explicitly activated in the MFA tab.
+- **Security event log is append-only / fire-silent:** log writes never throw; a log failure never affects the underlying operation.
 
 ### Session 4 (2026-06-05) — CRM Admin Engine + Approval wiring + Pipeline flow
 - **Legacy deals promote to real opportunities** rather than enhancing the limited legacy modal.

@@ -17,13 +17,17 @@ export default async function LoginPage({
   }
 
   // Dev-only: fetch employee list for the quick-login widget
-  const devEmployees =
-    process.env.NODE_ENV === "development"
-      ? await prisma.employee.findMany({
-          select: { id: true, name: true, isManager: true },
-          orderBy: { name: "asc" },
-        })
-      : [];
+  let devEmployees: { id: number; name: string; isManager: boolean }[] = [];
+  if (process.env.NODE_ENV === "development") {
+    try {
+      devEmployees = await prisma.employee.findMany({
+        select: { id: true, name: true, isManager: true },
+        orderBy: { name: "asc" },
+      });
+    } catch {
+      // Pool cold-start / DB unavailable — login still works, quick-login widget hidden
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white flex items-center justify-center p-4">

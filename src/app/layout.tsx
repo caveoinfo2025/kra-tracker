@@ -24,10 +24,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   if (process.env.NODE_ENV === "development") {
     const cookieStore = await cookies();
     const devId = cookieStore.get("dev_employee_id")?.value;
-    const employees = await prisma.employee.findMany({
-      select: { id: true, name: true, isManager: true },
-      orderBy: { name: "asc" },
-    });
+    let employees: { id: number; name: string; isManager: boolean }[] = [];
+    try {
+      employees = await prisma.employee.findMany({
+        select: { id: true, name: true, isManager: true },
+        orderBy: { name: "asc" },
+      });
+    } catch (e) {
+      // Pool cold-start timeout — page still renders, DevBar shows empty list
+      console.warn("[layout] DB unavailable, DevBar will be empty:", (e as Error).message);
+    }
     devProps = { employees, currentDevId: devId ? Number(devId) : null };
   }
 

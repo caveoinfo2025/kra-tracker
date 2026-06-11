@@ -1,5 +1,23 @@
 # Business Rules
 
+> **2026-06-10 (Session 6) — Integration Center + Security Center policy rules (UNCOMMITTED):**
+>
+> **Integration Center (Phase 12):**
+> - **Credential storage rule:** `secretRef` stores ONLY the env var NAME (e.g. `SMTP_PASSWORD`). Raw secret values must NEVER be stored in the DB. `resolveSecret()` reads the actual env var server-side only.
+> - **Live calls disabled by default:** `testConnection()` does a dry-run validation by category — it does NOT make real HTTP calls to external services unless explicitly implemented and enabled.
+> - **Masking rule:** every API response that includes a connection or credential masks `secretRef` as `"[set]"` or omits it. The env var name is shown (it's not a secret), but its resolved value is never returned.
+> - **Integration logs** are fire-silent: `logIntegrationAttempt()` never throws; log failures are swallowed.
+>
+> **Security Center (Phase 13):**
+> - **Non-enforcing:** all security policies are stored and configurable but do NOT affect the current auth flow. Existing logins, sessions, and user accounts are completely unaffected.
+> - **Fail-open mandate:** `evaluateSecurityPolicy()` returns `{ decision: "ALLOW" }` on any error (missing table, DB down, bad config). This is intentional — security policies must never block access due to infrastructure issues.
+> - **Password policy** (configurable): min length 8, require uppercase/lowercase/number/special char, 90-day expiry, 5-history, 5 failed attempts → 30-min lockout. `validatePasswordAgainstPolicy()` returns `{ valid, failures[] }` — call this when implementing a password-change flow.
+> - **MFA policy** (configurable, disabled by default): method = EMAIL|TOTP|SMS, per-role enforcement, 30-day remember-device. `isMFARequired(policy, userRole)` returns boolean — call this after successful password auth.
+> - **Session policy** (configurable): 480-min idle, 8h max, concurrent sessions allowed. `validateSession(policy, sessionAgeMinutes, idleMinutes)` returns `{ valid, reason? }`.
+> - **Access restriction** (configurable, disabled by default): IP allowlist + business hours (09:00–18:00 Mon–Fri). `checkIPAccess()` and `checkBusinessHours()` return booleans.
+> - **Data protection** (configurable): 1000-record export limit, no approval required by default. `canExportData(policy, recordCount, isManager)` returns `{ allowed, reason? }`. Sensitive fields: mobile, email, pan, aadhar.
+> - **Security event logs:** `logSecurityEvent()` is fire-silent. 14 event types tracked. Logs appear in the Security Center → Logs tab with colored severity badges.
+>
 > **2026-06-05 (Session 4) — Pipeline lifecycle + CRM approvals (UNCOMMITTED):**
 > - **Lead → Opportunity:** a `CrmLead` reaching **PROPOSAL_SENT** auto-creates a `CrmOpportunity`
 >   and is hidden from the Leads view (lives on Opportunities only).

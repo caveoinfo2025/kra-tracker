@@ -1,77 +1,84 @@
 # Next Session — Resume Here
 
 > Quick-start state for the next coding session. Overwritten at the end of every session.
-> Last updated: 2026-06-05 — Phase 8 CRM Admin Engine + Approval wiring + Lead→Opp flow + Opp close-won/lost + legacy promotion.
+> Last updated: 2026-06-10 — Session 6: Phase 12 Integration Center + Phase 13 Enterprise Security Center.
 
 ## Where to continue
 
-**⚠️ Working tree has LARGE uncommitted changes this session (14 modified + ~10 new dirs). NOTHING is committed yet. Confirm with Vijesh, then commit in logical chunks before pushing.**
+**Phase 13 (Security Center) is the FINAL module.** Per user instruction: *"STOP after Security Center. Do not implement Governance module."*
 
-Dev DB has 4 NEW migrations applied this session (all via SSH-apply + `migrate resolve`):
-```
-20260605000000_opportunity_discount_pct          → CrmOpportunity.discountPct
-20260605010000_crm_admin_engine                  → 7 CRM admin tables
-20260605020000_opportunity_won_fields            → dealValueExTax, netMargin, poNumber, poDate
-20260605030000_legacy_promote_and_net_profit     → netMargin→netProfitLakhs, SalesFunnel.crmOpportunityId
-```
+All work from Phase 8 onward is UNCOMMITTED (working tree dirty, 28 commits ahead of `origin/master` from earlier sessions, plus new untracked files). **Confirm with Vijesh before committing or pushing.**
+
+### Two options for next session:
+
+**Option A — Commit & ship:**
+1. Stage + commit Phases 12 and 13 in logical chunks (see suggested messages below)
+2. Run `npx tsc --noEmit && npx next build` to verify
+3. Confirm with Vijesh → `git push origin master`
+4. Hostinger deploy: `touch ~/public_html/nodejs/tmp/restart.txt`
+
+**Option B — Wire security policies into auth:**
+The security engine is built but non-enforcing. If Vijesh wants to activate:
+- Password validation: call `validatePasswordAgainstPolicy()` in the account/password-change flow
+- Session policy: call `validateSession()` in `src/proxy.ts` or layout SSR gate
+- MFA: call `isMFARequired()` after login success to redirect to `/mfa` challenge
+- Access rules: call `checkIPAccess()` and `checkBusinessHours()` in `src/proxy.ts`
 
 ## Last completed task
 
-All complete and **verified in browser**, all **UNCOMMITTED**:
+All verified in browser ✓, TypeScript clean ✓:
 
-1. **Approval Engine wired into CRM flows** (fire-and-forget, never blocks save):
-   - Opportunity PATCH → `LARGE_DEAL_APPROVAL` (value first crosses ₹50L) + `DISCOUNT_APPROVAL` (discountPct first > 0)
-   - New `POST /api/expenses` → `EXPENSE_APPROVAL` (amount > ₹0.10L on submit)
-2. **Phase 8 — CRM Administration Engine** at `/settings/crm` (5 tabs: Pipelines, Territories, Assignment Rules, Automation, SLA Rules). Service layer `src/lib/crm-engine/` (6 files), 7 API routes under `/api/admin/crm/`, seed `prisma/seed-crm-defaults.ts`.
-3. **CRM Admin moved under Settings** — card in `AdminConsole.tsx`; removed standalone sidebar link.
-4. **Pipeline stages aligned with live data** — "Opportunity Pipeline" (OPP_STAGES) + "Lead Pipeline" (LEAD_STAGES) seeded to match `src/types/pipeline.ts` exactly.
-5. **Automation wired to live events** — `executeAutomation()` on `lead.created` + `opportunity.stage_changed/won/lost`.
-6. **SLA indicators** — LeadCard badges, opp-card badge, leads-table SLA column.
-7. **Lead → Opportunity auto-move on PROPOSAL_SENT** — PROPOSAL_SENT leads excluded from Leads view (DB-level `stage: { not: "PROPOSAL_SENT" }`); stage→PROPOSAL_SENT auto-navigates to the opportunity; stage dropdown + stats updated.
-8. **Opportunity full edit + Close Won/Lost flow** — `OppDetailClient` rewrite: Close Won modal (Deal Value ex-tax *, Net Profit ₹L, PO Number *, PO Date), Close Lost modal (reason *). WON/LOST become **locked read-only** (non-managers blocked at API with 403).
-9. **Legacy/imported deal promotion** — "Open →" on a legacy SalesFunnel deal calls `POST /api/pipeline/opportunities/promote` → creates CrmLead + CrmOpportunity, sets `SalesFunnel.crmOpportunityId`, navigates to the full detail page. Idempotent. Removed the limited `LegacyEditModal`.
-10. **Net profit is now absolute ₹L** (was %) — DB col `netMargin`→`netProfitLakhs`; all labels/displays show `₹X.XXL`.
+1. **Phase 12 — Integration Center** (`/settings/integrations`)
+   - 5 DB tables: `integration_provider`, `integration_connection`, `integration_usage_rule`, `integration_log`, `api_key_reference`
+   - Migrations applied to dev DB (`20260610080000_integration_center`)
+   - Service layer: `src/lib/integration-engine/` (providers, connections, credentials, logs, test)
+   - 5 API routes under `/api/admin/integrations/`
+   - 10-tab UI — including **New Connection form** + **New Credential form**
+   - 11 providers seeded INACTIVE
+   - `secretRef` stores env var NAME only — never the raw secret
 
-## Recommended next steps
+2. **Phase 13 — Enterprise Security Center** (`/settings/security`)
+   - 7 DB tables: `security_policy`, `password_policy`, `mfa_policy`, `session_policy`, `access_restriction_policy`, `data_protection_policy`, `security_event_log`
+   - Migrations applied to dev DB (`20260610090000_security_center`)
+   - Service layer: `src/lib/security-engine/` (password-policy, mfa, session, access-policy, data-protection, security-log, index)
+   - 7 API routes under `/api/admin/security/`
+   - 8-tab UI: Overview, Authentication, Password Policy, MFA, Sessions, Access Rules, Data Protection, Logs
+   - 5 default policies seeded and confirmed in browser
+   - `evaluateSecurityPolicy()` is fail-open (returns ALLOW on any error)
 
-1. **Commit the uncommitted work** (confirm with Vijesh; stage in chunks):
-   - `feat(approvals): wire startApproval into opportunity/discount/expense`
-   - `feat(crm-engine): Phase 8 CRM Administration Engine + /settings/crm`
-   - `feat(pipeline): lead→opportunity auto-move on PROPOSAL_SENT + SLA badges`
-   - `feat(pipeline): opportunity full edit, close-won/lost, legacy promotion, net profit in ₹L`
-2. **STOP point honored** — user said do NOT implement the Finance Operations backend module this round.
-3. **Wire `executeAutomation` dispatch actions** — `send_notification` is a placeholder; hook into the `Notification` model.
-4. **Promote-on-bulk** — consider a "Promote all legacy" admin action (currently one-at-a-time via "Open →").
-5. **Push to production** — only after commit + `next build` + Vijesh confirms.
+## Suggested commit messages (for Option A)
+
+```
+feat(integrations): Phase 12 Integration Center — DB, engine, API routes, 10-tab UI
+feat(security): Phase 13 Enterprise Security Center — DB, engine, API routes, 8-tab UI
+```
 
 ## Current blockers
 
-- **None functional** — all features verified in the preview browser.
-- Dev DB user `u686730471_devuser` is capped at **500 connections/hour** — heavy seeding/migration loops can exhaust it (recovers after ~1h). Not a code bug.
-- Production unchanged — confirm `200` on `/login` before any push.
+- **None functional** — both phases browser-verified, TypeScript clean.
+- All changes are uncommitted — confirm with Vijesh before pushing.
+- Dev DB user `u686730471_devuser` caps at 500 connections/hour (heavy seeding recovers in ~1h).
 
 ## Start commands
 
 ```powershell
 npm run dev                       # http://localhost:3000 → /login → quick-login as Vijesh (Manager)
 
-# Re-apply migrations if needed (already applied to dev):
-$env:DATABASE_URL="mysql://u686730471_devuser:Caveo%402026@srv2201.hstgr.io:3306/u686730471_caveodev"
-npx prisma migrate deploy
-npx prisma generate               # then RESTART dev server (Turbopack caches old client)
+# Navigate to new modules:
+# http://localhost:3000/settings/integrations   ← Phase 12
+# http://localhost:3000/settings/security       ← Phase 13
 
-# Pre-push:
-npx prisma validate ; npx tsc --noEmit ; npx next build
+# Pre-push validation:
+npx tsc --noEmit ; npx next build
 ```
 
 ## Context to restore (non-obvious)
 
-- **Prisma acronym casing** — generated client uses `prisma.cRMAutomationRule` and `prisma.sLARule` (lowercased first letter of the acronym), and model type imports are `CRMAutomationRuleModel`/`SLARuleModel` from `@/generated/prisma/models/<Name>`. The crm-engine service files re-export friendly aliases (`CRMAutomationRule`, `SLARule`).
-- **Hostinger has no shadow DB** → `prisma migrate dev` fails (P3014). Pattern used all session: write migration SQL by hand → apply via a one-off `node apply-*.mjs` (mariadb driver) → `prisma migrate resolve --applied <name>` → `prisma generate` → **restart dev server**.
-- **netProfitLakhs** is the renamed column (was `netMargin`). It is an **absolute ₹ Lakhs** value now, NOT a percentage. Existing test rows seeded before the rename may hold a stale "%" number.
-- **Legacy promotion is idempotent** via `SalesFunnel.crmOpportunityId`; promoted rows are filtered out of the legacy list (`crmOpportunityId: null`). A customer can still show 2 rows if it has multiple distinct SalesFunnel deals — that's expected, not a duplicate.
-- **PROPOSAL_SENT leads are intentionally hidden** from the Leads page (both server page and `/api/pipeline/leads` GET use `stage: { not: "PROPOSAL_SENT" }` as default). They live on the Opportunities page.
-- **crm-engine is pre-migration-safe** — every DB call is wrapped in try/catch returning safe defaults `[]`/`null`, so missing tables never crash a page.
-- **Turbopack new-file gotcha bit us repeatedly** — after creating a new API route file, the route 404s until you touch an existing file in it (or restart). Editing existing files hot-reloads fine.
-- **session.user.employeeId** (not `.id`) — all new API routes use `session.user.employeeId!`.
-- **Approval triggers are fire-and-forget** — wrapped so a missing/unconfigured workflow silently skips; the save never fails because of approvals.
+- **STOP directive is active:** "Do not implement Governance module." Phase 13 is the final Settings module.
+- **Fail-open pattern (critical):** `evaluateSecurityPolicy()` and all integration-engine calls return safe defaults on error. This ensures existing login/sessions are never broken by the new engines.
+- **secretRef rule:** Integration credentials store ONLY the env var NAME (e.g. `SMTP_PASSWORD`). The actual secret lives in the OS environment. The API masks secretRef as `"[set]"` in all responses. `resolveSecret()` is server-only.
+- **Prisma acronym casing:** `MFAPolicy` → `prisma.mFAPolicy`; `APIKeyReference` → `prisma.aPIKeyReference`. These are used correctly in the service layers.
+- **Security policies are non-enforcing:** The DB tables exist, defaults are seeded, the engine is built — but nothing calls `evaluateSecurityPolicy()` in auth flows yet. Existing login/JWT/sessions are completely unaffected.
+- **Migration pattern (Hostinger, no shadow DB):** write SQL → `node apply-*.mjs` → `prisma migrate resolve --applied <name>` → `prisma generate` → restart dev server.
+- **28 commits ahead of origin/master:** Sessions 4-6 are uncommitted at origin. Phases 8-13 are all in the working tree.
+- **Turbopack new-file gotcha:** after creating a new route file, restart dev server if it 404s.

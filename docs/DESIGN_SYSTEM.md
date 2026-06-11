@@ -4,6 +4,14 @@ Defined as CSS custom properties in `src/app/globals.css` (`:root`). Tailwind v4
 present but most styling uses these tokens + hand-written component classes.
 **Reuse tokens — never hardcode hex values in components.**
 
+> **2026-06-10 (Session 6) — No token changes.** Phase 12 and Phase 13 components use existing
+> design tokens. The Security Center uses `var(--caveo-red)` / `#C8102E` as its primary accent
+> (active tab underline, Save buttons, page icon). Toggle and SaveBar components are inline
+> (no new CSS classes introduced). Integration Center uses `#0066FF` (existing blue accent).
+> Event-type severity badges in the security log table use the existing semantic palette:
+> red = ACCESS_DENIED/LOGIN_FAILED/EXPORT_BLOCKED/ACCOUNT_LOCKED, amber = MFA_CHALLENGED/
+> SESSION_EXPIRED/POLICY_CHANGED, green = LOGIN_SUCCESS/MFA_PASSED.
+
 > **2026-06-05 (Session 4) — No token changes.** New CRM-admin + pipeline components use Tailwind
 > utility classes with the brand red `var(--caveo-red)` / `#CC2229`. Stage/SLA badges follow the
 > existing semantic palette: green = won/ok, amber = warning/at-risk, red = lost/breach,

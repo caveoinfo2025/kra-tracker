@@ -1,5 +1,39 @@
 # Security Model
 
+> **2026-06-10 (Session 6) — Phase 13 Enterprise Security Center (UNCOMMITTED):**
+>
+> **Security policy store (non-enforcing):** 7 new DB tables hold configurable policies:
+> password rules, MFA config, session limits, IP/business-hour access restrictions, and data
+> protection rules. These are stored and editable via `/settings/security` but **do NOT
+> enforce** anything in the current auth flows — existing login/sessions are fully unaffected.
+>
+> **`evaluateSecurityPolicy({ userId, action, context })`** (in `src/lib/security-engine/index.ts`):
+> - Returns `{ decision: "ALLOW" | "BLOCK" | "REQUIRE_MFA" | "REQUIRE_APPROVAL", reasons }`
+> - **Fail-open by design:** any error or missing policy returns `{ decision: "ALLOW" }` —
+>   backward compatibility is guaranteed; nothing is ever blocked due to a policy engine error.
+>
+> **Security event log:** `security_event_log` table captures 14 event types (LOGIN_SUCCESS,
+> LOGIN_FAILED, LOGOUT, PASSWORD_CHANGED, ROLE_CHANGED, EXPORT_REQUESTED, EXPORT_BLOCKED,
+> ACCESS_DENIED, MFA_CHALLENGED, MFA_PASSED, MFA_FAILED, POLICY_CHANGED, SESSION_EXPIRED,
+> ACCOUNT_LOCKED). All event log writes are fire-silent (try/catch, no throw).
+>
+> **New permissions added:**
+> - `Settings/SecurityAdmin/VIEW` — view security center
+> - `Settings/SecurityAdmin/EDIT` — modify security policies
+> - `Settings/SecurityLog/VIEW` — view security event audit logs
+>
+> **Critical constraints (must remain in effect forever):**
+> - Do NOT replace existing authentication
+> - Do NOT break login/logout
+> - Do NOT force MFA until explicitly wired and tested
+> - Do NOT invalidate current users
+> - Do NOT store passwords or raw secrets — `secretRef` stores only env var NAME
+> - Do NOT expose API secrets in frontend — `resolveSecret()` is server-only
+>
+> **New permissions (Phase 12):**
+> - `Settings/IntegrationAdmin/VIEW` + `EDIT`
+> - `Settings/IntegrationLog/VIEW`
+>
 > **2026-06-05 (Session 4) — CRM Admin + opportunity-close access control:**
 > - All `/api/admin/crm/*` routes are **manager-gated** (`session.user.isManager`, else 403).
 > - `/settings/crm` page redirects non-managers to `/dashboard`.

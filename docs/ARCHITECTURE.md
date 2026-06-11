@@ -1,5 +1,24 @@
 # Architecture
 
+> **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Enterprise Security Center.**
+>
+> **Phase 12:** New service layer **`src/lib/integration-engine/`** (`providers`, `connections`,
+> `credentials`, `logs`, `test`, `index`). Credential secrets stored as **env-var references
+> only** (`secretRef` = env var NAME; `resolveSecret()` is server-only). 5 API routes under
+> `/api/admin/integrations/`. 10-tab admin UI at `/settings/integrations` incl. inline New
+> Connection and New Credential forms. 11 providers seeded INACTIVE. **Dry-run test only** —
+> no live external calls by default.
+>
+> **Phase 13:** New service layer **`src/lib/security-engine/`** (`password-policy`, `mfa`,
+> `session`, `access-policy`, `data-protection`, `security-log`, `index`). Central evaluator
+> `evaluateSecurityPolicy()` is **fail-open** (returns `ALLOW` on any error). 7 API routes under
+> `/api/admin/security/`. 8-tab admin UI at `/settings/security`. 5 default policies seeded.
+> **Policies are non-enforcing** — do NOT call the engine in auth paths until explicitly wired.
+> Security event log with 14 event types. Prisma acronym casing: `prisma.mFAPolicy`,
+> `prisma.aPIKeyReference`.
+>
+> **⚠️ STOP:** no Governance module. Phase 13 is the final Settings module.
+>
 > **2026-06-05 (Session 4) — CRM Administration Engine + pipeline lifecycle.**
 > New service layer **`src/lib/crm-engine/`** (`index`, `pipeline`, `territory`, `assignment`,
 > `automation`, `sla`) mirrors the Phase 6/7 engine pattern (service → API → UI). Every DB call is
@@ -33,15 +52,24 @@ auth.config.ts           Edge-safe: provider + LIVE authorized callback (run by 
 src/proxy.ts             Next.js 16 edge middleware: runs authConfig.auth, gates all routes
 prisma.config.ts         Prisma datasource (reads DATABASE_URL for the CLI)
 prisma/
-  schema.prisma          55+ models · provider=mysql · @db.Text + @@map + indexes
-                         (core CRM + Finance Phase 1 + Admin Phase 2 + Policy + Workflow + Master Data)
-  migrations/            5 migrations:
+  schema.prisma          80+ models · provider=mysql · @db.Text + @@map + indexes
+                         (core CRM + Finance Phase 1 + Admin Phases 2-13)
+  migrations/            12 migrations (10 committed + 2 applied to dev only):
                            20260601000000_init_mysql (baseline)
                            20260602120000_finance_operations_phase1
                            20260604000000_admin_console_foundation (PascalCase tables)
                            20260604120000_policy_engine_foundation (PascalCase tables)
-                           20260604180000_workflow_engine (snake_case tables — @@map required)
-                           20260604220000_master_data_management (snake_case tables — @@map required)
+                           20260604180000_workflow_engine (snake_case — @@map)
+                           20260604220000_master_data_management (snake_case — @@map)
+                           20260605000000_opportunity_discount_pct
+                           20260605010000_crm_admin_engine
+                           20260605020000_opportunity_won_fields
+                           20260605030000_legacy_promote_and_net_profit
+                           20260605050000_finance_admin_engine
+                           20260606000000_performance_management (Phase 10)
+                           20260607000000_communication_center (Phase 11)
+                           20260610080000_integration_center (Phase 12 — dev DB only, uncommitted)
+                           20260610090000_security_center (Phase 13 — dev DB only, uncommitted)
   seed.ts                Finance config seed (prisma db seed via prisma.config.ts)
   seed-admin-foundation.ts  6 roles, 65 permissions, data access policies (DEV)
   seed-policy-defaults.ts   6 policy categories, 3 default policies (DEV)
@@ -65,6 +93,8 @@ src/
                              EscalationManager/WorkflowAudit — all live DB data
                            masters/ → MasterDataClient (8-tab: Overview|Categories|Values|Overrides|
                              Customer Policy|Vendor Policy|Validation Rules|Audit)
+                           integrations/ → IntegrationAdminClient (10-tab) + page.tsx (Phase 12)
+                           security/ → SecurityAdminClient (8-tab) + page.tsx (Phase 13)
                            data/adminModules.ts — 6 active settings destinations
     finance/             Finance Phase 2 UI (2026-06-03, UI-only, MOCK data):
                            page.tsx + FinanceDashboardClient (Dashboard)
@@ -158,6 +188,8 @@ independently auth-checked.
 | `card-parser.ts` | Heuristic business-card OCR text → structured lead. |
 | `customer-import.ts` | Dedupe CRM names into the Customer master. |
 | `types.ts` | Serialized DTO types (Dates as strings). |
+| `integration-engine/` | Phase 12: providers, connections, credentials (env-ref only), logs, test (dry-run). `resolveSecret()` is server-only. `secretRef` never exposed in API responses — masked as `"[set]"`. |
+| `security-engine/` | Phase 13: password-policy, mfa, session, access-policy, data-protection, security-log, index. `evaluateSecurityPolicy()` is **fail-open** (returns ALLOW on any error). Non-enforcing until wired into auth. |
 
 ## 5. Authentication Flow
 1. User hits a protected page → server component calls `getSession()`.

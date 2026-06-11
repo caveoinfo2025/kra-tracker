@@ -3,6 +3,44 @@
 > Companion to `DESIGN_SYSTEM.md` (tokens). This catalogs the actual components and how
 > to use them.
 
+> **2026-06-10 (Session 6) — Phase 12 + Phase 13 Settings components:**
+>
+> **Integration Center (`src/app/settings/integrations/`):**
+> - `IntegrationAdminClient` — 10-tab client shell: Overview, Providers, Connections, Credentials,
+>   Email, GST/PAN, Google Maps, WhatsApp/SMS, Accounting, Logs.
+>   - **New Connection inline form** — provider dropdown (populated from seeded providers), connection
+>     name, auth type selector, secretRef env var field. POST to `/api/admin/integrations/connections`.
+>   - **New Credential inline form** — name, key type, env var name (auto-uppercased), description.
+>     POST to `/api/admin/integrations/credentials`.
+>   - `secretRef` is displayed as `[set]` when the env var is configured, or the var name otherwise.
+>   - Overview tab: provider count cards by category, recent log table.
+>   - Per-category tabs (Email, GST/PAN, etc.) show filtered connections for that category.
+>
+> **Security Center (`src/app/settings/security/`):**
+> - `SecurityAdminClient` — 8-tab client shell. Accent color `#C8102E` (caveo-red) for active tab
+>   indicator and Save buttons.
+>   - **Overview** — 8 KPI cards (Password Policy status, MFA status, Session limit, IP Restriction,
+>     Failed Logins count, Access Denied count, Policy Changes count, Locked Accounts count) + Active
+>     Policies checklist + Recent Security Events list.
+>   - **Authentication** — read-only posture panel (SSO provider, current security checks, backward-
+>     compatible note).
+>   - **Password Policy** — number inputs for length/history/expiry/attempts/lockout + `Toggle`
+>     components for complexity rule flags.
+>   - **MFA** — enable `Toggle` (disables entire form when off), method buttons (EMAIL/TOTP/SMS),
+>     roles comma-input, remember-device days input.
+>   - **Sessions** — idle timeout, max hours, concurrent session `Toggle` components.
+>   - **Access Rules** — IP allowlist `textarea` (one IP per line), business hours time pickers +
+>     Sun–Sat day checkboxes.
+>   - **Data Protection** — export record limit, approval/download restriction `Toggle` components,
+>     sensitive field chip selector (mobile/email/pan/aadhar + custom).
+>   - **Logs** — table with colored event-type badges (severity-coded), userId, IP, timestamp, refresh button.
+> - **`Toggle`** (inline component) — animated pill slide-toggle. Props: `checked, onChange, disabled?`.
+>   Uses CSS variables for theming. No external dependency.
+> - **`SaveBar`** (inline component) — red Save button with saving spinner state. Props: `onSave,
+>   saving`. Disabled during save. Uses caveo-red accent.
+> - **`savePolicy(endpoint, data)`** helper — POST if no `id` in data, PATCH if `id` present.
+>   Returns the saved record.
+>
 > **2026-06-05 (Session 4) — CRM Admin + pipeline components:**
 >
 > **CRM Administration (`src/app/settings/crm/`):**

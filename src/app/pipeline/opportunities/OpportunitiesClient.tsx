@@ -290,11 +290,13 @@ export default function OpportunitiesClient({
         <div className="flex flex-wrap gap-2 items-center">
           <input
             type="text" placeholder="Search company…" value={search}
+            data-testid="opportunity-search-input"
             onChange={(e) => setSearch(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
           />
           {isManager && (
             <select value={empF} onChange={(e) => setEmpF(e.target.value)}
+              data-testid="opportunity-owner-filter"
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
               <option value="">All Owners</option>
               {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}

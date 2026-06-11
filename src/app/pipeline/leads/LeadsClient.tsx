@@ -74,6 +74,7 @@ function LeadFormModal({
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Lead Title *</label>
               <input required value={form.title} onChange={(e) => f("title", e.target.value)}
+                data-testid="lead-title-input"
                 placeholder="e.g. NGFW Replacement Project"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
             </div>
@@ -89,11 +90,13 @@ function LeadFormModal({
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Contact Person *</label>
               <input required value={form.contactPerson} onChange={(e) => f("contactPerson", e.target.value)}
+                data-testid="lead-contact-input"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={form.email} onChange={(e) => f("email", e.target.value)}
+                data-testid="lead-email-input"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
             </div>
             <div>
@@ -149,6 +152,7 @@ function LeadFormModal({
 
           <div className="flex gap-3">
             <button type="submit" disabled={loading}
+              data-testid="lead-create-button"
               className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
               {loading ? "Creating…" : "Create Lead"}
             </button>
@@ -619,9 +623,11 @@ export default function LeadsClient({
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex flex-wrap gap-2 flex-1">
           <input type="text" placeholder="Search company / contact…" value={search}
+            data-testid="lead-search-input"
             onChange={(e) => setSearch(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
           <select value={stageF} onChange={(e) => setStageF(e.target.value)}
+            data-testid="lead-stage-filter"
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
             <option value="">All Stages</option>
             {LEAD_STAGES.filter((s) => s !== "PROPOSAL_SENT").map((s) => (
@@ -629,12 +635,14 @@ export default function LeadsClient({
             ))}
           </select>
           <select value={sourceF} onChange={(e) => setSourceF(e.target.value)}
+            data-testid="lead-source-filter"
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
             <option value="">All Sources</option>
             {leadSources.map((s) => <option key={s}>{s}</option>)}
           </select>
           {isManager && (
             <select value={empF} onChange={(e) => setEmpF(e.target.value)}
+              data-testid="lead-owner-filter"
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]">
               <option value="">All Owners</option>
               {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -654,10 +662,12 @@ export default function LeadsClient({
             </button>
           </div>
           <button onClick={() => setShowImportModal(true)}
+            data-testid="lead-import-button"
             className="border border-[#CC2229] text-[#CC2229] text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-[#CC2229] hover:text-white transition whitespace-nowrap">
             ⬆ Import
           </button>
           <button onClick={() => setShowLeadForm(true)}
+            data-testid="lead-new-button"
             className="bg-[#CC2229] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#A81B21] transition">
             + New Lead
           </button>
@@ -712,7 +722,7 @@ export default function LeadsClient({
                 className="mt-2 text-sm text-[#CC2229] hover:underline">Create your first lead →</button>
             </div>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <table className="min-w-full divide-y divide-gray-200 text-sm" data-testid="lead-table">
               <thead className="bg-gray-50">
                 <tr>
                   {["Company / Contact", "Stage", "SLA", "Value", "Source", "Owner", "Updated", ""].map((h) => (

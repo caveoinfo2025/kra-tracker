@@ -77,21 +77,22 @@ function createPrismaClient() {
   const isProd = process.env.NODE_ENV === "production";
 
   const adapter = new PrismaMariaDb({
-    host: cfg.host,
-    port: cfg.port,
-    user: cfg.user,
+    host:     cfg.host,
+    port:     cfg.port,
+    user:     cfg.user,
     password: cfg.password,
     database: cfg.database,
     // Production gets a deeper pool; dev stays lean to respect shared-hosting limits
     connectionLimit: isProd ? 5 : 2,
-    // Generous handshake timeout — remote Hostinger server can be sluggish
-    connectTimeout: 20_000,
-    // How long callers wait in the queue for a free connection
-    acquireTimeout: 30_000,
+    // Short per-attempt timeout (5 s) so the pool can retry several times within
+    // the acquireTimeout window.  Direct mariadb connections to srv2201.hstgr.io
+    // succeed in < 2 s, so 5 s is generous.
+    connectTimeout: 5_000,
+    // In dev, fail fast (5 s) so DB unavailability doesn't hang every page load
+    // for 30 s.  In production, allow 30 s for transient latency spikes.
+    acquireTimeout: isProd ? 30_000 : 5_000,
     // Drop idle connections after 60 s to avoid stale-socket errors
     idleTimeout: 60_000,
-    // Don't pre-open connections — open lazily on first query
-    minimumIdle: 0,
   });
   return new PrismaClient({ adapter });
 }
