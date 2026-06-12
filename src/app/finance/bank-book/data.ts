@@ -180,12 +180,110 @@ export const IMPORT_HISTORY: ImportHistoryRow[] = [
   { id: 2, fileName: "ICICI_Statement_Jun.xlsx",  importedBy: "Priyadharshini R", importedAt: "2026-06-04T11:05:00", added: 1, updated: 2, amended: 1, status: "Partial" },
 ];
 
+// ── API response types (Step 2B wiring) ──────────────────────────────────────
+
+export interface ApiAccount {
+  id: string;
+  accountCode: string;
+  accountName: string;
+  accountType: string;
+  branchId: string;
+  branchName: string;
+  bankName: string;
+  accountNo: string;
+  ifscCode: string;
+  accountHolder: string;
+  openingBalance: string;   // ₹ Lakhs, e.g. "18.50"
+  currentBalance: string;   // ₹ Lakhs
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiTransaction {
+  id: string;
+  transactionDate: string;  // YYYY-MM-DD
+  transactionNumber: string;
+  referenceNumber: string;
+  transactionType: string;
+  description: string;
+  partyName: string;
+  paymentMode: string;
+  debit: string;            // ₹ Lakhs, e.g. "1.28"
+  credit: string;           // ₹ Lakhs
+  runningBalance: string;   // ₹ Lakhs
+  createdBy: string;
+  status: string;           // "RECONCILED" | "UNRECONCILED"
+  voucherRef: string | null;
+  createdAt: string;
+}
+
+export interface ApiSummary {
+  openingBalance: string;
+  totalCredits: string;
+  totalDebits: string;
+  closingBalance: string;
+}
+
+export interface ApiPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export const fmtINR = (n: number) =>
   `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 export const fmtINRorDash = (n: number) => (n === 0 ? "—" : fmtINR(n));
+
+/** Convert an API ₹-Lakhs string to ₹ rupees display string. */
+export function fmtINRfromLakhs(s: string): string {
+  const rupees = Math.round((parseFloat(s) || 0) * 100000 * 100) / 100;
+  return fmtINR(rupees);
+}
+
+/** Convert an API ₹-Lakhs string to a rupees number for legacy components. */
+export function lakhsToRupees(s: string): number {
+  return Math.round((parseFloat(s) || 0) * 100000 * 100) / 100;
+}
+
+/** Map an ApiAccount to the legacy BankAccount shape used by existing components. */
+export function mapApiBankAccount(a: ApiAccount): BankAccount {
+  return {
+    id: a.id,
+    name: a.accountName,
+    maskedNo: a.bankName ? `(${a.bankName})` : "",
+    branch: a.branchName,
+    openingBalance: lakhsToRupees(a.openingBalance),
+    overdraftLimit: 0,
+  };
+}
+
+/** Map an ApiTransaction to the legacy BankTxn shape used by existing components. */
+export function mapApiTransaction(t: ApiTransaction, accountId: string): BankTxn {
+  return {
+    id: parseInt(t.id, 10),
+    accountId,
+    date: t.transactionDate,
+    txnNo: t.transactionNumber,
+    refNo: t.referenceNumber,
+    type: t.transactionType as TxnType,
+    description: t.description,
+    party: t.partyName,
+    partyKind: "",
+    mode: t.paymentMode as PaymentMode,
+    debit: lakhsToRupees(t.debit),
+    credit: lakhsToRupees(t.credit),
+    createdBy: t.createdBy,
+    recon: (t.status === "RECONCILED" ? "Reconciled" : "Unreconciled") as ReconStatus,
+    approval: "Approved",
+    imported: false,
+    voucherRef: t.voucherRef ?? undefined,
+  };
+}
 
 export const fmtDate = (iso: string) =>
   new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-IN", {

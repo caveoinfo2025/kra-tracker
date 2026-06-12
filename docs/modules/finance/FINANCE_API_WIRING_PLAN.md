@@ -1,9 +1,126 @@
 # Finance API Wiring Plan — Caveo CRM
 
-> **Document status:** Step 2A complete — GET /api/finance/accounts and GET /api/finance/bank-book implemented and build-verified.
+> **Document status:** Step 2D complete — Cash Book UI wired to live read-only APIs. Write actions feature-gated.
 >
-> **Prepared:** 2026-06-10 · Session 6  
+> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-12 · Session 9  
 > **Purpose:** Safe implementation plan to wire Finance UI to real MySQL-backed APIs without breaking existing CRM modules.
+
+---
+
+## Step 2C Status — Completed 2026-06-12
+
+### File created
+
+| File | Change |
+|---|---|
+| `src/app/api/finance/cash-book/route.ts` | New — read-only Cash Book API |
+
+### Prisma models used
+
+| Model | Purpose |
+|---|---|
+| `FinAccount` | Cash account list, opening/current balance, `type = "cash"` filter |
+| `Ledger` | Cash ledger entries, running balance computation |
+| `Voucher` | Voucher number via `Ledger.voucher` include |
+| `Employee` | Creator name via `Ledger.recordedBy` include |
+
+### Permission check
+
+`canManageFinance(session.user)` — same gate as Bank Book and Accounts APIs.
+
+### Decimal handling
+
+`fmtMoney(v)` = `(Math.round(v * 100) / 100).toFixed(2)` — same helper as Bank Book route. No Decimal type migration needed (schema uses `Float → DOUBLE`).
+
+### Cash Book accounting convention
+
+| Ledger direction | Physical cash | Display column |
+|---|---|---|
+| `"credit"` | Cash arriving (Cash In) | **Debit** |
+| `"debit"` | Cash departing (Cash Out) | **Credit** |
+
+Running balance: `opening + Σ(credit) − Σ(debit)` — same formula as Bank Book.
+
+### Assumptions
+
+1. `Ledger.payee` holds the counter-party name. When direction = "credit" (cash in), payee is returned as `customerName`; when direction = "debit" (cash out), as `vendorName`. No separate Customer/Vendor FK exists on Ledger.
+2. `expenseCategory` param: Ledger has no category FK — filter applied against `narration` as best-effort text match.
+3. `customerId` / `vendorId` params: accepted but silently ignored (no FK on Ledger).
+4. `physicalCashBalance` and `lastReconciledAt` returned as `null` — no physical count or aggregate reconciliation fields in the schema.
+5. `status` in the transaction response: `"POSTED"` when reconciled, `"UNRECONCILED"` otherwise (matching the Cash Book UI's expected status values).
+
+### Validation results
+
+| Check | Result |
+|---|---|
+| `npx next build` (TS + compile) | ✅ Exit 0 — route compiled to `.next/server/app/api/finance/cash-book/` |
+| `npx prisma validate` | ✅ Schema valid |
+| Curl tests | ⚠️ Dev DB unreachable at test time (IP `122.164.85.187` not whitelisted in Hostinger Remote MySQL). Fix: hPanel → Databases → Remote MySQL → add IP. |
+
+---
+
+## Step 2D Status — Completed 2026-06-12
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `src/app/finance/cash-book/data.ts` | Added `ApiCashAccount`, `ApiCashTransaction`, `ApiCashSummary` interfaces; re-exported `lakhsToRupees`, `fmtINRfromLakhs`, `ApiPagination` from bank-book/data; added `mapApiCashAccount`, `mapApiCashTransaction` helpers. Mock arrays kept intact. |
+| `src/app/finance/cash-book/CashBookClient.tsx` | Full rewrite: fetches accounts from `GET /api/finance/accounts?type=CASH`, transactions from `GET /api/finance/cash-book`. Loading skeletons, error + retry, empty states, debounced search. All 5 write buttons (`Cash In`, `Cash Expense`, `Transfer From Bank`, `Deposit To Bank`, `Cash Adjustment`) feature-gated with toast. `CashEntryForm` and `doTransfer` kept intact for Step 2H. |
+| `src/app/finance/cash-book/components/CashSummaryPanel.tsx` | Added `apiSummary?: ApiCashSummary` prop; shows 4-tile API summary (Opening, Cash In, Cash Out, Closing) when present; falls back to mock-computed 3-period summary otherwise. |
+| `src/app/finance/cash-book/components/CashTransactionTable.tsx` | Added `CashApiPaginationControls` export; controlled `search`/`onSearch` props; external `apiPagination` controls; local pagination retained as fallback. |
+| `src/app/finance/cash-book/components/CashTransactionDrawer.tsx` | Removed `CASH_ACCOUNTS` import; added `accountName?: string` prop; falls back to `txn.accountId` if not provided. |
+
+### Filter → API param mapping
+
+| Filter field | API param |
+|---|---|
+| `accountId` | `accountId` |
+| `dateFrom` / `dateTo` | `dateFrom` / `dateTo` |
+| `branch` | `branchId` |
+| `txnType` | `transactionType` (lowercased, spaces→underscores) |
+| `category` | `expenseCategory` |
+| `approval` (Approved/Pending) | `status` (RECONCILED/UNRECONCILED) |
+| `customer` / `vendor` / `employee` | `search` (best-effort text match on Ledger fields) |
+| `searchQuery` (table search) | `search` (takes priority) |
+
+### Feature gates (write actions pending Step 2H)
+
+`Cash In`, `Cash Expense`, `Transfer From Bank`, `Deposit To Bank`, `Cash Adjustment` show toast: _"This action will be enabled after Cash Book write APIs are implemented."_
+
+### Validation results
+
+| Check | Result |
+|---|---|
+| `npx next build` (TS + compile) | ✅ Exit 0 — `/finance/cash-book` compiled successfully |
+| `npx prisma validate` | ✅ Schema valid |
+
+---
+
+## Step 2B Status — Completed 2026-06-11
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `src/app/finance/bank-book/data.ts` | Added `ApiAccount`, `ApiTransaction`, `ApiSummary`, `ApiPagination` interfaces + `fmtINRfromLakhs`, `lakhsToRupees`, `mapApiBankAccount`, `mapApiTransaction` helpers. Mock arrays kept intact. |
+| `src/app/finance/bank-book/BankBookClient.tsx` | Full rewrite: fetches accounts from `GET /api/finance/accounts?type=BANK`, transactions from `GET /api/finance/bank-book`. Loading skeletons, error states with Retry, empty states. Write actions (Add Entry, Transfer, Import) gated with toast. |
+| `src/app/finance/bank-book/components/BankTransactionTable.tsx` | Controlled `search`/`onSearch` props; external `apiPagination` controls; removed internal sub-pagination. |
+| `src/app/finance/bank-book/components/BankTransactionDrawer.tsx` | Removed `BANK_ACCOUNTS` import; added `accountName?: string` prop. |
+| `src/app/finance/bank-book/components/BankSummaryPanel.tsx` | Added `apiSummary?: ApiSummary` prop; falls back to mock-computed summary when not present. |
+
+### Validation results
+
+| Check | Result |
+|---|---|
+| `npm run build` | ✅ Exit 0 — all routes compiled |
+| `npx prisma validate` | ✅ Schema valid |
+
+### Feature gates (write actions pending Step 2H)
+
+`Add Bank Entry`, `Transfer Funds`, `Import Bank Statement` show toast: _"This action will be enabled after Bank Book write APIs are implemented."_ The underlying form components (`AddEntryForm`, `TransferForm`, `BankImportWizard`) are kept in the file for Step 2H wiring.
+
+### Next step: Step 2C — Cash Book API + UI wiring
 
 ---
 
@@ -852,20 +969,24 @@ Without this, API callers cannot know which `accountId` to use.
 
 ---
 
-### Step 2B — Bank Book API (read-only first)
+### Step 2B — Bank Book API (read-only) ✅ Completed 2026-06-11
 
-- Implement `GET /api/finance/bank-book` using `Ledger` where `account.type = "bank"`
-- Wire `BankBookClient` to call this endpoint (replace `MOCK_BANK_TXNS`)
-- Show real `FinAccount.currentBalance` in `BankBalanceCard`
-- **Do not wire POST yet**
+- `GET /api/finance/bank-book` implemented (Ledger where `account.type = "bank"`)
+- `BankBookClient` fully rewritten — calls live API, shows real `FinAccount.currentBalance`
+- Write POSTs (Add Entry, Transfer, Import) gated with toast — deferred to Step 2H
 
 ---
 
-### Step 2C — Cash Book API (read-only first)
+### Step 2C — Cash Book API (read-only) ✅ Completed 2026-06-12
 
-- Implement `GET /api/finance/cash-book` using `Ledger` where `account.type = "cash"`
-- Wire `CashBookClient` to replace `MOCK_CASH_TXNS`
-- **Do not wire POST yet**
+- `GET /api/finance/cash-book` implemented — `Ledger` where `account.type = "cash"`
+- Cash Book display convention applied: `direction = "credit"` → Debit column (Cash In); `direction = "debit"` → Credit column (Cash Out)
+- Summary: `openingBalance`, `totalCashIn`, `totalCashOut`, `closingBalance`, `physicalCashBalance: null`, `lastReconciledAt: null`
+- All query params supported: `accountId`, `branchId`, `dateFrom`, `dateTo`, `transactionType`, `expenseCategory`, `employeeId`, `status`, `search`, `page`, `pageSize`
+- `customerId` / `vendorId` accepted silently (no FK on Ledger — safe degradation)
+- `mapTxnType()` maps Ledger type strings to Cash Book enum values
+- `npm run build` (Next.js only) ✅ · `npx prisma validate` ✅
+- Cash Book UI still on mock data — wiring deferred to Step 2D
 
 ---
 

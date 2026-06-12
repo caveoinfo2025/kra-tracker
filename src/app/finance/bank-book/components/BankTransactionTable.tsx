@@ -26,10 +26,18 @@ const ALL_COLUMNS = [
 ] as const;
 type ColKey = (typeof ALL_COLUMNS)[number]["key"];
 
-const PAGE_SIZE = 8;
+export interface ApiPaginationControls {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+  onPageSizeChange: (ps: number) => void;
+}
 
 export default function BankTransactionTable({
   rows, balanceById, caps, onRowClick, onBulkReconcile, onExport,
+  search, onSearch, apiPagination,
 }: {
   rows: BankTxn[];
   balanceById: Map<number, number>;
@@ -37,30 +45,21 @@ export default function BankTransactionTable({
   onRowClick: (t: BankTxn) => void;
   onBulkReconcile: (ids: number[]) => void;
   onExport: (kind: "excel" | "pdf") => void;
+  search: string;
+  onSearch: (q: string) => void;
+  apiPagination?: ApiPaginationControls;
 }) {
-  const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [page, setPage] = useState(1);
   const [hidden, setHidden] = useState<Set<ColKey>>(new Set(["refNo", "createdBy"]));
   const [showCols, setShowCols] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const canSelect = caps.canApproveRecon || caps.canEdit;
 
-  // ── Search ──
-  const searched = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      [r.txnNo, r.refNo, r.type, r.description, r.party, r.mode, r.createdBy]
-        .some((v) => v.toLowerCase().includes(q))
-    );
-  }, [rows, search]);
-
-  // ── Sort ──
+  // ── Sort (local, within current API page) ──
   const sorted = useMemo(() => {
-    const arr = [...searched];
+    const arr = [...rows];
     arr.sort((a, b) => {
       let av: number | string, bv: number | string;
       switch (sortKey) {
@@ -74,12 +73,7 @@ export default function BankTransactionTable({
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;
-  }, [searched, sortKey, sortDir, balanceById]);
-
-  // ── Pagination ──
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pageRows = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  }, [rows, sortKey, sortDir, balanceById]);
 
   function toggleSort(k: SortKey) {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -90,7 +84,7 @@ export default function BankTransactionTable({
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
   function toggleSelAll() {
-    const ids = pageRows.map((r) => r.id);
+    const ids = sorted.map((r) => r.id);
     setSelected((s) => {
       const allOn = ids.every((id) => s.has(id));
       const n = new Set(s);
@@ -103,6 +97,10 @@ export default function BankTransactionTable({
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey !== k ? null : sortDir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />;
 
+  const totalDisplay = apiPagination
+    ? `Showing ${(apiPagination.page - 1) * apiPagination.pageSize + 1}–${Math.min(apiPagination.page * apiPagination.pageSize, apiPagination.total)} of ${apiPagination.total}`
+    : `${sorted.length} result${sorted.length === 1 ? "" : "s"}`;
+
   return (
     <div className="card" style={{ overflow: "visible" }}>
       {/* Toolbar */}
@@ -113,7 +111,7 @@ export default function BankTransactionTable({
             className="tb-search-input"
             placeholder="Search transactions…"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => onSearch(e.target.value)}
           />
         </div>
 
@@ -168,7 +166,7 @@ export default function BankTransactionTable({
               {canSelect && (
                 <th style={{ width: 36 }}>
                   <input type="checkbox" onChange={toggleSelAll}
-                    checked={pageRows.length > 0 && pageRows.every((r) => selected.has(r.id))}
+                    checked={sorted.length > 0 && sorted.every((r) => selected.has(r.id))}
                     style={{ accentColor: "var(--caveo-red)" }} />
                 </th>
               )}
@@ -187,7 +185,7 @@ export default function BankTransactionTable({
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((r) => (
+            {sorted.map((r) => (
               <tr
                 key={r.id}
                 onClick={() => onRowClick(r)}
@@ -235,14 +233,23 @@ export default function BankTransactionTable({
       {/* Footer: pagination */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: "1px solid var(--border-subtle)", flexWrap: "wrap", gap: 8 }}>
         <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
-          {sorted.length === 0 ? "0 results" : `Showing ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, sorted.length)} of ${sorted.length}`}
+          {totalDisplay}
           {selected.size > 0 && ` · ${selected.size} selected`}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)} style={safePage <= 1 ? { opacity: 0.4 } : undefined}>Prev</button>
-          <span style={{ fontSize: 12, color: "var(--fg-2)", fontWeight: 600 }}>{safePage} / {totalPages}</span>
-          <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)} style={safePage >= totalPages ? { opacity: 0.4 } : undefined}>Next</button>
-        </div>
+        {apiPagination && apiPagination.totalPages > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <select
+              value={apiPagination.pageSize}
+              onChange={(e) => apiPagination.onPageSizeChange(Number(e.target.value))}
+              style={{ fontSize: 12, border: "1px solid var(--border)", borderRadius: 6, padding: "2px 6px", background: "var(--bg-elev)", color: "var(--fg-2)" }}
+            >
+              {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+            </select>
+            <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={apiPagination.page <= 1} onClick={() => apiPagination.onPageChange(apiPagination.page - 1)} style={apiPagination.page <= 1 ? { opacity: 0.4 } : undefined}>Prev</button>
+            <span style={{ fontSize: 12, color: "var(--fg-2)", fontWeight: 600 }}>{apiPagination.page} / {apiPagination.totalPages}</span>
+            <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={apiPagination.page >= apiPagination.totalPages} onClick={() => apiPagination.onPageChange(apiPagination.page + 1)} style={apiPagination.page >= apiPagination.totalPages ? { opacity: 0.4 } : undefined}>Next</button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,56 +1,53 @@
 "use client";
-import { useState } from "react";
-import { BankAccount, BankTxn, fmtINR } from "../data";
-
-type Period = "Current Month" | "Previous Month" | "YTD";
-const PERIODS: Period[] = ["Current Month", "Previous Month", "YTD"];
+import { BankAccount, BankTxn, ApiSummary, fmtINR, fmtINRfromLakhs } from "../data";
 
 /**
- * BankSummaryPanel — opening / credits / debits / closing for the selected
- * account across Current Month, Previous Month, and YTD.
+ * BankSummaryPanel — opening / credits / debits / closing for the selected account.
+ *
+ * When `apiSummary` is provided (live API mode), shows those values directly.
+ * Without `apiSummary` (mock/legacy mode), falls back to computing from `txns`.
  */
 export default function BankSummaryPanel({
-  account, txns,
+  account, txns, apiSummary,
 }: {
   account: BankAccount;
   txns: BankTxn[];
+  apiSummary?: ApiSummary;
 }) {
-  const [period, setPeriod] = useState<Period>("Current Month");
+  let cells: { label: string; value: string; tone?: "credit" | "debit" }[];
 
-  // Mock period windows over the sample data (June 2026 = "current").
-  const inPeriod = (iso: string) => {
-    const d = new Date(iso + "T00:00:00");
-    const m = d.getMonth(); // 0-based
-    if (period === "Current Month") return m === 5;     // June
-    if (period === "Previous Month") return m === 4;    // May
-    return true;                                         // YTD
-  };
-
-  const rows = txns.filter((t) => t.accountId === account.id && inPeriod(t.date));
-  const credits = rows.reduce((s, t) => s + t.credit, 0);
-  const debits = rows.reduce((s, t) => s + t.debit, 0);
-  // Opening for the period is illustrative: account opening for YTD/current, derived otherwise.
-  const opening = account.openingBalance;
-  const closing = opening + credits - debits;
-
-  const cells: { label: string; value: number; tone?: "credit" | "debit" }[] = [
-    { label: "Opening Balance", value: opening },
-    { label: "Total Credits", value: credits, tone: "credit" },
-    { label: "Total Debits", value: debits, tone: "debit" },
-    { label: "Closing Balance", value: closing },
-  ];
+  if (apiSummary) {
+    cells = [
+      { label: "Opening Balance", value: fmtINRfromLakhs(apiSummary.openingBalance) },
+      { label: "Total Credits",   value: fmtINRfromLakhs(apiSummary.totalCredits),   tone: "credit" },
+      { label: "Total Debits",    value: fmtINRfromLakhs(apiSummary.totalDebits),     tone: "debit"  },
+      { label: "Closing Balance", value: fmtINRfromLakhs(apiSummary.closingBalance)  },
+    ];
+  } else {
+    // Legacy: compute from mock txns for the selected account
+    const accTxns = txns.filter((t) => t.accountId === account.id);
+    const credits = accTxns.reduce((s, t) => s + t.credit, 0);
+    const debits  = accTxns.reduce((s, t) => s + t.debit, 0);
+    const opening = account.openingBalance;
+    const closing = opening + credits - debits;
+    cells = [
+      { label: "Opening Balance", value: fmtINR(opening) },
+      { label: "Total Credits",   value: fmtINR(credits), tone: "credit" },
+      { label: "Total Debits",    value: fmtINR(debits),  tone: "debit"  },
+      { label: "Closing Balance", value: fmtINR(closing) },
+    ];
+  }
 
   return (
     <div className="card">
       <div className="card-header">
         <div className="ch-title">Account Summary</div>
-        <div className="seg-control">
-          {PERIODS.map((p) => (
-            <button key={p} className={period === p ? "active" : ""} onClick={() => setPeriod(p)}>
-              {p === "Current Month" ? "This Month" : p === "Previous Month" ? "Last Month" : "YTD"}
-            </button>
-          ))}
-        </div>
+        {!apiSummary && (
+          <div style={{ fontSize: 11.5, color: "var(--fg-4)" }}>All transactions</div>
+        )}
+        {apiSummary && (
+          <div style={{ fontSize: 11.5, color: "var(--fg-4)" }}>For selected date range</div>
+        )}
       </div>
       <div className="card-body">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -64,7 +61,7 @@ export default function BankSummaryPanel({
                 color: c.tone === "credit" ? "var(--success)" : c.tone === "debit" ? "var(--caveo-red)" : "var(--fg-1)",
                 fontVariantNumeric: "tabular-nums",
               }}>
-                {fmtINR(c.value)}
+                {c.value}
               </div>
             </div>
           ))}

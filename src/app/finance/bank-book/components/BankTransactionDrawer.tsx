@@ -1,20 +1,21 @@
 "use client";
 import { X, Printer, Download, FileText, CheckCircle2, Link2 } from "lucide-react";
-import { BankTxn, BankCaps, fmtINR, fmtDate, reconBadge, BANK_ACCOUNTS, SOURCE_META } from "../data";
+import { BankTxn, BankCaps, fmtINR, fmtDate, reconBadge, SOURCE_META } from "../data";
 
 /**
  * BankTransactionDrawer — right-side detail pane for one transaction.
  * Reuses `.detail-overlay` / `.detail-pane` / `.kv-grid` / `.timeline`.
  */
 export default function BankTransactionDrawer({
-  txn, caps, onClose, onReconcile,
+  txn, caps, onClose, onReconcile, accountName,
 }: {
   txn: BankTxn;
   caps: BankCaps;
   onClose: () => void;
   onReconcile: (id: number) => void;
+  accountName?: string;
 }) {
-  const account = BANK_ACCOUNTS.find((a) => a.id === txn.accountId);
+  const displayAccount = accountName ?? txn.accountId;
   const amount = txn.debit || txn.credit;
   const dir = txn.debit ? "Debit" : "Credit";
 
@@ -46,7 +47,7 @@ export default function BankTransactionDrawer({
             <div className="kv-grid">
               <Row k="Txn No" v={txn.txnNo} />
               <Row k="Date" v={fmtDate(txn.date)} />
-              <Row k="Account" v={account ? `${account.name} ${account.maskedNo}` : txn.accountId} />
+              <Row k="Account" v={displayAccount} />
               <Row k="Amount" v={`${fmtINR(amount)} (${dir})`} />
               <Row k="Type" v={txn.type} />
               <Row k="Mode" v={txn.mode} />

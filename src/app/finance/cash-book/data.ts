@@ -150,3 +150,81 @@ export function computeCashBalances(account: CashAccount, txns: CashTxn[]): Map<
     .forEach((t) => { running += t.credit - t.debit; m.set(t.id, running); });
   return m;
 }
+
+// ── API types and mapping helpers (Step 2D) ───────────────────────────────────
+
+import { lakhsToRupees as _ltr } from "../bank-book/data";
+export { lakhsToRupees, fmtINRfromLakhs } from "../bank-book/data";
+export type { ApiPagination } from "../bank-book/data";
+
+export interface ApiCashAccount {
+  id: string; accountCode: string; accountName: string; accountType: string;
+  branchId: string; branchName: string; bankName: string; accountNo: string;
+  ifscCode: string; accountHolder: string;
+  openingBalance: string; currentBalance: string;
+  status: string; createdAt: string; updatedAt: string;
+}
+
+export interface ApiCashTransaction {
+  id: string; transactionDate: string; transactionNumber: string; referenceNumber: string;
+  transactionType: string; description: string;
+  category: string | null; customerName: string | null; vendorName: string | null; employeeName: string;
+  debit: string; credit: string; runningBalance: string;
+  createdBy: string; status: string; voucherNumber: string | null; createdAt: string;
+}
+
+export interface ApiCashSummary {
+  openingBalance: string; totalCashIn: string; totalCashOut: string; closingBalance: string;
+  physicalCashBalance: string | null; lastReconciledAt: string | null;
+}
+
+const API_TXN_TYPE_MAP: Partial<Record<string, CashTxnType>> = {
+  CASH_IN: "Cash In",
+  CASH_WITHDRAWAL: "Cash Withdrawal",
+  EXPENSE_PAYMENT: "Expense Payment",
+  CUSTOMER_EXPENSE: "Customer Expense",
+  EMPLOYEE_ADVANCE: "Employee Advance",
+  ADVANCE_SETTLEMENT: "Advance Settlement",
+  EMPLOYEE_REIMBURSEMENT: "Employee Reimbursement",
+  BANK_TRANSFER_IN: "Bank Transfer In",
+  BANK_TRANSFER_OUT: "Bank Transfer Out",
+  CASH_ADJUSTMENT: "Cash Adjustment",
+  REFUND: "Refund",
+  OPENING_BALANCE: "Opening Balance",
+};
+
+export function mapApiCashAccount(a: ApiCashAccount): CashAccount {
+  return {
+    id: a.id,
+    name: a.accountName,
+    branch: a.branchName,
+    openingBalance: _ltr(a.openingBalance),
+    reservedFloat: 0,
+  };
+}
+
+export function mapApiCashTransaction(t: ApiCashTransaction, accountId: string): CashTxn {
+  return {
+    id: parseInt(t.id, 10),
+    accountId,
+    date: t.transactionDate,
+    txnNo: t.transactionNumber,
+    refNo: t.referenceNumber || "",
+    type: API_TXN_TYPE_MAP[t.transactionType] ?? "Other",
+    description: t.description,
+    category: t.category ?? "",
+    customer: t.customerName ?? "",
+    project: "",
+    salesOrder: "",
+    vendor: t.vendorName ?? "",
+    employee: t.employeeName ?? "",
+    debit: _ltr(t.debit),
+    credit: _ltr(t.credit),
+    createdBy: t.createdBy,
+    recon: (t.status === "POSTED" || t.status === "RECONCILED") ? "Reconciled" : "Unreconciled",
+    approval: "Approved",
+    adjusted: false,
+    reversed: false,
+    voucherRef: t.voucherNumber ?? undefined,
+  };
+}

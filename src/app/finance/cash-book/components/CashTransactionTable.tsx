@@ -23,29 +23,42 @@ type ColKey = (typeof ALL_COLUMNS)[number]["key"];
 
 const PAGE_SIZE = 8;
 
+export interface CashApiPaginationControls {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+  onPageSizeChange?: (ps: number) => void;
+}
+
 export default function CashTransactionTable({
-  rows, balanceById, onRowClick, onExport,
+  rows, balanceById, onRowClick, onExport, search, onSearch, apiPagination,
 }: {
   rows: CashTxn[];
   balanceById: Map<number, number>;
   caps: CashCaps;
   onRowClick: (t: CashTxn) => void;
   onExport: (kind: "excel" | "pdf") => void;
+  search: string;
+  onSearch: (q: string) => void;
+  apiPagination?: CashApiPaginationControls;
 }) {
-  const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [hidden, setHidden] = useState<Set<ColKey>>(new Set(["refNo", "createdBy"]));
   const [showCols, setShowCols] = useState(false);
 
+  // When apiPagination is provided the API already filtered; no local search needed.
   const searched = useMemo(() => {
+    if (apiPagination) return rows;
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) =>
       [r.txnNo, r.refNo, r.type, r.description, r.category, r.customer, r.employee, r.vendor, r.createdBy]
         .some((v) => (v || "").toLowerCase().includes(q)));
-  }, [rows, search]);
+  }, [rows, search, apiPagination]);
 
   const sorted = useMemo(() => {
     const arr = [...searched];
@@ -64,9 +77,9 @@ export default function CashTransactionTable({
     return arr;
   }, [searched, sortKey, sortDir, balanceById]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pageRows = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const totalPages = apiPagination ? apiPagination.totalPages : Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = apiPagination ? apiPagination.page : Math.min(page, totalPages);
+  const pageRows = apiPagination ? sorted : sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   function toggleSort(k: SortKey) {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -81,7 +94,7 @@ export default function CashTransactionTable({
       <div className="card-header" style={{ flexWrap: "wrap", gap: 8 }}>
         <div className="tb-search" style={{ minWidth: 200, maxWidth: 280 }}>
           <Search size={14} className="tb-search-icon" />
-          <input className="tb-search-input" placeholder="Search transactions…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          <input className="tb-search-input" placeholder="Search transactions…" value={search} onChange={(e) => { onSearch(e.target.value); if (!apiPagination) setPage(1); }} />
         </div>
         <div style={{ display: "flex", gap: 8, marginLeft: "auto", position: "relative" }}>
           <button className="btn-cav btn-cav-secondary btn-cav-sm" onClick={() => setShowCols((s) => !s)}><Columns3 size={13} /> Columns</button>
@@ -170,14 +183,29 @@ export default function CashTransactionTable({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: "1px solid var(--border-subtle)", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
-          {sorted.length === 0 ? "0 results" : `Showing ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, sorted.length)} of ${sorted.length}`}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)} style={safePage <= 1 ? { opacity: 0.4 } : undefined}>Prev</button>
-          <span style={{ fontSize: 12, color: "var(--fg-2)", fontWeight: 600 }}>{safePage} / {totalPages}</span>
-          <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)} style={safePage >= totalPages ? { opacity: 0.4 } : undefined}>Next</button>
-        </div>
+        {apiPagination ? (
+          <>
+            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
+              {apiPagination.total === 0 ? "0 results" : `Showing ${(apiPagination.page - 1) * apiPagination.pageSize + 1}–${Math.min(apiPagination.page * apiPagination.pageSize, apiPagination.total)} of ${apiPagination.total}`}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={apiPagination.page <= 1} onClick={() => apiPagination.onPageChange(apiPagination.page - 1)} style={apiPagination.page <= 1 ? { opacity: 0.4 } : undefined}>Prev</button>
+              <span style={{ fontSize: 12, color: "var(--fg-2)", fontWeight: 600 }}>{apiPagination.page} / {apiPagination.totalPages || 1}</span>
+              <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={apiPagination.page >= apiPagination.totalPages} onClick={() => apiPagination.onPageChange(apiPagination.page + 1)} style={apiPagination.page >= apiPagination.totalPages ? { opacity: 0.4 } : undefined}>Next</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
+              {sorted.length === 0 ? "0 results" : `Showing ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, sorted.length)} of ${sorted.length}`}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)} style={safePage <= 1 ? { opacity: 0.4 } : undefined}>Prev</button>
+              <span style={{ fontSize: 12, color: "var(--fg-2)", fontWeight: 600 }}>{safePage} / {totalPages}</span>
+              <button className="btn-cav btn-cav-secondary btn-cav-sm" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)} style={safePage >= totalPages ? { opacity: 0.4 } : undefined}>Next</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

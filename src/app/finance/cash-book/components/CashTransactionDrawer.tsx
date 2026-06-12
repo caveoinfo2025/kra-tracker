@@ -1,16 +1,17 @@
 "use client";
 import { X, Printer, Download, FileText, CheckCircle2, Link2, History } from "lucide-react";
-import { CashTxn, CashCaps, fmtINR, fmtDate, reconBadge, CASH_ACCOUNTS, SOURCE_META } from "../data";
+import { CashTxn, CashCaps, fmtINR, fmtDate, reconBadge, SOURCE_META } from "../data";
 
 export default function CashTransactionDrawer({
-  txn, caps, onClose, onReconcile,
+  txn, caps, onClose, onReconcile, accountName,
 }: {
   txn: CashTxn;
   caps: CashCaps;
   onClose: () => void;
   onReconcile: (id: number) => void;
+  accountName?: string;
 }) {
-  const account = CASH_ACCOUNTS.find((a) => a.id === txn.accountId);
+  const displayAccount = accountName ?? txn.accountId;
   const amount = txn.debit || txn.credit;
   const dir = txn.debit ? "Debit" : "Credit";
 
@@ -43,7 +44,7 @@ export default function CashTransactionDrawer({
             <div className="kv-grid">
               <Row k="Txn No" v={txn.txnNo} />
               <Row k="Date" v={fmtDate(txn.date)} />
-              <Row k="Cash Account" v={account?.name ?? txn.accountId} />
+              <Row k="Cash Account" v={displayAccount} />
               <Row k="Amount" v={`${fmtINR(amount)} (${dir})`} />
               <Row k="Type" v={txn.type} />
               <Row k="Category" v={txn.category} />

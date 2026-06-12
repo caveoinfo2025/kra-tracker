@@ -1,19 +1,26 @@
 "use client";
 
 /**
- * Bank Book — orchestrator (Phase 2, UI only).
- * Composes the reusable Bank* components over mock data. No backend.
+ * Bank Book — orchestrator (Step 2B: wired to live APIs).
+ *
+ * Accounts:     GET /api/finance/accounts?type=BANK
+ * Transactions: GET /api/finance/bank-book
+ *
+ * Write actions (Add Entry, Transfer Funds, Import Statement) remain
+ * visible but are gated pending write API implementation.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Plus, ArrowLeftRight, Upload, FileSpreadsheet, FileText, X, Info, Banknote,
+  Plus, ArrowLeftRight, Upload, FileSpreadsheet, FileText,
+  Banknote, AlertCircle, RefreshCw, CheckCircle2,
 } from "lucide-react";
 import {
-  BankAccount, BankTxn, ImportHistoryRow, BankCaps, SourceLink,
-  BANK_ACCOUNTS, BANK_TXNS, IMPORT_HISTORY, TXN_TYPES, PAYMENT_MODES,
-  OPEN_COLLECTIONS, CUSTOMER_ADVANCES, PAYABLE_EXPENSES,
-  FY, fmtINR, fmtDate, computeBalances, isCreditType,
+  BankAccount, BankTxn, BankCaps, ImportHistoryRow,
+  ApiAccount, ApiTransaction, ApiSummary, ApiPagination,
+  BANK_ACCOUNTS, IMPORT_HISTORY,
+  FY, fmtINR, fmtDate,
+  mapApiBankAccount, mapApiTransaction, lakhsToRupees,
 } from "./data";
 import BankBalanceCard from "./components/BankBalanceCard";
 import BankSummaryPanel from "./components/BankSummaryPanel";
@@ -21,122 +28,216 @@ import BankFilters, { BankFilterValues, EMPTY_FILTERS } from "./components/BankF
 import BankTransactionTable from "./components/BankTransactionTable";
 import BankTransactionDrawer from "./components/BankTransactionDrawer";
 import BankImportWizard from "./components/BankImportWizard";
-import { getExtraBankTxns } from "../_shared/transferStore";
+
+const PAGE_SIZE_DEFAULT = 25;
 
 const inputCls = "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]";
 const labelCls = "block text-xs font-medium text-gray-700 mb-1";
 
 export default function BankBookClient({ caps, currentUser }: { caps: BankCaps; currentUser: string }) {
-  // Seed from the mock data plus any Bank↔Cash transfer entries created this session.
-  const [txns, setTxns] = useState<BankTxn[]>(() => [...BANK_TXNS, ...getExtraBankTxns()]);
-  const [history, setHistory] = useState<ImportHistoryRow[]>(IMPORT_HISTORY);
-  const [filters, setFilters] = useState<BankFilterValues>({ ...EMPTY_FILTERS, accountId: "hdfc" });
+  // ── Account state ──
+  const [apiAccounts, setApiAccounts] = useState<ApiAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+
+  // ── Transaction state ──
+  const [apiTxns, setApiTxns] = useState<ApiTransaction[]>([]);
+  const [summary, setSummary] = useState<ApiSummary | null>(null);
+  const [pagination, setPagination] = useState<ApiPagination>({ page: 1, pageSize: PAGE_SIZE_DEFAULT, total: 0, totalPages: 0 });
+  const [txnLoading, setTxnLoading] = useState(false);
+  const [txnError, setTxnError] = useState<string | null>(null);
+
+  // ── UI state ──
+  const [filters, setFilters] = useState<BankFilterValues>({ ...EMPTY_FILTERS });
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [searchQuery, setSearchQuery] = useState("");
   const [drawerTxn, setDrawerTxn] = useState<BankTxn | null>(null);
-  const [modal, setModal] = useState<null | "add" | "transfer" | "import">(null);
+  const [drawerAccountName, setDrawerAccountName] = useState<string | undefined>(undefined);
+  const [modal, setModal] = useState<null | "import">(null);
+  const [history, setHistory] = useState<ImportHistoryRow[]>(IMPORT_HISTORY);
+  const [toast, setToast] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Running balance across all accounts ──
-  const balanceById = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const acc of BANK_ACCOUNTS) computeBalances(acc, txns).forEach((v, k) => m.set(k, v));
-    return m;
-  }, [txns]);
+  function flash(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2800);
+  }
 
-  const selectedAccounts: BankAccount[] = filters.accountId === "all"
-    ? BANK_ACCOUNTS
-    : BANK_ACCOUNTS.filter((a) => a.id === filters.accountId);
-
-  // ── Header balance metrics ──
-  const metrics = useMemo(() => {
-    let current = 0, available = 0, mCredit = 0, mDebit = 0;
-    for (const acc of selectedAccounts) {
-      const accTxns = txns.filter((t) => t.accountId === acc.id);
-      const net = accTxns.reduce((s, t) => s + t.credit - t.debit, 0);
-      current += acc.openingBalance + net;
-      available += acc.openingBalance + net + acc.overdraftLimit;
-      for (const t of accTxns) {
-        if (new Date(t.date + "T00:00:00").getMonth() === 5) { // June = current month (mock)
-          mCredit += t.credit; mDebit += t.debit;
-        }
+  // ── Fetch accounts ──
+  const fetchAccounts = useCallback(async () => {
+    setAccountsLoading(true);
+    setAccountsError(null);
+    try {
+      const res = await fetch("/api/finance/accounts?type=BANK");
+      if (res.status === 401 || res.status === 403) {
+        setAccountsError("You don't have permission to view bank accounts.");
+        return;
       }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const accounts: ApiAccount[] = json?.data?.accounts ?? [];
+      setApiAccounts(accounts);
+      // Auto-select first active account
+      if (accounts.length > 0 && selectedAccountId === "all") {
+        setSelectedAccountId(accounts[0].id);
+      }
+    } catch {
+      setAccountsError("Unable to load bank accounts. Please try again.");
+    } finally {
+      setAccountsLoading(false);
     }
-    return { current, available, mCredit, mDebit };
-  }, [selectedAccounts, txns]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Apply filters ──
-  const filtered = useMemo(() => {
-    return txns.filter((t) => {
-      if (filters.accountId !== "all" && t.accountId !== filters.accountId) return false;
-      if (filters.dateFrom && t.date < filters.dateFrom) return false;
-      if (filters.dateTo && t.date > filters.dateTo) return false;
-      if (filters.branch) {
-        const acc = BANK_ACCOUNTS.find((a) => a.id === t.accountId);
-        if (acc?.branch !== filters.branch) return false;
+  // ── Fetch transactions ──
+  const fetchTxns = useCallback(async (
+    accountId: string,
+    activeFilters: BankFilterValues,
+    currentPage: number,
+    currentPageSize: number,
+    search: string,
+  ) => {
+    setTxnLoading(true);
+    setTxnError(null);
+    try {
+      const p = new URLSearchParams();
+      if (accountId !== "all") p.set("accountId", accountId);
+      if (activeFilters.dateFrom) p.set("dateFrom", activeFilters.dateFrom);
+      if (activeFilters.dateTo)   p.set("dateTo", activeFilters.dateTo);
+      if (activeFilters.branch)   p.set("branchId", activeFilters.branch);
+      if (activeFilters.txnType)  p.set("transactionType", activeFilters.txnType.toLowerCase().replace(/ /g, "_"));
+      if (activeFilters.mode)     p.set("paymentMode", activeFilters.mode.toLowerCase());
+      if (activeFilters.approval) p.set("status", activeFilters.approval === "Approved" ? "RECONCILED" : "UNRECONCILED");
+      // Search: combine customer / vendor / employee / direct search into one param
+      const searchTerm = search || activeFilters.customer || activeFilters.vendor || activeFilters.employee;
+      if (searchTerm) p.set("search", searchTerm);
+      p.set("page", String(currentPage));
+      p.set("pageSize", String(currentPageSize));
+
+      const res = await fetch(`/api/finance/bank-book?${p.toString()}`);
+      if (res.status === 401 || res.status === 403) {
+        setTxnError("You don't have permission to view this bank book.");
+        return;
       }
-      if (filters.txnType && t.type !== filters.txnType) return false;
-      if (filters.mode && t.mode !== filters.mode) return false;
-      if (filters.approval && t.approval !== filters.approval) return false;
-      if (filters.customer && !(t.partyKind === "customer" && t.party.toLowerCase().includes(filters.customer.toLowerCase()))) return false;
-      if (filters.vendor && !(t.partyKind === "vendor" && t.party.toLowerCase().includes(filters.vendor.toLowerCase()))) return false;
-      if (filters.employee && !(t.partyKind === "employee" && t.party.toLowerCase().includes(filters.employee.toLowerCase()))) return false;
-      return true;
-    });
-  }, [txns, filters]);
+      if (res.status === 400) {
+        const j = await res.json().catch(() => ({}));
+        setTxnError(j.error ?? "Invalid request parameters.");
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setApiTxns(json?.data?.transactions ?? []);
+      setSummary(json?.data?.summary ?? null);
+      setPagination(json?.data?.pagination ?? { page: 1, pageSize: currentPageSize, total: 0, totalPages: 0 });
+    } catch {
+      setTxnError("Unable to load bank book data. Please try again.");
+    } finally {
+      setTxnLoading(false);
+    }
+  }, []);
 
-  // Reconciliation tallies for the selected account(s)
-  const recon = useMemo(() => {
-    const scope = txns.filter((t) => filters.accountId === "all" || t.accountId === filters.accountId);
-    return {
-      reconciled: scope.filter((t) => t.recon === "Reconciled").length,
-      unreconciled: scope.filter((t) => t.recon === "Unreconciled").length,
-      partial: scope.filter((t) => t.recon === "Partially Reconciled").length,
-    };
-  }, [txns, filters.accountId]);
+  // ── Initial load ──
+  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
-  // ── Mutations ──
+  // ── Re-fetch transactions when account / filters / page changes ──
+  useEffect(() => {
+    fetchTxns(selectedAccountId, filters, page, pageSize, searchQuery);
+  }, [selectedAccountId, filters, page, pageSize, searchQuery, fetchTxns]);
+
+  // ── Debounced search handler ──
+  function handleSearch(q: string) {
+    setSearchQuery(q);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setPage(1); // reset to page 1 on search
+    }, 350);
+  }
+
+  // ── Account change ──
+  function handleAccountChange(id: string) {
+    setSelectedAccountId(id);
+    setPage(1);
+    setSearchQuery("");
+  }
+
+  // ── Filter apply / reset ──
+  function handleApplyFilters(v: BankFilterValues) {
+    setFilters(v);
+    setPage(1);
+  }
+  function handleResetFilters() {
+    setFilters(EMPTY_FILTERS);
+    setPage(1);
+    setSearchQuery("");
+  }
+
+  // ── Pagination ──
+  function handlePageChange(p: number) { setPage(p); }
+  function handlePageSizeChange(ps: number) { setPageSize(ps); setPage(1); }
+
+  // ── Map API data to legacy UI types ──
+  const uiAccounts: BankAccount[] = apiAccounts.map(mapApiBankAccount);
+
+  const selectedApiAccount = selectedAccountId !== "all"
+    ? apiAccounts.find((a) => a.id === selectedAccountId)
+    : null;
+
+  const uiTxns: BankTxn[] = apiTxns.map((t) =>
+    mapApiTransaction(t, selectedAccountId !== "all" ? selectedAccountId : t.id),
+  );
+
+  // Running balance map: id → rupees (from API runningBalance field)
+  const balanceById = new Map<number, number>(
+    apiTxns.map((t) => [parseInt(t.id, 10), lakhsToRupees(t.runningBalance)]),
+  );
+
+  // ── Header balance metrics (from selected account or aggregated) ──
+  const currentBalance = selectedApiAccount
+    ? lakhsToRupees(selectedApiAccount.currentBalance)
+    : apiAccounts.reduce((s, a) => s + lakhsToRupees(a.currentBalance), 0);
+
+  const openingBalance = selectedApiAccount
+    ? lakhsToRupees(selectedApiAccount.openingBalance)
+    : apiAccounts.reduce((s, a) => s + lakhsToRupees(a.openingBalance), 0);
+
+  // Summary card values from API summary (for date-range-aware totals)
+  const summaryCredits = summary ? lakhsToRupees(summary.totalCredits) : 0;
+  const summaryDebits  = summary ? lakhsToRupees(summary.totalDebits)  : 0;
+
+  // ── Reconciliation tallies (from current page) ──
+  const reconCounts = uiTxns.reduce(
+    (acc, t) => {
+      if (t.recon === "Reconciled") acc.reconciled++;
+      else if (t.recon === "Partially Reconciled") acc.partial++;
+      else acc.unreconciled++;
+      return acc;
+    },
+    { reconciled: 0, partial: 0, unreconciled: 0 },
+  );
+
+  // ── Reconcile action (read-only for now — optimistic UI only) ──
   function reconcile(ids: number[]) {
-    setTxns((ts) => ts.map((t) => (ids.includes(t.id) ? { ...t, recon: "Reconciled" as const } : t)));
+    flash("Reconciliation will be enabled after Bank Book write APIs are implemented.");
     setDrawerTxn((d) => (d && ids.includes(d.id) ? { ...d, recon: "Reconciled" } : d));
   }
 
-  function addEntry(data: Omit<BankTxn, "id" | "txnNo" | "createdBy" | "recon" | "approval" | "imported">) {
-    const id = Math.max(0, ...txns.map((t) => t.id)) + 1;
-    const entry: BankTxn = {
-      ...data, id, txnNo: `BB/${FY}/${String(id).padStart(4, "0")}`,
-      createdBy: currentUser, recon: "Unreconciled", approval: "Pending", imported: false,
-    };
-    setTxns((ts) => [...ts, entry]);
-    setModal(null);
+  // ── Feature-gated write actions ──
+  function handleAddEntry() {
+    flash("Add Bank Entry will be enabled after Bank Book write APIs are implemented.");
+  }
+  function handleTransfer() {
+    flash("Transfer Funds will be enabled after Bank Book write APIs are implemented.");
+  }
+  function handleImport() {
+    flash("Import Bank Statement will be enabled after Bank Book write APIs are implemented.");
   }
 
-  function transfer(fromId: string, toId: string, amount: number, date: string, ref: string) {
-    let id = Math.max(0, ...txns.map((t) => t.id));
-    const from = BANK_ACCOUNTS.find((a) => a.id === fromId)!;
-    const to = BANK_ACCOUNTS.find((a) => a.id === toId)!;
-    const mk = (accountId: string, debit: number, credit: number, desc: string): BankTxn => {
-      id += 1;
-      return {
-        id, accountId, date, txnNo: `BB/${FY}/${String(id).padStart(4, "0")}`,
-        refNo: ref || `TRF-${id}`, type: "Bank Transfer", description: desc, party: "", partyKind: "",
-        mode: "Bank Transfer", debit, credit, createdBy: currentUser, recon: "Unreconciled",
-        approval: "Pending", imported: false,
-      };
-    };
-    setTxns((ts) => [
-      ...ts,
-      mk(fromId, amount, 0, `Transfer to ${to.name}`),
-      mk(toId, 0, amount, `Transfer from ${from.name}`),
-    ]);
-    setModal(null);
-  }
-
-  function completeImport(row: ImportHistoryRow) {
-    setHistory((h) => [row, ...h]);
-  }
-
+  // ── Export (local, from current page) ──
   function exportData(kind: "excel" | "pdf") {
     if (kind === "excel") {
       const head = ["Date", "Txn No", "Ref", "Type", "Description", "Party", "Mode", "Debit", "Credit", "Balance", "Status"];
-      const body = filtered.map((t) => [
+      const body = uiTxns.map((t) => [
         fmtDate(t.date), t.txnNo, t.refNo, t.type, t.description, t.party, t.mode,
         t.debit || "", t.credit || "", balanceById.get(t.id) ?? "", t.recon,
       ]);
@@ -145,16 +246,81 @@ export default function BankBookClient({ caps, currentUser }: { caps: BankCaps; 
       const blob = new Blob([`﻿${html}`], { type: "application/vnd.ms-excel" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "BankBook.xls"; a.click(); URL.revokeObjectURL(a.href);
     } else {
-      const rowsHtml = filtered.map((t) => `<tr><td>${fmtDate(t.date)}</td><td>${t.txnNo}</td><td>${t.type}</td><td>${t.description}</td><td style="text-align:right;color:#8E0A1F">${t.debit ? fmtINR(t.debit) : ""}</td><td style="text-align:right;color:#1F7A3F">${t.credit ? fmtINR(t.credit) : ""}</td><td style="text-align:right;font-weight:600">${fmtINR(balanceById.get(t.id) ?? 0)}</td><td>${t.recon}</td></tr>`).join("");
-      const html = `<!doctype html><html><head><title>Bank Book</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px;color:#0F1115}h1{font-size:18px;margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#EEF0F3;text-align:left;padding:7px 8px;font-size:9px;text-transform:uppercase;color:#5B626C}td{padding:6px 8px;border-bottom:1px solid #E3E6EB}</style></head><body><h1>Bank Book — ${filters.accountId === "all" ? "All Accounts" : BANK_ACCOUNTS.find((a) => a.id === filters.accountId)?.name}</h1><table><thead><tr><th>Date</th><th>Txn No</th><th>Type</th><th>Description</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
+      const acctLabel = selectedApiAccount?.accountName ?? "All Accounts";
+      const rowsHtml = uiTxns.map((t) => `<tr><td>${fmtDate(t.date)}</td><td>${t.txnNo}</td><td>${t.type}</td><td>${t.description}</td><td style="text-align:right;color:#8E0A1F">${t.debit ? fmtINR(t.debit) : ""}</td><td style="text-align:right;color:#1F7A3F">${t.credit ? fmtINR(t.credit) : ""}</td><td style="text-align:right;font-weight:600">${fmtINR(balanceById.get(t.id) ?? 0)}</td><td>${t.recon}</td></tr>`).join("");
+      const html = `<!doctype html><html><head><title>Bank Book</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px;color:#0F1115}h1{font-size:18px;margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#EEF0F3;text-align:left;padding:7px 8px;font-size:9px;text-transform:uppercase;color:#5B626C}td{padding:6px 8px;border-bottom:1px solid #E3E6EB}</style></head><body><h1>Bank Book — ${acctLabel}</h1><table><thead><tr><th>Date</th><th>Txn No</th><th>Type</th><th>Description</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
       const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); }
     }
   }
 
-  const headerAccount = filters.accountId === "all" ? null : BANK_ACCOUNTS.find((a) => a.id === filters.accountId);
+  // ── Loading skeleton ──
+  const SkeletonCard = () => (
+    <div className="kpi" style={{ animation: "pulse 1.5s infinite" }}>
+      <div style={{ height: 12, width: "60%", background: "var(--border)", borderRadius: 4, marginBottom: 8 }} />
+      <div style={{ height: 24, width: "80%", background: "var(--border)", borderRadius: 4 }} />
+    </div>
+  );
+  const SkeletonRow = () => (
+    <tr>
+      {[1,2,3,4,5,6,7].map((i) => (
+        <td key={i}><div style={{ height: 14, background: "var(--border)", borderRadius: 3, animation: "pulse 1.5s infinite" }} /></td>
+      ))}
+    </tr>
+  );
+
+  // ── No accounts empty state ──
+  if (!accountsLoading && !accountsError && apiAccounts.length === 0) {
+    return (
+      <div className="card">
+        <div style={{ textAlign: "center", padding: "64px 16px", color: "var(--fg-4)" }}>
+          <Banknote size={40} strokeWidth={1.2} style={{ opacity: 0.5 }} />
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--fg-3)", marginTop: 12 }}>No bank accounts configured</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Ask your Finance Administrator to set up bank accounts.</div>
+          <button className="btn-cav btn-cav-secondary btn-cav-sm" style={{ marginTop: 20 }} disabled>Go to Finance Settings</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Accounts fetch error ──
+  if (accountsError) {
+    return (
+      <div className="card">
+        <div style={{ textAlign: "center", padding: "64px 16px", color: "var(--fg-4)" }}>
+          <AlertCircle size={40} strokeWidth={1.2} style={{ color: "var(--caveo-red)", opacity: 0.7 }} />
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-2)", marginTop: 12 }}>{accountsError}</div>
+          <button className="btn-cav btn-cav-primary btn-cav-sm" style={{ marginTop: 20 }} onClick={fetchAccounts}>
+            <RefreshCw size={13} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const headerAccountLabel = selectedAccountId === "all"
+    ? `${apiAccounts.length} account${apiAccounts.length === 1 ? "" : "s"} · FY ${FY}`
+    : selectedApiAccount ? `${selectedApiAccount.branchName} · ${selectedApiAccount.bankName}` : "";
+
+  // Derive a BankAccount for BankSummaryPanel (legacy shape)
+  const summaryAccount: BankAccount = selectedApiAccount
+    ? mapApiBankAccount(selectedApiAccount)
+    : { id: "all", name: "All Accounts", maskedNo: "", branch: "", openingBalance, overdraftLimit: 0 };
 
   return (
     <div className="space-y-4">
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+          background: "var(--fg-1)", color: "#fff", borderRadius: 10,
+          padding: "10px 16px", fontSize: 13, display: "flex", alignItems: "center", gap: 8,
+          boxShadow: "var(--shadow-lg)",
+        }}>
+          <CheckCircle2 size={15} style={{ color: "#4ade80", flexShrink: 0 }} />
+          {toast}
+        </div>
+      )}
+
       {/* ── Header: account dropdown + quick actions ── */}
       <div className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -163,344 +329,183 @@ export default function BankBookClient({ caps, currentUser }: { caps: BankCaps; 
           </span>
           <div>
             <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", fontWeight: 600 }}>Bank Account</div>
-            <select
-              value={filters.accountId}
-              onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
-              style={{ border: "none", background: "transparent", fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "var(--fg-1)", padding: 0, cursor: "pointer", outline: "none" }}
-            >
-              <option value="all">All Accounts</option>
-              {BANK_ACCOUNTS.map((a) => <option key={a.id} value={a.id}>{a.name} {a.maskedNo}</option>)}
-            </select>
-            <div style={{ fontSize: 11.5, color: "var(--fg-4)" }}>
-              {headerAccount ? `${headerAccount.branch} · ${headerAccount.maskedNo}` : `${BANK_ACCOUNTS.length} accounts · FY ${FY}`}
-            </div>
+            {accountsLoading ? (
+              <div style={{ height: 24, width: 160, background: "var(--border)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+            ) : (
+              <select
+                value={selectedAccountId}
+                onChange={(e) => handleAccountChange(e.target.value)}
+                style={{ border: "none", background: "transparent", fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "var(--fg-1)", padding: 0, cursor: "pointer", outline: "none" }}
+              >
+                <option value="all">All Accounts</option>
+                {apiAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.accountName} {a.bankName ? `(${a.bankName})` : ""}</option>
+                ))}
+              </select>
+            )}
+            <div style={{ fontSize: 11.5, color: "var(--fg-4)" }}>{headerAccountLabel}</div>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {caps.canAdd && <button className="btn-cav btn-cav-primary" onClick={() => setModal("add")}><Plus size={14} /> Add Bank Entry</button>}
-          {caps.canAdd && <button className="btn-cav btn-cav-secondary" onClick={() => setModal("transfer")}><ArrowLeftRight size={14} /> Transfer Funds</button>}
-          {caps.canImport && <button className="btn-cav btn-cav-secondary" onClick={() => setModal("import")}><Upload size={14} /> Import Statement</button>}
+          {caps.canAdd && (
+            <button className="btn-cav btn-cav-primary" onClick={handleAddEntry}>
+              <Plus size={14} /> Add Bank Entry
+            </button>
+          )}
+          {caps.canAdd && (
+            <button className="btn-cav btn-cav-secondary" onClick={handleTransfer}>
+              <ArrowLeftRight size={14} /> Transfer Funds
+            </button>
+          )}
+          {caps.canImport && (
+            <button className="btn-cav btn-cav-secondary" onClick={handleImport}>
+              <Upload size={14} /> Import Statement
+            </button>
+          )}
           <button className="btn-cav btn-cav-secondary" onClick={() => exportData("excel")}><FileSpreadsheet size={14} /> Excel</button>
           <button className="btn-cav btn-cav-secondary" onClick={() => exportData("pdf")}><FileText size={14} /> PDF</button>
         </div>
       </div>
 
-      {/* ── Filters (collapsible, top) ── */}
+      {/* ── Filters ── */}
       <BankFilters
-        accounts={BANK_ACCOUNTS}
+        accounts={uiAccounts}
         value={filters}
-        onApply={(v) => setFilters(v)}
-        onReset={() => setFilters({ ...EMPTY_FILTERS, accountId: filters.accountId })}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
       />
 
       {/* ── Balance cards ── */}
       <div className="kpi-grid">
-        <BankBalanceCard label="Current Balance" value={metrics.current} accent sub={headerAccount ? headerAccount.name : "All accounts"} />
-        <BankBalanceCard label="Available Balance" value={metrics.available} accent sub="Incl. overdraft limit" />
-        <BankBalanceCard label="Monthly Credits" value={metrics.mCredit} tone="credit" sub="This month" />
-        <BankBalanceCard label="Monthly Debits" value={metrics.mDebit} tone="debit" sub="This month" />
-      </div>
-
-      {/* ── Role / permission note ── */}
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--fg-4)" }}>
-        <Info size={12} />
-        Signed in as <b style={{ color: "var(--fg-3)" }}>{caps.roleLabel}</b> · illustrative data (bank-book API ships in a later phase).
+        {accountsLoading ? (
+          <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+        ) : (
+          <>
+            <BankBalanceCard label="Current Balance"  value={currentBalance}   accent sub={selectedApiAccount?.accountName ?? "All accounts"} />
+            <BankBalanceCard label="Opening Balance"  value={openingBalance}   sub="For selected period" />
+            <BankBalanceCard label="Period Credits"   value={summaryCredits}   tone="credit" sub={txnLoading ? "Loading…" : "Selected range"} />
+            <BankBalanceCard label="Period Debits"    value={summaryDebits}    tone="debit"  sub={txnLoading ? "Loading…" : "Selected range"} />
+          </>
+        )}
       </div>
 
       {/* ── Reconciliation strip ── */}
       <div className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>Reconciliation</div>
-        <span className="badge badge-success">{recon.reconciled} Reconciled</span>
-        <span className="badge badge-warning">{recon.partial} Partial</span>
-        <span className="badge badge-neutral">{recon.unreconciled} Unreconciled</span>
-        <button className="btn-cav btn-cav-ghost btn-cav-sm" style={{ marginLeft: "auto" }}>View Reconciliation History</button>
+        <span className="badge badge-success">{reconCounts.reconciled} Reconciled</span>
+        <span className="badge badge-warning">{reconCounts.partial} Partial</span>
+        <span className="badge badge-neutral">{reconCounts.unreconciled} Unreconciled</span>
+        <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--fg-4)", display: "flex", alignItems: "center", gap: 4 }}>
+          Signed in as <b style={{ color: "var(--fg-3)" }}>{caps.roleLabel}</b>
+        </div>
       </div>
 
-      {/* ── Ledger table OR empty state ── */}
-      {filtered.length === 0 ? (
+      {/* ── Transaction error ── */}
+      {txnError && (
+        <div className="card" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+          <AlertCircle size={18} style={{ color: "var(--caveo-red)", flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 13.5, color: "var(--fg-2)" }}>{txnError}</div>
+          <button className="btn-cav btn-cav-secondary btn-cav-sm" onClick={() => fetchTxns(selectedAccountId, filters, page, pageSize, searchQuery)}>
+            <RefreshCw size={13} /> Retry
+          </button>
+        </div>
+      )}
+
+      {/* ── Ledger table: loading skeleton ── */}
+      {txnLoading && (
+        <div className="card">
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
+            <div style={{ height: 32, width: 220, background: "var(--border)", borderRadius: 8, animation: "pulse 1.5s infinite" }} />
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="crm-table">
+              <tbody>{[1,2,3,4,5,6,7,8].map((i) => <SkeletonRow key={i} />)}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Ledger table: empty state ── */}
+      {!txnLoading && !txnError && uiTxns.length === 0 && (
         <div className="card">
           <div style={{ textAlign: "center", padding: "56px 16px", color: "var(--fg-4)" }}>
             <Banknote size={36} strokeWidth={1.2} style={{ opacity: 0.6 }} />
             <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-3)", marginTop: 10 }}>No bank transactions found</div>
-            <div style={{ fontSize: 12.5, marginTop: 3 }}>Adjust filters, add an entry, or import a statement.</div>
+            <div style={{ fontSize: 12.5, marginTop: 3 }}>Adjust filters or add your first bank entry.</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 18, flexWrap: "wrap" }}>
-              {caps.canAdd && <button className="btn-cav btn-cav-primary btn-cav-sm" onClick={() => setModal("add")}><Plus size={13} /> Add First Transaction</button>}
-              {caps.canImport && <button className="btn-cav btn-cav-secondary btn-cav-sm" onClick={() => setModal("import")}><Upload size={13} /> Import Bank Statement</button>}
+              {caps.canAdd && (
+                <button className="btn-cav btn-cav-primary btn-cav-sm" onClick={handleAddEntry}>
+                  <Plus size={13} /> Add Bank Entry
+                </button>
+              )}
+              {caps.canImport && (
+                <button className="btn-cav btn-cav-secondary btn-cav-sm" onClick={handleImport}>
+                  <Upload size={13} /> Import Bank Statement
+                </button>
+              )}
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* ── Ledger table ── */}
+      {!txnLoading && !txnError && uiTxns.length > 0 && (
         <BankTransactionTable
-          rows={filtered}
+          rows={uiTxns}
           balanceById={balanceById}
           caps={caps}
-          onRowClick={setDrawerTxn}
+          onRowClick={(txn) => {
+            setDrawerTxn(txn);
+            const acct = apiAccounts.find((a) => a.id === selectedAccountId);
+            setDrawerAccountName(acct ? `${acct.accountName} (${acct.bankName})` : undefined);
+          }}
           onBulkReconcile={reconcile}
           onExport={exportData}
+          search={searchQuery}
+          onSearch={handleSearch}
+          apiPagination={{
+            page: pagination.page,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+            onPageChange: handlePageChange,
+            onPageSizeChange: handlePageSizeChange,
+          }}
         />
       )}
 
       {/* ── Account summary ── */}
-      {headerAccount && <BankSummaryPanel account={headerAccount} txns={txns} />}
-
-      {/* ── Drawer ── */}
-      {drawerTxn && (
-        <BankTransactionDrawer txn={drawerTxn} caps={caps} onClose={() => setDrawerTxn(null)} onReconcile={(id) => reconcile([id])} />
+      {!accountsLoading && (
+        <BankSummaryPanel
+          account={summaryAccount}
+          txns={uiTxns}
+          apiSummary={summary ?? undefined}
+        />
       )}
 
-      {/* ── Import wizard ── */}
+      {/* ── Transaction drawer ── */}
+      {drawerTxn && (
+        <BankTransactionDrawer
+          txn={drawerTxn}
+          caps={caps}
+          onClose={() => setDrawerTxn(null)}
+          onReconcile={(id) => reconcile([id])}
+          accountName={drawerAccountName}
+        />
+      )}
+
+      {/* ── Import wizard (gated) ── */}
       {modal === "import" && (
         <BankImportWizard
-          accounts={BANK_ACCOUNTS}
-          defaultAccountId={filters.accountId}
+          accounts={uiAccounts.length > 0 ? uiAccounts : BANK_ACCOUNTS}
+          defaultAccountId={selectedAccountId !== "all" ? selectedAccountId : (uiAccounts[0]?.id ?? BANK_ACCOUNTS[0].id)}
           currentUser={currentUser}
           onClose={() => setModal(null)}
-          onComplete={completeImport}
+          onComplete={(row: ImportHistoryRow) => setHistory((h) => [row, ...h])}
         />
       )}
-
-      {/* ── Add Bank Entry ── */}
-      {modal === "add" && (
-        <AddEntryForm
-          accounts={BANK_ACCOUNTS}
-          defaultAccountId={filters.accountId === "all" ? BANK_ACCOUNTS[0].id : filters.accountId}
-          onClose={() => setModal(null)}
-          onSave={addEntry}
-        />
-      )}
-
-      {/* ── Transfer Funds ── */}
-      {modal === "transfer" && (
-        <TransferForm accounts={BANK_ACCOUNTS} onClose={() => setModal(null)} onSave={transfer} />
-      )}
     </div>
   );
 }
 
-// ─── Add Bank Entry slide-in ──────────────────────────────────────────────────
-
-function AddEntryForm({
-  accounts, defaultAccountId, onClose, onSave,
-}: {
-  accounts: BankAccount[];
-  defaultAccountId: string;
-  onClose: () => void;
-  onSave: (data: Omit<BankTxn, "id" | "txnNo" | "createdBy" | "recon" | "approval" | "imported">) => void;
-}) {
-  const [accountId, setAccountId] = useState(defaultAccountId);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [type, setType] = useState<typeof TXN_TYPES[number]>("Customer Receipt");
-  const [mode, setMode] = useState<typeof PAYMENT_MODES[number]>("NEFT");
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [refNo, setRefNo] = useState("");
-  const [party, setParty] = useState("");
-  const [partyKind, setPartyKind] = useState<BankTxn["partyKind"]>("");
-  const [source, setSource] = useState<SourceLink | undefined>(undefined);
-  // For Customer Receipt: settle an Invoice or an Advance
-  const [settleKind, setSettleKind] = useState<"collection" | "advance">("collection");
-  const [error, setError] = useState("");
-
-  const credit = isCreditType(type);
-  // Which source documents can this transaction type settle?
-  const linksCustomer = type === "Customer Receipt";
-  const linksExpense = type === "Vendor Payment" || type === "Expense Payment";
-
-  function clearLink() { setSource(undefined); }
-
-  function pickCollection(id: string) {
-    const c = OPEN_COLLECTIONS.find((x) => x.id === id);
-    if (!c) { clearLink(); return; }
-    setSource({ kind: "collection", id: c.id, label: `${c.invoiceNo} · ${c.customer}` });
-    setAmount(String(c.amount)); setParty(c.customer); setPartyKind("customer");
-    setDescription(`Receipt against ${c.invoiceNo}`);
-  }
-  function pickAdvance(id: string) {
-    const a = CUSTOMER_ADVANCES.find((x) => x.id === id);
-    if (!a) { clearLink(); return; }
-    setSource({ kind: "advance", id: a.id, label: `${a.ref} · ${a.customer}` });
-    setAmount(String(a.amount)); setParty(a.customer); setPartyKind("customer");
-    setDescription(`Advance received — ${a.customer}`);
-  }
-  function pickExpense(id: string) {
-    const e = PAYABLE_EXPENSES.find((x) => x.id === id);
-    if (!e) { clearLink(); return; }
-    setSource({ kind: "expense", id: e.id, label: `${e.expenseNo} · ${e.vendor}` });
-    setAmount(String(e.amount)); setParty(e.vendor); setPartyKind("vendor");
-    setMode(e.mode as typeof PAYMENT_MODES[number]);
-    setDescription(`${e.category} — ${e.vendor}`);
-  }
-
-  function submit() {
-    setError("");
-    const amt = parseFloat(amount) || 0;
-    if (!(amt > 0)) return setError("Enter an amount greater than zero.");
-    if (!description.trim()) return setError("Description is required.");
-    onSave({
-      accountId, date, type, mode, refNo: refNo.trim(), description: description.trim(),
-      party: party.trim(), partyKind,
-      debit: credit ? 0 : amt, credit: credit ? amt : 0,
-      source,
-    });
-  }
-
-  return (
-    <div className="detail-overlay" onClick={onClose}>
-      <div className="detail-pane" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Add Bank Entry</div>
-          <button onClick={onClose} className="btn-cav btn-cav-ghost btn-cav-sm"><X size={16} /></button>
-        </div>
-        <div className="dp-body">
-          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">{error}</div>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className={labelCls}>Bank Account</label>
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={inputCls}>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} {a.maskedNo}</option>)}
-              </select>
-            </div>
-            <div><label className={labelCls}>Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Transaction Type</label>
-              <select value={type} onChange={(e) => { setType(e.target.value as typeof TXN_TYPES[number]); clearLink(); setPartyKind(""); }} className={inputCls}>
-                {TXN_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div><label className={labelCls}>Payment Mode</label>
-              <select value={mode} onChange={(e) => setMode(e.target.value as typeof PAYMENT_MODES[number])} className={inputCls}>
-                {PAYMENT_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* ── Map to a source document ── */}
-          {(linksCustomer || linksExpense) && (
-            <div style={{ marginTop: 16, padding: 14, background: "var(--bg-muted)", borderRadius: 10 }}>
-              <div className="section-label" style={{ marginBottom: 10 }}>
-                {linksCustomer ? "Settle a customer receipt" : "Pay against an approved expense"}
-              </div>
-
-              {linksCustomer && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>Settlement Type</label>
-                    <select value={settleKind} onChange={(e) => { setSettleKind(e.target.value as "collection" | "advance"); clearLink(); }} className={inputCls}>
-                      <option value="collection">Invoice (Collection)</option>
-                      <option value="advance">Customer Advance</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelCls}>{settleKind === "collection" ? "Open Invoice" : "Advance"}</label>
-                    {settleKind === "collection" ? (
-                      <select value={source?.kind === "collection" ? source.id : ""} onChange={(e) => pickCollection(e.target.value)} className={inputCls}>
-                        <option value="">Select invoice…</option>
-                        {OPEN_COLLECTIONS.map((c) => <option key={c.id} value={c.id}>{c.invoiceNo} · {c.customer} · {fmtINR(c.amount)}</option>)}
-                      </select>
-                    ) : (
-                      <select value={source?.kind === "advance" ? source.id : ""} onChange={(e) => pickAdvance(e.target.value)} className={inputCls}>
-                        <option value="">Select advance…</option>
-                        {CUSTOMER_ADVANCES.map((a) => <option key={a.id} value={a.id}>{a.ref} · {a.customer} · {fmtINR(a.amount)}</option>)}
-                      </select>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {linksExpense && (
-                <div>
-                  <label className={labelCls}>Approved Expense</label>
-                  <select value={source?.kind === "expense" ? source.id : ""} onChange={(e) => pickExpense(e.target.value)} className={inputCls}>
-                    <option value="">Select expense…</option>
-                    {PAYABLE_EXPENSES.map((x) => <option key={x.id} value={x.id}>{x.expenseNo} · {x.vendor} · {fmtINR(x.amount)} ({x.mode})</option>)}
-                  </select>
-                </div>
-              )}
-
-              {source && (
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--fg-2)" }}>
-                  <span className="badge badge-accent">Linked</span>
-                  <span style={{ flex: 1 }}>{source.label}</span>
-                  <button className="btn-cav btn-cav-ghost btn-cav-sm" onClick={clearLink}>Unlink</button>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: 16 }}>
-            <div><label className={labelCls}>Amount (₹) · {credit ? "Credit" : "Debit"}</label>
-              <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} placeholder="0.00" />
-            </div>
-            <div><label className={labelCls}>Reference No</label><input value={refNo} onChange={(e) => setRefNo(e.target.value)} className={inputCls} placeholder="UTR / cheque no" /></div>
-            <div className="sm:col-span-2"><label className={labelCls}>Customer / Vendor / Payee</label><input value={party} onChange={(e) => setParty(e.target.value)} className={inputCls} placeholder="Counterparty name" /></div>
-            <div className="sm:col-span-2"><label className={labelCls}>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Narration" /></div>
-          </div>
-        </div>
-        <div style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button className="btn-cav btn-cav-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-cav btn-cav-primary" onClick={submit}>Save Entry</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Transfer Funds slide-in ──────────────────────────────────────────────────
-
-function TransferForm({
-  accounts, onClose, onSave,
-}: {
-  accounts: BankAccount[];
-  onClose: () => void;
-  onSave: (fromId: string, toId: string, amount: number, date: string, ref: string) => void;
-}) {
-  const [fromId, setFromId] = useState(accounts[0].id);
-  const [toId, setToId] = useState(accounts[1]?.id ?? accounts[0].id);
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [ref, setRef] = useState("");
-  const [error, setError] = useState("");
-
-  function submit() {
-    setError("");
-    const amt = parseFloat(amount) || 0;
-    if (fromId === toId) return setError("Choose two different accounts.");
-    if (!(amt > 0)) return setError("Enter an amount greater than zero.");
-    onSave(fromId, toId, amt, date, ref.trim());
-  }
-
-  return (
-    <div className="detail-overlay" onClick={onClose}>
-      <div className="detail-pane" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Transfer Funds</div>
-          <button onClick={onClose} className="btn-cav btn-cav-ghost btn-cav-sm"><X size={16} /></button>
-        </div>
-        <div className="dp-body">
-          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">{error}</div>}
-          <div className="grid grid-cols-1 gap-4">
-            <div><label className={labelCls}>From Account</label>
-              <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={inputCls}>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} {a.maskedNo}</option>)}
-              </select>
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", color: "var(--fg-4)" }}><ArrowLeftRight size={16} /></div>
-            <div><label className={labelCls}>To Account</label>
-              <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputCls}>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} {a.maskedNo}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className={labelCls}>Amount (₹)</label><input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} placeholder="0.00" /></div>
-              <div><label className={labelCls}>Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} /></div>
-            </div>
-            <div><label className={labelCls}>Reference No</label><input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} placeholder="Transfer reference" /></div>
-          </div>
-        </div>
-        <div style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button className="btn-cav btn-cav-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-cav btn-cav-primary" onClick={submit}>Transfer</button>
-        </div>
-      </div>
-    </div>
-  );
-}

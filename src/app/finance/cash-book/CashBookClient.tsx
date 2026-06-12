@@ -1,22 +1,32 @@
 "use client";
 
 /**
- * Cash Book — orchestrator (Phase 2, UI only). Mirrors the Bank Book module and
- * reuses its balance card, helpers, RBAC tiers, and source-link model. No backend.
+ * Cash Book — orchestrator (Step 2D: wired to live read-only APIs).
+ *
+ * Accounts:     GET /api/finance/accounts?type=CASH
+ * Transactions: GET /api/finance/cash-book
+ *
+ * Write actions remain visible but are feature-gated until Cash Book write APIs
+ * are implemented. CashEntryForm and doTransfer are kept intact for Step 2H.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus, Minus, ArrowDownLeft, ArrowUpRight, SlidersHorizontal,
-  FileSpreadsheet, FileText, X, Info, Wallet, Users, UserCog,
+  FileSpreadsheet, FileText, X, Wallet, Users, UserCog,
+  AlertCircle, RefreshCw, CheckCircle2,
 } from "lucide-react";
 import {
   CashAccount, CashTxn, CashCaps, ReconHistoryRow, SourceLink,
-  CASH_ACCOUNTS, CASH_TXNS, RECON_HISTORY, CASH_TXN_TYPES, EXPENSE_CATEGORIES,
-  FY, fmtINR, fmtDate, isCashCredit, computeCashBalances,
+  ApiCashAccount, ApiCashTransaction, ApiCashSummary, ApiPagination,
+  CASH_ACCOUNTS, RECON_HISTORY, CASH_TXN_TYPES, EXPENSE_CATEGORIES,
+  FY, fmtINR, fmtDate, isCashCredit, lakhsToRupees,
+  mapApiCashAccount, mapApiCashTransaction,
 } from "./data";
-import { OPEN_COLLECTIONS, CUSTOMER_ADVANCES, PAYABLE_EXPENSES, BANK_ACCOUNTS, BankTxn } from "../bank-book/data";
-import { getExtraCashTxns, pushCashTxn, pushBankTxn, nextExtraBankId } from "../_shared/transferStore";
+import {
+  OPEN_COLLECTIONS, CUSTOMER_ADVANCES, PAYABLE_EXPENSES, BANK_ACCOUNTS, BankTxn,
+} from "../bank-book/data";
+import { pushCashTxn, pushBankTxn, nextExtraBankId } from "../_shared/transferStore";
 import CashBalanceCard from "./components/CashBalanceCard";
 import CashFilters, { CashFilterValues, EMPTY_CASH_FILTERS } from "./components/CashFilters";
 import CashTransactionTable from "./components/CashTransactionTable";
@@ -26,105 +36,219 @@ import CashReconciliationPanel from "./components/CashReconciliationPanel";
 import CashTransferPanel from "./components/CashTransferPanel";
 import CashVoucherPanel from "./components/CashVoucherPanel";
 
+const PAGE_SIZE_DEFAULT = 25;
+
 const inputCls = "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]";
 const labelCls = "block text-xs font-medium text-gray-700 mb-1";
 const todayStr = new Date().toISOString().slice(0, 10);
 
 type Modal = null | "in" | "expense" | "adjustment" | "from-bank" | "to-bank";
 
+const WRITE_GATE_MSG = "This action will be enabled after Cash Book write APIs are implemented.";
+
 export default function CashBookClient({ caps, currentUser }: { caps: CashCaps; currentUser: string }) {
-  // Seed from the mock data plus any cross-module transfer entries created this session.
-  const [txns, setTxns] = useState<CashTxn[]>(() => [...CASH_TXNS, ...getExtraCashTxns()]);
-  const [reconHistory, setReconHistory] = useState<ReconHistoryRow[]>(RECON_HISTORY);
-  const [filters, setFilters] = useState<CashFilterValues>({ ...EMPTY_CASH_FILTERS, accountId: "cash-ho" });
+  // ── Account state ──
+  const [apiAccounts, setApiAccounts] = useState<ApiCashAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+
+  // ── Transaction state ──
+  const [apiTxns, setApiTxns] = useState<ApiCashTransaction[]>([]);
+  const [summary, setSummary] = useState<ApiCashSummary | null>(null);
+  const [pagination, setPagination] = useState<ApiPagination>({
+    page: 1, pageSize: PAGE_SIZE_DEFAULT, total: 0, totalPages: 0,
+  });
+  const [txnLoading, setTxnLoading] = useState(false);
+  const [txnError, setTxnError] = useState<string | null>(null);
+
+  // ── UI state ──
+  // filters.accountId is the source of truth for selected cash account.
+  const [filters, setFilters] = useState<CashFilterValues>({ ...EMPTY_CASH_FILTERS });
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [searchQuery, setSearchQuery] = useState("");
   const [drawerTxn, setDrawerTxn] = useState<CashTxn | null>(null);
+  const [drawerAccountName, setDrawerAccountName] = useState<string | undefined>(undefined);
   const [modal, setModal] = useState<Modal>(null);
+  const [reconHistory, setReconHistory] = useState<ReconHistoryRow[]>(RECON_HISTORY);
+  const [toast, setToast] = useState("");
   const [empFilter, setEmpFilter] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Running balances across accounts ──
-  const balanceById = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const a of CASH_ACCOUNTS) computeCashBalances(a, txns).forEach((v, k) => m.set(k, v));
-    return m;
-  }, [txns]);
+  function flash(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2800);
+  }
 
-  const selectedAccounts: CashAccount[] = filters.accountId === "all"
-    ? CASH_ACCOUNTS : CASH_ACCOUNTS.filter((a) => a.id === filters.accountId);
-
-  const users = useMemo(() => Array.from(new Set(txns.map((t) => t.createdBy))).sort(), [txns]);
-
-  // ── Header metrics ──
-  const metrics = useMemo(() => {
-    let current = 0, reserved = 0, pendingOut = 0, todayIn = 0, todayOut = 0, mIn = 0, mOut = 0;
-    for (const acc of selectedAccounts) {
-      const accTxns = txns.filter((t) => t.accountId === acc.id);
-      const net = accTxns.reduce((s, t) => s + t.credit - t.debit, 0);
-      current += acc.openingBalance + net;
-      reserved += acc.reservedFloat;
-      for (const t of accTxns) {
-        if (t.approval === "Pending") pendingOut += t.debit;
-        if (t.date === todayStr) { todayIn += t.credit; todayOut += t.debit; }
-        if (new Date(t.date + "T00:00:00").getMonth() === 5) { mIn += t.credit; mOut += t.debit; }
+  // ── Fetch accounts ──
+  const fetchAccounts = useCallback(async () => {
+    setAccountsLoading(true);
+    setAccountsError(null);
+    try {
+      const res = await fetch("/api/finance/accounts?type=CASH");
+      if (res.status === 401 || res.status === 403) {
+        setAccountsError("You don't have permission to view cash accounts.");
+        return;
       }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const accounts: ApiCashAccount[] = json?.data?.accounts ?? [];
+      setApiAccounts(accounts);
+      // Auto-select first account
+      if (accounts.length > 0) {
+        setFilters((f) => {
+          if (f.accountId === "all") return { ...f, accountId: accounts[0].id };
+          return f;
+        });
+      }
+    } catch {
+      setAccountsError("Unable to load cash accounts. Please try again.");
+    } finally {
+      setAccountsLoading(false);
     }
-    // Available = cash on hand minus reserved float and minus cash committed but not yet approved.
-    const available = Math.max(0, current - reserved - pendingOut);
-    return { current, available, todayIn, todayOut, mIn, mOut };
-  }, [selectedAccounts, txns]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Apply filters ──
-  const filtered = useMemo(() => txns.filter((t) => {
-    if (filters.accountId !== "all" && t.accountId !== filters.accountId) return false;
-    if (filters.dateFrom && t.date < filters.dateFrom) return false;
-    if (filters.dateTo && t.date > filters.dateTo) return false;
-    if (filters.branch) { const a = CASH_ACCOUNTS.find((x) => x.id === t.accountId); if (a?.branch !== filters.branch) return false; }
-    if (filters.txnType && t.type !== filters.txnType) return false;
-    if (filters.category && t.category !== filters.category) return false;
-    if (filters.approval && t.approval !== filters.approval) return false;
-    if (filters.createdBy && t.createdBy !== filters.createdBy) return false;
-    if (filters.customer && !t.customer.toLowerCase().includes(filters.customer.toLowerCase())) return false;
-    if (filters.vendor && !t.vendor.toLowerCase().includes(filters.vendor.toLowerCase())) return false;
-    if (filters.employee && !t.employee.toLowerCase().includes(filters.employee.toLowerCase())) return false;
-    return true;
-  }), [txns, filters]);
+  // ── Fetch transactions ──
+  const fetchTxns = useCallback(async (
+    activeFilters: CashFilterValues,
+    currentPage: number,
+    currentPageSize: number,
+    search: string,
+  ) => {
+    setTxnLoading(true);
+    setTxnError(null);
+    try {
+      const p = new URLSearchParams();
+      const accountId = activeFilters.accountId;
+      if (accountId !== "all") p.set("accountId", accountId);
+      if (activeFilters.dateFrom)  p.set("dateFrom", activeFilters.dateFrom);
+      if (activeFilters.dateTo)    p.set("dateTo", activeFilters.dateTo);
+      if (activeFilters.branch)    p.set("branchId", activeFilters.branch);
+      if (activeFilters.txnType)   p.set("transactionType", activeFilters.txnType.toLowerCase().replace(/ /g, "_"));
+      if (activeFilters.category)  p.set("expenseCategory", activeFilters.category);
+      if (activeFilters.approval)  p.set("status", activeFilters.approval === "Approved" ? "RECONCILED" : "UNRECONCILED");
+      // customer / vendor / employee → best-effort text search (Ledger has no FK)
+      const searchTerm = search || activeFilters.customer || activeFilters.vendor || activeFilters.employee;
+      if (searchTerm) p.set("search", searchTerm);
+      p.set("page", String(currentPage));
+      p.set("pageSize", String(currentPageSize));
 
-  // System balance for reconciliation = current balance of the selected account
-  const systemBalance = metrics.current;
+      const res = await fetch(`/api/finance/cash-book?${p.toString()}`);
+      if (res.status === 401 || res.status === 403) {
+        setTxnError("You don't have permission to view this cash book.");
+        return;
+      }
+      if (res.status === 400) {
+        const j = await res.json().catch(() => ({}));
+        setTxnError(j.error ?? "Invalid request parameters.");
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setApiTxns(json?.data?.transactions ?? []);
+      setSummary(json?.data?.summary ?? null);
+      setPagination(json?.data?.pagination ?? {
+        page: 1, pageSize: currentPageSize, total: 0, totalPages: 0,
+      });
+    } catch {
+      setTxnError("Unable to load cash book data. Please try again.");
+    } finally {
+      setTxnLoading(false);
+    }
+  }, []);
 
-  // ── Customer-linked + employee-linked subsets (scoped to selected account) ──
-  const scoped = txns.filter((t) => filters.accountId === "all" || t.accountId === filters.accountId);
-  const customerRows = scoped.filter((t) => t.customer);
-  const employeeRows = scoped.filter((t) =>
+  // ── Initial load ──
+  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  // ── Re-fetch on filter / page / search change ──
+  useEffect(() => {
+    fetchTxns(filters, page, pageSize, searchQuery);
+  }, [filters, page, pageSize, searchQuery, fetchTxns]);
+
+  // ── Debounced search ──
+  function handleSearch(q: string) {
+    setSearchQuery(q);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => { setPage(1); }, 350);
+  }
+
+  function handleAccountChange(id: string) {
+    setFilters((f) => ({ ...f, accountId: id }));
+    setPage(1);
+    setSearchQuery("");
+  }
+
+  function handleApplyFilters(v: CashFilterValues) {
+    setFilters(v);
+    setPage(1);
+  }
+  function handleResetFilters() {
+    setFilters({ ...EMPTY_CASH_FILTERS, accountId: filters.accountId });
+    setPage(1);
+    setSearchQuery("");
+  }
+
+  function handlePageChange(p: number) { setPage(p); }
+
+  // ── Map API data to legacy UI types ──
+  const uiAccounts: CashAccount[] = apiAccounts.map(mapApiCashAccount);
+
+  const selectedApiAccount = filters.accountId !== "all"
+    ? apiAccounts.find((a) => a.id === filters.accountId)
+    : null;
+
+  const uiTxns: CashTxn[] = apiTxns.map((t) =>
+    mapApiCashTransaction(t, filters.accountId !== "all" ? filters.accountId : t.id),
+  );
+
+  const balanceById = new Map<number, number>(
+    apiTxns.map((t) => [parseInt(t.id, 10), lakhsToRupees(t.runningBalance)]),
+  );
+
+  // ── Balance metrics ──
+  const currentBalance = selectedApiAccount
+    ? lakhsToRupees(selectedApiAccount.currentBalance)
+    : apiAccounts.reduce((s, a) => s + lakhsToRupees(a.currentBalance), 0);
+
+  const openingBalance = summary
+    ? lakhsToRupees(summary.openingBalance)
+    : (selectedApiAccount ? lakhsToRupees(selectedApiAccount.openingBalance) : 0);
+
+  const totalCashIn  = summary ? lakhsToRupees(summary.totalCashIn)  : 0;
+  const totalCashOut = summary ? lakhsToRupees(summary.totalCashOut) : 0;
+
+  // ── Customer / Employee subsets (current page only) ──
+  const customerRows = uiTxns.filter((t) => t.customer);
+  const employeeRows = uiTxns.filter((t) =>
     ["Employee Advance", "Advance Settlement", "Employee Reimbursement"].includes(t.type) &&
     (!empFilter || t.employee === empFilter));
-  const employees = Array.from(new Set(scoped.filter((t) => t.employee).map((t) => t.employee))).sort();
+  const employees = Array.from(new Set(uiTxns.filter((t) => t.employee).map((t) => t.employee))).sort();
 
-  // ── Mutations ──
-  const nextId = () => Math.max(0, ...txns.map((t) => t.id)) + 1;
-  function addTxn(partial: Omit<CashTxn, "id" | "txnNo">) {
-    const id = nextId();
-    setTxns((ts) => [...ts, { ...partial, id, txnNo: `CB/${FY}/${String(id).padStart(4, "0")}` }]);
-    setModal(null);
-  }
+  // ── Reconcile (optimistic UI — gated until write APIs) ──
   function reconcile(ids: number[]) {
-    setTxns((ts) => ts.map((t) => (ids.includes(t.id) ? { ...t, recon: "Reconciled" as const } : t)));
+    flash("Reconciliation will be enabled after Cash Book write APIs are implemented.");
     setDrawerTxn((d) => (d && ids.includes(d.id) ? { ...d, recon: "Reconciled" } : d));
   }
   function submitRecon(row: Omit<ReconHistoryRow, "id" | "accountId">) {
-    setReconHistory((h) => [{ ...row, id: Math.max(0, ...h.map((x) => x.id)) + 1, accountId: filters.accountId }, ...h]);
+    flash("Cash reconciliation will be enabled after Cash Book write APIs are implemented.");
+    setReconHistory((h) => [
+      { ...row, id: Math.max(0, ...h.map((x) => x.id)) + 1, accountId: filters.accountId },
+      ...h,
+    ]);
   }
-  function doTransfer(a: { cashAccountId: string; bankAccountId: string; amount: number; date: string; ref: string; mode: "from-bank" | "to-bank" }) {
+
+  // ── doTransfer — kept for Step 2H (currently never called) ──
+  function doTransfer(a: {
+    cashAccountId: string; bankAccountId: string; amount: number;
+    date: string; ref: string; mode: "from-bank" | "to-bank";
+  }) {
     const bank = BANK_ACCOUNTS.find((b) => b.id === a.bankAccountId);
     const cashAcc = CASH_ACCOUNTS.find((c) => c.id === a.cashAccountId);
     const fromBank = a.mode === "from-bank";
-
-    // Pre-compute both transaction numbers so each leg can reference the other.
-    const cashId = nextId();
+    const cashId = Math.max(0, ...uiTxns.map((t) => t.id), 0) + 1;
     const cashTxnNo = `CB/${FY}/${String(cashId).padStart(4, "0")}`;
     const bankId = nextExtraBankId();
     const bankTxnNo = `BB/${FY}/${String(bankId).padStart(4, "0")}`;
-
-    // ── Cash leg ──
     const cashEntry: CashTxn = {
       id: cashId, accountId: a.cashAccountId, date: a.date, txnNo: cashTxnNo, refNo: a.ref || bankTxnNo,
       type: fromBank ? "Bank Transfer In" : "Bank Transfer Out",
@@ -134,8 +258,6 @@ export default function CashBookClient({ caps, currentUser }: { caps: CashCaps; 
       createdBy: currentUser, recon: "Unreconciled", approval: "Approved", adjusted: false, reversed: false,
       bankTransferRef: bankTxnNo,
     };
-
-    // ── Paired Bank leg (mirror direction) ──
     const bankEntry: BankTxn = {
       id: bankId, accountId: a.bankAccountId, date: a.date, txnNo: bankTxnNo, refNo: a.ref || cashTxnNo,
       type: fromBank ? "Cash Withdrawal" : "Cash Deposit",
@@ -144,109 +266,275 @@ export default function CashBookClient({ caps, currentUser }: { caps: CashCaps; 
       debit: fromBank ? a.amount : 0, credit: fromBank ? 0 : a.amount,
       createdBy: currentUser, recon: "Unreconciled", approval: "Approved", imported: false,
     };
-
-    // Persist both legs to the shared store so each book picks them up on mount…
     pushCashTxn(cashEntry);
     pushBankTxn(bankEntry);
-    // …and reflect the cash leg immediately in this view.
-    setTxns((ts) => [...ts, cashEntry]);
+    setModal(null);
+  }
+
+  // ── addTxn — kept for Step 2H (currently never called) ──
+  function addTxn(_partial: Omit<CashTxn, "id" | "txnNo">) {
     setModal(null);
   }
 
   function exportData(kind: "excel" | "pdf") {
     if (kind === "excel") {
       const head = ["Date", "Txn No", "Ref", "Type", "Description", "Category", "Customer", "Employee", "Debit", "Credit", "Balance", "Status"];
-      const body = filtered.map((t) => [fmtDate(t.date), t.txnNo, t.refNo, t.type, t.description, t.category, t.customer, t.employee, t.debit || "", t.credit || "", balanceById.get(t.id) ?? "", t.recon]);
+      const body = uiTxns.map((t) => [
+        fmtDate(t.date), t.txnNo, t.refNo, t.type, t.description,
+        t.category, t.customer, t.employee,
+        t.debit || "", t.credit || "", balanceById.get(t.id) ?? "", t.recon,
+      ]);
       const esc = (v: string | number) => `<td>${String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</td>`;
       const html = `<table border="1"><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${body.map((r) => `<tr>${r.map(esc).join("")}</tr>`).join("")}</tbody></table>`;
       const blob = new Blob([`﻿${html}`], { type: "application/vnd.ms-excel" });
       const el = document.createElement("a"); el.href = URL.createObjectURL(blob); el.download = "CashBook.xls"; el.click(); URL.revokeObjectURL(el.href);
     } else {
-      const rowsHtml = filtered.map((t) => `<tr><td>${fmtDate(t.date)}</td><td>${t.txnNo}</td><td>${t.type}</td><td>${t.description}</td><td style="text-align:right;color:#8E0A1F">${t.debit ? fmtINR(t.debit) : ""}</td><td style="text-align:right;color:#1F7A3F">${t.credit ? fmtINR(t.credit) : ""}</td><td style="text-align:right;font-weight:600">${fmtINR(balanceById.get(t.id) ?? 0)}</td><td>${t.recon}</td></tr>`).join("");
-      const html = `<!doctype html><html><head><title>Cash Book</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px;color:#0F1115}h1{font-size:18px;margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#EEF0F3;text-align:left;padding:7px 8px;font-size:9px;text-transform:uppercase;color:#5B626C}td{padding:6px 8px;border-bottom:1px solid #E3E6EB}</style></head><body><h1>Cash Book — ${filters.accountId === "all" ? "All Accounts" : CASH_ACCOUNTS.find((a) => a.id === filters.accountId)?.name}</h1><table><thead><tr><th>Date</th><th>Txn No</th><th>Type</th><th>Description</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
+      const acctLabel = selectedApiAccount?.accountName ?? "All Accounts";
+      const rowsHtml = uiTxns.map((t) =>
+        `<tr><td>${fmtDate(t.date)}</td><td>${t.txnNo}</td><td>${t.type}</td><td>${t.description}</td><td style="text-align:right;color:#8E0A1F">${t.debit ? fmtINR(t.debit) : ""}</td><td style="text-align:right;color:#1F7A3F">${t.credit ? fmtINR(t.credit) : ""}</td><td style="text-align:right;font-weight:600">${fmtINR(balanceById.get(t.id) ?? 0)}</td><td>${t.recon}</td></tr>`
+      ).join("");
+      const html = `<!doctype html><html><head><title>Cash Book</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px;color:#0F1115}h1{font-size:18px;margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#EEF0F3;text-align:left;padding:7px 8px;font-size:9px;text-transform:uppercase;color:#5B626C}td{padding:6px 8px;border-bottom:1px solid #E3E6EB}</style></head><body><h1>Cash Book — ${acctLabel}</h1><table><thead><tr><th>Date</th><th>Txn No</th><th>Type</th><th>Description</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
       const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); }
     }
   }
 
-  const headerAccount = filters.accountId === "all" ? null : CASH_ACCOUNTS.find((a) => a.id === filters.accountId);
-  const defaultCashId = filters.accountId === "all" ? CASH_ACCOUNTS[0].id : filters.accountId;
+  // ── Loading skeleton ──
+  const SkeletonCard = () => (
+    <div className="kpi" style={{ animation: "pulse 1.5s infinite" }}>
+      <div style={{ height: 12, width: "60%", background: "var(--border)", borderRadius: 4, marginBottom: 8 }} />
+      <div style={{ height: 24, width: "80%", background: "var(--border)", borderRadius: 4 }} />
+    </div>
+  );
+  const SkeletonRow = () => (
+    <tr>
+      {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+        <td key={i}><div style={{ height: 14, background: "var(--border)", borderRadius: 3, animation: "pulse 1.5s infinite" }} /></td>
+      ))}
+    </tr>
+  );
+
+  // ── No accounts ──
+  if (!accountsLoading && !accountsError && apiAccounts.length === 0) {
+    return (
+      <div className="card">
+        <div style={{ textAlign: "center", padding: "64px 16px", color: "var(--fg-4)" }}>
+          <Wallet size={40} strokeWidth={1.2} style={{ opacity: 0.5 }} />
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--fg-3)", marginTop: 12 }}>No cash accounts configured</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Ask your Finance Administrator to set up cash accounts.</div>
+          <button className="btn-cav btn-cav-secondary btn-cav-sm" style={{ marginTop: 20 }} disabled>Go to Finance Settings</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Accounts error ──
+  if (accountsError) {
+    return (
+      <div className="card">
+        <div style={{ textAlign: "center", padding: "64px 16px", color: "var(--fg-4)" }}>
+          <AlertCircle size={40} strokeWidth={1.2} style={{ color: "var(--caveo-red)", opacity: 0.7 }} />
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-2)", marginTop: 12 }}>{accountsError}</div>
+          <button className="btn-cav btn-cav-primary btn-cav-sm" style={{ marginTop: 20 }} onClick={fetchAccounts}>
+            <RefreshCw size={13} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const headerAccountLabel = filters.accountId === "all"
+    ? `${apiAccounts.length} account${apiAccounts.length === 1 ? "" : "s"} · FY ${FY}`
+    : selectedApiAccount ? `${selectedApiAccount.branchName} · FY ${FY}` : "";
+
+  const summaryAccount: CashAccount = selectedApiAccount
+    ? mapApiCashAccount(selectedApiAccount)
+    : { id: "all", name: "All Accounts", branch: "", openingBalance, reservedFloat: 0 };
+
+  const defaultCashId = filters.accountId !== "all"
+    ? filters.accountId
+    : (apiAccounts[0]?.id ?? CASH_ACCOUNTS[0]?.id ?? "cash-ho");
 
   return (
     <div className="space-y-4">
-      {/* ── Header ── */}
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+          background: "var(--fg-1)", color: "#fff", borderRadius: 10,
+          padding: "10px 16px", fontSize: 13, display: "flex", alignItems: "center", gap: 8,
+          boxShadow: "var(--shadow-lg)",
+        }}>
+          <CheckCircle2 size={15} style={{ color: "#4ade80", flexShrink: 0 }} />
+          {toast}
+        </div>
+      )}
+
+      {/* ── Header: account dropdown + quick actions ── */}
       <div className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(200,16,46,0.08)", color: "var(--caveo-red)", display: "flex", alignItems: "center", justifyContent: "center" }}><Wallet size={20} /></span>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(200,16,46,0.08)", color: "var(--caveo-red)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Wallet size={20} />
+          </span>
           <div>
             <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", fontWeight: 600 }}>Cash Account</div>
-            <select value={filters.accountId} onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
-              style={{ border: "none", background: "transparent", fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "var(--fg-1)", padding: 0, cursor: "pointer", outline: "none" }}>
-              <option value="all">All Accounts</option>
-              {CASH_ACCOUNTS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-            <div style={{ fontSize: 11.5, color: "var(--fg-4)" }}>{headerAccount ? headerAccount.branch : `${CASH_ACCOUNTS.length} accounts`} · FY {FY}</div>
+            {accountsLoading ? (
+              <div style={{ height: 24, width: 160, background: "var(--border)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+            ) : (
+              <select
+                value={filters.accountId}
+                onChange={(e) => handleAccountChange(e.target.value)}
+                style={{ border: "none", background: "transparent", fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "var(--fg-1)", padding: 0, cursor: "pointer", outline: "none" }}
+              >
+                <option value="all">All Accounts</option>
+                {apiAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.accountName}</option>
+                ))}
+              </select>
+            )}
+            <div style={{ fontSize: 11.5, color: "var(--fg-4)" }}>{headerAccountLabel}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {caps.canAdd && <button className="btn-cav btn-cav-primary" onClick={() => setModal("in")}><Plus size={14} /> Cash In</button>}
-          {caps.canAdd && <button className="btn-cav btn-cav-secondary" onClick={() => setModal("expense")}><Minus size={14} /> Cash Expense</button>}
-          {caps.canAdd && <button className="btn-cav btn-cav-secondary" onClick={() => setModal("from-bank")}><ArrowDownLeft size={14} /> Transfer From Bank</button>}
-          {caps.canAdd && <button className="btn-cav btn-cav-secondary" onClick={() => setModal("to-bank")}><ArrowUpRight size={14} /> Deposit To Bank</button>}
-          {caps.canApproveRecon && <button className="btn-cav btn-cav-secondary" onClick={() => setModal("adjustment")}><SlidersHorizontal size={14} /> Cash Adjustment</button>}
+          {caps.canAdd && (
+            <button className="btn-cav btn-cav-primary" onClick={() => flash(WRITE_GATE_MSG)}>
+              <Plus size={14} /> Cash In
+            </button>
+          )}
+          {caps.canAdd && (
+            <button className="btn-cav btn-cav-secondary" onClick={() => flash(WRITE_GATE_MSG)}>
+              <Minus size={14} /> Cash Expense
+            </button>
+          )}
+          {caps.canAdd && (
+            <button className="btn-cav btn-cav-secondary" onClick={() => flash(WRITE_GATE_MSG)}>
+              <ArrowDownLeft size={14} /> Transfer From Bank
+            </button>
+          )}
+          {caps.canAdd && (
+            <button className="btn-cav btn-cav-secondary" onClick={() => flash(WRITE_GATE_MSG)}>
+              <ArrowUpRight size={14} /> Deposit To Bank
+            </button>
+          )}
+          {caps.canApproveRecon && (
+            <button className="btn-cav btn-cav-secondary" onClick={() => flash(WRITE_GATE_MSG)}>
+              <SlidersHorizontal size={14} /> Cash Adjustment
+            </button>
+          )}
           <button className="btn-cav btn-cav-secondary" onClick={() => exportData("excel")}><FileSpreadsheet size={14} /> Excel</button>
           <button className="btn-cav btn-cav-secondary" onClick={() => exportData("pdf")}><FileText size={14} /> PDF</button>
         </div>
       </div>
 
-      {/* ── Filters (collapsible, top) ── */}
-      <CashFilters accounts={CASH_ACCOUNTS} users={users} value={filters}
-        onApply={(v) => setFilters(v)} onReset={() => setFilters({ ...EMPTY_CASH_FILTERS, accountId: filters.accountId })} />
+      {/* ── Filters ── */}
+      <CashFilters
+        accounts={uiAccounts}
+        users={[]}
+        value={filters}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
+      />
 
-      {/* ── Balance cards (6) ── */}
+      {/* ── Balance cards ── */}
       <div className="kpi-grid">
-        <CashBalanceCard label="Current Cash Balance" value={metrics.current} accent sub={headerAccount ? headerAccount.name : "All accounts"} />
-        <CashBalanceCard label="Available Cash" value={metrics.available} accent sub="Less float & pending" />
-        <CashBalanceCard label="Today's Cash In" value={metrics.todayIn} tone="credit" sub={todayStr} />
-        <CashBalanceCard label="Today's Cash Out" value={metrics.todayOut} tone="debit" sub={todayStr} />
-        <CashBalanceCard label="Monthly Cash In" value={metrics.mIn} tone="credit" sub="This month" />
-        <CashBalanceCard label="Monthly Cash Out" value={metrics.mOut} tone="debit" sub="This month" />
-      </div>
-
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--fg-4)" }}>
-        <Info size={12} /> Signed in as <b style={{ color: "var(--fg-3)" }}>{caps.roleLabel}</b> · illustrative data (cash-book API ships in a later phase).
+        {accountsLoading ? (
+          <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+        ) : (
+          <>
+            <CashBalanceCard label="Current Cash Balance" value={currentBalance} accent sub={selectedApiAccount?.accountName ?? "All accounts"} />
+            <CashBalanceCard label="Opening Balance"      value={openingBalance} sub="For selected period" />
+            <CashBalanceCard label="Period Cash In"       value={totalCashIn}    tone="credit" sub={txnLoading ? "Loading…" : "Selected range"} />
+            <CashBalanceCard label="Period Cash Out"      value={totalCashOut}   tone="debit"  sub={txnLoading ? "Loading…" : "Selected range"} />
+          </>
+        )}
       </div>
 
       {/* ── Reconciliation ── */}
-      <CashReconciliationPanel systemBalance={systemBalance} caps={caps}
+      <CashReconciliationPanel
+        systemBalance={currentBalance}
+        caps={caps}
         history={reconHistory.filter((h) => filters.accountId === "all" || h.accountId === filters.accountId)}
-        currentUser={currentUser} onSubmit={submitRecon} />
+        currentUser={currentUser}
+        onSubmit={submitRecon}
+      />
 
-      {/* ── Ledger OR empty state ── */}
-      {filtered.length === 0 ? (
+      {/* ── Transaction error ── */}
+      {txnError && (
+        <div className="card" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+          <AlertCircle size={18} style={{ color: "var(--caveo-red)", flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 13.5, color: "var(--fg-2)" }}>{txnError}</div>
+          <button
+            className="btn-cav btn-cav-secondary btn-cav-sm"
+            onClick={() => fetchTxns(filters, page, pageSize, searchQuery)}
+          >
+            <RefreshCw size={13} /> Retry
+          </button>
+        </div>
+      )}
+
+      {/* ── Ledger loading skeleton ── */}
+      {txnLoading && (
+        <div className="card">
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
+            <div style={{ height: 32, width: 220, background: "var(--border)", borderRadius: 8, animation: "pulse 1.5s infinite" }} />
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="crm-table">
+              <tbody>{[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <SkeletonRow key={i} />)}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Ledger empty state ── */}
+      {!txnLoading && !txnError && uiTxns.length === 0 && (
         <div className="card">
           <div style={{ textAlign: "center", padding: "56px 16px", color: "var(--fg-4)" }}>
             <Wallet size={36} strokeWidth={1.2} style={{ opacity: 0.6 }} />
             <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-3)", marginTop: 10 }}>No cash transactions found</div>
-            <div style={{ fontSize: 12.5, marginTop: 3 }}>Adjust filters, or record a cash entry.</div>
-            {caps.canAdd && (
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 18, flexWrap: "wrap" }}>
-                <button className="btn-cav btn-cav-primary btn-cav-sm" onClick={() => setModal("in")}><Plus size={13} /> Add Cash Entry</button>
-                <button className="btn-cav btn-cav-secondary btn-cav-sm" onClick={() => setModal("expense")}><Minus size={13} /> Add Expense</button>
-              </div>
-            )}
+            <div style={{ fontSize: 12.5, marginTop: 3 }}>Adjust filters or record a cash entry once write APIs are live.</div>
           </div>
         </div>
-      ) : (
-        <CashTransactionTable rows={filtered} balanceById={balanceById} caps={caps} onRowClick={setDrawerTxn} onExport={exportData} />
+      )}
+
+      {/* ── Ledger table ── */}
+      {!txnLoading && !txnError && uiTxns.length > 0 && (
+        <CashTransactionTable
+          rows={uiTxns}
+          balanceById={balanceById}
+          caps={caps}
+          onRowClick={(txn) => {
+            setDrawerTxn(txn);
+            setDrawerAccountName(selectedApiAccount?.accountName);
+          }}
+          onExport={exportData}
+          search={searchQuery}
+          onSearch={handleSearch}
+          apiPagination={{
+            page: pagination.page,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+            onPageChange: handlePageChange,
+          }}
+        />
       )}
 
       {/* ── Account summary ── */}
-      {headerAccount && <CashSummaryPanel account={headerAccount} txns={txns} />}
+      {!accountsLoading && (
+        <CashSummaryPanel
+          account={summaryAccount}
+          txns={uiTxns}
+          apiSummary={summary ?? undefined}
+        />
+      )}
 
       {/* ── Customer cost visibility ── */}
       <div className="card">
         <div className="card-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Users size={15} style={{ color: "var(--fg-3)" }} /><div className="ch-title">Customer Cost Visibility</div></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Users size={15} style={{ color: "var(--fg-3)" }} />
+            <div className="ch-title">Customer Cost Visibility</div>
+          </div>
           <div className="ch-sub">{customerRows.length} customer-linked entries</div>
         </div>
         <div style={{ overflowX: "auto" }}>
@@ -270,10 +558,13 @@ export default function CashBookClient({ caps, currentUser }: { caps: CashCaps; 
         <div style={{ padding: "8px 16px", fontSize: 11, color: "var(--fg-4)", borderTop: "1px solid var(--border-subtle)" }}>Feeds future Customer Profitability reports.</div>
       </div>
 
-      {/* ── Employee finance integration ── */}
+      {/* ── Employee finance ── */}
       <div className="card">
         <div className="card-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><UserCog size={15} style={{ color: "var(--fg-3)" }} /><div className="ch-title">Employee Finance</div></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <UserCog size={15} style={{ color: "var(--fg-3)" }} />
+            <div className="ch-title">Employee Finance</div>
+          </div>
           <select value={empFilter} onChange={(e) => setEmpFilter(e.target.value)} className={inputCls} style={{ width: "auto", height: 30, padding: "2px 8px" }}>
             <option value="">All employees</option>
             {employees.map((e) => <option key={e} value={e}>{e}</option>)}
@@ -301,25 +592,44 @@ export default function CashBookClient({ caps, currentUser }: { caps: CashCaps; 
       </div>
 
       {/* ── Vouchers ── */}
-      <CashVoucherPanel txns={scoped} onView={setDrawerTxn} />
+      <CashVoucherPanel txns={uiTxns} onView={setDrawerTxn} />
 
       {/* ── Drawer ── */}
-      {drawerTxn && <CashTransactionDrawer txn={drawerTxn} caps={caps} onClose={() => setDrawerTxn(null)} onReconcile={(id) => reconcile([id])} />}
+      {drawerTxn && (
+        <CashTransactionDrawer
+          txn={drawerTxn}
+          caps={caps}
+          onClose={() => setDrawerTxn(null)}
+          onReconcile={(id) => reconcile([id])}
+          accountName={drawerAccountName}
+        />
+      )}
 
-      {/* ── Entry forms ── */}
+      {/* ── Entry forms — kept for Step 2H, currently never shown ── */}
       {(modal === "in" || modal === "expense" || modal === "adjustment") && (
-        <CashEntryForm mode={modal} accounts={CASH_ACCOUNTS} defaultAccountId={defaultCashId} currentUser={currentUser}
-          onClose={() => setModal(null)} onSave={addTxn} />
+        <CashEntryForm
+          mode={modal}
+          accounts={uiAccounts.length > 0 ? uiAccounts : CASH_ACCOUNTS}
+          defaultAccountId={defaultCashId}
+          currentUser={currentUser}
+          onClose={() => setModal(null)}
+          onSave={addTxn}
+        />
       )}
       {(modal === "from-bank" || modal === "to-bank") && (
-        <CashTransferPanel mode={modal} cashAccounts={CASH_ACCOUNTS} defaultCashId={defaultCashId}
-          onClose={() => setModal(null)} onSave={doTransfer} />
+        <CashTransferPanel
+          mode={modal}
+          cashAccounts={uiAccounts.length > 0 ? uiAccounts : CASH_ACCOUNTS}
+          defaultCashId={defaultCashId}
+          onClose={() => setModal(null)}
+          onSave={doTransfer}
+        />
       )}
     </div>
   );
 }
 
-// ─── Cash entry form (Cash In / Cash Expense / Cash Adjustment) ────────────────
+// ─── Cash entry form (kept for Step 2H write APIs) ─────────────────────────────
 
 function CashEntryForm({
   mode, accounts, defaultAccountId, currentUser, onClose, onSave,
@@ -434,7 +744,6 @@ function CashEntryForm({
             </div>
           </div>
 
-          {/* Expense-specific: category + map to source */}
           {isExpense && (
             <div style={{ marginTop: 16, padding: 14, background: "var(--bg-muted)", borderRadius: 10 }}>
               <div className="section-label" style={{ marginBottom: 10 }}>Expense details</div>
@@ -476,8 +785,7 @@ function CashEntryForm({
             </div>
           )}
 
-          {/* Cash In employee/customer linking */}
-          {isIn && (type === "Advance Settlement") && (
+          {isIn && type === "Advance Settlement" && (
             <div style={{ marginTop: 16 }}>
               <label className={labelCls}>Employee</label>
               <input value={employee} onChange={(e) => setEmployee(e.target.value)} className={inputCls} placeholder="Employee returning advance" />
