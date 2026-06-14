@@ -185,3 +185,80 @@ export const EXPENSES: Expense[] = [
   mk({ id: 11, date: "2026-06-06", type: "Employee Expense", category: "Travel", subCategory: "Air", description: "Flight — Chennai client visit", baseAmount: 8800, employee: "Deepak N", claimRef: "CLM-0044", reimbursementRequired: true, createdBy: "Deepak N", approvalStatus: "Pending Approval" }),
   mk({ id: 12, date: "2026-06-02", type: "General Expense", category: "Vehicle", subCategory: "Maintenance", description: "Office vehicle service", baseAmount: 5400, vendor: "Bosch Service", createdBy: "Priyadharshini R", approvalStatus: "Approved", voucherGenerated: true, voucherNo: "CI/26-27/0014" }),
 ].map((e) => ({ ...e, approvalHistory: hist(e.approvalStatus, e.createdBy) }));
+
+// ── API response types (Step 2F — live data wiring) ───────────────────────────
+
+export interface ApiExpenseSummary {
+  totalExpenses: string;          // ₹ Lakhs, 2dp string
+  todayExpenses: string;
+  pendingApprovalAmount: string;
+  approvedExpenses: string;
+  employeeClaimsPending: string;
+  customerExpenses: string;
+  gstInputAmount: string;
+}
+
+export interface ApiExpenseItem {
+  id: string;
+  expenseDate: string;            // YYYY-MM-DD
+  expenseNumber: string;          // EXP/26-27/00001
+  expenseType: string;            // CUSTOMER_EXPENSE | VENDOR_EXPENSE | GENERAL_EXPENSE
+  category: string;
+  subCategory: string | null;
+  description: string | null;
+  customerName: string | null;
+  vendorName: string | null;
+  employeeName: string;
+  paymentMode: string | null;
+  accountName: string | null;
+  baseAmount: string;             // ₹ Lakhs
+  gstAmount: string;
+  totalAmount: string;
+  voucherNumber: string | null;
+  approvalStatus: string;         // DRAFT | PENDING_APPROVAL | APPROVED | REJECTED | PAID
+  paymentStatus: string;          // PAID | UNPAID
+  billAvailable: boolean;
+  gstApplicable: boolean;
+  createdBy: string;
+}
+
+export interface ApiExpensePagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ApiApprovalEvent {
+  event: string;
+  by: string;
+  at: string;
+  status: string;
+  comments: string | null;
+}
+
+export interface ApiExpenseDetail {
+  expense: {
+    id: string; expenseDate: string; expenseNumber: string; expenseType: string;
+    category: string; description: string | null; customerName: string | null;
+    vendorName: string | null; employeeName: string;
+    baseAmount: string; gstAmount: string; totalAmount: string;
+    vendorInvoiceNo: string | null; voucherNumber: string | null;
+    approvalStatus: string; paymentStatus: string;
+    billAvailable: boolean; gstApplicable: boolean;
+    approvedBy: string | null; approvedAt: string | null; paidDate: string | null;
+    createdBy: string; createdAt: string; updatedAt: string;
+  };
+  vendor: { id: string; name: string; gstin: string | null; invoiceNumber: string | null; invoiceDate: string | null } | null;
+  employee: { id: string; name: string; claimReference: string | null; advanceAdjustment: string };
+  gst: { taxableAmount: string; cgst: string; sgst: string; igst: string; totalGst: string };
+  voucher: { voucherNumber: string; status: string } | null;
+  attachments: { fileName: string; fileUrl: string }[];
+  approvalHistory: ApiApprovalEvent[];
+  auditHistory: { action: string; performedBy: string; at: string; changes: unknown; notes: string | null }[];
+}
+
+/** Convert a ₹-Lakhs API string to ₹ rupees (number) for UI display. */
+export function lakhsToRupees(s: string): number {
+  return Math.round(Number(s) * 100000 * 100) / 100;
+}

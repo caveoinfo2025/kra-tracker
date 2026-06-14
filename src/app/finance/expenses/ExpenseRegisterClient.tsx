@@ -1,192 +1,335 @@
 "use client";
 
-/**
- * Expense Register — orchestrator (Phase 2, UI only). Mirrors Cash/Bank Book.
- */
-
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, Users, UserPlus, Upload, FileSpreadsheet, FileText, Info, Receipt,
-  CalendarDays, Clock, CheckCircle2, BadgeIndianRupee, Wallet, TrendingUp, Percent,
+  CalendarDays, Clock, CheckCircle2, Wallet, TrendingUp, Percent, Loader2, AlertCircle,
 } from "lucide-react";
 import {
-  Expense, ExpenseCaps, ExpenseType, EXPENSES, FY, fmtINR, fmtDate, todayISO,
+  Expense, ExpenseCaps, ExpenseType, ApprovalEvent, FY, fmtINR, fmtDate, todayISO,
+  ApiExpenseSummary, ApiExpenseItem, ApiExpensePagination, ApiExpenseDetail,
+  lakhsToRupees,
 } from "./data";
 import ExpenseSummaryCard from "./components/ExpenseSummaryCard";
 import ExpenseFilters, { ExpenseFilterValues, EMPTY_EXPENSE_FILTERS } from "./components/ExpenseFilters";
 import ExpenseTable from "./components/ExpenseTable";
 import ExpenseDetailsDrawer from "./components/ExpenseDetailsDrawer";
-import ExpenseForm from "./components/ExpenseForm";
+
+const WRITE_GATE_MSG = "This action will be enabled after Expense write APIs are implemented.";
 
 const todayStr = new Date().toISOString().slice(0, 10);
 
+// ── Status mapping helpers ────────────────────────────────────────────────────
+
+function uiStatusToApi(s: string): string {
+  switch (s) {
+    case "Draft":            return "draft";
+    case "Pending Approval": return "submitted";
+    case "Approved":         return "approved";
+    case "Rejected":         return "rejected";
+    case "Paid":             return "paid";
+    default:                 return "";
+  }
+}
+
+function mapApiStatus(s: string): Expense["approvalStatus"] {
+  switch (s) {
+    case "DRAFT":            return "Draft";
+    case "PENDING_APPROVAL": return "Pending Approval";
+    case "APPROVED":         return "Approved";
+    case "REJECTED":         return "Rejected";
+    case "PAID":             return "Paid";
+    default:                 return "Draft";
+  }
+}
+
+function mapApiType(t: string): ExpenseType {
+  switch (t) {
+    case "CUSTOMER_EXPENSE": return "Customer Expense";
+    case "VENDOR_EXPENSE":   return "Vendor Expense";
+    default:                 return "General Expense";
+  }
+}
+
+function mapApiExpenseItem(item: ApiExpenseItem): Expense {
+  const base  = lakhsToRupees(item.baseAmount);
+  const gst   = lakhsToRupees(item.gstAmount);
+  const total = lakhsToRupees(item.totalAmount);
+  return {
+    id:                    Number(item.id),
+    expenseNo:             item.expenseNumber,
+    date:                  item.expenseDate,
+    branch:                "",
+    department:            "",
+    type:                  mapApiType(item.expenseType),
+    category:              item.category,
+    subCategory:           item.subCategory ?? "",
+    description:           item.description ?? "",
+    paymentMode:           "Cash",
+    cashAccount:           item.accountName ?? "",
+    bankAccount:           "",
+    customer:              item.customerName ?? "",
+    opportunity:           "",
+    salesOrder:            "",
+    project:               "",
+    ticketRef:             "",
+    vendor:                item.vendorName ?? "",
+    employee:              item.employeeName,
+    claimRef:              "",
+    advanceAdjustment:     0,
+    reimbursementRequired: false,
+    baseAmount:            base,
+    gstApplicable:         item.gstApplicable,
+    gstNumber:             "",
+    taxable:               base,
+    cgst:                  0,
+    sgst:                  0,
+    igst:                  0,
+    gstAmount:             gst,
+    totalAmount:           total,
+    billAvailable:         item.billAvailable,
+    invoiceNo:             "",
+    invoiceDate:           "",
+    voucherGenerated:      !!item.voucherNumber,
+    voucherNo:             item.voucherNumber ?? "",
+    approvalStatus:        mapApiStatus(item.approvalStatus),
+    paymentStatus:         item.paymentStatus === "PAID" ? "Paid" : "Unpaid",
+    createdBy:             item.createdBy,
+    attachments:           [],
+    approvalHistory:       [],
+  };
+}
+
+function mapApiApprovalHistory(events: ApiExpenseDetail["approvalHistory"]): ApprovalEvent[] {
+  return events.map((h) => {
+    const ev = h.event;
+    const stage =
+      ev === "SUBMITTED" ? "Submitted for Approval"
+      : ev === "APPROVED" ? "Approved"
+      : ev === "REJECTED" ? "Rejected"
+      : ev.charAt(0) + ev.slice(1).toLowerCase();
+    const state: "done" | "rejected" | "pending" =
+      ev === "REJECTED" ? "rejected" : "done";
+    return { stage, by: h.by, date: h.at.slice(0, 10), note: h.comments ?? undefined, state };
+  });
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function ExpenseRegisterClient({ caps, currentUser }: { caps: ExpenseCaps; currentUser: string }) {
-  const [expenses, setExpenses] = useState<Expense[]>(EXPENSES);
-  const [filters, setFilters] = useState<ExpenseFilterValues>(EMPTY_EXPENSE_FILTERS);
-  const [drawer, setDrawer] = useState<Expense | null>(null);
-  const [form, setForm] = useState<null | { initial: Expense | null; presetType?: ExpenseType }>(null);
-  const [toast, setToast] = useState("");
+  // ── API state ──
+  const [apiItems,   setApiItems]   = useState<ApiExpenseItem[]>([]);
+  const [apiSummary, setApiSummary] = useState<ApiExpenseSummary | null>(null);
+  const [apiPag,     setApiPag]     = useState<ApiExpensePagination>({ page: 1, pageSize: 25, total: 0, totalPages: 0 });
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  function flash(m: string) { setToast(m); setTimeout(() => setToast(""), 2200); }
+  // ── UI state ──
+  const [filters,     setFilters]     = useState<ExpenseFilterValues>(EMPTY_EXPENSE_FILTERS);
+  const [searchInput, setSearchInput] = useState("");
+  const [search,      setSearch]      = useState("");
+  const [page,        setPage]        = useState(1);
+  const [drawer,      setDrawer]      = useState<Expense | null>(null);
+  const [toast,       setToast]       = useState("");
+  const searchDebRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Scope by role (Employee sees own only)
-  const scoped = useMemo(() => caps.scope === "all"
-    ? expenses
-    : expenses.filter((e) => e.createdBy === currentUser || e.employee === currentUser), [expenses, caps.scope, currentUser]);
+  function flash(m: string) { setToast(m); setTimeout(() => setToast(""), 2400); }
 
-  // Existing customer expenses (for profitability)
-  const existingByCustomer = (c: string) => expenses.filter((e) => e.customer === c).reduce((s, e) => s + e.totalAmount, 0);
+  // ── Fetch ──
+  const fetchExpenses = useCallback(async () => {
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setLoading(true);
+    setError(null);
 
-  // ── Summary metrics ──
-  const m = useMemo(() => {
-    const month = scoped.filter((e) => new Date(e.date + "T00:00:00").getMonth() === 5);
-    return {
-      totalMonth: month.reduce((s, e) => s + e.totalAmount, 0),
-      today: scoped.filter((e) => e.date === todayStr).reduce((s, e) => s + e.totalAmount, 0),
-      pendingAmt: scoped.filter((e) => e.approvalStatus === "Pending Approval").reduce((s, e) => s + e.totalAmount, 0),
-      approvedAmt: scoped.filter((e) => e.approvalStatus === "Approved" || e.approvalStatus === "Paid").reduce((s, e) => s + e.totalAmount, 0),
-      claimsPending: scoped.filter((e) => e.type === "Employee Expense" && e.approvalStatus === "Pending Approval").length,
-      customerExp: scoped.filter((e) => e.type === "Customer Expense").reduce((s, e) => s + e.totalAmount, 0),
-      gstInput: scoped.reduce((s, e) => s + e.gstAmount, 0),
-    };
-  }, [scoped]);
+    const params = new URLSearchParams({ page: String(page), pageSize: "25" });
+    if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+    if (filters.dateTo)   params.set("dateTo",   filters.dateTo);
+    const apiStatus = uiStatusToApi(filters.status);
+    if (apiStatus)         params.set("status",   apiStatus);
+    if (filters.category)  params.set("category", filters.category);
+    if (search.trim())     params.set("search",   search.trim());
 
-  const BUDGET = 1500000;
-  const budgetPct = Math.min(100, Math.round((m.totalMonth / BUDGET) * 100));
+    try {
+      const res = await fetch(`/api/finance/expenses?${params}`, { signal: ac.signal });
+      if (!res.ok) throw new Error(`Server error (${res.status})`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "API error");
+      setApiItems(json.data.expenses);
+      setApiSummary(json.data.summary);
+      setApiPag(json.data.pagination);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") setError((e as Error).message);
+    } finally {
+      if (!ac.signal.aborted) setLoading(false);
+    }
+  }, [filters, page, search]);
 
-  // ── Apply filters ──
-  const filtered = useMemo(() => scoped.filter((e) => {
-    const f = filters;
-    if (f.dateFrom && e.date < f.dateFrom) return false;
-    if (f.dateTo && e.date > f.dateTo) return false;
-    if (f.branch && e.branch !== f.branch) return false;
-    if (f.department && e.department !== f.department) return false;
-    if (f.type && e.type !== f.type) return false;
-    if (f.category && e.category !== f.category) return false;
-    if (f.subCategory && e.subCategory !== f.subCategory) return false;
-    if (f.paymentMode && e.paymentMode !== f.paymentMode) return false;
-    if (f.status && e.approvalStatus !== f.status) return false;
-    if (f.customer && !e.customer.toLowerCase().includes(f.customer.toLowerCase())) return false;
-    if (f.vendor && !e.vendor.toLowerCase().includes(f.vendor.toLowerCase())) return false;
-    if (f.employee && !e.employee.toLowerCase().includes(f.employee.toLowerCase())) return false;
-    if (f.project && !e.project.toLowerCase().includes(f.project.toLowerCase())) return false;
-    if (f.gstApplicable === "yes" && !e.gstApplicable) return false;
-    if (f.gstApplicable === "no" && e.gstApplicable) return false;
-    if (f.billAvailable === "yes" && !e.billAvailable) return false;
-    if (f.billAvailable === "no" && e.billAvailable) return false;
-    if (f.voucherGenerated === "yes" && !e.voucherGenerated) return false;
-    if (f.voucherGenerated === "no" && e.voucherGenerated) return false;
-    return true;
-  }), [scoped, filters]);
+  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
 
-  // ── Mini analytics ──
+  // ── Search debounce ──
+  function handleSearch(v: string) {
+    setSearchInput(v);
+    if (searchDebRef.current) clearTimeout(searchDebRef.current);
+    searchDebRef.current = setTimeout(() => { setSearch(v); setPage(1); }, 300);
+  }
+
+  // ── Mapped expenses (API → Expense shape for table/drawer) ──
+  const mappedExpenses = useMemo(() => apiItems.map(mapApiExpenseItem), [apiItems]);
+
+  // ── Open drawer: show immediately with list data, enrich with detail fetch ──
+  async function openDrawer(row: Expense) {
+    setDrawer(row);
+    try {
+      const res = await fetch(`/api/finance/expenses/${row.id}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (!json.success) return;
+      const d: ApiExpenseDetail = json.data;
+      setDrawer((prev) => {
+        if (!prev || prev.id !== row.id) return prev;
+        return {
+          ...prev,
+          approvalHistory: mapApiApprovalHistory(d.approvalHistory),
+          attachments:     d.attachments.map((a) => ({ name: a.fileName, kind: "pdf" as const })),
+          voucherGenerated: !!d.voucher,
+          voucherNo:        d.voucher?.voucherNumber ?? "",
+        };
+      });
+    } catch { /* drawer shows with partial list data on error */ }
+  }
+
+  // ── Analytics (from current page of results) ──
   const analytics = useMemo(() => {
     const group = (key: (e: Expense) => string) => {
       const map: Record<string, number> = {};
-      for (const e of scoped) { const k = key(e); if (!k) continue; map[k] = (map[k] ?? 0) + e.totalAmount; }
+      for (const e of mappedExpenses) { const k = key(e); if (!k) continue; map[k] = (map[k] ?? 0) + e.totalAmount; }
       return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
     };
     const months: Record<string, number> = {};
-    for (const e of scoped) { const mo = new Date(e.date + "T00:00:00").toLocaleDateString("en-IN", { month: "short" }); months[mo] = (months[mo] ?? 0) + e.totalAmount; }
+    for (const e of mappedExpenses) {
+      const mo = new Date(e.date + "T00:00:00").toLocaleDateString("en-IN", { month: "short" });
+      months[mo] = (months[mo] ?? 0) + e.totalAmount;
+    }
     return {
       byCategory: group((e) => e.category),
       byEmployee: group((e) => e.employee),
       byCustomer: group((e) => e.customer),
-      monthly: Object.entries(months),
+      monthly:    Object.entries(months),
     };
-  }, [scoped]);
+  }, [mappedExpenses]);
 
-  // ── Mutations ──
-  function applyDecision(ids: number[], status: Expense["approvalStatus"]) {
-    setExpenses((xs) => xs.map((e) => ids.includes(e.id) ? { ...e, approvalStatus: status, paymentStatus: status === "Paid" ? "Paid" : e.paymentStatus, modifiedBy: currentUser } : e));
-    setDrawer((d) => d && ids.includes(d.id) ? { ...d, approvalStatus: status } : d);
-  }
-  function onBulk(action: "approve" | "voucher" | "paid", ids: number[]) {
-    if (ids.length === 0) return;
-    if (action === "approve") { applyDecision(ids, "Approved"); flash(`${ids.length} approved`); }
-    else if (action === "paid") { applyDecision(ids, "Paid"); flash(`${ids.length} marked paid`); }
-    else { setExpenses((xs) => xs.map((e) => ids.includes(e.id) ? { ...e, voucherGenerated: true, voucherNo: e.voucherNo || `CI/${FY}/${String(20 + e.id).padStart(5, "0")}` } : e)); flash(`Vouchers generated for ${ids.length}`); }
-  }
-  function saveExpense(data: Omit<Expense, "id" | "expenseNo" | "approvalHistory">, submit: boolean) {
-    if (form?.initial) {
-      const id = form.initial.id;
-      setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, ...data, id, expenseNo: e.expenseNo, approvalHistory: e.approvalHistory } : e));
-      flash("Expense updated");
-    } else {
-      const id = Math.max(0, ...expenses.map((e) => e.id)) + 1;
-      setExpenses((xs) => [...xs, { ...data, id, expenseNo: `EXP/${FY}/${String(id).padStart(4, "0")}`, approvalHistory: [{ stage: "Created", by: currentUser, date: todayISO(), state: "done" }] }]);
-      flash(submit ? "Expense submitted" : "Draft saved");
-    }
-    setForm(null);
-  }
+  // ── Summary helpers ──
+  const lr = (s: string | undefined) => lakhsToRupees(s ?? "0");
+  const BUDGET = 1500000;
+  const totalForBudget = lr(apiSummary?.totalExpenses);
+  const budgetPct = Math.min(100, Math.round((totalForBudget / BUDGET) * 100));
 
+  const maxCat     = Math.max(...analytics.byCategory.map(([, v]) => v), 1);
+  const maxMonthly = Math.max(...analytics.monthly.map(([, v]) => v), 1);
+
+  // ── Export (current page) ──
   function exportData(kind: "excel" | "pdf") {
     if (kind === "excel") {
       const head = ["Date", "Expense No", "Type", "Category", "Description", "Customer", "Vendor", "Employee", "Amount", "GST", "Total", "Status"];
-      const body = filtered.map((e) => [fmtDate(e.date), e.expenseNo, e.type, e.category, e.description, e.customer, e.vendor, e.employee, e.baseAmount, e.gstAmount, e.totalAmount, e.approvalStatus]);
+      const body = mappedExpenses.map((e) => [fmtDate(e.date), e.expenseNo, e.type, e.category, e.description, e.customer, e.vendor, e.employee, e.baseAmount, e.gstAmount, e.totalAmount, e.approvalStatus]);
       const esc = (v: string | number) => `<td>${String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</td>`;
       const html = `<table border="1"><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${body.map((r) => `<tr>${r.map(esc).join("")}</tr>`).join("")}</tbody></table>`;
       const blob = new Blob([`﻿${html}`], { type: "application/vnd.ms-excel" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "ExpenseRegister.xls"; a.click(); URL.revokeObjectURL(a.href);
     } else {
-      const rowsHtml = filtered.map((e) => `<tr><td>${fmtDate(e.date)}</td><td>${e.expenseNo}</td><td>${e.category}</td><td>${e.description}</td><td style="text-align:right">${fmtINR(e.totalAmount)}</td><td>${e.approvalStatus}</td></tr>`).join("");
-      const html = `<!doctype html><html><head><title>Expense Register</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px;color:#0F1115}h1{font-size:18px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#EEF0F3;text-align:left;padding:7px 8px;font-size:9px;text-transform:uppercase;color:#5B626C}td{padding:6px 8px;border-bottom:1px solid #E3E6EB}</style></head><body><h1>Expense Register — FY ${FY}</h1><table><thead><tr><th>Date</th><th>Expense No</th><th>Category</th><th>Description</th><th style="text-align:right">Total</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
+      const rowsHtml = mappedExpenses.map((e) => `<tr><td>${fmtDate(e.date)}</td><td>${e.expenseNo}</td><td>${e.category}</td><td>${e.description}</td><td style="text-align:right">${fmtINR(e.totalAmount)}</td><td>${e.approvalStatus}</td></tr>`).join("");
+      const html = `<!doctype html><html><head><title>Expense Register</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px;color:#0F1115}h1{font-size:18px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#EEF0F3;text-align:left;padding:7px 8px;font-size:9px;text-transform:uppercase;color:#5B626C}td{padding:6px 8px;border-bottom:1px solid #E3E6EB}</style></head><body><h1>Expense Register — FY ${FY}</h1><table><thead><tr><th>Date</th><th>Expense No</th><th>Category</th><th>Description</th><th style="text-align:right">Total</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}<\/script></body></html>`;
       const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); }
     }
   }
 
-  const maxCat = Math.max(...analytics.byCategory.map(([, v]) => v), 1);
-  const maxMonthly = Math.max(...analytics.monthly.map(([, v]) => v), 1);
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* Quick actions */}
+
+      {/* Quick actions — write actions feature-gated */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        <button className="btn-cav btn-cav-primary" onClick={() => setForm({ initial: null, presetType: "General Expense" })}><Plus size={14} /> Add Expense</button>
-        <button className="btn-cav btn-cav-secondary" onClick={() => setForm({ initial: null, presetType: "Customer Expense" })}><Users size={14} /> Customer Expense</button>
-        <button className="btn-cav btn-cav-secondary" onClick={() => setForm({ initial: null, presetType: "Employee Expense" })}><UserPlus size={14} /> Employee Claim</button>
+        <button className="btn-cav btn-cav-primary"   onClick={() => flash(WRITE_GATE_MSG)}><Plus size={14} /> Add Expense</button>
+        <button className="btn-cav btn-cav-secondary" onClick={() => flash(WRITE_GATE_MSG)}><Users size={14} /> Customer Expense</button>
+        <button className="btn-cav btn-cav-secondary" onClick={() => flash(WRITE_GATE_MSG)}><UserPlus size={14} /> Employee Claim</button>
         <button className="btn-cav btn-cav-secondary" onClick={() => flash("Import wizard — coming soon")}><Upload size={14} /> Import</button>
         {caps.canExport && <button className="btn-cav btn-cav-secondary" onClick={() => exportData("excel")}><FileSpreadsheet size={14} /> Excel</button>}
         {caps.canExport && <button className="btn-cav btn-cav-secondary" onClick={() => exportData("pdf")}><FileText size={14} /> PDF</button>}
       </div>
 
-      {/* Filters (collapsible, top) */}
-      <ExpenseFilters value={filters} onApply={setFilters} onReset={() => setFilters(EMPTY_EXPENSE_FILTERS)} onSaveView={() => flash("Filter view saved")} />
+      {/* Filters */}
+      <ExpenseFilters
+        value={filters}
+        onApply={(f) => { setFilters(f); setPage(1); }}
+        onReset={() => { setFilters(EMPTY_EXPENSE_FILTERS); setPage(1); setSearch(""); setSearchInput(""); }}
+        onSaveView={() => flash("Filter view saved")}
+      />
 
-      {/* Summary cards (8) */}
+      {/* Summary cards from live API */}
       <div className="kpi-grid">
-        <ExpenseSummaryCard label="Total Expenses (Month)" value={m.totalMonth} icon={Receipt} accent />
-        <ExpenseSummaryCard label="Today's Expenses" value={m.today} icon={CalendarDays} sub={todayStr} />
-        <ExpenseSummaryCard label="Pending Approval" value={m.pendingAmt} icon={Clock} tone="warn" />
-        <ExpenseSummaryCard label="Approved Expenses" value={m.approvedAmt} icon={CheckCircle2} tone="credit" />
-        <ExpenseSummaryCard label="Employee Claims Pending" value={m.claimsPending} money={false} icon={Wallet} sub="claims" />
-        <ExpenseSummaryCard label="Customer Expenses" value={m.customerExp} icon={Users} />
-        <ExpenseSummaryCard label="GST Input" value={m.gstInput} icon={Percent} tone="credit" />
-        <ExpenseSummaryCard label="Budget Utilization" value={`${budgetPct}%`} money={false} icon={TrendingUp} sub={`${fmtINR(m.totalMonth)} / ${fmtINR(BUDGET)}`} accent />
+        <ExpenseSummaryCard label="Total Expenses" value={lr(apiSummary?.totalExpenses)} icon={Receipt} accent />
+        <ExpenseSummaryCard label="Today's Expenses" value={lr(apiSummary?.todayExpenses)} icon={CalendarDays} sub={todayStr} />
+        <ExpenseSummaryCard label="Pending Approval" value={lr(apiSummary?.pendingApprovalAmount)} icon={Clock} tone="warn" />
+        <ExpenseSummaryCard label="Approved Expenses" value={lr(apiSummary?.approvedExpenses)} icon={CheckCircle2} tone="credit" />
+        <ExpenseSummaryCard label="Employee Claims Pending" value={lr(apiSummary?.employeeClaimsPending)} icon={Wallet} />
+        <ExpenseSummaryCard label="Customer Expenses" value={lr(apiSummary?.customerExpenses)} icon={Users} />
+        <ExpenseSummaryCard label="GST Input" value={lr(apiSummary?.gstInputAmount)} icon={Percent} tone="credit" />
+        <ExpenseSummaryCard label="Budget Utilization" value={`${budgetPct}%`} money={false} icon={TrendingUp} sub={`${fmtINR(totalForBudget)} / ${fmtINR(BUDGET)}`} accent />
       </div>
 
       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--fg-4)" }}>
-        <Info size={12} /> Signed in as <b style={{ color: "var(--fg-3)" }}>{caps.roleLabel}</b> ({caps.scope === "own" ? "own expenses" : "all expenses"}) · illustrative data.
+        <Info size={12} /> Signed in as <b style={{ color: "var(--fg-3)" }}>{caps.roleLabel}</b> ({caps.scope === "own" ? "own expenses" : "all expenses"}) · live data.
       </div>
 
-      {/* Table OR empty state */}
-      {filtered.length === 0 ? (
+      {/* Loading / Error / Empty / Table */}
+      {loading && apiItems.length === 0 ? (
+        <div className="card">
+          <div style={{ textAlign: "center", padding: "56px 16px", color: "var(--fg-4)" }}>
+            <Loader2 size={28} style={{ opacity: 0.5 }} className="spin" />
+            <div style={{ marginTop: 10, fontSize: 13 }}>Loading expenses…</div>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="card">
+          <div style={{ textAlign: "center", padding: "40px 16px", color: "var(--fg-3)" }}>
+            <AlertCircle size={24} style={{ color: "var(--caveo-red)", opacity: 0.7 }} />
+            <div style={{ marginTop: 8, fontSize: 13 }}>{error}</div>
+            <button className="btn-cav btn-cav-secondary btn-cav-sm" style={{ marginTop: 12 }} onClick={fetchExpenses}>Retry</button>
+          </div>
+        </div>
+      ) : !loading && mappedExpenses.length === 0 ? (
         <div className="card">
           <div style={{ textAlign: "center", padding: "56px 16px", color: "var(--fg-4)" }}>
             <Receipt size={36} strokeWidth={1.2} style={{ opacity: 0.6 }} />
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-3)", marginTop: 10 }}>No expenses recorded</div>
-            <div style={{ fontSize: 12.5, marginTop: 3 }}>Add your first expense or import a batch.</div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 18, flexWrap: "wrap" }}>
-              <button className="btn-cav btn-cav-primary btn-cav-sm" onClick={() => setForm({ initial: null })}><Plus size={13} /> Add First Expense</button>
-              <button className="btn-cav btn-cav-secondary btn-cav-sm" onClick={() => flash("Import wizard — coming soon")}><Upload size={13} /> Import Expense</button>
-            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-3)", marginTop: 10 }}>No expenses found</div>
+            <div style={{ fontSize: 12.5, marginTop: 3 }}>Try adjusting your filters or search.</div>
           </div>
         </div>
       ) : (
-        <ExpenseTable rows={filtered} caps={caps} onRowClick={setDrawer} onExport={exportData} onBulk={onBulk} />
+        <>
+          {loading && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--fg-4)", padding: "2px 0" }}>
+              <Loader2 size={13} className="spin" /> Refreshing…
+            </div>
+          )}
+          <ExpenseTable
+            rows={mappedExpenses}
+            caps={caps}
+            onRowClick={openDrawer}
+            onExport={exportData}
+            onBulk={(_a, _ids) => flash(WRITE_GATE_MSG)}
+            search={searchInput}
+            onSearch={handleSearch}
+            apiPagination={{ ...apiPag, onPageChange: (p) => setPage(p) }}
+          />
+        </>
       )}
 
-      {/* Reports quick view */}
+      {/* Analytics charts */}
       <div className="grid-12">
         <div className="col-6"><MiniBars title="Category-wise Expense" rows={analytics.byCategory} max={maxCat} /></div>
         <div className="col-6"><MiniBars title="Customer-wise Expense" rows={analytics.byCustomer} max={Math.max(...analytics.byCustomer.map(([, v]) => v), 1)} /></div>
@@ -194,21 +337,17 @@ export default function ExpenseRegisterClient({ caps, currentUser }: { caps: Exp
         <div className="col-6"><MiniBars title="Monthly Trend" rows={analytics.monthly} max={maxMonthly} accent /></div>
       </div>
 
-      {/* Drawer */}
+      {/* Details Drawer — write actions feature-gated */}
       {drawer && (
-        <ExpenseDetailsDrawer expense={drawer} caps={caps} customerExisting={existingByCustomer(drawer.customer)}
+        <ExpenseDetailsDrawer
+          expense={drawer}
+          caps={caps}
+          customerExisting={0}
           onClose={() => setDrawer(null)}
-          onEdit={(e) => { setDrawer(null); setForm({ initial: e }); }}
-          onApprove={(id) => { applyDecision([id], "Approved"); flash("Approved"); }}
-          onReject={(id) => { applyDecision([id], "Rejected"); flash("Rejected"); }} />
-      )}
-
-      {/* Form */}
-      {form && (
-        <ExpenseForm
-          initial={form.initial} presetType={form.presetType}
-          currentUser={currentUser} existingByCustomer={existingByCustomer}
-          onClose={() => setForm(null)} onSave={saveExpense} />
+          onEdit={() => flash(WRITE_GATE_MSG)}
+          onApprove={() => flash(WRITE_GATE_MSG)}
+          onReject={() => flash(WRITE_GATE_MSG)}
+        />
       )}
 
       {/* Toast */}
@@ -221,7 +360,7 @@ export default function ExpenseRegisterClient({ caps, currentUser }: { caps: Exp
   );
 }
 
-// ─── Mini horizontal-bar analytics card ───────────────────────────────────────
+// ── Mini horizontal-bar analytics card ───────────────────────────────────────
 
 function MiniBars({ title, rows, max, accent }: { title: string; rows: [string, number][]; max: number; accent?: boolean }) {
   return (

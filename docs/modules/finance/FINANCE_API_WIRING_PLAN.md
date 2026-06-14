@@ -1,9 +1,57 @@
 # Finance API Wiring Plan — Caveo CRM
 
-> **Document status:** Step 2E complete — Read-only Expense Register API implemented. UI wiring pending (Step 2F).
+> **Document status:** Step 2F complete — Expense Register UI wired to live read-only APIs. Write APIs pending (Step 2G+).
 >
-> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-14 · Session 10  
+> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-14 · Session 11  
 > **Purpose:** Safe implementation plan to wire Finance UI to real MySQL-backed APIs without breaking existing CRM modules.
+
+---
+
+## Step 2F Status — Completed 2026-06-14
+
+### Files modified
+
+| File | Change |
+|---|---|
+| `src/app/finance/expenses/data.ts` | Added `ApiExpenseSummary`, `ApiExpenseItem`, `ApiExpensePagination`, `ApiExpenseDetail`, `ApiApprovalEvent` interfaces + `lakhsToRupees()` helper |
+| `src/app/finance/expenses/ExpenseRegisterClient.tsx` | Full rewrite — API fetch replacing mock data, debounced search, API pagination, feature-gated write buttons, detail drawer enrichment, loading/error/empty states |
+| `src/app/finance/expenses/components/ExpenseTable.tsx` | Added optional `search`/`onSearch` controlled props + `apiPagination` prop for server-side pagination |
+
+### Key implementation details
+
+**Data flow:**
+- `GET /api/finance/expenses?page=N&pageSize=25&…` → `ApiExpenseItem[]` → `mapApiExpenseItem()` → `Expense[]` (mock shape, for existing table/drawer compatibility)
+- `GET /api/finance/expenses/[id]` → `ApiExpenseDetail` → enriches drawer with approval history + attachments
+- Summary cards populated from `GET /api/finance/expenses` `data.summary` response (7 fields, ₹ Lakhs strings → `lakhsToRupees()` → ₹ rupees)
+
+**Filter → API param mapping:**
+| UI Filter | API Param | Notes |
+|---|---|---|
+| `dateFrom` / `dateTo` | `dateFrom` / `dateTo` | Direct pass |
+| `status` (UI enum) | `status` (API: draft/submitted/…) | `uiStatusToApi()` maps |
+| `category` | `category` | Direct pass |
+| Table search input | `search` | 300ms debounce; maps to narration/category/customerName OR |
+| `branch`, `department`, `type`, `paymentMode`, etc. | — | Not yet filterable server-side; silently ignored |
+
+**Feature-gate pattern:**
+```typescript
+const WRITE_GATE_MSG = "This action will be enabled after Expense write APIs are implemented.";
+// All write buttons: onClick={() => flash(WRITE_GATE_MSG)}
+// Drawer: onEdit/onApprove/onReject all gate-toasted
+// Table onBulk: (_a, _ids) => flash(WRITE_GATE_MSG)
+```
+
+**Money conversion:** API returns ₹ Lakhs as 2dp strings → `lakhsToRupees(s)` = `Number(s) × 100000` rounded to 2dp.
+
+**Drawer enrichment:** row click shows drawer immediately (list-level data), then fires `GET /api/finance/expenses/[id]` in background and updates `approvalHistory` + `attachments` when it resolves. Errors are silently swallowed (drawer stays open with partial data).
+
+**Build validation:** `npx tsc --noEmit` clean + `npx prisma validate` clean + `npx next build` clean (2026-06-14).
+
+### Constraints respected
+- No schema changes, no migrations
+- No POST/PATCH/DELETE APIs created
+- Mobile `GET /api/expenses` untouched
+- Mock data files (`data.ts` `EXPENSES` array) kept — still referenced by `ExpenseForm` and Categories module
 
 ---
 
