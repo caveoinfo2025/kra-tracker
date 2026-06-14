@@ -1,9 +1,88 @@
 # Finance API Wiring Plan — Caveo CRM
 
-> **Document status:** Step 2F complete — Expense Register UI wired to live read-only APIs. Write APIs pending (Step 2G+).
+> **Document status:** Step 2G complete — Read-only Finance Dashboard API implemented. Dashboard UI wiring pending (Step 2H).
 >
-> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-14 · Session 11  
+> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-14 · Session 12  
 > **Purpose:** Safe implementation plan to wire Finance UI to real MySQL-backed APIs without breaking existing CRM modules.
+
+---
+
+## Step 2G Status — Completed 2026-06-14
+
+### File created
+
+| File | Change |
+|---|---|
+| `src/app/api/finance/dashboard/route.ts` | New — `GET /api/finance/dashboard` read-only dashboard aggregations |
+
+### Prisma models used
+
+| Model | Purpose |
+|---|---|
+| `FinAccount` | `currentBalance` aggregated for `cashBalance` / `bankBalance` summary cards |
+| `Ledger` | Period cash-in/out and bank-credit/debit flows; filtered via `account.type` relation |
+| `Expense` | `todayExpense`, `monthlyExpense`, `customerExpenses`, `expenseBreakdown`, `monthlyExpenseTrend`, `topExpenseCategories` |
+| `ApprovalRequest` | `pendingApprovals` count from the Workflow Engine (entityType IN EXPENSE, ADVANCE, TRAVEL_CLAIM, status=PENDING) |
+| `EmployeeAdvance` | `advancesOutstanding` (balanceLakhs where status=disbursed); `pendingAdvances` count |
+| `TravelClaim` | `employeeClaimsPending` (amountLakhs where status=submitted); `pendingClaims` count |
+
+### Permission check
+
+`canManageFinance(session.user)` — same gate as all other `/api/finance/*` routes. Returns `401` for no session, `403` for non-finance roles.
+
+### Decimal handling
+
+- All money stored as `Float` (DOUBLE) in ₹ Lakhs.
+- Serialized with `fmtMoney(v) = (Math.round(v * 100) / 100).toFixed(2)` (consistent with accounts, bank-book, cash-book, expenses APIs).
+- Intermediate arithmetic uses `r2(v)` to prevent floating-point drift.
+- Count fields (`pendingApprovals`, `pendingItems.*`) are integers, not money strings.
+
+### Metrics implemented
+
+| Metric | Source | Notes |
+|---|---|---|
+| `cashBalance` | `FinAccount.currentBalance` WHERE type=cash, isActive=true | Cached field — not recalculated |
+| `bankBalance` | `FinAccount.currentBalance` WHERE type=bank, isActive=true | Cached field — not recalculated |
+| `todayExpense` | `Expense` aggregate WHERE expenseDate = today (UTC) | base + GST |
+| `monthlyExpense` | `Expense` aggregate WHERE expenseDate in period | base + GST |
+| `pendingApprovals` | `ApprovalRequest.count` WHERE entityType IN (...) AND status=PENDING | Uses global Workflow Engine |
+| `employeeClaimsPending` | `TravelClaim` aggregate WHERE status=submitted | amountLakhs sum |
+| `advancesOutstanding` | `EmployeeAdvance` aggregate WHERE status=disbursed | balanceLakhs (cached disbursed−settled) |
+| `customerExpenses` | `Expense` aggregate WHERE customerName ≠ "" in period | base + GST |
+| `cashFlow` | `Ledger` aggregates WHERE account.type=cash in period | credit=in, debit=out |
+| `bankFlow` | `Ledger` aggregates WHERE account.type=bank in period | credit, debit |
+| `expenseBreakdown` | `Expense.groupBy(category)` in period | category + amount + count |
+| `monthlyExpenseTrend` | `Expense.findMany` last 6 months grouped by month in JS | YYYY-MM → amount |
+| `topExpenseCategories` | Top 5 from `expenseBreakdown` | percentage computed read-only |
+| `pendingItems.unpaidExpenses` | `Expense.count` WHERE status=approved | approved but not paid |
+| `pendingItems.pendingAdvances` | `EmployeeAdvance.count` WHERE status IN (pending, approved) | |
+| `pendingItems.pendingClaims` | `TravelClaim.count` WHERE status=submitted | |
+
+### Metrics skipped / assumptions
+
+| Item | Reason |
+|---|---|
+| `departmentId` filter | No department column on `Expense`, `Ledger`, or `FinAccount` in schema. Parameter accepted and ignored. |
+| `branchId` filter on expenses/ledger | `Expense` and `Ledger` have no branch column. Filter applied to `FinAccount.branchName` only. |
+| `accountId` filter on expenses | `Expense` has no `finAccountId` FK yet. Filter only restricts `Ledger` queries. |
+| GST split (CGST/SGST/IGST) | Schema stores total `gstAmountLakhs` only; no CGST/SGST/IGST columns. |
+| Ledger balances in cashFlow/bankFlow | Returns period flows only; running balance not recalculated (consistent with bank-book/cash-book routes). |
+
+### Query strategy
+
+17 Prisma queries run in a single `Promise.all()` — no sequential round-trips. Monthly trend uses `findMany` + JS groupBy (avoids raw SQL; safe for expected row volumes).
+
+### Build validation (2026-06-14)
+
+- `npx tsc --noEmit` — clean
+- `npx prisma validate` — schema valid
+- `npx next build` — clean
+
+### Status note
+
+- `GET /api/finance/dashboard` implemented — read-only
+- Dashboard UI (`FinanceDashboardClient`) still on mock data until Step 2H
+- Write actions remain disabled until later phases
 
 ---
 
