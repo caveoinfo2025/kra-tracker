@@ -1,9 +1,82 @@
 # Finance API Wiring Plan — Caveo CRM
 
-> **Document status:** Step 2D complete — Cash Book UI wired to live read-only APIs. Write actions feature-gated.
+> **Document status:** Step 2E complete — Read-only Expense Register API implemented. UI wiring pending (Step 2F).
 >
-> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-12 · Session 9  
+> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-14 · Session 10  
 > **Purpose:** Safe implementation plan to wire Finance UI to real MySQL-backed APIs without breaking existing CRM modules.
+
+---
+
+## Step 2E Status — Completed 2026-06-14
+
+### Files created
+
+| File | Change |
+|---|---|
+| `src/app/api/finance/expenses/route.ts` | New — read-only Expense Register list API with summary |
+| `src/app/api/finance/expenses/[id]/route.ts` | New — read-only Expense detail API |
+
+### Prisma models used
+
+| Model | Purpose |
+|---|---|
+| `Expense` | Primary expense records with filters, pagination, and aggregations |
+| `Employee` | Creator name via `Expense.employee` include |
+| `Vendor` | Vendor name and GSTIN via `Expense.vendor` include |
+| `Voucher` | Voucher number and status via `Expense.voucher` include |
+| `ApprovalRequest` / `ApprovalAction` | Approval timeline in detail endpoint |
+| `AuditLog` | Audit trail in detail endpoint |
+
+### Permission check
+
+`canManageFinance(session.user)` → all expenses; regular employee → own only (same RBAC as `/api/expenses` mobile route).
+
+### Existing mobile route preserved
+
+`GET /api/expenses` and `POST /api/expenses` are unchanged. The new routes live in `/api/finance/expenses/*` namespace.
+
+### Money handling
+
+`fmtMoney(v)` = `(Math.round(v * 100) / 100).toFixed(2)` — same helper as Bank Book and Cash Book routes. `r2(v)` for intermediate arithmetic. All values returned as 2-decimal strings in ₹ Lakhs.
+
+### Schema limitations (documented, not blocking)
+
+| Field | Status |
+|---|---|
+| `paymentMode` | Not in `Expense` model yet — returned as `null` |
+| `finAccountId` / `accountName` | Not in `Expense` model yet — returned as `null` |
+| `subCategory` | Not in `Expense` model — returned as `null` |
+| `claimReference` | Not in `Expense` model — returned as `null` in employee block |
+| GST split (CGST/SGST/IGST) | Schema stores total `gstAmountLakhs` only — `cgst`/`sgst`/`igst` returned as `"0.00"` |
+
+### `expenseType` derivation (no schema field)
+
+| Condition | Returned value |
+|---|---|
+| `customerName != ""` | `CUSTOMER_EXPENSE` |
+| `vendorId != null` | `VENDOR_EXPENSE` |
+| default | `GENERAL_EXPENSE` |
+
+### Summary fields
+
+| Field | Source |
+|---|---|
+| `totalExpenses` | sum `amountLakhs + gstAmountLakhs` in scope |
+| `todayExpenses` | same, filtered to today (UTC) |
+| `pendingApprovalAmount` | status = `submitted` |
+| `approvedExpenses` | status in `approved`, `paid` |
+| `employeeClaimsPending` | `pendingApprovalAmount` + sum of `draft` records (best-effort — no expenseType in schema) |
+| `customerExpenses` | `customerName != ""` |
+| `gstInputAmount` | sum `gstAmountLakhs` where `> 0` |
+
+### Validation results
+
+| Check | Result |
+|---|---|
+| `npx prisma validate` | ✅ Schema valid |
+| `npm run build` (TS + compile) | ✅ Exit 0 — both routes compiled to `.next/server/app/api/finance/expenses/` |
+
+### Next step: Step 2F — Wire Expense Register UI to live APIs
 
 ---
 
