@@ -1,158 +1,128 @@
 "use client";
 
 /**
- * Finance Dashboard — Phase 2 (UI only).
- *
- * Renders from an illustrative MOCK dataset (no finance APIs exist yet — those
- * arrive in Phase 5+). Styling reuses the existing CRM dashboard language:
- * `.kpi` tiles, `.card`, `.grid-12`, inline-SVG charts, and `.btn-cav` buttons —
- * identical to `src/app/dashboard/DashboardClient.tsx`.
- *
- * To wire real data later: replace `deriveData()` with values fetched in the
- * server `page.tsx` and passed down as props in the same shape.
+ * Finance Dashboard — Step 2H.
+ * Wired to GET /api/finance/dashboard (read-only live data).
+ * Write actions are feature-gated with WRITE_GATE_MSG until write APIs ship.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Wallet, Landmark, Receipt, CalendarDays, ShieldCheck, Layers,
-  TrendingUp, TrendingDown, Users, Plus, FileText, Banknote, ArrowRight,
-  Info,
+  TrendingUp, Users, Plus, FileText, Banknote, ArrowRight,
+  AlertCircle, Loader2, RefreshCw,
 } from "lucide-react";
 
-// ─── Money formatting (mirrors DashboardClient) ───────────────────────────────
+// ─── Money helpers ─────────────────────────────────────────────────────────────
+
+function lakhsToRupees(s: string): number {
+  return Math.round(Number(s) * 100000 * 100) / 100;
+}
+
+function fmtRupees(s: string): string {
+  const r = lakhsToRupees(s);
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency", currency: "INR",
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(r);
+}
+
+function fmtShort(lakhs: number): string {
+  if (lakhs >= 100) return `${(lakhs / 100).toFixed(1)}Cr`;
+  return `${lakhs.toFixed(1)}L`;
+}
 
 function fmt(lakhs: number): string {
   if (lakhs >= 100) return `₹${(lakhs / 100).toFixed(1)}Cr`;
   if (lakhs >= 1) return `₹${lakhs.toFixed(1)}L`;
   return `₹${(lakhs * 100).toFixed(0)}K`;
 }
-function fmtShort(lakhs: number): string {
-  if (lakhs >= 100) return `${(lakhs / 100).toFixed(1)}Cr`;
-  return `${lakhs.toFixed(1)}L`;
+
+// ─── API response type ─────────────────────────────────────────────────────────
+
+interface ApiDashboard {
+  period: { dateFrom: string; dateTo: string; label: string };
+  summaryCards: {
+    cashBalance: string; bankBalance: string;
+    todayExpense: string; monthlyExpense: string;
+    pendingApprovals: number;
+    employeeClaimsPending: string; advancesOutstanding: string; customerExpenses: string;
+  };
+  cashFlow: { totalCashIn: string; totalCashOut: string; netCashFlow: string };
+  bankFlow: { totalCredits: string; totalDebits: string; netBankFlow: string };
+  expenseBreakdown: Array<{ category: string; amount: string; count: number }>;
+  monthlyExpenseTrend: Array<{ month: string; amount: string }>;
+  topExpenseCategories: Array<{ category: string; amount: string; percentage: string }>;
+  pendingItems: {
+    approvals: number; unpaidExpenses: number; pendingAdvances: number; pendingClaims: number;
+  };
 }
 
-// ─── Filter option sets ───────────────────────────────────────────────────────
+// ─── Period filter ─────────────────────────────────────────────────────────────
 
 const PERIODS = ["This Month", "Last Month", "This Quarter", "This FY"] as const;
 type Period = (typeof PERIODS)[number];
 
-const BRANCHES = ["All Branches", "Head Office", "Bangalore", "Chennai"] as const;
-type Branch = (typeof BRANCHES)[number];
+function periodToParams(period: Period): URLSearchParams {
+  const p = new URLSearchParams();
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth(); // 0-indexed
 
-const ACCOUNTS = ["All Accounts", "Cash — HO", "HDFC Current", "ICICI Current"] as const;
-type Account = (typeof ACCOUNTS)[number];
+  switch (period) {
+    case "This Month": {
+      const mo = String(m + 1).padStart(2, "0");
+      const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+      p.set("dateFrom", `${y}-${mo}-01`);
+      p.set("dateTo", `${y}-${mo}-${String(lastDay).padStart(2, "0")}`);
+      break;
+    }
+    case "Last Month": {
+      const lm = m === 0 ? 11 : m - 1;
+      const ly = m === 0 ? y - 1 : y;
+      const mo = String(lm + 1).padStart(2, "0");
+      const lastDay = new Date(Date.UTC(ly, lm + 1, 0)).getUTCDate();
+      p.set("dateFrom", `${ly}-${mo}-01`);
+      p.set("dateTo", `${ly}-${mo}-${String(lastDay).padStart(2, "0")}`);
+      break;
+    }
+    case "This Quarter": {
+      const qStart = Math.floor(m / 3) * 3;
+      const qEnd = qStart + 2;
+      p.set("dateFrom", `${y}-${String(qStart + 1).padStart(2, "0")}-01`);
+      const lastDay = new Date(Date.UTC(y, qEnd + 1, 0)).getUTCDate();
+      p.set("dateTo", `${y}-${String(qEnd + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`);
+      break;
+    }
+    case "This FY": {
+      // Indian FY: April 1 → March 31
+      const fyStart = m < 3 ? y - 1 : y;
+      const fyEnd = fyStart + 1;
+      p.set("financialYear", `${String(fyStart).slice(2)}-${String(fyEnd).slice(2)}`);
+      break;
+    }
+  }
+  return p;
+}
 
-// Scalar money values scale with the selected period / branch so the filters
-// visibly affect the dashboard even on mock data.
-const PERIOD_FACTOR: Record<Period, number> = {
-  "This Month": 1,
-  "Last Month": 0.86,
-  "This Quarter": 2.7,
-  "This FY": 9.4,
-};
-const BRANCH_FACTOR: Record<Branch, number> = {
-  "All Branches": 1,
-  "Head Office": 0.58,
-  Bangalore: 0.27,
-  Chennai: 0.15,
-};
+// ─── Month label from "YYYY-MM" ISO string ────────────────────────────────────
 
-// ─── MOCK base dataset (₹ Lakhs) ──────────────────────────────────────────────
+function monthLabel(iso: string): string {
+  const [yr, mo] = iso.split("-");
+  return new Date(Number(yr), Number(mo) - 1, 1)
+    .toLocaleDateString("en-IN", { month: "short" });
+}
+
+// ─── Category colors (mirrors Phase 2 palette) ────────────────────────────────
 
 const CATEGORY_COLORS = [
   "#C8102E", "#0066FF", "#FF6B00", "#1F9D55",
   "#8E0A1F", "#2B2F36", "#C8CDD3", "#5B626C",
 ];
 
-const MOCK = {
-  // Point-in-time balances (not period-scaled)
-  cashBalance: 4.82,
-  cashAccounts: 2,
-  bankBalance: 38.65,
-  bankAccounts: 3,
+// ─── Chart primitives (unchanged from Phase 2 mock) ───────────────────────────
 
-  // Period-scaled scalars (base = "This Month", "All Branches")
-  todayExpense: 0.42,
-  todayCount: 7,
-  monthlyExpense: 11.3,
-  prevMonthlyExpense: 13.1,
-  pendingApprovalsCount: 9,
-  pendingApprovalsAmount: 6.4,
-  claimsPendingCount: 5,
-  claimsPendingAmount: 3.85,
-  advancesOutstanding: 2.6,
-  advancesEmployees: 4,
-  customerExpenses: 7.1,
-  topCustomer: "Tata Projects Ltd",
-
-  // Charts
-  monthlyTrend: [
-    { label: "Jan", value: 9.8 },
-    { label: "Feb", value: 12.4 },
-    { label: "Mar", value: 15.1 },
-    { label: "Apr", value: 10.6 },
-    { label: "May", value: 13.9 },
-    { label: "Jun", value: 11.3 },
-  ],
-  categoryBreakdown: [
-    { name: "Travel", value: 4.2 },
-    { name: "Accommodation", value: 2.6 },
-    { name: "Meals", value: 1.4 },
-    { name: "Vehicle", value: 1.1 },
-    { name: "Office Supplies", value: 0.9 },
-    { name: "Communication", value: 0.7 },
-    { name: "Professional", value: 0.6 },
-    { name: "Other", value: 0.4 },
-  ],
-  cashFlow: [
-    { label: "Jan", inflow: 18.2, outflow: 12.4 },
-    { label: "Feb", inflow: 21.0, outflow: 14.8 },
-    { label: "Mar", inflow: 16.5, outflow: 17.2 },
-    { label: "Apr", inflow: 24.1, outflow: 11.9 },
-    { label: "May", inflow: 19.7, outflow: 15.3 },
-    { label: "Jun", inflow: 22.4, outflow: 13.1 },
-  ],
-};
-
-type DashData = ReturnType<typeof deriveData>;
-
-function deriveData(period: Period, branch: Branch) {
-  const f = PERIOD_FACTOR[period] * BRANCH_FACTOR[branch];
-  const cf = BRANCH_FACTOR[branch]; // category/charts scale by branch only
-
-  return {
-    cashBalance: MOCK.cashBalance,
-    cashAccounts: MOCK.cashAccounts,
-    bankBalance: MOCK.bankBalance,
-    bankAccounts: MOCK.bankAccounts,
-
-    todayExpense: MOCK.todayExpense * BRANCH_FACTOR[branch],
-    todayCount: Math.max(1, Math.round(MOCK.todayCount * BRANCH_FACTOR[branch])),
-    monthlyExpense: MOCK.monthlyExpense * f,
-    prevMonthlyExpense: MOCK.prevMonthlyExpense * f,
-    pendingApprovalsCount: Math.round(MOCK.pendingApprovalsCount * BRANCH_FACTOR[branch] * (period === "This FY" ? 1 : 1)),
-    pendingApprovalsAmount: MOCK.pendingApprovalsAmount * BRANCH_FACTOR[branch],
-    claimsPendingCount: Math.round(MOCK.claimsPendingCount * BRANCH_FACTOR[branch]),
-    claimsPendingAmount: MOCK.claimsPendingAmount * BRANCH_FACTOR[branch],
-    advancesOutstanding: MOCK.advancesOutstanding * BRANCH_FACTOR[branch],
-    advancesEmployees: Math.max(1, Math.round(MOCK.advancesEmployees * BRANCH_FACTOR[branch])),
-    customerExpenses: MOCK.customerExpenses * f,
-    topCustomer: MOCK.topCustomer,
-
-    monthlyTrend: MOCK.monthlyTrend.map((m) => ({ ...m, value: m.value * cf })),
-    categoryBreakdown: MOCK.categoryBreakdown
-      .map((c, i) => ({ ...c, value: c.value * cf, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }))
-      .sort((a, b) => b.value - a.value),
-    cashFlow: MOCK.cashFlow.map((m) => ({
-      ...m, inflow: m.inflow * cf, outflow: m.outflow * cf,
-    })),
-  };
-}
-
-// ─── Chart primitives (mirror DashboardClient) ────────────────────────────────
-
-/** Vertical bar chart — optional second series (grouped). */
 function BarChart({ bars, height = 130 }: {
   bars: { label: string; value: number; color?: string; secondValue?: number; secondColor?: string }[];
   height?: number;
@@ -185,12 +155,11 @@ function BarChart({ bars, height = 130 }: {
   );
 }
 
-/** SVG donut chart with a configurable center label. */
-function DonutChart({ slices, size = 132, strokeW = 20, centerLabel }: {
+function DonutChart({ slices, size = 132, strokeW = 20 }: {
   slices: { value: number; color: string; name: string }[];
-  size?: number; strokeW?: number; centerLabel?: string;
+  size?: number; strokeW?: number;
 }) {
-  const total = slices.reduce((s, i) => s + i.value, 0) || 1;
+  const total = slices.reduce((s, item) => s + item.value, 0) || 1;
   const r = (size - strokeW) / 2;
   const c = 2 * Math.PI * r;
   let acc = 0;
@@ -213,16 +182,15 @@ function DonutChart({ slices, size = 132, strokeW = 20, centerLabel }: {
         );
       })}
       <text x={size / 2} y={size / 2 - 2} textAnchor="middle" fontFamily="var(--font-display)" fontSize="17" fontWeight="700" fill="var(--fg-1)">
-        {fmt(total)}
+        {fmt(slices.reduce((s, item) => s + item.value, 0))}
       </text>
       <text x={size / 2} y={size / 2 + 13} textAnchor="middle" fontSize="8.5" fill="var(--fg-4)" letterSpacing="0.1em">
-        {centerLabel ?? "TOTAL"}
+        EXPENSES
       </text>
     </svg>
   );
 }
 
-/** Horizontal value bar (top-categories list). */
 function ValueBar({ label, value, max, color }: {
   label: string; value: number; max: number; color: string;
 }) {
@@ -238,11 +206,11 @@ function ValueBar({ label, value, max, color }: {
   );
 }
 
-// ─── KPI tile (mirrors DashboardClient) ───────────────────────────────────────
+// ─── KPI tile ─────────────────────────────────────────────────────────────────
 
-function KpiTile({ label, value, icon: Icon, sub, delta, deltaDir, accent, href }: {
+function KpiTile({ label, value, icon: Icon, sub, accent, href }: {
   label: string; value: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  sub?: string; delta?: string; deltaDir?: "up" | "down"; accent?: boolean; href?: string;
+  sub?: string; accent?: boolean; href?: string;
 }) {
   const inner = (
     <>
@@ -251,15 +219,9 @@ function KpiTile({ label, value, icon: Icon, sub, delta, deltaDir, accent, href 
         <Icon size={15} strokeWidth={1.7} />
       </div>
       <div className="kpi-value">{value}</div>
-      {(delta || sub) && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-          {delta ? (
-            <div className={`kpi-delta ${deltaDir ?? "up"}`}>
-              {deltaDir === "down" ? <TrendingDown size={11} /> : <TrendingUp size={11} />}
-              {delta}
-            </div>
-          ) : <span />}
-          {sub && <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{sub}</span>}
+      {sub && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{sub}</span>
         </div>
       )}
       {href && (
@@ -270,27 +232,11 @@ function KpiTile({ label, value, icon: Icon, sub, delta, deltaDir, accent, href 
     </>
   );
   const cls = "kpi" + (accent ? " kpi-accent" : "") + (href ? " kpi-link" : "");
-  if (href) {
-    return <Link href={href} className={cls} style={{ textDecoration: "none", color: "inherit" }}>{inner}</Link>;
-  }
+  if (href) return <Link href={href} className={cls} style={{ textDecoration: "none", color: "inherit" }}>{inner}</Link>;
   return <div className={cls}>{inner}</div>;
 }
 
-// ─── Quick action button ──────────────────────────────────────────────────────
-
-function QuickAction({ href, label, icon: Icon, primary }: {
-  href: string; label: string; icon: React.ComponentType<{ size?: number }>; primary?: boolean;
-}) {
-  return (
-    <Link href={href} className={`btn-cav ${primary ? "btn-cav-primary" : "btn-cav-secondary"}`}>
-      <Plus size={14} />
-      <Icon size={14} />
-      {label}
-    </Link>
-  );
-}
-
-// ─── Card shell ───────────────────────────────────────────────────────────────
+// ─── Chart card shell ─────────────────────────────────────────────────────────
 
 function ChartCard({ title, sub, right, children }: {
   title: string; sub?: string; right?: React.ReactNode; children: React.ReactNode;
@@ -309,157 +255,360 @@ function ChartCard({ title, sub, right, children }: {
   );
 }
 
+// ─── Flow stat row ────────────────────────────────────────────────────────────
+
+type FlowSign = "positive" | "negative" | "neutral";
+
+function FlowRow({ label, value, sign }: { label: string; value: string; sign?: FlowSign }) {
+  const color = sign === "positive" ? "#1F9D55" : sign === "negative" ? "var(--caveo-red)" : "var(--fg-1)";
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, color, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+    </div>
+  );
+}
+
+// ─── Pending item row ─────────────────────────────────────────────────────────
+
+function PendingRow({ label, count, href }: { label: string; count: number; href?: string }) {
+  const inner = (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{label}</span>
+      <span style={{
+        fontSize: 11.5, fontWeight: 700,
+        color: count > 0 ? "var(--caveo-red)" : "var(--fg-4)",
+        background: count > 0 ? "rgba(200,16,46,0.08)" : "var(--bg-muted)",
+        padding: "2px 10px", borderRadius: 12,
+      }}>{count}</span>
+    </div>
+  );
+  if (href && count > 0) return <Link href={href} style={{ textDecoration: "none" }}>{inner}</Link>;
+  return inner;
+}
+
+// ─── Empty chart placeholder ──────────────────────────────────────────────────
+
+function EmptyChart({ height = 154, message = "No data for this period" }: { height?: number; message?: string }) {
+  return (
+    <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", fontSize: 13 }}>
+      {message}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function FinanceDashboardClient({ employeeName }: { employeeName: string }) {
   const [period, setPeriod] = useState<Period>("This Month");
-  const [branch, setBranch] = useState<Branch>("All Branches");
-  const [account, setAccount] = useState<Account>("All Accounts");
+  const [data, setData] = useState<ApiDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
-  const d: DashData = useMemo(() => deriveData(period, branch), [period, branch]);
+  const WRITE_GATE_MSG = "This action will be enabled after Finance write APIs are implemented.";
 
-  const monthDeltaPct =
-    d.prevMonthlyExpense > 0
-      ? (((d.monthlyExpense - d.prevMonthlyExpense) / d.prevMonthlyExpense) * 100)
-      : 0;
+  function flash(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2800);
+  }
 
-  // Account filter narrows which balance tiles are emphasised (cosmetic on mock).
-  const showCash = account === "All Accounts" || account.startsWith("Cash");
-  const showBank = account === "All Accounts" || !account.startsWith("Cash");
+  const fetchDashboard = useCallback(async (p: Period) => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = periodToParams(p);
+      const res = await fetch(`/api/finance/dashboard?${params.toString()}`, { signal: ctrl.signal });
+      if (res.status === 401 || res.status === 403) {
+        setError("You don't have permission to view the finance dashboard.");
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json?.success && json?.data) {
+        setData(json.data as ApiDashboard);
+      } else {
+        throw new Error("Unexpected response shape.");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      setError("Unable to load dashboard data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const catMax = Math.max(...d.categoryBreakdown.map((c) => c.value), 0.001);
-  const topCategories = d.categoryBreakdown.slice(0, 5);
+  useEffect(() => {
+    fetchDashboard(period);
+  }, [fetchDashboard, period]);
+
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
+
+  // ── Derived display values ──────────────────────────────────────────────────
+
+  const sc = data?.summaryCards;
+  const cf = data?.cashFlow;
+  const bf = data?.bankFlow;
+  const pi = data?.pendingItems;
+
+  const trendBars = (data?.monthlyExpenseTrend ?? []).map((t) => ({
+    label: monthLabel(t.month),
+    value: Number(t.amount),
+    color: "var(--caveo-red)" as string,
+  }));
+
+  const catSlices = (data?.expenseBreakdown ?? []).map((c, i) => ({
+    value: Number(c.amount),
+    color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+    name: c.category,
+  }));
+
+  const topCats = data?.topExpenseCategories ?? [];
+  const catMax = topCats.reduce((mx, c) => Math.max(mx, Number(c.amount)), 0.001);
+
+  const netCashSign: FlowSign = cf
+    ? (Number(cf.netCashFlow) > 0 ? "positive" : Number(cf.netCashFlow) < 0 ? "negative" : "neutral")
+    : "neutral";
+  const netBankSign: FlowSign = bf
+    ? (Number(bf.netBankFlow) > 0 ? "positive" : Number(bf.netBankFlow) < 0 ? "negative" : "neutral")
+    : "neutral";
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div>
+      {/* ── Toast ──────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: "var(--cyber-black)", color: "#fff", padding: "10px 20px",
+          borderRadius: 8, fontSize: 13, zIndex: 9999, maxWidth: 440, textAlign: "center",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+        }}>
+          {toast}
+        </div>
+      )}
+
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
           <div className="page-eyebrow">FINANCE</div>
           <h1 className="page-title">Finance Dashboard</h1>
-          <p className="page-sub">Cash, expenses, approvals, and outstanding items at a glance, {employeeName}.</p>
+          <p className="page-sub">
+            {data?.period?.label
+              ? `Live figures for ${data.period.label} — ${employeeName}.`
+              : `Cash, expenses, approvals, and outstanding items — ${employeeName}.`}
+          </p>
         </div>
 
-        {/* Quick actions */}
+        {/* Quick actions — write actions gated until write APIs land */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <QuickAction href="/finance/expenses/new" label="Add Expense" icon={Receipt} primary />
-          <QuickAction href="/finance/cash-book" label="Cash Entry" icon={Banknote} />
-          <QuickAction href="/finance/vouchers" label="Create Voucher" icon={FileText} />
-          <QuickAction href="/finance/advances" label="Employee Advance" icon={Wallet} />
+          <button onClick={() => flash(WRITE_GATE_MSG)} className="btn-cav btn-cav-primary">
+            <Plus size={14} /> <Receipt size={14} /> Add Expense
+          </button>
+          <Link href="/finance/cash-book" className="btn-cav btn-cav-secondary">
+            <Banknote size={14} /> Cash Book
+          </Link>
+          <button onClick={() => flash(WRITE_GATE_MSG)} className="btn-cav btn-cav-secondary">
+            <FileText size={14} /> Create Voucher
+          </button>
+          <button onClick={() => flash(WRITE_GATE_MSG)} className="btn-cav btn-cav-secondary">
+            <Wallet size={14} /> Employee Advance
+          </button>
         </div>
       </div>
 
-      {/* ── Filters ──────────────────────────────────────────────────────── */}
+      {/* ── Period filter ─────────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
         <div className="seg-control">
           {PERIODS.map((p) => (
-            <button key={p} className={period === p ? "active" : ""} onClick={() => setPeriod(p)}>{p}</button>
+            <button
+              key={p}
+              className={period === p ? "active" : ""}
+              onClick={() => setPeriod(p)}
+              disabled={loading}
+            >
+              {p}
+            </button>
           ))}
         </div>
-
-        <select
-          value={branch}
-          onChange={(e) => setBranch(e.target.value as Branch)}
-          className="border rounded-lg px-3 py-2 text-sm"
-          style={{ background: "var(--bg-elev)", borderColor: "var(--border)", color: "var(--fg-1)", height: 34 }}
-        >
-          {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
-
-        <select
-          value={account}
-          onChange={(e) => setAccount(e.target.value as Account)}
-          className="border rounded-lg px-3 py-2 text-sm"
-          style={{ background: "var(--bg-elev)", borderColor: "var(--border)", color: "var(--fg-1)", height: 34 }}
-        >
-          {ACCOUNTS.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto", fontSize: 11, color: "var(--fg-4)" }}>
-          <Info size={12} />
-          Illustrative data — live figures arrive when finance APIs ship.
-        </div>
+        {loading && (
+          <Loader2 size={16} className="animate-spin" style={{ color: "var(--caveo-red)" }} />
+        )}
       </div>
+
+      {/* ── Error state ───────────────────────────────────────────────────── */}
+      {error && !loading && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12, padding: "14px 18px",
+          background: "rgba(200,16,46,0.06)", border: "1px solid rgba(200,16,46,0.2)",
+          borderRadius: 10, marginBottom: 16,
+        }}>
+          <AlertCircle size={18} color="var(--caveo-red)" />
+          <span style={{ fontSize: 13.5, color: "var(--fg-2)", flex: 1 }}>{error}</span>
+          <button
+            onClick={() => fetchDashboard(period)}
+            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--caveo-red)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+          >
+            <RefreshCw size={13} /> Retry
+          </button>
+        </div>
+      )}
 
       {/* ── KPI strip (8 cards) ──────────────────────────────────────────── */}
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
-        <KpiTile label="Cash Balance" value={fmt(d.cashBalance)} icon={Banknote} accent={showCash} sub={`${d.cashAccounts} accounts`} />
-        <KpiTile label="Bank Balance" value={fmt(d.bankBalance)} icon={Landmark} accent={showBank} sub={`${d.bankAccounts} accounts`} />
-        <KpiTile label="Today's Expense" value={fmt(d.todayExpense)} icon={CalendarDays} sub={`${d.todayCount} entries`} />
         <KpiTile
-          label="Monthly Expense" value={fmt(d.monthlyExpense)} icon={Receipt}
-          delta={`${Math.abs(monthDeltaPct).toFixed(0)}%`}
-          deltaDir={monthDeltaPct <= 0 ? "down" : "up"}
-          sub="vs last"
+          label="Cash Balance"
+          value={sc ? fmtRupees(sc.cashBalance) : "—"}
+          icon={Banknote} accent
+          href="/finance/cash-book"
         />
-        <KpiTile label="Pending Approvals" value={String(d.pendingApprovalsCount)} icon={ShieldCheck} sub={fmt(d.pendingApprovalsAmount)} href="/finance/approvals" />
-        <KpiTile label="Claims Pending" value={String(d.claimsPendingCount)} icon={Layers} sub={fmt(d.claimsPendingAmount)} href="/finance/claims" />
-        <KpiTile label="Advances Outstanding" value={fmt(d.advancesOutstanding)} icon={Wallet} sub={`${d.advancesEmployees} employees`} href="/finance/advances" />
-        <KpiTile label="Customer Expenses" value={fmt(d.customerExpenses)} icon={Users} sub={`Top: ${d.topCustomer}`} />
+        <KpiTile
+          label="Bank Balance"
+          value={sc ? fmtRupees(sc.bankBalance) : "—"}
+          icon={Landmark} accent
+          href="/finance/bank-book"
+        />
+        <KpiTile
+          label="Today's Expense"
+          value={sc ? fmtRupees(sc.todayExpense) : "—"}
+          icon={CalendarDays}
+        />
+        <KpiTile
+          label="Monthly Expense"
+          value={sc ? fmtRupees(sc.monthlyExpense) : "—"}
+          icon={Receipt}
+          href="/finance/expenses"
+        />
+        <KpiTile
+          label="Pending Approvals"
+          value={sc != null ? String(sc.pendingApprovals) : "—"}
+          icon={ShieldCheck}
+          href="/finance/approvals"
+        />
+        <KpiTile
+          label="Claims Pending"
+          value={sc ? fmtRupees(sc.employeeClaimsPending) : "—"}
+          icon={Layers}
+          href="/finance/claims"
+        />
+        <KpiTile
+          label="Advances Outstanding"
+          value={sc ? fmtRupees(sc.advancesOutstanding) : "—"}
+          icon={Wallet}
+          href="/finance/advances"
+        />
+        <KpiTile
+          label="Customer Expenses"
+          value={sc ? fmtRupees(sc.customerExpenses) : "—"}
+          icon={Users}
+          href="/finance/expenses"
+        />
       </div>
 
-      {/* ── Charts row 1 ─────────────────────────────────────────────────── */}
+      {/* ── Charts row 1: Trend + Category breakdown ─────────────────────── */}
       <div className="grid-12" style={{ marginBottom: 16 }}>
         <div className="col-7">
-          <ChartCard title="Monthly Expense Trend" sub="Total expenses by month (₹L)">
-            <BarChart bars={d.monthlyTrend.map((m) => ({ label: m.label, value: m.value, color: "var(--caveo-red)" }))} />
+          <ChartCard
+            title="Monthly Expense Trend"
+            sub="Total expenses by month (₹L) — last 6 months"
+          >
+            {trendBars.length > 0 ? (
+              <BarChart bars={trendBars} />
+            ) : (
+              <EmptyChart message="No expense data available" />
+            )}
           </ChartCard>
         </div>
         <div className="col-5">
           <ChartCard title="Category-wise Expense" sub="Current period split">
-            <div className="donut-wrap">
-              <DonutChart
-                slices={d.categoryBreakdown.map((c) => ({ value: c.value, color: c.color, name: c.name }))}
-                centerLabel="EXPENSES"
-              />
-              <div className="donut-legend">
-                {d.categoryBreakdown.slice(0, 6).map((c) => (
-                  <div className="dl-row" key={c.name}>
-                    <span className="dl-swatch" style={{ background: c.color }} />
-                    <span className="dl-name">{c.name}</span>
-                    <span className="dl-val">{fmt(c.value)}</span>
-                  </div>
-                ))}
+            {catSlices.length > 0 ? (
+              <div className="donut-wrap">
+                <DonutChart slices={catSlices} />
+                <div className="donut-legend">
+                  {catSlices.slice(0, 6).map((c) => (
+                    <div className="dl-row" key={c.name}>
+                      <span className="dl-swatch" style={{ background: c.color }} />
+                      <span className="dl-name">{c.name}</span>
+                      <span className="dl-val">{fmt(c.value)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <EmptyChart message="No expense data available" />
+            )}
           </ChartCard>
         </div>
       </div>
 
-      {/* ── Charts row 2 ─────────────────────────────────────────────────── */}
+      {/* ── Charts row 2: Cash & Bank flow + Top categories + Pending items ── */}
       <div className="grid-12">
         <div className="col-7">
           <ChartCard
-            title="Cash Flow"
-            sub="Inflow vs outflow by month (₹L)"
+            title="Cash &amp; Bank Flow"
+            sub={`Period inflow vs outflow — ${data?.period?.label ?? "—"}`}
             right={
               <div style={{ display: "flex", gap: 14, fontSize: 11, color: "var(--fg-3)" }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--infra-blue)" }} /> Inflow
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: "#1F9D55", display: "inline-block" }} /> In
                 </span>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--caveo-red)" }} /> Outflow
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--caveo-red)", display: "inline-block" }} /> Out
                 </span>
               </div>
             }
           >
-            <BarChart
-              bars={d.cashFlow.map((m) => ({
-                label: m.label,
-                value: m.inflow, color: "var(--infra-blue)",
-                secondValue: m.outflow, secondColor: "var(--caveo-red)",
-              }))}
-            />
-          </ChartCard>
-        </div>
-        <div className="col-5">
-          <ChartCard title="Top Expense Categories" sub="Highest spend this period">
-            <div style={{ paddingTop: 4 }}>
-              {topCategories.map((c) => (
-                <ValueBar key={c.name} label={c.name} value={c.value} max={catMax} color={c.color} />
-              ))}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, paddingTop: 6 }}>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.1em", marginBottom: 4 }}>CASH</div>
+                <FlowRow label="Cash In" value={cf ? fmtRupees(cf.totalCashIn) : "—"} sign="positive" />
+                <FlowRow label="Cash Out" value={cf ? fmtRupees(cf.totalCashOut) : "—"} sign="negative" />
+                <FlowRow label="Net Cash Flow" value={cf ? fmtRupees(cf.netCashFlow) : "—"} sign={netCashSign} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.1em", marginBottom: 4 }}>BANK</div>
+                <FlowRow label="Credits" value={bf ? fmtRupees(bf.totalCredits) : "—"} sign="positive" />
+                <FlowRow label="Debits" value={bf ? fmtRupees(bf.totalDebits) : "—"} sign="negative" />
+                <FlowRow label="Net Bank Flow" value={bf ? fmtRupees(bf.netBankFlow) : "—"} sign={netBankSign} />
+              </div>
             </div>
           </ChartCard>
+        </div>
+
+        <div className="col-5">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
+            <ChartCard title="Top Expense Categories" sub="Highest spend this period">
+              {topCats.length > 0 ? (
+                <div style={{ paddingTop: 4 }}>
+                  {topCats.map((c, i) => (
+                    <ValueBar
+                      key={c.category}
+                      label={c.category}
+                      value={Number(c.amount)}
+                      max={catMax}
+                      color={CATEGORY_COLORS[i % CATEGORY_COLORS.length]}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyChart height={80} message="No categories this period" />
+              )}
+            </ChartCard>
+
+            <ChartCard title="Pending Items" sub="Action required">
+              <div>
+                <PendingRow label="Approval Requests" count={pi?.approvals ?? 0} href="/finance/approvals" />
+                <PendingRow label="Unpaid Expenses" count={pi?.unpaidExpenses ?? 0} href="/finance/expenses" />
+                <PendingRow label="Pending Advances" count={pi?.pendingAdvances ?? 0} href="/finance/advances" />
+                <PendingRow label="Travel Claims" count={pi?.pendingClaims ?? 0} href="/finance/claims" />
+              </div>
+            </ChartCard>
+          </div>
         </div>
       </div>
     </div>

@@ -1,8 +1,8 @@
 # Finance API Wiring Plan — Caveo CRM
 
-> **Document status:** Step 2G complete — Read-only Finance Dashboard API implemented. Dashboard UI wiring pending (Step 2H).
+> **Document status:** Step 2H complete — Finance Dashboard UI wired to live read-only API.
 >
-> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-14 · Session 12  
+> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-15 · Session 13  
 > **Purpose:** Safe implementation plan to wire Finance UI to real MySQL-backed APIs without breaking existing CRM modules.
 
 ---
@@ -81,8 +81,64 @@
 ### Status note
 
 - `GET /api/finance/dashboard` implemented — read-only
-- Dashboard UI (`FinanceDashboardClient`) still on mock data until Step 2H
-- Write actions remain disabled until later phases
+- Dashboard UI wired in Step 2H (see below)
+- Write actions feature-gated with `WRITE_GATE_MSG` until write APIs ship
+
+---
+
+## Step 2H Status — Completed 2026-06-15
+
+### File modified
+
+| File | Change |
+|---|---|
+| `src/app/finance/FinanceDashboardClient.tsx` | Full rewrite — wired to `GET /api/finance/dashboard` |
+| `src/app/finance/page.tsx` | Updated stale comment |
+
+### What was replaced
+
+The Phase 2 mock `deriveData()` function, `MOCK` base dataset, `PERIOD_FACTOR`/`BRANCH_FACTOR` scaling, and "Illustrative data" banner are all removed. The component is now fully API-driven.
+
+### What is wired
+
+| Section | API field | Notes |
+|---|---|---|
+| 8 KPI tiles | `summaryCards.*` | Money via `fmtRupees(lakh_string)` → Indian ₹ format; `pendingApprovals` shown as integer count |
+| Monthly Expense Trend bar chart | `monthlyExpenseTrend[].amount` | Lakhs passed directly to BarChart; month ISO → short label via `monthLabel()` |
+| Category-wise Expense donut | `expenseBreakdown[]` | Colors assigned by index from `CATEGORY_COLORS` |
+| Category donut legend | `expenseBreakdown.slice(0,6)` | |
+| Cash & Bank Flow summary | `cashFlow.*` + `bankFlow.*` | Two-column stat table; net shown in green/red by sign |
+| Top Expense Categories value bars | `topExpenseCategories[]` | Top 5 from API, percentage available but used as visual bar only |
+| Pending Items | `pendingItems.*` | Count badges; rows link to sub-modules when count > 0 |
+
+### Period filter
+
+| UI label | API params sent |
+|---|---|
+| This Month | `dateFrom` / `dateTo` for current calendar month |
+| Last Month | `dateFrom` / `dateTo` for prior calendar month |
+| This Quarter | `dateFrom` / `dateTo` for current calendar quarter |
+| This FY | `financialYear=YY-YY` (Indian FY, April 1 → March 31) |
+
+### Feature-gated write actions
+
+| Button | Behavior |
+|---|---|
+| Add Expense | `flash(WRITE_GATE_MSG)` — no navigation |
+| Create Voucher | `flash(WRITE_GATE_MSG)` |
+| Employee Advance | `flash(WRITE_GATE_MSG)` |
+| Cash Book | Link to `/finance/cash-book` (read-only live page) |
+
+### Loading / error / empty states
+
+- **Loading:** `Loader2` spinner in segment control; KPI tiles show `—`; charts show `EmptyChart` placeholder
+- **Error:** red banner with message + Retry button (calls `fetchDashboard(period)`)
+- **Empty data:** `EmptyChart` component in chart slots; `—` in KPI values; PendingRow shows `0` count badges
+- **AbortController:** inflight fetch aborted on period change and on component unmount
+
+### Build validation (2026-06-15)
+
+- `npx tsc --noEmit` — clean (exit 0)
 
 ---
 
