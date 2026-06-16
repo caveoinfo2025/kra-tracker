@@ -21,10 +21,10 @@ const SSH = {
 const PROD_ENV_PATH = "/home/u686730471/domains/sales.caveoinfosystems.com/public_html/.builds/config/.env";
 const DUMP_FILE     = "/tmp/caveo_prod_uat_dump.sql";
 
-const UAT_HOST = "srv2201.hstgr.io";
-const UAT_DB   = "u686730471_caveouat";
+const UAT_HOST = "127.0.0.1";
+const UAT_DB   = "u686730471_Caveo_UAT";
 const UAT_USER = "u686730471_uatuser";
-const UAT_PASS = process.env.UAT_DB_PASS ?? "FILL_IN_UAT_DB_PASSWORD";
+const UAT_PASS = process.env.UAT_DB_PASS ?? "C@veo@2026";
 
 function run(conn, cmd, opts = {}) {
   return new Promise((resolve, reject) => {
@@ -42,12 +42,6 @@ function run(conn, cmd, opts = {}) {
 }
 
 async function main() {
-  if (UAT_PASS === "FILL_IN_UAT_DB_PASSWORD") {
-    console.error("✗ Set UAT_DB_PASS env var first:");
-    console.error('  $env:UAT_DB_PASS="your-uat-password"; node scripts/db-copy-prod-to-uat.mjs');
-    process.exit(1);
-  }
-
   const conn = new Client();
   await new Promise((res, rej) => conn.on("ready", res).on("error", rej).connect(SSH));
   console.log("✓ SSH connected\n");
@@ -75,13 +69,13 @@ async function main() {
 
   // 3. Import into UAT DB
   console.log(`\nStep 2: Importing into ${UAT_DB} …`);
-  await run(conn, `MYSQL_PWD='${UAT_PASS}' mysql -h ${UAT_HOST} -u ${UAT_USER} --init-command="SET foreign_key_checks=0;" ${UAT_DB} < ${DUMP_FILE} 2>/dev/null`);
+  await run(conn, `MYSQL_PWD='${UAT_PASS}' mysql -h ${UAT_HOST} -u ${UAT_USER} --init-command="SET foreign_key_checks=0;" ${UAT_DB} < ${DUMP_FILE}`);
   console.log("✓ Import complete");
 
   // 4. Apply any pending migrations (finance phase 1+)
   console.log("\nStep 3: Checking migration state in UAT DB …");
   const migrations = await run(conn,
-    `MYSQL_PWD='${UAT_PASS}' mysql -h ${UAT_HOST} -u ${UAT_USER} ${UAT_DB} -se "SELECT migration_name FROM _prisma_migrations ORDER BY started_at;" 2>/dev/null`,
+    `MYSQL_PWD='${UAT_PASS}' mysql -h ${UAT_HOST} -u ${UAT_USER} ${UAT_DB} -se "SELECT migration_name FROM _prisma_migrations ORDER BY started_at;"`,
     { allowFail: true }
   );
   console.log(migrations || "(no _prisma_migrations table yet — run prisma migrate deploy on the UAT server after first deploy)");
@@ -89,7 +83,7 @@ async function main() {
   // 5. Sanity check
   console.log("\nStep 4: Row counts in UAT DB:");
   const counts = await run(conn,
-    `MYSQL_PWD='${UAT_PASS}' mysql -h ${UAT_HOST} -u ${UAT_USER} ${UAT_DB} 2>/dev/null -e "` +
+    `MYSQL_PWD='${UAT_PASS}' mysql -h ${UAT_HOST} -u ${UAT_USER} ${UAT_DB} -e "` +
     `SELECT 'Employee' t, COUNT(*) n FROM Employee ` +
     `UNION ALL SELECT 'CrmLead', COUNT(*) FROM CrmLead ` +
     `UNION ALL SELECT 'SalesFunnel', COUNT(*) FROM SalesFunnel ` +
