@@ -1,61 +1,47 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
-import { Layers } from "lucide-react";
+import { canManageFinance, isOperationsHead } from "@/lib/roles";
+import ClaimsClient from "./ClaimsClient";
+import FinanceModuleStatusBanner from "@/app/finance/_shared/FinanceModuleStatusBanner";
+
+export interface ClaimsCaps {
+  roleLabel:   string;
+  scope:       "all" | "own";
+  canManage:   boolean;
+  canApprove:  boolean;
+  currentUser: string;
+  employeeId:  number;
+}
 
 export default async function ClaimsPage() {
   const session = await getSession();
   if (!session?.user) redirect("/login");
-  // All authenticated employees can view their own claims
+
+  const user    = session.user;
+  const isFinMgr = canManageFinance(user);
+  const isOpsHd  = isOperationsHead(user);
+  const isMgr    = !!user.isManager;
+
+  const caps: ClaimsCaps = {
+    roleLabel:   isOpsHd ? "Accounts Admin" : isFinMgr ? "Finance Manager" : isMgr ? "Manager" : "Employee",
+    scope:       isFinMgr ? "all" : "own",
+    canManage:   isFinMgr,
+    canApprove:  isMgr || isOpsHd,
+    currentUser: user.employeeName ?? user.name ?? "You",
+    employeeId:  user.employeeId ?? 0,
+  };
 
   return (
     <SheetLayout
       title="Employee Claims"
-      description="Bundle approved expenses into claims for batch reimbursement."
-      action={
-        <button
-          disabled
-          className="btn-cav btn-cav-primary"
-          style={{ opacity: 0.4, cursor: "not-allowed" }}
-        >
-          + New Claim
-        </button>
-      }
+      description="View and manage employee expense claims submitted for reimbursement."
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "80px 24px",
-          gap: 12,
-          textAlign: "center",
-        }}
-      >
-        <Layers size={40} strokeWidth={1.2} style={{ color: "var(--fg-4)" }} />
-        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-2)" }}>
-          Employee Claims
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: "var(--fg-3)",
-            maxWidth: 380,
-            lineHeight: 1.6,
-          }}
-        >
-          Select multiple approved expenses and bundle them into a single
-          reimbursement claim. Finance roles process payment against the approved
-          claim total.
-        </div>
-        <span
-          className="badge badge-neutral"
-          style={{ marginTop: 4, fontSize: 11 }}
-        >
-          Phase 6 — Coming soon
-        </span>
-      </div>
+      <FinanceModuleStatusBanner
+        variant="partially-live"
+        message="Claims are connected where APIs are available. Payment and settlement actions may be disabled until Finance write APIs are completed."
+      />
+      <ClaimsClient caps={caps} />
     </SheetLayout>
   );
 }

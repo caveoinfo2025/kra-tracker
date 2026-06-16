@@ -18,7 +18,9 @@
     "db:test:check": "node scripts/check-test-env.mjs",
     "db:test:migrate": "node scripts/run-prisma-test.mjs migrate deploy",
     "db:test:push": "node scripts/run-prisma-test.mjs db push",
-    "db:test:seed": "node scripts/run-prisma-test.mjs db seed"
+    "db:test:seed": "node scripts/run-prisma-test.mjs db seed",
+    "deploy:uat": "node scripts/deploy-uat.mjs",
+    "db:uat:copy": "node scripts/db-copy-prod-to-uat.mjs"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.8.0",

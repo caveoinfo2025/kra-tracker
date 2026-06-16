@@ -98,7 +98,7 @@ export interface ReconHistoryRow {
 }
 
 // ── Mock cash accounts ────────────────────────────────────────────────────────
-
+// Preview-only mock data. Remove after live API wiring.
 export const CASH_ACCOUNTS: CashAccount[] = [
   { id: "cash-ho",  name: "Cash — Head Office", branch: "Head Office", openingBalance: 500000, reservedFloat: 50000 },
   { id: "cash-blr", name: "Cash — Bangalore",   branch: "Bangalore",   openingBalance: 120000, reservedFloat: 20000 },
@@ -132,7 +132,7 @@ export const CASH_TXNS: CashTxn[] = [
 ];
 
 // ── Mock reconciliation history ───────────────────────────────────────────────
-
+// Preview-only mock data. Remove after live API wiring.
 export const RECON_HISTORY: ReconHistoryRow[] = [
   { id: 1, accountId: "cash-ho", date: "2026-06-03T19:10:00", by: "Priyadharshini R", systemBalance: 680000, physicalCount: 680000, variance: 0,    status: "Reconciled",     remarks: "Tallied" },
   { id: 2, accountId: "cash-ho", date: "2026-06-05T18:40:00", by: "Priyadharshini R", systemBalance: 585670, physicalCount: 585470, variance: -200, status: "Variance Found", remarks: "₹200 short — rounding on cab fare" },

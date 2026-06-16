@@ -672,6 +672,7 @@ model EmployeeAdvance {
   advanceNo            String    @unique // CI/ADV/26-27/00001
   employee             Employee  @relation("AdvanceEmployee", fields: [employeeId], references: [id])
   employeeId           Int
+  category             String    @default("Other") // Customer Project|Travel|Office Supplies|Training|Medical|Other
   purpose              String    @default("") @db.Text
   amountLakhs          Float
   requestDate          DateTime  @default(now())

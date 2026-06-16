@@ -177,7 +177,7 @@ const FINANCE_FULL_NAV: FinanceEntry[] = [
       ],
     },
   },
-  { kind: "link", item: { href: "/finance/approvals", label: "Approvals", icon: Inbox } },
+  { kind: "link", item: { href: "/finance/approvals", label: "Finance Approvals", icon: Inbox } },
   { kind: "link", item: { href: "/finance/vouchers",  label: "Vouchers",  icon: FileText } },
   { kind: "link", item: { href: "/finance/reports",   label: "Reports",   icon: BarChart3 } },
 ];

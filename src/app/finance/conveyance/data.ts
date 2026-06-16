@@ -249,7 +249,7 @@ export function getPolicyRate(grade: string, vehicle: VehicleType): number {
 }
 
 // ── Mock travel trips ─────────────────────────────────────────────────────────
-
+// Preview-only mock data. Remove after live API wiring.
 export const TRAVEL_TRIPS: TravelTrip[] = [
   mkTrip({ employee: "Vijesh V", employeeId: 2, grade: "Manager", date: "2026-06-02", vehicle: "Bike", purpose: "Sales Visit",    customer: "Tata Projects Ltd", customerSite: "Whitefield Office",  payableKm: 28, ratePerKm: 6, status: "Paid",      billToCustomer: true,  project: "Falcon" }),
   mkTrip({ employee: "Vijesh V", employeeId: 2, grade: "Manager", date: "2026-06-04", vehicle: "Car",  purpose: "Meeting",        customer: "Wipro Ltd",          customerSite: "Sarjapur Road HQ",   payableKm: 18, ratePerKm: 12, status: "Verified",  billToCustomer: false }),

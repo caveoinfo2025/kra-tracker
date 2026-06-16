@@ -116,6 +116,9 @@ export async function GET(
     })),
   ]);
 
+  const pendingAR = approvalRequests.find((ar) => ar.status === "PENDING");
+  const pendingApprovalRequestId: number | null = pendingAR?.id ?? null;
+
   // ── Audit trail ───────────────────────────────────────────────────────────────
   const auditLogs = await prisma.auditLog.findMany({
     where: { entityType: "expense", entityId: id },
@@ -212,6 +215,7 @@ export async function GET(
         fileName: a.fileName,
         fileUrl:  a.fileUrl,
       })),
+      pendingApprovalRequestId,
       approvalHistory,
       auditHistory,
     },

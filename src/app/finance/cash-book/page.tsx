@@ -4,6 +4,7 @@ import SheetLayout from "@/components/SheetLayout";
 import { canManageFinance, isAccounts, isOperationsHead } from "@/lib/roles";
 import CashBookClient from "./CashBookClient";
 import { deriveCaps } from "./data";
+import FinanceModuleStatusBanner from "@/app/finance/_shared/FinanceModuleStatusBanner";
 
 export default async function CashBookPage() {
   const session = await getSession();
@@ -23,6 +24,10 @@ export default async function CashBookPage() {
       title="Cash Book"
       description="Complete cash ledger — inflows, expenses, reconciliation, bank movement, and customer/employee visibility."
     >
+      <FinanceModuleStatusBanner
+        variant="live-readonly"
+        message="Cash ledger reads live transaction data. Cash in, cash expense, transfer, and reconciliation actions are disabled until write APIs are implemented."
+      />
       <CashBookClient caps={caps} currentUser={userName} />
     </SheetLayout>
   );

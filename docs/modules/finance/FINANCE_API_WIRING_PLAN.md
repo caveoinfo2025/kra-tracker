@@ -1,8 +1,8 @@
 # Finance API Wiring Plan — Caveo CRM
 
-> **Document status:** Step 2H complete — Finance Dashboard UI wired to live read-only API.
+> **Document status:** Step 2P complete — Status banners added to all 10 Finance pages; TypeScript-clean.
 >
-> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-15 · Session 13  
+> **Prepared:** 2026-06-10 · Session 6 | **Updated:** 2026-06-15 · Session 14  
 > **Purpose:** Safe implementation plan to wire Finance UI to real MySQL-backed APIs without breaking existing CRM modules.
 
 ---
@@ -83,6 +83,72 @@
 - `GET /api/finance/dashboard` implemented — read-only
 - Dashboard UI wired in Step 2H (see below)
 - Write actions feature-gated with `WRITE_GATE_MSG` until write APIs ship
+- Finance Approvals wired to global Approval Engine in Step 2J (see below)
+
+---
+
+## Step 2J Status — Completed 2026-06-15
+
+### Files modified
+
+| File | Change |
+|---|---|
+| `src/app/finance/approvals/page.tsx` | Removed `MOCK_REQUESTS` import; props simplified to `caps` only |
+| `src/app/finance/approvals/FinanceApprovalsClient.tsx` | Full rewrite — wired to global Approval Engine APIs |
+
+### Architecture
+
+Finance Approvals is a **Finance-filtered operational view** of the global Approval Engine.
+It does NOT have separate approval logic, its own API routes, or its own DB schema.
+
+| Concern | How handled |
+|---|---|
+| Data source | `GET /api/approvals?inbox=true` (pending assigned to me) + `GET /api/approvals` (all, unfiltered) |
+| Finance filter | Client-side: `FINANCE_ENTITY_TYPES = {EXPENSE, ADVANCE, TRAVEL_CLAIM, VENDOR_PAYMENT, CASH_ADJUSTMENT, VOUCHER, BANK_TRANSFER}` |
+| Action API | `POST /api/approvals/[id]/action` — same as global inbox |
+| Components reused | `ApprovalInbox`, `ApprovalDetailDrawer` from `settings/workflow/approval-engine/components/` |
+| Mock data removed | `MOCK_REQUESTS` no longer imported into Finance Approvals page |
+
+### Finance entity type mapping
+
+| Entity Type | Transaction Label | Sub-tab |
+|---|---|---|
+| `EXPENSE` | Expense | Expenses |
+| `ADVANCE` | Employee Advance | Advances |
+| `TRAVEL_CLAIM` | Local Conveyance | Conveyance |
+| `VENDOR_PAYMENT` | Vendor Payment | Payments |
+| `CASH_ADJUSTMENT` | Cash Adjustment | Payments |
+| `VOUCHER` | Voucher | Payments |
+| `BANK_TRANSFER` | Bank Transfer | Payments |
+
+### KPI cards (Finance-scoped, live)
+
+Finance Pending · Expense (pending) · Advance (pending) · Conveyance (pending) ·
+Payments (pending) · Overdue (SLA breached)
+
+### Approval actions wired
+
+| Action | API call | Remarks required |
+|---|---|---|
+| Approve | `POST /api/approvals/[id]/action { action: "APPROVE" }` | Optional |
+| Reject | `POST /api/approvals/[id]/action { action: "REJECT" }` | **Required** |
+| Request Changes | `POST /api/approvals/[id]/action { action: "RETURN" }` | **Required** |
+
+Quick-reject in table opens drawer for remarks (same pattern as global inbox).
+
+### Known limitations
+
+- `GET /api/approvals` returns at most 100 rows (default `take`). If the system has >100
+  total approval requests, older finance items may not appear until an `entityType`
+  multi-filter API or cursor pagination is added.
+- `currentApprover` and approval history are not available from the sparse DB record.
+  The drawer shows an empty timeline; action buttons activate only for inbox items.
+- Employee names display as `Employee #N` until a `/api/employees/[id]` lookup is added.
+
+### Build validation (2026-06-15)
+
+- `npx tsc --noEmit` — clean
+- `npx next build` — clean (`/finance/approvals` and `/approvals` both build)
 
 ---
 
@@ -1314,20 +1380,245 @@ Without this, API callers cannot know which `accountId` to use.
 
 ---
 
-### Step 2L — Vouchers API
+---
 
-- Implement `GET /api/finance/vouchers` (list Voucher)
-- Build list UI for `/finance/vouchers` page
-- POST (create voucher) follows once ledger posting logic is stable
+## Step 2K Status — Completed 2026-06-15
+
+### Finance Advances Desktop UI — Live API
+
+Replaced the "Phase 6 — Coming soon" stub at `/finance/advances` with a fully live page backed by a new Employee Advance API.
+
+### Files created / modified
+
+| File | Change |
+|---|---|
+| `src/app/api/finance/advances/route.ts` | **New** — `GET` (paginated list + summary) + `POST` (create advance + trigger workflow) |
+| `src/app/finance/advances/page.tsx` | **Replaced** — was a stub; now a server component with `AdvanceCaps` computation. All authenticated employees can access (not gated by `canManageFinance`). |
+| `src/app/finance/advances/AdvancesClient.tsx` | **New** — full client UI: 6 KPI cards, filter bar, advance register table, request form drawer, detail drawer with approval actions. |
+
+### Architecture
+
+| Area | Detail |
+|---|---|
+| RBAC | `canManageFinance` → `scope: "all"` (sees all employees); others → `scope: "own"` (own advances only) |
+| Approval | `ADVANCE_APPROVAL` workflow code; triggers `startApproval()` on create. If no workflow configured, advance is saved as `pending` with no `approvalRequestId` |
+| Approval actions | Reuses global `POST /api/approvals/[id]/action` — no finance-specific approval route created |
+| Advance number | Two-step: create with `TEMP-${Date.now()}-${empId}`, then update to `CI/ADV/26-27/${id.padStart(5,"0")}` — race-condition-free |
+| Cross-reference | `ApprovalRequest.entityType = "ADVANCE"`, `entityId = String(advance.id)` — no schema change needed |
+| Money | Stored as Float (₹ Lakhs). API serializes as 2-decimal string. UI converts via `lakhsToRupees()` + Intl.NumberFormat `en-IN` |
+
+### API: `GET /api/finance/advances`
+
+Query params: `page`, `pageSize`, `status`, `dateFrom`, `dateTo`, `search`, `employeeId` (managers only).
+
+Response summary fields:
+- `totalThisMonth` — sum of `amountLakhs` where `requestDate` in current calendar month
+- `pendingApproval` — sum/count where `status = "pending"`
+- `approved` — sum/count where `status = "approved"`
+- `outstanding` — sum of `balanceLakhs` where `status = "disbursed"` (cached: disbursed − settled)
+- `settled` — sum of `settledAmountLakhs` where `status = "settled"`
+- `rejected` — sum of `amountLakhs` where `status = "rejected"`
+
+Each advance item includes `approvalRequestId` (cross-referenced from `ApprovalRequest` via `entityType/entityId`).
+
+### API: `POST /api/finance/advances`
+
+Body: `{ purpose, amountLakhs, requiredByDate?, remarks? }`
+
+Creates `EmployeeAdvance` with `status = "pending"`, assigns `CI/ADV/26-27/NNNNN` number, triggers `ADVANCE_APPROVAL` workflow if configured. Returns `{ success, advance, approvalRequestId }`.
+
+### KPI tiles (6)
+
+| Tile | Data source |
+|---|---|
+| Total This Month | `sumThisMonth.amountLakhs` (requestDate in current month) |
+| Pending Approval | `sumPending.amountLakhs` + `cntPending` |
+| Approved | `sumApproved.amountLakhs` + `cntApproved` |
+| Outstanding | `sumOutstanding.balanceLakhs` (disbursed status) + `cntOutstanding` |
+| Settled | `sumSettled.settledAmountLakhs` |
+| Rejected | `sumRejected.amountLakhs` |
+
+### Disabled actions (Phase 6)
+
+- **Disburse** button — disabled, tooltip: "Disbursement API will be enabled in Phase 6"
+- **Mark Settled** button — disabled, tooltip: "Settlement API will be enabled in Phase 6"
+
+Both buttons are visible only when `caps.canManage` is true (finance manager role).
+
+### Known limitations
+
+- `pageSize` capped at 100 per page; large datasets require pagination
+- No `employeeId` join in summary aggregations (summary always covers scoped owner; per-employee breakdown not available in summary)
+- `ADVANCE_APPROVAL` workflow must be seeded via Approval Engine settings UI for approval trigger to activate
+- Disburse / Settle APIs not yet implemented (Phase 6)
 
 ---
 
-### Step 2M — Remove Mock Data
+---
 
-- Once all above endpoints are wired and verified on dev:
-  - Delete or archive mock arrays from each `data.ts`
-  - Remove "Demo data" banners
-  - Confirm with Vijesh before pushing to production
+## Step 2L Status — Completed 2026-06-15
+
+### Finance Claims Desktop UI — Wired to Existing Expense API
+
+Replaced the "Phase 6 — Coming soon" stub at `/finance/claims` with a fully live page backed by the existing `/api/finance/expenses` and `/api/finance/expenses/[id]` APIs. No new API route was created. No schema was modified.
+
+### Files created / modified
+
+| File | Change |
+|---|---|
+| `src/app/finance/claims/page.tsx` | **Replaced** — was a stub; now a server component with `ClaimsCaps` computation. All authenticated employees can access (own claims); `canManageFinance` → `scope: "all"`. |
+| `src/app/finance/claims/ClaimsClient.tsx` | **New** — full client UI: 8 KPI cards, filter bar, expense/claim register table, detail drawer with approval actions + attachment viewer + approval timeline. |
+| `src/app/api/finance/expenses/[id]/route.ts` | **Extended** — added `pendingApprovalRequestId` field to the detail response (the ID of the first PENDING `ApprovalRequest` for this expense, or `null`). Used by the drawer's approval action buttons. |
+
+### Architecture
+
+| Area | Detail |
+|---|---|
+| Data source | Reuses `GET /api/finance/expenses` (list + summary) and `GET /api/finance/expenses/[id]` (detail). No new API route. |
+| RBAC | `canManageFinance` → `scope: "all"` (sees all employees' claims); others → `scope: "own"` |
+| Approval actions | Detail drawer fetches `/api/finance/expenses/[id]` which now returns `pendingApprovalRequestId`. Actions sent to global `POST /api/approvals/[id]/action`. No duplicate approval logic. |
+| Create Claim | Disabled button with tooltip "New claims are submitted from the mobile app". Mobile claim flow untouched. |
+| Mark Paid | Disabled button visible when status=APPROVED. No payment API yet (Phase 6). |
+
+### KPI tiles (8)
+
+| Tile | Data source |
+|---|---|
+| Total Expenses | `summary.totalExpenses` (base + GST) |
+| Today | `summary.todayExpenses` |
+| Pending Approval | `summary.pendingApprovalAmount` |
+| Approved | `summary.approvedExpenses` (approved + paid) |
+| Claims Pending | `summary.employeeClaimsPending` (draft + submitted) |
+| Customer Expenses | `summary.customerExpenses` (billable) |
+| GST Input | `summary.gstInputAmount` |
+| Bills Attached | Client-computed — count of `billAvailable=true` on current page |
+
+### Approval action flow
+
+1. User opens detail drawer → `GET /api/finance/expenses/[id]` fetches full detail including `pendingApprovalRequestId`
+2. If `approvalStatus === "PENDING_APPROVAL"` AND `pendingApprovalRequestId !== null` AND `caps.canApprove`: action buttons appear
+3. User selects Approve/Reject/Return → inline remarks textarea
+4. Submit → `POST /api/approvals/{pendingApprovalRequestId}/action` with `{ action, comments }`
+5. On success: toast shown, drawer closed, list refreshed
+
+### Disabled actions
+
+- **New Claim button** — permanently disabled; tooltip: "New claims are submitted from the mobile app"
+- **Mark as Paid button** — disabled when expense is APPROVED but not yet PAID; tooltip: "Payment posting coming soon"
+
+### Known limitations
+
+- No "exclude draft" default filter — the list shows all statuses; users use the Status filter to narrow to submitted/approved/rejected/paid
+- GST CGST/SGST/IGST split not available (DB stores total GST only); detail shows total only
+- Customer / project linking not yet joined (expense only stores `customerName` string, not a Customer FK)
+
+---
+
+---
+
+## Step 2M Status — Completed 2026-06-15
+
+### Voucher Management Desktop UI + API Readiness Review
+
+#### API readiness review result
+
+| Endpoint | Status |
+|---|---|
+| `GET /api/finance/vouchers` | **NOT IMPLEMENTED** — UI gracefully handles 404 |
+| `GET /api/finance/vouchers/[id]` | **NOT IMPLEMENTED** |
+| `POST /api/finance/vouchers` | **NOT IMPLEMENTED** — create action disabled |
+| `POST /api/finance/vouchers/[id]/cancel` | **NOT IMPLEMENTED** — cancel action disabled |
+| `GET /api/finance/vouchers/[id]/pdf` | **NOT IMPLEMENTED** — print/download disabled |
+| `GET /api/finance/voucher-sequences` | **NOT IMPLEMENTED** |
+
+Prisma models that DO exist and are ready: `Voucher`, `VoucherSequence`, `VoucherConfiguration`.
+
+#### Files created / modified
+
+| File | Change |
+|---|---|
+| `src/app/finance/vouchers/page.tsx` | **Replaced** — "Phase 4 — Coming soon" stub replaced with server component + `VoucherCaps`. Gates on `canManageFinance`; redirects others to `/dashboard`. |
+| `src/app/finance/vouchers/VouchersClient.tsx` | **New** — full UI shell: 8 KPI cards, filter bar, voucher register table, detail drawer with voucher preview panel, Tally export status column, approval timeline placeholder. |
+
+#### Architecture
+
+| Area | Detail |
+|---|---|
+| Data source | `GET /api/finance/vouchers` (attempted on mount). 404/network error → `apiAvailable = false` → shows informational empty state. |
+| RBAC | `canManageFinance` → page access (existing gate). `isOperationsHead` → `canCancel + canExport`. `isAccounts` → `canManage + canExport`. `isManager` → view-only. |
+| Voucher types | Mapped from DB schema values (`payment|receipt|journal|expense|conveyance|advance`) to display labels. |
+| Tally export | Column displayed; action disabled with `TALLY_MSG` toast. |
+| Number Series | Warning panel shown: "Voucher numbering depends on Number Series configuration." |
+
+#### KPI tiles (8) — all show "—" until API exists
+
+Total This Month · Pending · Approved · Voided · Payment Vouchers · Receipt Vouchers · Total Amount · Tally Export Pending
+
+#### Disabled actions (all, pending Voucher API)
+
+| Action | Disabled message |
+|---|---|
+| Generate Voucher | "This action will be enabled after Voucher APIs are implemented." |
+| Print Voucher | "Voucher PDF generation will be enabled after voucher PDF API is implemented." |
+| Download PDF | Same as above |
+| Cancel Voucher | "This action will be enabled after Voucher APIs are implemented." |
+| Tally Export | "Tally export will be enabled after Tally export APIs are implemented." |
+| Configure Number Series | Stub action — opens same gate toast |
+
+#### Next required endpoints (Step 2N)
+
+1. `GET /api/finance/vouchers` — list + summary (totalThisMonth, pending, approved, voided, paymentVouchers, receiptVouchers, totalAmount, tallyPending). Filter params: page, pageSize, type, status, dateFrom, dateTo, search.
+2. `GET /api/finance/vouchers/[id]` — full detail with ledger entries, linked expense/advance/claim refs, approval history.
+3. `POST /api/finance/vouchers` — create voucher, consume next VoucherSequence number, create paired Ledger entries.
+4. `POST /api/finance/vouchers/[id]/cancel` — void voucher, record voidReason, reverse ledger entries.
+5. `GET /api/finance/vouchers/[id]/pdf` — generate printable PDF (stream or signed URL).
+6. `GET /api/finance/voucher-sequences` — read current VoucherSequence lastNumber + financialYear.
+
+---
+
+### Step 2N — Vouchers API Implementation ✅ Complete (2026-06-16)
+
+| File | Route | Status |
+|---|---|---|
+| `src/app/api/finance/vouchers/route.ts` | `GET /api/finance/vouchers` | ✅ Created |
+| `src/app/api/finance/vouchers/[id]/route.ts` | `GET /api/finance/vouchers/[id]` | ✅ Created |
+| `src/app/api/finance/voucher-sequences/route.ts` | `GET /api/finance/voucher-sequences` | ✅ Created |
+
+**TypeScript:** clean (exit 0). **Write APIs (POST/PATCH/DELETE):** out of scope for Step 2N — not implemented.
+
+**Schema gaps documented in code:**
+- `paymentMode` — derived from `Ledger.type` (no column on `Voucher`)
+- `tallyExportStatus` — always `"NOT_EXPORTED"` (no column; Tally not implemented)
+- `referenceType/referenceNumber/partyName` — derived from linked `Expense/EmployeeAdvance/TravelClaim`
+- `costCenter`, `modifiedBy`, `cancelledBy` — no columns on `Voucher`; returned `null`
+- `VoucherSequence` — single global counter per FY (no per-type sequences)
+
+---
+
+### Step 2O — Wire VouchersClient to Live APIs — **Completed 2026-06-15**
+
+- `VouchersClient.tsx` fully rewritten to use live API field names (`voucherNumber`, `voucherType`, `amount`, uppercase statuses)
+- Debounced search wired; detail drawer fetches `/api/finance/vouchers/[id]` on open
+- `VoucherSequencePanel` fetches `/api/finance/voucher-sequences` and shows live FY numbering status
+
+### Step 2P — Finance Status Banners — **Completed 2026-06-16**
+
+| Page | Variant | File |
+|---|---|---|
+| `/finance` (Dashboard) | `live-readonly` | `src/app/finance/page.tsx` |
+| `/finance/bank-book` | `live-readonly` | `src/app/finance/bank-book/page.tsx` |
+| `/finance/cash-book` | `live-readonly` | `src/app/finance/cash-book/page.tsx` |
+| `/finance/expenses` | `live-readonly` | `src/app/finance/expenses/page.tsx` |
+| `/finance/approvals` | `live-operational` | `src/app/finance/approvals/page.tsx` |
+| `/finance/advances` | `partially-live` | `src/app/finance/advances/page.tsx` |
+| `/finance/claims` | `partially-live` | `src/app/finance/claims/page.tsx` |
+| `/finance/vouchers` | `live-readonly` | `src/app/finance/vouchers/page.tsx` |
+| `/finance/conveyance` | `preview` | `src/app/finance/conveyance/page.tsx` |
+| `/finance/reports` | `coming-soon` | `src/app/finance/reports/page.tsx` |
+
+- Shared component: `src/app/finance/_shared/FinanceModuleStatusBanner.tsx`
+- Mock data comments added to: `bank-book/data.ts` (BANK_ACCOUNTS, IMPORT_HISTORY), `cash-book/data.ts` (CASH_ACCOUNTS, RECON_HISTORY), `conveyance/data.ts` (TRAVEL_TRIPS)
+- `npx tsc --noEmit` — clean
 
 ---
 

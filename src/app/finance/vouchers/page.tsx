@@ -1,77 +1,48 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
-import { canManageFinance } from "@/lib/roles";
-import { FileText } from "lucide-react";
+import { canManageFinance, isOperationsHead, isAccounts } from "@/lib/roles";
+import VouchersClient from "./VouchersClient";
+import FinanceModuleStatusBanner from "@/app/finance/_shared/FinanceModuleStatusBanner";
+
+export interface VoucherCaps {
+  roleLabel:   string;
+  canManage:   boolean; // isOpsHd or isAccounts — sees all vouchers, can print/download
+  canCancel:   boolean; // isOpsHd only — can void/cancel
+  canExport:   boolean; // isOpsHd or isAccounts — Tally export
+  currentUser: string;
+  employeeId:  number;
+}
 
 export default async function VouchersPage() {
   const session = await getSession();
   if (!session?.user) redirect("/login");
   if (!canManageFinance(session.user)) redirect("/dashboard");
 
+  const user    = session.user;
+  const isOpsHd = isOperationsHead(user);
+  const isAcc   = isAccounts(user);
+  const isMgr   = !!user.isManager;
+
+  const caps: VoucherCaps = {
+    roleLabel:   isOpsHd ? "Accounts Admin" : isAcc ? "Accounts Team" : isMgr ? "Manager" : "Finance",
+    canManage:   isOpsHd || isAcc,
+    canCancel:   isOpsHd,
+    canExport:   isOpsHd || isAcc,
+    currentUser: user.employeeName ?? user.name ?? "You",
+    employeeId:  user.employeeId   ?? 0,
+  };
+
   return (
     <SheetLayout
       title="Voucher Register"
-      description="Formal numbered vouchers for all financial transactions."
-      action={
-        <button
-          disabled
-          className="btn-cav btn-cav-primary"
-          style={{ opacity: 0.4, cursor: "not-allowed" }}
-        >
-          + New Voucher
-        </button>
-      }
+      description="Accounting vouchers for payment, receipt, journal, expense, advance and conveyance transactions."
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "80px 24px",
-          gap: 12,
-          textAlign: "center",
-        }}
-      >
-        <FileText
-          size={40}
-          strokeWidth={1.2}
-          style={{ color: "var(--fg-4)" }}
-        />
-        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-2)" }}>
-          Voucher Register
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: "var(--fg-3)",
-            maxWidth: 380,
-            lineHeight: 1.6,
-          }}
-        >
-          Auto-numbered vouchers in the format{" "}
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              background: "var(--bg-muted)",
-              padding: "1px 6px",
-              borderRadius: 4,
-            }}
-          >
-            CI/26-27/00001
-          </span>
-          . Covers payment, receipt, expense, advance, and conveyance types.
-          Printable PDF for each voucher.
-        </div>
-        <span
-          className="badge badge-neutral"
-          style={{ marginTop: 4, fontSize: 11 }}
-        >
-          Phase 4 — Coming soon
-        </span>
-      </div>
+      <FinanceModuleStatusBanner
+        variant="live-readonly"
+        message="Voucher register reads live data. Voucher creation, PDF generation, cancellation, and Tally export are disabled until write APIs are implemented."
+      />
+      <VouchersClient caps={caps} />
     </SheetLayout>
   );
 }

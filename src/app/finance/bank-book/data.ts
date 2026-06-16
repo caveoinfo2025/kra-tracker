@@ -147,7 +147,7 @@ export function deriveCaps(f: { isManager: boolean; isAccounts: boolean; isOpsHe
 }
 
 // ── Mock accounts ─────────────────────────────────────────────────────────────
-
+// Preview-only mock data. Remove after live API wiring.
 export const BANK_ACCOUNTS: BankAccount[] = [
   { id: "hdfc",  name: "HDFC Current",  maskedNo: "****4521", branch: "Head Office", openingBalance: 1850000, overdraftLimit: 500000 },
   { id: "icici", name: "ICICI Current", maskedNo: "****8830", branch: "Bangalore",   openingBalance: 920000,  overdraftLimit: 300000 },
@@ -174,7 +174,7 @@ export const BANK_TXNS: BankTxn[] = [
 ];
 
 // ── Mock import history ───────────────────────────────────────────────────────
-
+// Preview-only mock data. Remove after live API wiring.
 export const IMPORT_HISTORY: ImportHistoryRow[] = [
   { id: 1, fileName: "HDFC_Statement_Jun01.csv",  importedBy: "Priyadharshini R", importedAt: "2026-06-01T18:22:00", added: 3, updated: 1, amended: 0, status: "Completed" },
   { id: 2, fileName: "ICICI_Statement_Jun.xlsx",  importedBy: "Priyadharshini R", importedAt: "2026-06-04T11:05:00", added: 1, updated: 2, amended: 1, status: "Partial" },

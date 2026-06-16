@@ -4,6 +4,7 @@ import SheetLayout from "@/components/SheetLayout";
 import { isAccounts, isOperationsHead } from "@/lib/roles";
 import ConveyanceClient from "./ConveyanceClient";
 import { deriveCaps } from "./data";
+import FinanceModuleStatusBanner from "@/app/finance/_shared/FinanceModuleStatusBanner";
 
 export default async function ConveyancePage() {
   const session = await getSession();
@@ -24,6 +25,10 @@ export default async function ConveyancePage() {
       title="Local Conveyance"
       description="Log daily travel trips for mileage-based reimbursement at HR Policy rates."
     >
+      <FinanceModuleStatusBanner
+        variant="preview"
+        message="Local Conveyance is in preview. Google Maps distance calculation, monthly approval, and payment settlement will be enabled in later phases."
+      />
       <ConveyanceClient
         caps={caps}
         currentEmployee={currentEmployee}

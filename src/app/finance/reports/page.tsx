@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import { canManageFinance } from "@/lib/roles";
 import { BarChart3 } from "lucide-react";
+import FinanceModuleStatusBanner from "@/app/finance/_shared/FinanceModuleStatusBanner";
 
 export default async function FinanceReportsPage() {
   const session = await getSession();
@@ -23,6 +24,10 @@ export default async function FinanceReportsPage() {
         </button>
       }
     >
+      <FinanceModuleStatusBanner
+        variant="coming-soon"
+        message="Finance Reports are under development. Cash flow, expense reports, customer profitability, and export reports will be enabled in upcoming phases."
+      />
       <div
         style={{
           display: "flex",

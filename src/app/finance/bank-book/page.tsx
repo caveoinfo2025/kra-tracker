@@ -4,6 +4,7 @@ import SheetLayout from "@/components/SheetLayout";
 import { canManageFinance, isAccounts, isOperationsHead } from "@/lib/roles";
 import BankBookClient from "./BankBookClient";
 import { deriveCaps } from "./data";
+import FinanceModuleStatusBanner from "@/app/finance/_shared/FinanceModuleStatusBanner";
 
 export default async function BankBookPage() {
   const session = await getSession();
@@ -25,6 +26,10 @@ export default async function BankBookPage() {
       title="Bank Book"
       description="Complete bank ledger across all company accounts — transactions, reconciliation, and statement imports."
     >
+      <FinanceModuleStatusBanner
+        variant="live-readonly"
+        message="Bank ledger reads live transaction data. Add entry, import, transfer, and reconciliation actions are disabled until write APIs are implemented."
+      />
       <BankBookClient caps={caps} currentUser={userName} />
     </SheetLayout>
   );
