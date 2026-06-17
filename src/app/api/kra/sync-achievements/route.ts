@@ -195,6 +195,10 @@ export async function POST(req: NextRequest) {
       let metricsSync = 0;
 
       try {
+        if (!target.template) {
+          results.push({ employeeId: employee.id, employeeName: employee.name, targetId: target.id, metricsSync: 0, error: "No template assigned" });
+          continue;
+        }
         // For each metric in the template, compute and update achievement
         for (const templateItem of target.template.items) {
           const metric = templateItem.metric;

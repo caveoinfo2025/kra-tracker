@@ -1068,6 +1068,7 @@ model EmployeeProfile {
   team              Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
   designation       Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
   reportingManager  Employee?    @relation("ProfileReportingManager", fields: [reportingManagerId], references: [id], onDelete: SetNull)
+  employeeTargets   EmployeeTarget[]
 
   @@index([companyId])
   @@index([branchId])
@@ -1823,7 +1824,8 @@ model KRATemplate {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  items KRATemplateItem[]
+  items           KRATemplateItem[]
+  employeeTargets EmployeeTarget[]
 
   @@index([companyId])
   @@index([roleId])
@@ -1862,8 +1864,10 @@ model EmployeeTarget {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  achievements KRAAchievement[]
-  reviews      PerformanceReview[]
+  employeeProfile EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  template        KRATemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  achievements    KRAAchievement[]
+  reviews         PerformanceReview[]
 
   @@index([employeeProfileId])
   @@index([periodId])
