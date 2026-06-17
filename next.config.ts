@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
     ? {
         typescript: { ignoreBuildErrors: true },
         eslint: { ignoreDuringBuilds: true },
+        // Single CPU → Next runs page-data collection / static generation
+        // in-process instead of spawning jest-worker child processes. On this
+        // restricted CloudLinux host the worker pool can't be signalled on
+        // cleanup (`kill EPERM`), which aborts the build before BUILD_ID is
+        // written. In-process generation sidesteps that entirely.
+        experimental: { cpus: 1, workerThreads: false },
       }
     : {}),
 };

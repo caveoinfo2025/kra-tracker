@@ -51,8 +51,14 @@ async function main() {
   await new Promise((res, rej) => conn.on("ready", res).on("error", rej).connect(SSH));
   console.log("✓ SSH connected\n");
 
+  // Sync latest uat branch (brings SKIP_BUILD_CHECKS-aware next.config.ts)
+  console.log("Step 0: Syncing uat branch …");
+  await run(conn, `cd ${APP} && git fetch origin && git checkout uat && git reset --hard origin/uat`);
+  const headSha = await run(conn, `cd ${APP} && git rev-parse --short HEAD`, { allowFail: true });
+  console.log(`✓ uat at ${headSha}`);
+
   // Clean stale sentinels and any partial .next
-  console.log("Step 1: Cleaning previous build artifacts …");
+  console.log("\nStep 1: Cleaning previous build artifacts …");
   await run(conn, `rm -f ${LOG} ${DONE}; rm -rf ${APP}/.next`);
   console.log("✓ Cleaned");
 
@@ -68,22 +74,16 @@ async function main() {
   await run(conn, `setsid nohup bash -c ${JSON.stringify(buildCmd)} > /dev/null 2>&1 &`, { allowFail: true });
   console.log("✓ Build launched in background");
 
-  // Poll for the DONE sentinel
+  // Poll for the DONE sentinel — ONE exec per cycle, every 20s, to keep
+  // fork pressure on the shared host minimal. The sentinel holds the exit code.
   console.log("\nStep 3: Polling for completion (this can take several minutes) …");
   const startedAt = Date.now();
   const MAX_MS = 15 * 60 * 1000; // 15 min cap
-  let lastLogSize = 0;
   let exitCode = null;
 
   while (Date.now() - startedAt < MAX_MS) {
-    await sleep(15000);
+    await sleep(20000);
     const doneRaw = await run(conn, `cat ${DONE} 2>/dev/null || echo PENDING`, { allowFail: true });
-    // Show new log lines since last poll
-    const tail = await run(conn, `tail -c +${lastLogSize + 1} ${LOG} 2>/dev/null || true`, { allowFail: true });
-    if (tail) { process.stdout.write(tail.endsWith("\n") ? tail : tail + "\n"); }
-    const sizeStr = await run(conn, `wc -c < ${LOG} 2>/dev/null || echo 0`, { allowFail: true });
-    lastLogSize = parseInt(sizeStr.trim(), 10) || lastLogSize;
-
     if (doneRaw.trim() !== "PENDING" && doneRaw.trim() !== "") {
       exitCode = parseInt(doneRaw.trim(), 10);
       break;
