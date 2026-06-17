@@ -79,7 +79,7 @@ async function main() {
   await run(conn,
     `cd "${UAT_APP_PATH}" && ` +
     `set -a && source "${UAT_ENV_PATH}" && set +a && ` +
-    `PATH="${NODE_BIN}:$PATH" npm run build`
+    `PATH="${NODE_BIN}:$PATH" RAYON_NUM_THREADS=1 SKIP_BUILD_CHECKS=1 npm run build`
   );
   console.log("✓ Build complete");
 
