@@ -1,3 +1,15 @@
+/**
+ * Phase 15 Update: /kras page
+ *
+ * Changed to read EmployeeTarget (new enterprise system)
+ * instead of legacy KRA model.
+ *
+ * Fallback: if no EmployeeTarget exists, still show legacy KRA
+ * (backward compatibility during transition).
+ *
+ * To use: replace current src/app/kras/page.tsx with this file
+ */
+
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { redirect } from "next/navigation";
@@ -20,11 +32,34 @@ export default async function KrasPage() {
   const currentYear = now.getFullYear();
 
   if (isManager) {
-    // Fetch all employees with their active KRAs + latest review
+    // Manager: fetch all employees (non-managers) with EmployeeTarget + legacy KRA (fallback)
     const rawEmployees = await prisma.employee.findMany({
       where: { isManager: false },
       orderBy: { name: "asc" },
       include: {
+        // NEW: Enterprise system - EmployeeTarget
+        employeeProfile: {
+          include: {
+            employeeTargets: {
+              where: { status: "active" },
+              include: {
+                template: {
+                  include: {
+                    items: {
+                      include: { metric: true },
+                    },
+                  },
+                },
+                achievements: true,
+                reviews: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+        // FALLBACK: Legacy system - KRA (if no EmployeeTarget)
         kras: {
           where: { status: "active" },
           orderBy: { createdAt: "asc" },
@@ -55,13 +90,36 @@ export default async function KrasPage() {
       />
     );
   } else {
-    // Employee: fetch only their own active KRAs
+    // Employee: fetch only their own EmployeeTarget + legacy KRA (fallback)
     const employeeId = session.user.employeeId;
     if (!employeeId) redirect("/login");
 
     const rawEmployee = await prisma.employee.findUnique({
       where: { id: employeeId },
       include: {
+        // NEW: Enterprise system - EmployeeTarget
+        employeeProfile: {
+          include: {
+            employeeTargets: {
+              where: { status: "active" },
+              include: {
+                template: {
+                  include: {
+                    items: {
+                      include: { metric: true },
+                    },
+                  },
+                },
+                achievements: true,
+                reviews: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+        // FALLBACK: Legacy system - KRA (if no EmployeeTarget)
         kras: {
           where: { status: "active" },
           orderBy: { createdAt: "asc" },
@@ -91,7 +149,6 @@ export default async function KrasPage() {
         employees={[employee]}
         currentWeek={currentWeek}
         currentYear={currentYear}
-        myEmployeeId={employeeId}
       />
     );
   }
