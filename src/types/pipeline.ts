@@ -74,6 +74,8 @@ export type LeadSerialized = {
   productName: string;
   customerId: string | null;
   customerName: string;
+  customerRefId: number | null;
+  customerRef: { id: number; name: string } | null;
   stage: string;
   expectedValue: number;
   remarks: string;

@@ -4,8 +4,9 @@ import { getSession } from "@/lib/dev-session";
 import { executeAutomation } from "@/lib/crm-engine";
 
 const LEAD_INCLUDE = {
-  assignedTo: { select: { id: true, name: true } },
-  createdBy:  { select: { id: true, name: true } },
+  assignedTo:  { select: { id: true, name: true } },
+  createdBy:   { select: { id: true, name: true } },
+  customerRef: { select: { id: true, name: true } },
   opportunity: true,
   _count: { select: { tasks: true, meetings: true, notes: true } },
 } as const;
@@ -84,6 +85,7 @@ export async function POST(req: Request) {
       productName:   body.productName   ?? "",
       customerId:    body.customerId    ?? null,
       customerName:  body.customerName  ?? "",
+      customerRefId: body.customerRefId ? Number(body.customerRefId) : null,
       stage:         "NEW_LEAD",
       expectedValue: Number(body.expectedValue ?? 0),
       remarks:       body.remarks       ?? "",

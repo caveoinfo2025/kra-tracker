@@ -330,6 +330,8 @@ model CrmLead {
   productName   String   @default("")
   customerId    String?
   customerName  String   @default("")
+  customerRefId Int?
+  customerRef   Customer? @relation("CrmLeadCustomer", fields: [customerRefId], references: [id], onDelete: SetNull)
   stage         String   @default("NEW_LEAD")
   expectedValue Float    @default(0)
   remarks       String   @default("") @db.Text
@@ -349,6 +351,7 @@ model CrmLead {
   @@index([assignedToId])
   @@index([createdById])
   @@index([stage])
+  @@index([customerRefId])
 }
 
 model CrmOpportunity {
@@ -468,11 +471,12 @@ model Customer {
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
-  // Back-references from operational tables (Phase 17)
+  // Back-references from operational tables (Phase 17 + CRM)
   leadGenerations LeadGeneration[] @relation("LeadGenerationCustomer")
   salesFunnels    SalesFunnel[]    @relation("SalesFunnelCustomer")
   collections     Collection[]     @relation("CollectionCustomer")
   orderAdvances   OrderAdvance[]   @relation("OrderAdvanceCustomer")
+  crmLeads        CrmLead[]        @relation("CrmLeadCustomer")
 
   @@index([parentId])
   @@index([name])

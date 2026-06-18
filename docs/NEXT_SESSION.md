@@ -1,84 +1,98 @@
 # Next Session — Resume Here
 
 > Quick-start state for the next coding session. Overwritten at the end of every session.
-> Last updated: 2026-06-10 — Session 6: Phase 12 Integration Center + Phase 13 Enterprise Security Center.
+> Last updated: 2026-06-18 — Session 8: Lead Delete with Reason + Deletion Audit Log
 
 ## Where to continue
 
-**Phase 13 (Security Center) is the FINAL module.** Per user instruction: *"STOP after Security Center. Do not implement Governance module."*
+**All session 7 + session 8 work is uncommitted. UAT DB migration still pending.**
 
-All work from Phase 8 onward is UNCOMMITTED (working tree dirty, 28 commits ahead of `origin/master` from earlier sessions, plus new untracked files). **Confirm with Vijesh before committing or pushing.**
+### Immediate pending steps:
 
-### Two options for next session:
+1. **UAT DB migration** — apply `prisma/apply-crm-lead-customer-ref.mjs` against UAT DB (`u686730471_Caveo_UAT`):
+   ```powershell
+   # On UAT server (or with UAT DATABASE_URL set):
+   node prisma/apply-crm-lead-customer-ref.mjs
+   # Then mark resolved:
+   node -e "require('dotenv').config(); const { execSync } = require('child_process'); execSync('npx prisma migrate resolve --applied 20260618100000_crm_lead_customer_ref', { stdio: 'inherit', env: process.env });"
+   npx prisma generate
+   ```
 
-**Option A — Commit & ship:**
-1. Stage + commit Phases 12 and 13 in logical chunks (see suggested messages below)
-2. Run `npx tsc --noEmit && npx next build` to verify
-3. Confirm with Vijesh → `git push origin master`
-4. Hostinger deploy: `touch ~/public_html/nodejs/tmp/restart.txt`
+2. **Push to UAT git** — after UAT migration confirmed:
+   ```powershell
+   git add -A
+   git commit -m "feat(crm): SFDC-style lead standardization — CustomerNameCombobox, convert flow, HR automation, RBAC role assignment, lead delete with audit log"
+   git push origin uat
+   ```
 
-**Option B — Wire security policies into auth:**
-The security engine is built but non-enforcing. If Vijesh wants to activate:
-- Password validation: call `validatePasswordAgainstPolicy()` in the account/password-change flow
-- Session policy: call `validateSession()` in `src/proxy.ts` or layout SSR gate
-- MFA: call `isMFARequired()` after login success to redirect to `/mfa` challenge
-- Access rules: call `checkIPAccess()` and `checkBusinessHours()` in `src/proxy.ts`
+4. **Apply UAT DB migration** on Hostinger (SSH or via hPanel phpMyAdmin):
+   - Run the same 3 SQL statements from `prisma/migrations/20260618100000_crm_lead_customer_ref/migration.sql`
+   - Or run `apply-crm-lead-customer-ref.mjs` with UAT DATABASE_URL
 
-## Last completed task
+## Last completed task (Session 8)
 
-All verified in browser ✓, TypeScript clean ✓:
+All TypeScript-clean; verified in browser:
 
-1. **Phase 12 — Integration Center** (`/settings/integrations`)
-   - 5 DB tables: `integration_provider`, `integration_connection`, `integration_usage_rule`, `integration_log`, `api_key_reference`
-   - Migrations applied to dev DB (`20260610080000_integration_center`)
-   - Service layer: `src/lib/integration-engine/` (providers, connections, credentials, logs, test)
-   - 5 API routes under `/api/admin/integrations/`
-   - 10-tab UI — including **New Connection form** + **New Credential form**
-   - 11 providers seeded INACTIVE
-   - `secretRef` stores env var NAME only — never the raw secret
+1. **Lead Delete with Reason** — users can delete their own leads; managers can delete any lead
+   - `DELETE /api/pipeline/leads/[id]` — ownership check (not manager-only); requires `reason` in body
+   - `AuditLog` entry written before deletion: snapshot of title, company, stage, owner, value + reason
+   - 🗑 button in table row: visible to lead owner + managers
+   - 🗑 Delete button in detail page header: visible to anyone with `canEdit` (owner or manager)
+   - `DeleteLeadModal` in both surfaces — requires reason, disabled until text entered, irreversibility warning
 
-2. **Phase 13 — Enterprise Security Center** (`/settings/security`)
-   - 7 DB tables: `security_policy`, `password_policy`, `mfa_policy`, `session_policy`, `access_restriction_policy`, `data_protection_policy`, `security_event_log`
-   - Migrations applied to dev DB (`20260610090000_security_center`)
-   - Service layer: `src/lib/security-engine/` (password-policy, mfa, session, access-policy, data-protection, security-log, index)
-   - 7 API routes under `/api/admin/security/`
-   - 8-tab UI: Overview, Authentication, Password Policy, MFA, Sessions, Access Rules, Data Protection, Logs
-   - 5 default policies seeded and confirmed in browser
-   - `evaluateSecurityPolicy()` is fail-open (returns ALLOW on any error)
+2. **Lead Deletion Audit Log** (manager-only)
+   - `GET /api/pipeline/leads/deletion-log` — returns all `AuditLog` entries for deleted leads with performer name
+   - **Deletion Log** button in leads toolbar (managers only) — opens modal table: lead name, stage, deleted by, reason, date
+   - Lazy-loaded on first open; cached for the session
 
-## Suggested commit messages (for Option A)
+## Session 7 work (still uncommitted)
 
-```
-feat(integrations): Phase 12 Integration Center — DB, engine, API routes, 10-tab UI
-feat(security): Phase 13 Enterprise Security Center — DB, engine, API routes, 8-tab UI
-```
+1. SFDC-style Lead Form Standardization (`customerRefId`, `CustomerNameCombobox`, `ConvertModal`, convert endpoint)
+2. RBAC Role Assignment (Settings → Identity & Access → Employees)
+3. HR Automation (deactivate/suspend → auto-revoke UserRole)
+4. Employee Form Dropdown Wiring
 
 ## Current blockers
 
-- **None functional** — both phases browser-verified, TypeScript clean.
-- All changes are uncommitted — confirm with Vijesh before pushing.
-- Dev DB user `u686730471_devuser` caps at 500 connections/hour (heavy seeding recovers in ~1h).
+- **UAT DB migration not yet applied** — `20260618100000_crm_lead_customer_ref` must be run against `u686730471_Caveo_UAT` before the Leads page works on UAT.
+- **All work Sessions 5–8 is uncommitted** — confirm push strategy with Vijesh before committing.
+- **Office WiFi IP** — CLAUDE.md shows `10.201.255.160`; update at office if changed.
+
+## Priority tasks for next session
+
+1. Apply UAT DB migration + push to UAT git → confirm on UAT server
+2. Test full convert + delete flows on UAT
+3. Legacy `lead-generation` form wiring (Phase 17 deferred): `customerId` + `CustomerNameCombobox`
+4. `OrderAdvance` form: wire `customerId`
+5. Finance backend wiring — pick one Finance Phase 2 page (e.g. Bank Book) and replace mock data with live API
+
+## Files needing attention
+
+| File | Reason |
+|------|--------|
+| `prisma/apply-crm-lead-customer-ref.mjs` | Must be run against UAT before deploying |
+| `src/app/api/pipeline/leads/[id]/route.ts` | DELETE now ownership-based; AuditLog write |
+| `src/app/api/pipeline/leads/deletion-log/route.ts` | New — manager-only audit log endpoint |
+| `src/app/pipeline/leads/LeadsClient.tsx` | Delete button + Deletion Log panel |
+| `src/app/pipeline/leads/[id]/LeadDetailClient.tsx` | Delete button in header (canEdit gate) |
 
 ## Start commands
 
 ```powershell
-npm run dev                       # http://localhost:3000 → /login → quick-login as Vijesh (Manager)
+# Start dev server (hidden, logs to .next/dev-server.log)
+$logFile = "C:\Users\VIJESHVIJAYAN\Code\kra-tracker\.next\dev-server.log"
+Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"C:\Users\VIJESHVIJAYAN\Code\kra-tracker`" && npm run dev > `"$logFile`" 2>&1" -WindowStyle Hidden
 
-# Navigate to new modules:
-# http://localhost:3000/settings/integrations   ← Phase 12
-# http://localhost:3000/settings/security       ← Phase 13
-
-# Pre-push validation:
-npx tsc --noEmit ; npx next build
+# Navigate to:
+# http://localhost:3000/pipeline/leads          ← delete button (🗑) + Deletion Log toolbar button
+# http://localhost:3000/pipeline/leads/[id]     ← delete button in header
 ```
 
 ## Context to restore (non-obvious)
 
-- **STOP directive is active:** "Do not implement Governance module." Phase 13 is the final Settings module.
-- **Fail-open pattern (critical):** `evaluateSecurityPolicy()` and all integration-engine calls return safe defaults on error. This ensures existing login/sessions are never broken by the new engines.
-- **secretRef rule:** Integration credentials store ONLY the env var NAME (e.g. `SMTP_PASSWORD`). The actual secret lives in the OS environment. The API masks secretRef as `"[set]"` in all responses. `resolveSecret()` is server-only.
-- **Prisma acronym casing:** `MFAPolicy` → `prisma.mFAPolicy`; `APIKeyReference` → `prisma.aPIKeyReference`. These are used correctly in the service layers.
-- **Security policies are non-enforcing:** The DB tables exist, defaults are seeded, the engine is built — but nothing calls `evaluateSecurityPolicy()` in auth flows yet. Existing login/JWT/sessions are completely unaffected.
-- **Migration pattern (Hostinger, no shadow DB):** write SQL → `node apply-*.mjs` → `prisma migrate resolve --applied <name>` → `prisma generate` → restart dev server.
-- **28 commits ahead of origin/master:** Sessions 4-6 are uncommitted at origin. Phases 8-13 are all in the working tree.
-- **Turbopack new-file gotcha:** after creating a new route file, restart dev server if it 404s.
+- **Delete is logged to `AuditLog`** (not `CrmActivity`) — because CrmActivity has a FK to CrmLead and would cascade-delete with the lead. AuditLog has no FK to CrmLead so the entry survives.
+- **`PROPOSAL_SENT` leads are hidden from the Leads view** — they live in Opportunities. After conversion, the lead disappears from the leads table (by design).
+- **Convert is idempotent** — calling the convert endpoint twice with the same customerId is safe.
+- **Migration pattern (Hostinger):** write SQL → `node apply-*.mjs` (uses mariadb driver + dotenv) → `node -e "..." prisma migrate resolve` → `npx prisma generate` → restart dev server.
+- **Phase 13 STOP directive is still active** — "Do not implement Governance module."
+- **28+ commits ahead of origin/master** — large backlog. Confirm push strategy with Vijesh.

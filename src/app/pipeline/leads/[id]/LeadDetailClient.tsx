@@ -12,6 +12,8 @@ type Employee = { id: number; name: string; role?: string; department?: string; 
 type Meeting = { id: number; title: string; meetingDate: string; notes: string; location: string; employee: { id: number; name: string } };
 
 type FullLead = LeadSerialized & {
+  customerRefId?: number | null;
+  customerRef?: { id: number; name: string } | null;
   tasks: (TaskSerialized & { assignedTo: { id: number; name: string } })[];
   meetings: Meeting[];
   activities: ActivitySerialized[];
@@ -338,6 +340,196 @@ function PocDemoPrompt({
   );
 }
 
+// ─── Delete Lead modal ─────────────────────────────────────────────────────────
+function DeleteLeadModal({
+  lead, onClose, onDeleted,
+}: {
+  lead: FullLead;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [reason,   setReason]   = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error,    setError]    = useState("");
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) { setError("Please enter a reason."); return; }
+    setError(""); setDeleting(true);
+    try {
+      const res = await fetch(`/api/pipeline/leads/${lead.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Failed to delete lead.");
+        return;
+      }
+      onDeleted();
+    } catch { setError("Network error."); }
+    finally { setDeleting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-bold text-red-700 mb-1">Delete Lead</h3>
+        <p className="text-sm text-gray-500 mb-1">You are about to permanently delete:</p>
+        <p className="text-sm font-semibold text-gray-800 mb-4">
+          {lead.companyName} — {lead.title}
+        </p>
+        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 mb-4">
+          This action cannot be undone. All tasks, meetings, notes, and activities for this lead will be removed.
+        </div>
+        {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded mb-3 border border-red-200">{error}</div>}
+        <form onSubmit={handleDelete} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Reason for deletion <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Duplicate entry, wrong contact, customer withdrew…"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+            />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={deleting || !reason.trim()}
+              className="flex-1 bg-red-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-red-700 disabled:opacity-50">
+              {deleting ? "Deleting…" : "Delete Lead"}
+            </button>
+            <button type="button" onClick={onClose}
+              className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Convert Lead modal ─────────────────────────────────────────────────────────
+const CONVERT_STAGES = ["QUALIFIED", "REQUIREMENT_GATHERED", "SOLUTION_PROPOSED", "POC_DEMO"];
+
+function ConvertModal({
+  lead, onClose, onConverted,
+}: {
+  lead: FullLead;
+  onClose: () => void;
+  onConverted: (opportunityId: number) => void;
+}) {
+  const [form, setForm] = useState({
+    name: lead.companyName ?? "",
+    address: "",
+    district: "",
+    state: "",
+    pincode: "",
+    gstNo: "",
+  });
+  const [converting, setConverting] = useState(false);
+  const [error, setError] = useState("");
+
+  function f(k: keyof typeof form, v: string) { setForm((p) => ({ ...p, [k]: v })); }
+
+  async function doConvert(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!lead.customerRefId && !form.name.trim()) { setError("Customer name is required."); return; }
+    setConverting(true);
+    try {
+      const body = lead.customerRefId
+        ? { existingCustomerId: lead.customerRefId }
+        : { name: form.name.trim(), address: form.address, district: form.district, state: form.state, pincode: form.pincode, gstNo: form.gstNo };
+      const res = await fetch(`/api/pipeline/leads/${lead.id}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error ?? "Conversion failed."); return; }
+      const data = await res.json();
+      onConverted(data.opportunity?.id);
+    } catch {
+      setError("Something went wrong.");
+    } finally {
+      setConverting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-semibold mb-1">Convert Lead to Opportunity</h3>
+        {lead.customerRef ? (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+            <p className="text-xs text-green-700 font-medium">Linked customer master</p>
+            <p className="text-sm font-semibold text-green-900">{lead.customerRef.name}</p>
+            <p className="text-xs text-green-600 mt-0.5">Will be linked directly. No new record needed.</p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 mb-4">
+            This prospect isn't linked to a Customer master yet. Fill in the details to create one now.
+          </p>
+        )}
+        {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200 mb-3">{error}</div>}
+        <form onSubmit={doConvert} className="space-y-3">
+          {!lead.customerRef && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Customer / Company Name *</label>
+                <input value={form.name} onChange={(e) => f("name", e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">District</label>
+                  <input value={form.district} onChange={(e) => f("district", e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">State</label>
+                  <input value={form.state} onChange={(e) => f("state", e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Pincode</label>
+                  <input value={form.pincode} onChange={(e) => f("pincode", e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">GST No. (optional)</label>
+                  <input value={form.gstNo} onChange={(e) => f("gstNo", e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
+                <input value={form.address} onChange={(e) => f("address", e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              </div>
+            </>
+          )}
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={converting}
+              className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
+              {converting ? "Converting…" : "Convert → Opportunity"}
+            </button>
+            <button type="button" onClick={onClose}
+              className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ─────────────────────────────────────────────────────────────
 export default function LeadDetailClient({
   lead: initialLead,
@@ -359,8 +551,11 @@ export default function LeadDetailClient({
   const [showEdit, setShowEdit] = useState(false);
   const [showMeeting, setShowMeeting] = useState<{ title?: string; presales?: boolean } | null>(null);
   const [showPoc, setShowPoc] = useState(false);
+  const [showConvert, setShowConvert] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
 
-  const canEdit = isManager || lead.assignedTo.id === currentEmployeeId;
+  const canEdit    = isManager || lead.assignedTo.id === currentEmployeeId;
+  const canConvert = canEdit && CONVERT_STAGES.includes(lead.stage);
 
   // ── Stage updater ──────────────────────────────────────────────────────────
   async function changeStage(stage: string) {
@@ -475,12 +670,26 @@ export default function LeadDetailClient({
                 <p className="text-2xl font-bold text-[#CC2229]">₹{lead.expectedValue.toFixed(1)}L</p>
               )}
               <p className="text-xs text-gray-400">{lead.source}</p>
-              {canEdit && (
-                <button onClick={() => setShowEdit(true)}
-                  className="mt-2 text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700">
-                  ✎ Edit Lead
-                </button>
-              )}
+              <div className="flex gap-2 mt-2 flex-wrap justify-end">
+                {canConvert && (
+                  <button onClick={() => setShowConvert(true)}
+                    className="text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg hover:bg-amber-600 font-semibold">
+                    Convert →
+                  </button>
+                )}
+                {canEdit && (
+                  <button onClick={() => setShowEdit(true)}
+                    className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700">
+                    ✎ Edit Lead
+                  </button>
+                )}
+                {canEdit && (
+                  <button onClick={() => setShowDelete(true)}
+                    className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-semibold">
+                    🗑 Delete
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -542,7 +751,6 @@ export default function LeadDetailClient({
                   ["OEM",      lead.oemName  || "—"],
                   ["Category", lead.categoryName || "—"],
                   ["Product",  lead.productName  || "—"],
-                  ["Customer", lead.customerName || "—"],
                   ["Created",  lead.createdAt.slice(0, 10)],
                 ].map(([k, v]) => (
                   <div key={k}>
@@ -550,6 +758,14 @@ export default function LeadDetailClient({
                     <p className="font-medium text-gray-800">{v}</p>
                   </div>
                 ))}
+                <div>
+                  <p className="text-xs text-gray-500">Company / Customer</p>
+                  {lead.customerRef ? (
+                    <p className="font-medium text-green-700">✓ {lead.customerRef.name} <span className="text-xs text-green-500 font-normal">(linked)</span></p>
+                  ) : (
+                    <p className="font-medium text-gray-800">{lead.companyName || "—"} <span className="text-xs text-gray-400 font-normal">(prospect)</span></p>
+                  )}
+                </div>
                 {lead.remarks && (
                   <div className="col-span-2">
                     <p className="text-xs text-gray-500">Remarks</p>
@@ -768,6 +984,22 @@ export default function LeadDetailClient({
             }));
             router.refresh();
           }}
+        />
+      )}
+      {showConvert && (
+        <ConvertModal
+          lead={lead}
+          onClose={() => setShowConvert(false)}
+          onConverted={(oppId) => {
+            if (oppId) router.push(`/pipeline/opportunities/${oppId}`);
+          }}
+        />
+      )}
+      {showDelete && (
+        <DeleteLeadModal
+          lead={lead}
+          onClose={() => setShowDelete(false)}
+          onDeleted={() => router.push("/pipeline/leads")}
         />
       )}
     </div>

@@ -19,21 +19,27 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-10, end of session 6 — Phase 12 Integration Center + Phase 13 Enterprise Security Center)
+## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
-### This session (UNCOMMITTED — dev DB migrations applied, browser verified)
-- **Phase 12 — Integration Center** (`/settings/integrations`): 5 DB tables, service layer (5 files), 5 API routes, 10-tab UI, 11 seeded providers. Migrations applied to dev DB. TypeScript clean. ✓
-- **Phase 13 — Enterprise Security Center** (`/settings/security`): 7 DB tables, service layer (6 files + index), 7 API routes, 8-tab UI, 5 default policies seeded. Migrations applied to dev DB. TypeScript clean. Browser verified — all tabs + seeded data visible. ✓
+### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
+- **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
+- **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓
+- **HR Automation**: deactivating/suspending employee auto-revokes all `UserRole` records. ✓
+- **Employee Form Dropdown Wiring**: Department / Designation / Reports-To from master tables; sets FK ids on `EmployeeProfile`. ✓
+
+### ⚠️ UAT DB migration still pending
+`20260618100000_crm_lead_customer_ref` must be applied to UAT (`u686730471_Caveo_UAT`) before leads page works on UAT. Use `prisma/apply-crm-lead-customer-ref.mjs`.
 
 ### ⚠️ STOP: Phase 13 is the final module
 Per user instruction: "STOP after Security Center. Do not implement Governance module."
 
 ### ⚠️ All work UNCOMMITTED since session 4
-Sessions 5 + 6 changes are NOT committed. Everything from Phase 8 onwards lives only in the working tree. **Confirm with Vijesh before committing or pushing.**
+Sessions 5–7 changes are NOT committed. Everything from Phase 8 onwards lives only in the working tree. **Confirm with Vijesh before committing or pushing.**
 
-### Migrations applied to dev DB (not yet committed to git)
+### Migrations applied to dev DB
 - `20260610080000_integration_center` — 5 tables, marked applied
 - `20260610090000_security_center` — 7 tables, marked applied
+- `20260618100000_crm_lead_customer_ref` — `CrmLead.customerRefId` FK, marked applied
 
 ### Previously committed (sessions 1–4)
 - Sessions 1–3: Finance Phase 1 DB layer, Admin Console Phases 1–7 UI (all committed)
@@ -154,6 +160,9 @@ Sessions 5 + 6 changes are NOT committed. Everything from Phase 8 onwards lives 
   INACTIVE providers (SMTP, M365, Google Workspace, GST, PAN, Google Maps, WhatsApp Business, SMS,
   Teams Webhook, Tally, Generic Webhook). Credentials stored as env-var references (`secretRef`) only —
   raw secrets never persisted. Dry-run `testConnection()` — no live external calls by default.
+- **SFDC-style Lead Standardization** *(2026-06-18, UNCOMMITTED, dev DB migration applied)* — `CrmLead.customerRefId` FK to `Customer` table; `CustomerNameCombobox` single smart field (auto-links on match, free-text for new prospects); `ConvertModal` on both lead list (`LeadsClient.tsx`) and detail page (`LeadDetailClient.tsx`); `POST /api/pipeline/leads/[id]/convert` creates Customer master + `CrmOpportunity` + sets stage to `PROPOSAL_SENT`. Idempotent.
+- **RBAC Role Assignment UI + HR Automation** *(2026-06-18, UNCOMMITTED)* — Assign/Remove toggles per role in the Employees tab Manage drawer. PATCH endpoint handles `addRoleId`/`removeRoleId`. HR automation: deactivating/suspending employee deletes all `UserRole` records automatically.
+- **Employee Form Dropdown Wiring** *(2026-06-18, UNCOMMITTED)* — Department / Designation / Reports-To dropdowns wired from master tables; sets both FK ids (`EmployeeProfile`) and name strings (`Employee` table) in sync on save.
 - **Enterprise Security Center — Phase 13** *(2026-06-10, UNCOMMITTED, dev DB applied, browser verified)* —
   `/settings/security`, an 8-tab configurable security policy console: `src/lib/security-engine/`
   (password-policy, mfa, session, access-policy, data-protection, security-log, index); 7 API routes
@@ -192,18 +201,28 @@ Sessions 5 + 6 changes are NOT committed. Everything from Phase 8 onwards lives 
 | Money fields as `DOUBLE` not `Decimal(12,4)` | Pre-session 1 | Finance totals accumulate float error |
 | Security policies non-enforcing | Session 6 | Engine built but not wired into auth |
 | Integration connections not making live calls | Session 6 | Dry-run only; needs wiring per integration type |
+| UAT DB migration not applied | Session 7 | `customerRefId` column missing on UAT — leads page broken until applied |
+| Legacy `lead-generation` form not standardized | Session 7 | Old form still uses free-text `customerId`; Phase 17 deferred |
 
 ## Recommended Next Steps
 
-1. **Commit + push Phases 12 & 13** (confirm with Vijesh). Suggested commits:
-   - `feat(integrations): Phase 12 Integration Center`
-   - `feat(security): Phase 13 Enterprise Security Center`
-2. **Wire password validation** — call `validatePasswordAgainstPolicy()` in any future password-change flow. Low risk; already fail-open.
-3. **Wire data export guard** — call `canExportData()` before any CSV/XLSX export route returns data. First real use of the security engine.
-4. **Commit earlier uncommitted work** (Phases 8–11 were committed to `master` but never pushed — verify `git log origin/master` vs `git log master`).
+1. **Apply UAT DB migration** (`20260618100000_crm_lead_customer_ref`) on UAT server — leads page is broken on UAT until done.
+2. **Browser-verify the convert flow** on localhost then push to UAT git:
+   - `git add -A && git commit -m "feat(crm): SFDC-style lead standardization + RBAC role assignment + HR automation"`
+   - `git push origin uat`
+3. **Wire password validation** — call `validatePasswordAgainstPolicy()` in any future password-change flow. Low risk; already fail-open.
+4. **Wire data export guard** — call `canExportData()` before any CSV/XLSX export route returns data. First real use of the security engine.
 5. **Finance backend wiring** — pick one Finance Phase 2 module (e.g. Bank Book) and wire it against the existing Phase-1 Prisma models. The `data.ts` type shapes are the contract.
 
 ## 4b. In-progress / Decisions this session
+
+### Session 7 (2026-06-18) — SFDC Lead Standardization
+
+- **Single combobox decision:** one `CustomerNameCombobox` field replaces two separate fields (free-text `companyName` + `CrmSelect type="customers"` dropdown). Auto-detects match against Customer master on select; free-text for new prospects. `customerRefId` null = prospect; non-null = linked master.
+- **Conversion is explicit, not automatic:** "Convert →" button only appears at QUALIFIED+; not at NEW_LEAD/CONTACTED. Deliberate — salesperson triggers the conversion.
+- **New customer at conversion:** form prompts name (required), district, state, pincode, address, optional GST. Creates Customer master via canonical Prisma create (same model as `/api/customers/master`). `crmSource: "lead_conversion"` tag set for audit.
+- **Idempotency of convert endpoint:** checks `lead.opportunity` before creating; re-running same convert is safe.
+- **HR automation scope:** only triggers on INACTIVE/SUSPENDED status change (not ACTIVE → other transitions). Fire-and-forget pattern; never blocks save.
 
 ### Session 6 (2026-06-10) — Integration Center + Security Center
 

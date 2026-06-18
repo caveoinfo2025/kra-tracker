@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/access-control";
 const LEAD_INCLUDE = {
   assignedTo:  { select: { id: true, name: true } },
   createdBy:   { select: { id: true, name: true } },
+  customerRef: { select: { id: true, name: true } },
   opportunity: { include: { activities: { orderBy: { timestamp: "desc" as const }, take: 20 } } },
   tasks:       { include: { assignedTo: { select: { id: true, name: true } } }, orderBy: { dueDate: "asc" as const } },
   meetings:    { include: { employee: { select: { id: true, name: true } } }, orderBy: { meetingDate: "desc" as const } },
@@ -60,6 +61,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       productName:    body.productName   ?? undefined,
       customerId:     body.customerId    !== undefined ? body.customerId  : undefined,
       customerName:   body.customerName  ?? undefined,
+      customerRefId:  body.customerRefId !== undefined ? (body.customerRefId ? Number(body.customerRefId) : null) : undefined,
       expectedValue:  body.expectedValue !== undefined ? Number(body.expectedValue) : undefined,
       remarks:        body.remarks       ?? undefined,
       // Only managers can reassign
@@ -123,12 +125,47 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return NextResponse.json(updated);
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  const deny = await requirePermission(session, "CRM", "Lead", "EDIT");
-  if (deny) return deny;
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await prisma.crmLead.delete({ where: { id: Number(id) } });
+  const leadId = Number(id);
+  const lead = await prisma.crmLead.findUnique({
+    where: { id: leadId },
+    include: { assignedTo: { select: { name: true } } },
+  });
+  if (!lead) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Managers can delete any lead; employees can only delete their own
+  if (!session.user.isManager && lead.assignedToId !== session.user.employeeId) {
+    return NextResponse.json({ error: "You can only delete leads assigned to you" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const reason: string = (body.reason ?? "").toString().trim();
+  if (!reason) return NextResponse.json({ error: "Deletion reason is required" }, { status: 400 });
+
+  const empId = session.user.employeeId!;
+
+  // Log before deleting so the snapshot is preserved
+  await prisma.auditLog.create({
+    data: {
+      entityType:    "lead",
+      entityId:      leadId,
+      action:        "delete",
+      performedById: empId,
+      notes:         reason,
+      changes:       JSON.stringify({
+        title:       lead.title,
+        companyName: lead.companyName,
+        stage:       lead.stage,
+        assignedTo:  lead.assignedTo?.name ?? null,
+        expectedValue: lead.expectedValue,
+      }),
+    },
+  });
+
+  await prisma.crmLead.delete({ where: { id: leadId } });
   return NextResponse.json({ success: true });
 }

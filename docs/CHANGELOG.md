@@ -3,6 +3,75 @@
 Reverse-chronological log of notable changes. **Update at the end of every session.**
 Dates from git history (branch `master`).
 
+## [2026-06-18 — Session 8] — Lead Delete with Reason + Deletion Audit Log
+
+### Added
+- **`GET /api/pipeline/leads/deletion-log`** — manager-only endpoint returning all `AuditLog` entries where `entityType="lead"` and `action="delete"`, with `performedBy` name included.
+- **`DeleteLeadModal`** component (in both `LeadsClient.tsx` and `LeadDetailClient.tsx`) — requires a reason, warns about permanence, disables submit until reason is entered.
+- **Deletion Log panel** in the leads toolbar (manager-only) — lazy-fetches and displays a table of deleted leads: company name, title, stage at deletion, deleted-by, reason, date.
+
+### Changed
+- **`DELETE /api/pipeline/leads/[id]`** — removed manager-only gate; now allows any user to delete their own lead (ownership check: `assignedToId === employeeId`); managers can still delete any lead. Always requires `reason` in body. Writes `AuditLog` entry (entityType=`"lead"`, action=`"delete"`, notes=reason, changes=JSON snapshot) **before** deletion so the record survives the cascade.
+- **`LeadsClient.tsx`** — 🗑 button now shows for `isManager || ownerId === currentEmployeeId` (was manager-only). Added **Deletion Log** button (manager-only) to toolbar.
+- **`LeadDetailClient.tsx`** — Delete button guard changed from `isManager` to `canEdit` (covers lead owner + manager).
+
+### Files Modified
+- `src/app/api/pipeline/leads/[id]/route.ts`
+- `src/app/api/pipeline/leads/deletion-log/route.ts` (new)
+- `src/app/pipeline/leads/LeadsClient.tsx`
+- `src/app/pipeline/leads/[id]/LeadDetailClient.tsx`
+
+### Verified in browser
+- 🗑 button visible in table rows ✓
+- DeleteLeadModal opens with lead name, warning, required reason ✓
+- Delete button disabled when reason is empty ✓
+- Deletion Log modal opens for managers, shows "No leads deleted yet" on empty ✓
+- TypeScript: exit code 0 ✓
+
+---
+
+## [2026-06-18 — Session 7] — SFDC-style Lead Standardization + HR Automation + RBAC Role Assignment
+
+### Added
+- **`customerRefId` FK on `CrmLead`** — proper FK to `Customer` table (was soft-link via `customerId String?` only). Migration `20260618100000_crm_lead_customer_ref` applied to dev DB + resolved in Prisma history.
+- **`POST /api/pipeline/leads/[id]/convert`** — SFDC-style conversion endpoint: links/creates Customer master, creates `CrmOpportunity`, sets lead stage to `PROPOSAL_SENT`. Idempotent. Logs two activities (opportunity created + lead converted).
+- **`ConvertModal`** in `LeadsClient.tsx` — amber "Convert →" button on lead rows at QUALIFIED/REQUIREMENT_GATHERED/SOLUTION_PROPOSED/POC_DEMO stages. If `customerRefId` is already set, skips the form and converts directly. Otherwise prompts for name, district, state, pincode, address, optional GST. Navigates to the new opportunity on success.
+- **`ConvertModal`** in `LeadDetailClient.tsx` — same convert flow available on the lead detail page. "Convert →" button in the header card alongside "Edit Lead".
+- **`CustomerNameCombobox` smart field** — replaces the old separate "Customer (existing)" `CrmSelect` dropdown in the lead form. Single field that: auto-links to Customer master on select (sets `customerRefId`); shows "✓ Linked to master" badge; shows prospect hint on free-text entry.
+- **RBAC Role Assignment UI** in Employees tab (Settings → Identity & Access) — Assign/Remove toggles per role in the Manage drawer. Calls `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`.
+- **HR Automation** — when employee status changes to INACTIVE or SUSPENDED, all `UserRole` records are deleted automatically (PATCH endpoint).
+- **Department / Designation / Reports-To dropdowns** in Add/Edit employee form — wired from `/api/settings/organization/departments`, `/api/settings/organization/designations`, `/api/employees`. Sets both FK id (EmployeeProfile) and name string (Employee table).
+
+### Changed
+- `prisma/schema.prisma` — `CrmLead` model: added `customerRefId Int?`, `customerRef Customer?`, `@@index([customerRefId])`. `Customer` model: added `crmLeads CrmLead[]` back-relation.
+- `src/types/pipeline.ts` — `LeadSerialized`: added `customerRefId: number | null`, `customerRef: { id: number; name: string } | null`.
+- `LEAD_INCLUDE` in both leads API files — added `customerRef: { select: { id: true, name: true } }`.
+- `POST /api/pipeline/leads` + `PUT /api/pipeline/leads/[id]` — accept `customerRefId` in body.
+- `LeadsClient.tsx` — `MergedLead` type extended with `customerRefId`; form state updated; `handleSubmit` sends `customerRefId`; table company cell shows green dot when linked; `convertingLead` state + modal render added.
+- `LeadDetailClient.tsx` — `FullLead` type extended with `customerRefId`/`customerRef`; `canConvert` flag; Convert button in header; Overview tab shows linked-vs-prospect status for company.
+- `PATCH /api/admin/identity/users/[id]` — handles `addRoleId`, `removeRoleId`, HR deactivation auto-revoke.
+
+### Fixed
+- Dev server migration: `apply-crm-lead-customer-ref.mjs` — applied column + FK + index to `u686730471_caveodev`. Migration resolved via node-wrapped `prisma migrate resolve`.
+
+### Files Modified
+- `prisma/schema.prisma`
+- `prisma/migrations/20260618100000_crm_lead_customer_ref/migration.sql` (new)
+- `prisma/apply-crm-lead-customer-ref.mjs` (new)
+- `src/types/pipeline.ts`
+- `src/app/api/pipeline/leads/route.ts`
+- `src/app/api/pipeline/leads/[id]/route.ts`
+- `src/app/api/pipeline/leads/[id]/convert/route.ts` (new)
+- `src/app/api/admin/identity/users/[id]/route.ts`
+- `src/app/pipeline/leads/LeadsClient.tsx`
+- `src/app/pipeline/leads/[id]/LeadDetailClient.tsx`
+- `src/app/settings/identity/components/EmployeesTab.tsx`
+
+### Database Changes
+- `CrmLead.customerRefId INT NULL` — FK to `Customer.id` ON DELETE SET NULL
+
+---
+
 ## [2026-06-10 — Session 6] — Phase 12: Integration Center + Phase 13: Enterprise Security Center
 
 ### Added — Phase 12: Integration Center (`/settings/integrations`)

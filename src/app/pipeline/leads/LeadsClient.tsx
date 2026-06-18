@@ -16,6 +16,217 @@ import { KanbanBoard, KanbanColumn } from "@/components/pipeline/KanbanBoard";
 import { CrmSelect } from "@/components/pipeline/CrmSelect";
 import { useMasterValues } from "@/hooks/useMasterValues";
 
+// ── Delete Lead modal ─────────────────────────────────────────────────────────
+
+function DeleteLeadModal({
+  lead,
+  onClose,
+  onDeleted,
+}: {
+  lead: LeadSerialized;
+  onClose: () => void;
+  onDeleted: (id: number) => void;
+}) {
+  const [reason,   setReason]   = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error,    setError]    = useState("");
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) { setError("Please enter a reason."); return; }
+    setError(""); setDeleting(true);
+    try {
+      const res = await fetch(`/api/pipeline/leads/${lead.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Failed to delete lead.");
+        return;
+      }
+      onDeleted(lead.id);
+      onClose();
+    } catch { setError("Network error."); }
+    finally { setDeleting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-bold text-red-700 mb-1">Delete Lead</h3>
+        <p className="text-sm text-gray-500 mb-1">
+          You are about to permanently delete:
+        </p>
+        <p className="text-sm font-semibold text-gray-800 mb-4">
+          {lead.companyName} — {lead.title}
+        </p>
+        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 mb-4">
+          This action cannot be undone. All tasks, meetings, notes, and activities for this lead will be removed.
+        </div>
+        {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded mb-3 border border-red-200">{error}</div>}
+        <form onSubmit={handleDelete} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Reason for deletion <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Duplicate entry, wrong contact, customer withdrew…"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+            />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={deleting || !reason.trim()}
+              className="flex-1 bg-red-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-red-700 disabled:opacity-50">
+              {deleting ? "Deleting…" : "Delete Lead"}
+            </button>
+            <button type="button" onClick={onClose}
+              className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Convert Lead modal (SFDC-style) ──────────────────────────────────────────
+
+function ConvertModal({
+  lead,
+  onClose,
+  onConverted,
+}: {
+  lead: LeadSerialized;
+  onClose: () => void;
+  onConverted: (updated: LeadSerialized) => void;
+}) {
+  const hasLinked = !!lead.customerRefId;
+  const [form, setForm] = useState({
+    name:     lead.companyName,
+    address:  "",
+    district: "",
+    state:    "",
+    pincode:  "",
+    gstNo:    "",
+  });
+  const [converting, setConverting] = useState(false);
+  const [error, setError]           = useState("");
+
+  async function handleConvert(e: React.FormEvent) {
+    e.preventDefault();
+    setError(""); setConverting(true);
+    try {
+      const body = hasLinked
+        ? { existingCustomerId: lead.customerRefId }
+        : { ...form };
+      const res = await fetch(`/api/pipeline/leads/${lead.id}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Conversion failed.");
+        return;
+      }
+      const updated = await res.json();
+      onConverted(updated);
+      onClose();
+    } catch { setError("Network error."); }
+    finally { setConverting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg my-4 p-6">
+        <h3 className="text-lg font-bold mb-1">Convert Lead to Opportunity</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          This will create a Customer master record{hasLinked ? " (already linked)" : ""} and open an Opportunity.
+        </p>
+        {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded mb-3 border border-red-200">{error}</div>}
+
+        {hasLinked ? (
+          <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-4">
+            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-1">Linked Customer</p>
+            <p className="text-sm font-bold text-green-900">{lead.customerRef?.name ?? lead.companyName}</p>
+            <p className="text-xs text-green-600 mt-0.5">Customer master #{lead.customerRefId} · will link directly</p>
+          </div>
+        ) : (
+          <form onSubmit={handleConvert} className="space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">New Customer Details</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Customer Name *</label>
+                <input required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                <input value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="Street / building"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">District</label>
+                <input value={form.district} onChange={(e) => setForm((p) => ({ ...p, district: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+                <input value={form.state} onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Pincode</label>
+                <input value={form.pincode} onChange={(e) => setForm((p) => ({ ...p, pincode: e.target.value }))}
+                  maxLength={6}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">GST No. <span className="text-gray-400">(optional)</span></label>
+                <input value={form.gstNo} onChange={(e) => setForm((p) => ({ ...p, gstNo: e.target.value.toUpperCase() }))}
+                  placeholder="22AAAAA0000A1Z5"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229] font-mono" />
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400">GST and other details can be completed later in Customer Master.</p>
+            <div className="flex gap-3 pt-2">
+              <button type="submit" disabled={converting}
+                className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
+                {converting ? "Converting…" : "Convert & Create Opportunity"}
+              </button>
+              <button type="button" onClick={onClose}
+                className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
+        {hasLinked && (
+          <div className="flex gap-3 mt-4">
+            <button onClick={handleConvert} disabled={converting}
+              className="flex-1 bg-[#CC2229] text-white text-sm font-medium py-2 rounded-lg hover:bg-[#A81B21] disabled:opacity-50">
+              {converting ? "Converting…" : "Convert & Create Opportunity"}
+            </button>
+            <button onClick={onClose}
+              className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── New-lead form modal ───────────────────────────────────────────────────────
 
 function LeadFormModal({
@@ -39,7 +250,7 @@ function LeadFormModal({
     categoryId: "", categoryName: "",
     oemId: "", oemName: "",
     productId: "", productName: "",
-    customerId: "", customerName: "",
+    customerRefId: null as number | null,
     expectedValue: "0", remarks: "",
   });
   const [loading, setLoading] = useState(false);
@@ -53,7 +264,7 @@ function LeadFormModal({
       const res = await fetch("/api/pipeline/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, expectedValue: Number(form.expectedValue) }),
+        body: JSON.stringify({ ...form, expectedValue: Number(form.expectedValue), customerRefId: form.customerRefId ?? null }),
       });
       if (!res.ok) { setError("Failed to create lead."); return; }
       const lead = await res.json();
@@ -79,13 +290,25 @@ function LeadFormModal({
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Company *</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Company *
+                {form.customerRefId && (
+                  <span className="ml-2 text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                    ✓ Linked to master
+                  </span>
+                )}
+              </label>
               <CustomerNameCombobox
                 value={form.companyName}
-                onChange={(v) => f("companyName", v)}
+                onChange={(v) => { f("companyName", v); setForm((p) => ({ ...p, customerRefId: null })); }}
+                onSelect={(name, customerId) => setForm((p) => ({ ...p, companyName: name, customerRefId: customerId }))}
+                linkedId={form.customerRefId}
                 required
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
               />
+              <p className="text-[11px] text-gray-400 mt-1">
+                {form.customerRefId ? "Matched an existing customer — will link on save." : "New prospect — link to customer master when converting to opportunity."}
+              </p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Contact Person *</label>
@@ -129,11 +352,6 @@ function LeadFormModal({
               <CrmSelect type="products" value={form.productId} name={form.productName} oemId={form.oemId}
                 onChange={(id, name) => setForm((p) => ({ ...p, productId: id, productName: name }))} />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Customer (existing)</label>
-              <CrmSelect type="customers" value={form.customerId} name={form.customerName}
-                onChange={(id, name) => setForm((p) => ({ ...p, customerId: id, customerName: name }))} />
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -176,6 +394,17 @@ type LegacyActivity = {
   qualifiedFlag: boolean; remarks: string;
 };
 
+// ── Deletion log type ─────────────────────────────────────────────────────────
+
+type DeletionLogEntry = {
+  id: number;
+  entityId: number;
+  notes: string;
+  changes: string;
+  createdAt: string;
+  performedBy: { id: number; name: string };
+};
+
 // ── Unified lead type ─────────────────────────────────────────────────────────
 
 type MergedLead = {
@@ -191,7 +420,8 @@ type MergedLead = {
   source?: string;
   updatedAt?: string;
   createdAt?: string;
-  opportunityId?: number; // set when lead has reached PROPOSAL_SENT
+  opportunityId?: number;
+  customerRefId?: number | null;
 };
 
 // ── Bulk import ───────────────────────────────────────────────────────────────
@@ -479,6 +709,11 @@ export default function LeadsClient({
   const [view,            setView]            = useState<"table" | "kanban">(initialView);
   const [showLeadForm,    setShowLeadForm]    = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [convertingLead,  setConvertingLead]  = useState<LeadSerialized | null>(null);
+  const [deletingLead,    setDeletingLead]    = useState<LeadSerialized | null>(null);
+  const [showDeletionLog, setShowDeletionLog] = useState(false);
+  const [deletionLogs,    setDeletionLogs]    = useState<DeletionLogEntry[]>([]);
+  const [logsLoading,     setLogsLoading]     = useState(false);
 
   // Filters
   const [search,  setSearch]  = useState(initialSearch);
@@ -489,6 +724,22 @@ export default function LeadsClient({
   function handleLeadCreated(l: LeadSerialized) {
     setLeads((p) => [l, ...p]);
     router.refresh();
+  }
+
+  function handleLeadDeleted(id: number) {
+    setLeads((p) => p.filter((l) => l.id !== id));
+  }
+
+  async function openDeletionLog() {
+    setShowDeletionLog(true);
+    if (deletionLogs.length > 0) return; // already loaded
+    setLogsLoading(true);
+    try {
+      const res = await fetch("/api/pipeline/leads/deletion-log");
+      if (res.ok) setDeletionLogs(await res.json());
+    } finally {
+      setLogsLoading(false);
+    }
   }
 
   // ── Merged dataset (filtered) ──────────────────────────────────────────────
@@ -520,7 +771,8 @@ export default function LeadsClient({
         source:        l.source,
         updatedAt:     l.updatedAt,
         createdAt:     l.createdAt,
-        opportunityId: l.opportunity?.id,
+        opportunityId:  l.opportunity?.id,
+        customerRefId:  l.customerRefId,
       }));
 
     return crmItems;
@@ -661,6 +913,12 @@ export default function LeadsClient({
               ⊞ Kanban
             </button>
           </div>
+          {isManager && (
+            <button onClick={openDeletionLog}
+              className="border border-gray-400 text-gray-600 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-gray-100 transition whitespace-nowrap">
+              🗑 Deletion Log
+            </button>
+          )}
           <button onClick={() => setShowImportModal(true)}
             data-testid="lead-import-button"
             className="border border-[#CC2229] text-[#CC2229] text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-[#CC2229] hover:text-white transition whitespace-nowrap">
@@ -686,6 +944,88 @@ export default function LeadsClient({
           onCreated={handleLeadCreated}
           sources={leadSources}
         />
+      )}
+
+      {/* Convert modal */}
+      {convertingLead && (
+        <ConvertModal
+          lead={convertingLead}
+          onClose={() => setConvertingLead(null)}
+          onConverted={(updated) => {
+            setLeads((p) => p.map((l) => l.id === updated.id ? { ...l, ...updated } : l));
+            setConvertingLead(null);
+            if (updated.opportunity?.id) router.push(`/pipeline/opportunities/${updated.opportunity.id}`);
+          }}
+        />
+      )}
+
+      {/* Delete modal */}
+      {deletingLead && (
+        <DeleteLeadModal
+          lead={deletingLead}
+          onClose={() => setDeletingLead(null)}
+          onDeleted={handleLeadDeleted}
+        />
+      )}
+
+      {/* Deletion log modal (manager-only) */}
+      {showDeletionLog && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Lead Deletion Log</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Audit trail of all deleted leads</p>
+              </div>
+              <button onClick={() => setShowDeletionLog(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none">×</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              {logsLoading ? (
+                <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
+              ) : deletionLogs.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No leads have been deleted yet.</p>
+              ) : (
+                <table className="min-w-full text-sm divide-y divide-gray-100">
+                  <thead>
+                    <tr className="text-xs font-semibold text-gray-500 uppercase">
+                      <th className="pb-2 text-left">Lead</th>
+                      <th className="pb-2 text-left">Stage</th>
+                      <th className="pb-2 text-left">Deleted by</th>
+                      <th className="pb-2 text-left">Reason</th>
+                      <th className="pb-2 text-left">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {deletionLogs.map((log) => {
+                      let snap: Record<string, string> = {};
+                      try { snap = JSON.parse(log.changes); } catch { /* noop */ }
+                      return (
+                        <tr key={log.id} className="align-top">
+                          <td className="py-2 pr-3">
+                            <p className="font-medium text-gray-900">{snap.companyName ?? "—"}</p>
+                            <p className="text-xs text-gray-400">{snap.title ?? ""}</p>
+                            {snap.assignedTo && <p className="text-xs text-gray-400">Owner: {snap.assignedTo}</p>}
+                          </td>
+                          <td className="py-2 pr-3">
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full whitespace-nowrap">
+                              {snap.stage ?? "—"}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-3 text-gray-700 whitespace-nowrap">{log.performedBy.name}</td>
+                          <td className="py-2 pr-3 text-gray-600 max-w-xs">{log.notes}</td>
+                          <td className="py-2 text-xs text-gray-400 whitespace-nowrap">
+                            {new Date(log.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bulk import modal */}
@@ -748,7 +1088,12 @@ export default function LeadsClient({
                   return (
                     <tr key={m.uid} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{m.companyName}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-gray-900">{m.companyName}</p>
+                          {m.customerRefId && (
+                            <span className="text-[9px] font-bold bg-green-100 text-green-700 px-1 py-0.5 rounded" title="Linked to Customer Master">●</span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-400">{m.contactPerson}</p>
                         {m.leadTitle && <p className="text-xs text-gray-500 italic">{m.leadTitle}</p>}
                       </td>
@@ -773,15 +1118,34 @@ export default function LeadsClient({
                       <td className="px-4 py-3 text-xs text-gray-600">{m.ownerName}</td>
                       <td className="px-4 py-3 text-xs text-gray-400">{m.updatedAt?.slice(0, 10)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {m.opportunityId ? (
-                          <Link href={`/pipeline/opportunities/${m.opportunityId}`}
-                            className="text-xs text-amber-700 hover:underline font-medium">
-                            Opportunity →
-                          </Link>
-                        ) : (
-                          <Link href={`/pipeline/leads/${m.crmId}`}
-                            className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {m.opportunityId ? (
+                            <Link href={`/pipeline/opportunities/${m.opportunityId}`}
+                              className="text-xs text-amber-700 hover:underline font-medium">
+                              Opportunity →
+                            </Link>
+                          ) : (
+                            <>
+                              <Link href={`/pipeline/leads/${m.crmId}`}
+                                className="text-xs text-[#CC2229] hover:underline font-medium">View →</Link>
+                              {["QUALIFIED","REQUIREMENT_GATHERED","SOLUTION_PROPOSED","POC_DEMO"].includes(m.stage) && (
+                                <button
+                                  onClick={() => { const l = leads.find((x) => x.id === m.crmId); if (l) setConvertingLead(l); }}
+                                  className="text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold px-2 py-0.5 rounded transition">
+                                  Convert
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {(isManager || m.ownerId === currentEmployeeId) && (
+                            <button
+                              onClick={() => { const l = leads.find((x) => x.id === m.crmId); if (l) setDeletingLead(l); }}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium px-1"
+                              title="Delete lead">
+                              🗑
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
