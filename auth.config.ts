@@ -39,6 +39,8 @@ export const authConfig = {
       const isPublic =
         pathname.startsWith("/login") ||
         pathname.startsWith("/api/auth") ||
+        // One-time Phase 16 RBAC seed trigger — secret-protected, no session needed
+        pathname === "/api/internal/seed-rbac" ||
         // Dev impersonation switch must be callable without a session
         // (it IS the endpoint that establishes the session).
         // Returns 404 in production so there is no attack surface there.
