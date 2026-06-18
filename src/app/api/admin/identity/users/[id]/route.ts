@@ -1,10 +1,11 @@
 /**
  * PATCH /api/admin/identity/users/[id]
- * Updates employmentStatus on EmployeeProfile (upserts if profile doesn't exist yet).
+ * - { employmentStatus }  → upserts EmployeeProfile status
+ * - { addRoleId }         → creates UserRole record (idempotent)
+ * - { removeRoleId }      → deletes UserRole record
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
-import { requirePermission } from "@/lib/access-control";
 import { canAccessSettings } from "@/lib/roles";
 
 async function requireSettingsEdit() {
@@ -26,7 +27,11 @@ export async function PATCH(
   if (isNaN(userId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
   const body = await req.json();
-  const { employmentStatus } = body as { employmentStatus?: string };
+  const { employmentStatus, addRoleId, removeRoleId } = body as {
+    employmentStatus?: string;
+    addRoleId?:        number;
+    removeRoleId?:     number;
+  };
 
   const validStatuses = ["ACTIVE", "DRAFT", "SUSPENDED", "INACTIVE"];
   if (employmentStatus && !validStatuses.includes(employmentStatus)) {
@@ -45,6 +50,26 @@ export async function PATCH(
         update: { employmentStatus },
         create: { userId, employmentStatus },
       });
+
+      // HR automation: revoke all RBAC access when deactivating
+      if (employmentStatus === "INACTIVE" || employmentStatus === "SUSPENDED") {
+        await prisma.userRole.deleteMany({ where: { userId } });
+      }
+    }
+
+    if (addRoleId) {
+      const role = await prisma.role.findUnique({ where: { id: addRoleId } });
+      if (!role) return NextResponse.json({ error: "Role not found" }, { status: 404 });
+      // upsert — @@unique([userId, roleId]) makes create idempotent via skipDuplicates
+      await prisma.userRole.upsert({
+        where:  { userId_roleId: { userId, roleId: addRoleId } },
+        update: {},
+        create: { userId, roleId: addRoleId },
+      });
+    }
+
+    if (removeRoleId) {
+      await prisma.userRole.deleteMany({ where: { userId, roleId: removeRoleId } });
     }
 
     return NextResponse.json({ ok: true });

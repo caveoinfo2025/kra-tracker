@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Shield, Key, Database, GitMerge, ClipboardList, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Shield, Key, Database, GitMerge, ClipboardList, ShieldCheck, ArrowLeft, UserCog } from "lucide-react";
 import Link from "next/link";
-import UsersTab            from "./components/UsersTab";
 import RoleManagement      from "./components/RoleManagement";
 import PermissionMatrix    from "./components/PermissionMatrix";
 import DataAccessPolicyPanel from "./components/DataAccessPolicyPanel";
 import DelegationPanel     from "./components/DelegationPanel";
 import IdentityAudit       from "./components/IdentityAudit";
+import EmployeesTab        from "./components/EmployeesTab";
 
-type TabId = "users" | "roles" | "permissions" | "policies" | "delegation" | "audit";
+type TabId = "employees" | "roles" | "permissions" | "policies" | "delegation" | "audit";
 
 interface TabDef {
   id:    TabId;
@@ -19,7 +19,7 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: "users",       label: "Users",         Icon: Users       },
+  { id: "employees",   label: "Employees",     Icon: UserCog     },
   { id: "roles",       label: "Roles",         Icon: Shield      },
   { id: "permissions", label: "Permissions",   Icon: Key         },
   { id: "policies",    label: "Data Access",   Icon: Database    },
@@ -30,7 +30,7 @@ const TABS: TabDef[] = [
 interface Props { canEdit: boolean; }
 
 export default function IdentityClient({ canEdit }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>("users");
+  const [activeTab, setActiveTab] = useState<TabId>("employees");
 
   return (
     <div style={{ maxWidth: 1200, padding: "28px 32px" }}>
@@ -51,7 +51,7 @@ export default function IdentityClient({ canEdit }: Props) {
                 Identity & Access
               </h1>
               <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)", marginTop: 3 }}>
-                Users, roles, permissions, data policies and delegation rules
+                Employees, roles, permissions, data policies and delegation rules
               </p>
             </div>
           </div>
@@ -78,7 +78,7 @@ export default function IdentityClient({ canEdit }: Props) {
 
       {/* Tab content */}
       <div>
-        {activeTab === "users"       && <UsersTab             canEdit={canEdit} />}
+        {activeTab === "employees"   && <EmployeesTab          canEdit={canEdit} />}
         {activeTab === "roles"       && <RoleManagement       canEdit={canEdit} />}
         {activeTab === "permissions" && <PermissionMatrix     canEdit={canEdit} />}
         {activeTab === "policies"    && <DataAccessPolicyPanel canEdit={canEdit} />}

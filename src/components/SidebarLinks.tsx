@@ -71,7 +71,6 @@ const MANAGER_GROUPS: NavGroup[] = [
     label: "People",
     items: [
       { href: "/kras",      label: "KRAs",   icon: Target },
-      { href: "/employees", label: "Team",   icon: Users },
       { href: "/import",    label: "Import", icon: Upload },
     ],
   },

@@ -29,14 +29,39 @@ export async function POST(req: Request) {
   if (deny) return deny;
 
   const body = await req.json();
-  const { name, email, department, role } = body;
+  const { name, email, department, role, isManager, msEmail, reportsToId, departmentId, designationId } = body;
   if (!name || !email || !department || !role) {
     return NextResponse.json({ error: "All fields are required." }, { status: 400 });
   }
 
   const employee = await prisma.employee.create({
-    data: { name, email, department, role },
+    data: {
+      name, email, department, role,
+      isManager:  isManager  ?? false,
+      msEmail:    msEmail    || null,
+      reportsToId: reportsToId ? Number(reportsToId) : null,
+    },
   });
+
+  // Upsert EmployeeProfile with enterprise FK links if provided
+  if (departmentId || designationId || reportsToId) {
+    await prisma.employeeProfile.upsert({
+      where:  { userId: employee.id },
+      update: {
+        ...(departmentId  && { departmentId:      Number(departmentId)  }),
+        ...(designationId && { designationId:     Number(designationId) }),
+        ...(reportsToId   && { reportingManagerId: Number(reportsToId) }),
+      },
+      create: {
+        userId: employee.id,
+        employmentStatus: "ACTIVE",
+        ...(departmentId  && { departmentId:      Number(departmentId)  }),
+        ...(designationId && { designationId:     Number(designationId) }),
+        ...(reportsToId   && { reportingManagerId: Number(reportsToId) }),
+      },
+    });
+  }
+
   return NextResponse.json(employee, { status: 201 });
 }
 

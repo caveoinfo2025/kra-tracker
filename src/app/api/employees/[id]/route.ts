@@ -35,7 +35,7 @@ export async function PUT(
   if (!session?.user?.isManager) return forbidden();
 
   const body = await req.json();
-  const { name, email, department, role, isManager, msEmail, reportsToId } = body;
+  const { name, email, department, role, isManager, msEmail, reportsToId, departmentId, designationId } = body;
 
   // Guard against self-reporting cycles
   const reportsTo =
@@ -50,11 +50,31 @@ export async function PUT(
       email,
       department,
       role,
-      ...(isManager !== undefined && { isManager }),
-      ...(msEmail !== undefined && { msEmail: msEmail || null }),
+      ...(isManager   !== undefined && { isManager }),
+      ...(msEmail     !== undefined && { msEmail: msEmail || null }),
       ...(reportsToId !== undefined && { reportsToId: reportsTo }),
     },
   });
+
+  // Keep EmployeeProfile FK links in sync
+  if (departmentId !== undefined || designationId !== undefined || reportsToId !== undefined) {
+    await prisma.employeeProfile.upsert({
+      where:  { userId: employee.id },
+      update: {
+        ...(departmentId  !== undefined && { departmentId:      departmentId  ? Number(departmentId)  : null }),
+        ...(designationId !== undefined && { designationId:     designationId ? Number(designationId) : null }),
+        ...(reportsToId   !== undefined && { reportingManagerId: reportsTo ?? null }),
+      },
+      create: {
+        userId: employee.id,
+        employmentStatus: "ACTIVE",
+        ...(departmentId  && { departmentId:      Number(departmentId)  }),
+        ...(designationId && { designationId:     Number(designationId) }),
+        ...(reportsTo     && { reportingManagerId: reportsTo }),
+      },
+    });
+  }
+
   return NextResponse.json(employee);
 }
 
