@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import {
   listNotificationChannels,
   createNotificationChannel,
@@ -9,7 +10,8 @@ import {
 
 export async function GET() {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const channels = await listNotificationChannels();
   // Strip configJson from response — never expose to frontend
@@ -19,7 +21,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   if (!body.channelName || !body.channelCode) {
@@ -33,14 +36,15 @@ export async function POST(req: NextRequest) {
     entityId:    channel.id,
     action:      "CREATE",
     newValue:    JSON.stringify({ channelCode: channel.channelCode }),
-    performedBy: session.user.employeeId ?? 0,
+    performedBy: session?.user?.employeeId ?? 0,
   });
   return NextResponse.json({ ...channel, configJson: undefined }, { status: 201 });
 }
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   // Accept id from query param (?id=) or from body
@@ -56,7 +60,7 @@ export async function PATCH(req: NextRequest) {
     entityId:    Number(id),
     action:      channel.status === "inactive" ? "CHANNEL_DISABLED" : "UPDATE",
     newValue:    JSON.stringify({ status: channel.status }),
-    performedBy: session.user.employeeId ?? 0,
+    performedBy: session?.user?.employeeId ?? 0,
   });
   return NextResponse.json({ ...channel, configJson: undefined });
 }

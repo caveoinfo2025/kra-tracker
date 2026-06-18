@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 
 const LEGAL_SUFFIXES = /\b(private|pvt|limited|ltd|llp|inc|corp|corporation|co|and|&)\b\.?/gi;
 
@@ -47,8 +48,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session.user.isManager) return NextResponse.json({ error: "Managers only" }, { status: 403 });
+  const deny = await requirePermission(session, "Masters", "CustomerMaster", "DELETE");
+  if (deny) return deny;
 
   const { keepId, deleteIds } = await req.json() as { keepId: number; deleteIds: number[] };
   if (!keepId || !deleteIds?.length) {

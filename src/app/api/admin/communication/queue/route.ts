@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { listQueue, updateQueueStatus, processNotificationQueue } from "@/lib/communication-engine";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const status  = req.nextUrl.searchParams.get("status")  ?? undefined;
   const channel = req.nextUrl.searchParams.get("channel") ?? undefined;
@@ -20,7 +22,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { computeKRAProgress } from "@/lib/kra-engine";
 
 function getWeekNumber(date: Date) {
@@ -12,9 +13,8 @@ function getWeekNumber(date: Date) {
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.user?.isManager) {
-    return NextResponse.json({ error: "Manager access required" }, { status: 403 });
-  }
+  const deny = await requirePermission(session, "CRM", "KRA", "APPROVE");
+  if (deny) return deny;
 
   const { id } = await params;
   const body = await req.json();
@@ -31,7 +31,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     where: { id: Number(id) },
     data: {
       status: action,
-      approvedBy: session.user.employeeId ?? null,
+      approvedBy: session?.user?.employeeId ?? null,
       approvedAt: new Date(),
       remarks: body.remarks ?? existing.remarks,
     },

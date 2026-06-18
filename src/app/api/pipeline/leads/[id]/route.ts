@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 
 const LEAD_INCLUDE = {
   assignedTo:  { select: { id: true, name: true } },
@@ -21,7 +22,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!lead) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // RBAC: employees can only see their assigned leads
-  if (!session.user.isManager && lead.assignedToId !== session.user.employeeId) {
+  if (!session?.user?.isManager && lead.assignedToId !== session?.user?.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return NextResponse.json(lead);
@@ -34,12 +35,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const lead = await prisma.crmLead.findUnique({ where: { id: Number(id) } });
   if (!lead) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!session.user.isManager && lead.assignedToId !== session.user.employeeId) {
+  if (!session?.user?.isManager && lead.assignedToId !== session?.user?.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body   = await req.json();
-  const empId  = session.user.employeeId!;
+  const empId  = session?.user?.employeeId!;
   const prevStage = lead.stage;
 
   const updated = await prisma.crmLead.update({
@@ -62,7 +63,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       expectedValue:  body.expectedValue !== undefined ? Number(body.expectedValue) : undefined,
       remarks:        body.remarks       ?? undefined,
       // Only managers can reassign
-      ...(session.user.isManager && body.assignedToId
+      ...(session?.user?.isManager && body.assignedToId
         ? { assignedToId: Number(body.assignedToId) }
         : {}),
     },
@@ -94,12 +95,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const lead = await prisma.crmLead.findUnique({ where: { id: Number(id) } });
   if (!lead) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!session.user.isManager && lead.assignedToId !== session.user.employeeId) {
+  if (!session?.user?.isManager && lead.assignedToId !== session?.user?.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await req.json();
-  const empId = session.user.employeeId!;
+  const empId = session?.user?.employeeId!;
 
   const updated = await prisma.crmLead.update({
     where: { id: Number(id) },
@@ -125,7 +126,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "CRM", "Lead", "EDIT");
+  if (deny) return deny;
 
   await prisma.crmLead.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });

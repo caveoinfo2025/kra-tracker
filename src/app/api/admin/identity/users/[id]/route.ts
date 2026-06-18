@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { canAccessSettings } from "@/lib/roles";
 
 async function requireSettingsEdit() {

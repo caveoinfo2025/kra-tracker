@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import {
   listNotificationTemplates,
   createNotificationTemplate,
@@ -9,7 +10,8 @@ import {
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const eventId = req.nextUrl.searchParams.get("eventId");
   const templates = await listNotificationTemplates(eventId ? Number(eventId) : undefined);
@@ -18,7 +20,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   if (!body.templateName) {
@@ -31,14 +34,15 @@ export async function POST(req: NextRequest) {
     entityId:    tmpl.id,
     action:      "CREATE",
     newValue:    JSON.stringify({ templateName: tmpl.templateName }),
-    performedBy: session.user.employeeId ?? 0,
+    performedBy: session?.user?.employeeId ?? 0,
   });
   return NextResponse.json(tmpl, { status: 201 });
 }
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   const { id, ...input } = body;
@@ -50,7 +54,7 @@ export async function PATCH(req: NextRequest) {
     entityId:    Number(id),
     action:      "UPDATE",
     newValue:    JSON.stringify(input),
-    performedBy: session.user.employeeId ?? 0,
+    performedBy: session?.user?.employeeId ?? 0,
   });
   return NextResponse.json(tmpl);
 }

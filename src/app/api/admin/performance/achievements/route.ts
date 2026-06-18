@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import {
   listAchievements,
   recordAchievement,
@@ -11,7 +12,8 @@ import { getEmployeeTarget } from "@/lib/performance-engine";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const employeeTargetId = req.nextUrl.searchParams.get("employeeTargetId");
   if (!employeeTargetId) return NextResponse.json({ error: "employeeTargetId required" }, { status: 400 });
@@ -23,7 +25,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   const { employeeTargetId, metricId, actualValue, sourceReference } = body;
@@ -55,7 +58,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   const { id, actualValue, expectedTarget = 0, weightage = 0 } = body;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import prisma from "@/lib/prisma";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -62,8 +63,9 @@ export async function POST(req: Request) {
   };
 
   // leads import is open to all authenticated users; others require manager
-  if (type !== "leads" && !session.user.isManager) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (type !== "leads") {
+    const deny = await requirePermission(session, "CRM", "Lead", "IMPORT");
+    if (deny) return deny;
   }
 
   const employees = await prisma.employee.findMany({
@@ -231,8 +233,8 @@ export async function POST(req: Request) {
 
   // ─── CRM Leads ────────────────────────────────────────────────────────────
   } else if (type === "leads") {
-    const empId = session.user.employeeId!;
-    const isManager = !!session.user.isManager;
+    const empId = session?.user?.employeeId!;
+    const isManager = !!session?.user?.isManager;
 
     for (const [idx, row] of rows.entries()) {
       const rowNum      = idx + 1;

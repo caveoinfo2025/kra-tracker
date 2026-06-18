@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 
 // Helper: compute closed won booking (₹L) for an employee
 async function closedWonBooking(employeeId: number): Promise<number> {
@@ -155,13 +156,8 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
 
-    // Only managers can sync achievements
-    if (!session?.user?.isManager) {
-      return NextResponse.json(
-        { error: "Unauthorized: manager access required" },
-        { status: 403 }
-      );
-    }
+    const deny = await requirePermission(session, "CRM", "KRA", "APPROVE");
+    if (deny) return deny;
 
     console.log("🔄 Starting KRA achievement sync...");
 

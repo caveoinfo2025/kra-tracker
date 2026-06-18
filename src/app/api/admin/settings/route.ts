@@ -4,12 +4,13 @@
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { getAllSettings, setSetting, SETTING_META } from "@/lib/settings";
 
 async function requireManager() {
   const session = await getSession();
   if (!session?.user) return { error: "Unauthorized", status: 401 };
-  if (!session.user.isManager) return { error: "Forbidden — manager only", status: 403 };
+  if (!session?.user?.isManager) return { error: "Forbidden — manager only", status: 403 };
   return { session };
 }
 

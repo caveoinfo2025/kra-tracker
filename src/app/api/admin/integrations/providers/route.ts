@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession }               from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import {
   listProviders,
   createProvider,
@@ -8,7 +9,8 @@ import {
 
 export async function GET() {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "IntegrationAdmin", "EDIT");
+  if (deny) return deny;
 
   const providers = await listProviders();
   return NextResponse.json(providers);
@@ -16,7 +18,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "IntegrationAdmin", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   if (!body.name || !body.code || !body.category) {
@@ -29,7 +32,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "IntegrationAdmin", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   const { id, status } = body;

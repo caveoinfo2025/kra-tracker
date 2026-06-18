@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { listDeliveryLogs, listCommunicationAudit } from "@/lib/communication-engine";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "CommunicationAdmin", "EDIT");
+  if (deny) return deny;
 
   const type    = req.nextUrl.searchParams.get("type") ?? "delivery";
   const channel = req.nextUrl.searchParams.get("channel") ?? undefined;

@@ -1,20 +1,67 @@
 /**
  * Enterprise Access Control — public API
  *
- * Usage (server component / API route):
- *   import { hasPermission, canAccessScope } from "@/lib/access-control";
+ * Usage in API routes:
+ *   import { requirePermission } from "@/lib/access-control";
  *
- *   const allowed = await hasPermission(session.user.id, "CRM", "Opportunity", "EDIT");
- *   const inScope = await canAccessScope(session.user.id, "CRM", { ownerEmployeeId: lead.assignedToId });
+ *   const deny = await requirePermission(session, "CRM", "Lead", "EDIT");
+ *   if (deny) return deny; // returns 401 or 403 NextResponse
  *
- * Phase 2 behaviour:
- *   - Returns false from hasPermission when the user has NO UserRole rows (new table empty).
- *   - Returns true  from canAccessScope when no DataAccessPolicy exists (backward-compatible).
- *   - All existing pages continue to use roles.ts predicates unchanged.
- *   - Phase 3 will wire hasPermission into roles.ts predicates one by one.
+ * Lower-level helpers:
+ *   hasPermission(userId, module, resource, action) → boolean
+ *   canAccessScope(userId, module, { ownerEmployeeId }) → boolean
+ *
+ * Backward-compatibility:
+ *   - hasPermission returns true for isManager=true employees regardless of UserRole rows.
+ *   - canAccessScope returns true (allow-all) when no DataAccessPolicy is configured.
+ *   - Existing routes using isManager predicates continue to work unchanged.
  */
 
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import type { Session } from "next-auth";
+
+// ── requirePermission ─────────────────────────────────────────────────────────
+// Drop-in for API routes. Returns a 401/403 NextResponse on failure, or null on
+// success. isManager employees always pass regardless of UserRole rows.
+//
+//   const deny = await requirePermission(session, "Settings", "Configuration", "EDIT");
+//   if (deny) return deny;
+//
+export async function requirePermission(
+  session: Session | null | undefined,
+  module: string,
+  resource: string,
+  action: string,
+): Promise<NextResponse | null> {
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Managers always have full access (backward-compatible)
+  if (session.user.isManager) return null;
+
+  const userId = (session.user as { employeeId?: number }).employeeId;
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const allowed = await hasPermission(userId, module, resource, action);
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
+}
+
+// ── requireManager ────────────────────────────────────────────────────────────
+// Shorthand for routes that still use the simple isManager gate.
+// Returns 401/403 NextResponse, or null if the user is a manager.
+export function requireManager(
+  session: Session | null | undefined,
+): NextResponse | null {
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session.user.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  return null;
+}
+
 export { canAccessScope } from "./policy";
 export { PERMISSION_CATALOGUE, MODULE, ACTION, SCOPE } from "./permissions";
 export type { Module, Action, Scope, PermissionDef } from "./permissions";

@@ -4,13 +4,14 @@
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { seedDefaultRoles } from "@/lib/rbac";
 import prisma from "@/lib/prisma";
 
 async function requireManager() {
   const session = await getSession();
   if (!session?.user) return { error: "Unauthorized", status: 401 as const };
-  if (!session.user.isManager) return { error: "Forbidden", status: 403 as const };
+  if (!session?.user?.isManager) return { error: "Forbidden", status: 403 as const };
   return { session };
 }
 

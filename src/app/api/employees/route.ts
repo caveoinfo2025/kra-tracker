@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import prisma from "@/lib/prisma";
 
 export async function GET() {
@@ -7,7 +8,7 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Managers see all; employees only see their own record
-  if (session.user.isManager) {
+  if (session?.user?.isManager) {
     const employees = await prisma.employee.findMany({
       include: { kras: true, reviews: true },
       orderBy: { createdAt: "desc" },
@@ -16,7 +17,7 @@ export async function GET() {
   }
 
   const employee = await prisma.employee.findUnique({
-    where: { id: session.user.employeeId },
+    where: { id: session?.user?.employeeId },
     include: { kras: true, reviews: true },
   });
   return NextResponse.json(employee ? [employee] : []);
@@ -24,9 +25,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session?.user?.isManager) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const deny = await requirePermission(session, "CRM", "Employee", "CREATE");
+  if (deny) return deny;
 
   const body = await req.json();
   const { name, email, department, role } = body;

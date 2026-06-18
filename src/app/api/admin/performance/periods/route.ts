@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import {
   listPerformancePeriods,
   createPerformancePeriod,
@@ -8,7 +9,8 @@ import {
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const companyId = req.nextUrl.searchParams.get("companyId");
   const periods = await listPerformancePeriods(companyId ? Number(companyId) : undefined);
@@ -17,7 +19,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   if (!body.name || !body.startDate || !body.endDate) {
@@ -30,7 +33,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   const { id, ...input } = body;

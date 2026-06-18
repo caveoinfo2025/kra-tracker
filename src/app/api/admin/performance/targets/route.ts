@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import {
   listEmployeeTargets,
   createEmployeeTarget,
@@ -11,7 +12,8 @@ import {
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const type = req.nextUrl.searchParams.get("type") ?? "employee";
   const periodId = req.nextUrl.searchParams.get("periodId");
@@ -35,7 +37,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   const type = body.type ?? "employee";
@@ -57,7 +60,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Performance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json();
   const { id, type, ...input } = body;

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { getPipeline, updatePipeline, upsertStage, deleteStage, reorderStages } from "@/lib/crm-engine";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session.user.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const pipeline = await getPipeline(Number(id));
   if (!pipeline) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -17,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session.user.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json() as {
     name?: string;
