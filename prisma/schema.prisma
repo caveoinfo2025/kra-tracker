@@ -127,6 +127,8 @@ model LeadGeneration {
   territory      String    @default("")
   leadSource     String    @default("")
   customerName   String
+  customer       Customer? @relation("LeadGenerationCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  customerId     Int?
   contactPerson  String    @default("")
   phoneEmail     String    @default("")
   activityType   String    @default("")
@@ -138,6 +140,7 @@ model LeadGeneration {
   createdAt      DateTime  @default(now())
 
   @@index([employeeId])
+  @@index([customerId])
 }
 
 model SalesFunnel {
@@ -148,6 +151,8 @@ model SalesFunnel {
   employeeId        Int
   territory         String    @default("")
   customerName      String
+  customer          Customer? @relation("SalesFunnelCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  customerId        Int?
   solutionCategory  String    @default("")
   opportunityName   String
   stage             String    @default("Lead")
@@ -168,6 +173,7 @@ model SalesFunnel {
 
   @@index([employeeId])
   @@index([stage, status])
+  @@index([customerId])
 }
 
 model Collection {
@@ -177,6 +183,8 @@ model Collection {
   employee              Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId            Int
   customerName          String
+  customer              Customer? @relation("CollectionCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  customerId            Int?
   invoiceValueLakhs     Float
   amountWithoutGstLakhs Float     @default(0)
   dueDate               DateTime
@@ -191,6 +199,7 @@ model Collection {
   @@index([employeeId])
   @@index([collectionStatus])
   @@index([dueDate])
+  @@index([customerId])
 }
 
 model Payment {
@@ -216,6 +225,8 @@ model OrderAdvance {
   id                    Int       @id @default(autoincrement())
   salesFunnelId         Int?
   customerName          String
+  customer              Customer? @relation("OrderAdvanceCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  customerId            Int?
   amountLakhs           Float
   receivedDate          DateTime  @default(now())
   mode                  String    @default("Bank Transfer")
@@ -231,6 +242,7 @@ model OrderAdvance {
 
   @@index([recordedById])
   @@index([status])
+  @@index([customerId])
 }
 
 model Notification {
@@ -456,6 +468,12 @@ model Customer {
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
+  // Back-references from operational tables (Phase 17)
+  leadGenerations LeadGeneration[] @relation("LeadGenerationCustomer")
+  salesFunnels    SalesFunnel[]    @relation("SalesFunnelCustomer")
+  collections     Collection[]     @relation("CollectionCustomer")
+  orderAdvances   OrderAdvance[]   @relation("OrderAdvanceCustomer")
+
   @@index([parentId])
   @@index([name])
 }
@@ -596,9 +614,11 @@ model Vendor {
 
 // â"€â"€ Expense register (category + attachments held inline for Phase 1) â"€â"€
 model Expense {
-  id              Int       @id @default(autoincrement())
-  category        String    @default("") // category name
-  categoryCode    String    @default("") // short code, e.g. TRVL
+  id              Int             @id @default(autoincrement())
+  category        String          @default("") // category name (string kept for backward compat)
+  categoryCode    String          @default("") // short code, e.g. TRVL
+  expenseCategory ExpenseCategory? @relation("ExpenseCategory", fields: [expenseCategoryId], references: [id], onDelete: SetNull)
+  expenseCategoryId Int?
   vendor          Vendor?   @relation(fields: [vendorId], references: [id])
   vendorId        Int?
   customerName    String    @default("") // denormalized customer tag (profitability)
@@ -622,6 +642,7 @@ model Expense {
   updatedAt       DateTime  @updatedAt
 
   @@index([category])
+  @@index([expenseCategoryId])
   @@index([vendorId])
   @@index([employeeId])
   @@index([expenseDate])
@@ -809,6 +830,7 @@ model ExpenseCategory {
   parent     ExpenseCategory?   @relation("CatParent", fields: [parentId], references: [id], onDelete: SetNull)
   children   ExpenseCategory[]  @relation("CatParent")
   limitRules ExpenseLimitRule[]
+  expenses   Expense[]          @relation("ExpenseCategory")
 
   @@index([companyId])
   @@index([parentId])

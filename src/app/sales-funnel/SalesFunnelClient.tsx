@@ -21,7 +21,8 @@ const stageVariant = (s: string) =>
   s === "Closed Won" ? "success" : s === "Closed Lost" ? "danger" : s === "Proposal Sent" || s === "Negotiation" ? "warning" : "neutral";
 
 const empty = {
-  employeeId: "", customerName: "", solutionCategory: "", opportunityName: "",
+  employeeId: "", customerName: "", customerId: null as number | null,
+  solutionCategory: "", opportunityName: "",
   stage: "Lead", dealValueLakhs: "0", billingValueLakhs: "0", grossProfitPct: "0",
   expectedCloseDate: "", poDate: "", closedDate: "", probabilityPct: "50", status: "Active",
   newCustomerFlag: false, pocFlag: false, remarks: "",
@@ -35,6 +36,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...empty, employeeId: String(currentEmployeeId ?? "") });
+  const [linkedCustomerId, setLinkedCustomerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,8 +50,10 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
 
   function openEdit(r: Row) {
     setEditId(r.id);
+    const rid = (r as Row & { customerId?: number | null }).customerId ?? null;
+    setLinkedCustomerId(rid);
     setForm({
-      employeeId: String(r.employeeId), customerName: r.customerName,
+      employeeId: String(r.employeeId), customerName: r.customerName, customerId: rid,
       solutionCategory: r.solutionCategory, opportunityName: r.opportunityName,
       stage: r.stage, dealValueLakhs: String(r.dealValueLakhs),
       billingValueLakhs: String(r.billingValueLakhs), grossProfitPct: String(r.grossProfitPct),
@@ -227,6 +231,8 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                 <CustomerNameCombobox
                   value={form.customerName}
                   onChange={(v) => f("customerName", v)}
+                  onSelect={(name, cid) => { f("customerName", name); setLinkedCustomerId(cid); setForm(p => ({ ...p, customerId: cid })); }}
+                  linkedId={linkedCustomerId}
                   required
                   className="w-full border rounded-lg px-3 py-2 text-sm"
                 />

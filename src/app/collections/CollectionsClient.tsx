@@ -19,7 +19,7 @@ const statusVariant = (s: string) =>
 const GST_RATE = 0.18; // 18 % — used for auto-fill helper
 
 const empty = {
-  employeeId: "", invoiceDate: "", invoiceNo: "", customerName: "",
+  employeeId: "", invoiceDate: "", invoiceNo: "", customerName: "", customerId: null as number | null,
   invoiceValueLakhs: "0", amountWithoutGstLakhs: "0", dueDate: "",
   paymentReceivedDate: "", amountReceivedLakhs: "0", collectionStatus: "Pending", remarks: "",
 };
@@ -81,6 +81,7 @@ export default function CollectionsClient({
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...empty, employeeId: String(currentEmployeeId ?? "") });
+  const [linkedCustomerId, setLinkedCustomerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -116,9 +117,11 @@ export default function CollectionsClient({
 
   function openEdit(r: Row) {
     setEditId(r.id);
+    const rid = (r as Row & { customerId?: number | null }).customerId ?? null;
+    setLinkedCustomerId(rid);
     setForm({
       employeeId: String(r.employeeId), invoiceDate: r.invoiceDate.slice(0, 10),
-      invoiceNo: r.invoiceNo, customerName: r.customerName,
+      invoiceNo: r.invoiceNo, customerName: r.customerName, customerId: rid,
       invoiceValueLakhs: String(r.invoiceValueLakhs),
       amountWithoutGstLakhs: String(r.amountWithoutGstLakhs),
       dueDate: r.dueDate.slice(0, 10),
@@ -457,6 +460,8 @@ export default function CollectionsClient({
                     <CustomerNameCombobox
                       value={form.customerName}
                       onChange={(v) => f("customerName", v)}
+                      onSelect={(name, cid) => { f("customerName", name); setLinkedCustomerId(cid); setForm(p => ({ ...p, customerId: cid })); }}
+                      linkedId={linkedCustomerId}
                       required
                       className="w-full border rounded-lg px-3 py-2 text-sm"
                     />

@@ -51,6 +51,7 @@ export async function POST(req: Request) {
       invoiceDate: body.invoiceDate ? new Date(body.invoiceDate) : new Date(),
       invoiceNo: body.invoiceNo ?? "",
       customerName: body.customerName,
+      customerId: body.customerId ? Number(body.customerId) : null,
       invoiceValueLakhs: Number(body.invoiceValueLakhs),
       amountWithoutGstLakhs: Number(body.amountWithoutGstLakhs ?? 0),
       dueDate: new Date(body.dueDate),

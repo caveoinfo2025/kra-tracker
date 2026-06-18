@@ -41,6 +41,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     where: { id: Number(id) },
     data: {
       customerName: body.customerName,
+      customerId: body.customerId !== undefined ? (body.customerId ? Number(body.customerId) : null) : undefined,
       solutionCategory: body.solutionCategory,
       opportunityName: body.opportunityName,
       stage: body.stage,

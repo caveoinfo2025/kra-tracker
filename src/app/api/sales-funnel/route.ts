@@ -43,6 +43,7 @@ export async function POST(req: Request) {
       createdDate: body.createdDate ? new Date(body.createdDate) : new Date(),
       territory: body.territory ?? "",
       customerName: body.customerName,
+      customerId: body.customerId ? Number(body.customerId) : null,
       solutionCategory: body.solutionCategory ?? "",
       opportunityName: body.opportunityName,
       stage: body.stage ?? "Lead",
