@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Caveo CRM — Employee User Guide</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      line-height: 1.65;
+    }
+
+    /* ── Page wrapper ─────────────────────────────────── */
+    .page {
+      max-width: 860px;
+      margin: 32px auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.10);
+      overflow: hidden;
+    }
+
+    /* ── Cover ────────────────────────────────────────── */
+    .cover {
+      background: linear-gradient(135deg, #CC2229 0%, #8E0A1F 100%);
+      color: #fff;
+      padding: 52px 48px 44px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::after {
+      content: "";
+      position: absolute;
+      right: -60px; top: -60px;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+    }
+    .cover-logo {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.75;
+      margin-bottom: 20px;
+    }
+    .cover h1 {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+    .cover p {
+      font-size: 15px;
+      opacity: 0.82;
+      max-width: 480px;
+    }
+    .cover-meta {
+      margin-top: 32px;
+      display: flex;
+      gap: 24px;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    .cover-meta span { display: flex; align-items: center; gap: 6px; }
+
+    /* ── Table of contents ────────────────────────────── */
+    .toc {
+      background: #fafafa;
+      border-bottom: 1px solid #e8e8e8;
+      padding: 28px 48px;
+    }
+    .toc h2 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #999;
+      margin-bottom: 14px;
+    }
+    .toc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 32px;
+    }
+    .toc-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #444;
+      padding: 4px 0;
+      text-decoration: none;
+      border-bottom: none;
+    }
+    .toc-item:hover { color: #CC2229; }
+    .toc-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #f0f0f0;
+      color: #888;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Content ──────────────────────────────────────── */
+    .content { padding: 40px 48px 56px; }
+
+    /* ── Section ──────────────────────────────────────── */
+    .section { margin-bottom: 44px; }
+    .section:last-child { margin-bottom: 0; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    .section-num {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: #CC2229;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .section h2 {
+      font-size: 19px;
+      font-weight: 700;
+      color: #111;
+      letter-spacing: -0.01em;
+    }
+    .section-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    .badge-all    { background: #f0f0f0; color: #666; }
+    .badge-mgr    { background: #FFF3E0; color: #E65100; }
+    .badge-emp    { background: #E8F5E9; color: #2E7D32; }
+
+    .section h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #CC2229;
+      margin: 20px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 11.5px;
+    }
+
+    .section p, .section li {
+      font-size: 14px;
+      color: #333;
+      line-height: 1.7;
+    }
+    .section ul, .section ol {
+      padding-left: 20px;
+      margin: 8px 0 12px;
+    }
+    .section li { margin-bottom: 5px; }
+
+    /* ── Step list ────────────────────────────────────── */
+    .steps { margin: 12px 0; }
+    .step {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #CC2229;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step p { font-size: 14px; color: #333; margin: 0; }
+
+    /* ── Stage pills ──────────────────────────────────── */
+    .stages {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0 14px;
+      align-items: center;
+    }
+    .stage-pill {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #f0f0f0;
+      color: #444;
+    }
+    .stage-arrow { color: #bbb; font-size: 14px; }
+    .stage-pill.active { background: #CC2229; color: #fff; }
+    .stage-pill.won    { background: #1F9D55; color: #fff; }
+    .stage-pill.lost   { background: #666; color: #fff; }
+
+    /* ── Info box ─────────────────────────────────────── */
+    .info-box {
+      background: #FFF8E1;
+      border: 1px solid #FFE082;
+      border-left: 4px solid #FFC107;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 13.5px;
+      color: #5D4037;
+      line-height: 1.6;
+    }
+    .info-box.tip {
+      background: #E8F5E9;
+      border-color: #A5D6A7;
+      border-left-color: #43A047;
+      color: #1B5E20;
+    }
+    .info-box.warn {
+      background: #FBE9E7;
+      border-color: #FFAB91;
+      border-left-color: #E64A19;
+      color: #BF360C;
+    }
+    .info-box strong { font-weight: 700; }
+
+    /* ── Two-col grid ─────────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 12px 0;
+    }
+    .col-card {
+      background: #fafafa;
+      border: 1px solid #e8e8e8;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .col-card h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 8px;
+    }
+    .col-card ul { padding-left: 16px; margin: 0; }
+    .col-card li { font-size: 13px; color: #444; margin-bottom: 4px; }
+
+    /* ── Table ────────────────────────────────────────── */
+    .guide-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .guide-table th {
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 700;
+      color: #555;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .guide-table td {
+      border: 1px solid #e8e8e8;
+      padding: 8px 12px;
+      color: #333;
+      vertical-align: top;
+    }
+    .guide-table tr:hover td { background: #fafafa; }
+
+    /* ── Kbd ──────────────────────────────────────────── */
+    kbd {
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 12px;
+      font-family: monospace;
+      color: #333;
+    }
+
+    /* ── Footer ───────────────────────────────────────── */
+    .footer {
+      background: #fafafa;
+      border-top: 1px solid #e8e8e8;
+      padding: 20px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #999;
+    }
+    .footer strong { color: #CC2229; }
+
+    /* ── Print styles ─────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      .page {
+        margin: 0; border-radius: 0; box-shadow: none;
+        max-width: 100%;
+      }
+      .section { page-break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+
+    /* ── Responsive ───────────────────────────────────── */
+    @media (max-width: 640px) {
+      .content { padding: 24px 20px 40px; }
+      .cover { padding: 36px 24px 32px; }
+      .toc { padding: 20px 24px; }
+      .toc-grid { grid-template-columns: 1fr; }
+      .two-col { grid-template-columns: 1fr; }
+      .footer { padding: 16px 20px; flex-direction: column; gap: 6px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ── Cover ──────────────────────────────────────────────────── -->
+  <div class="cover">
+    <div class="cover-logo">Caveo Infosystems · Caveo CRM</div>
+    <h1>Employee User Guide</h1>
+    <p>Everything you need to enter data, track your pipeline, log daily activity, and manage collections — all in one place.</p>
+    <div class="cover-meta">
+      <span>📅 2025 Edition</span>
+      <span>🔒 Internal Use Only</span>
+      <span>🖨 Print-friendly</span>
+    </div>
+  </div>
+
+  <!-- ── Table of Contents ──────────────────────────────────────── -->
+  <div class="toc">
+    <h2>Contents</h2>
+    <div class="toc-grid">
+      <a class="toc-item" href="#s1"><span class="toc-num">1</span> Getting Started &amp; Login</a>
+      <a class="toc-item" href="#s2"><span class="toc-num">2</span> Your Dashboard</a>
+      <a class="toc-item" href="#s3"><span class="toc-num">3</span> Lead Pipeline</a>
+      <a class="toc-item" href="#s4"><span class="toc-num">4</span> Opportunities</a>
+      <a class="toc-item" href="#s5"><span class="toc-num">5</span> Pipeline Tasks</a>
+      <a class="toc-item" href="#s6"><span class="toc-num">6</span> Collections &amp; Billing</a>
+      <a class="toc-item" href="#s7"><span class="toc-num">7</span> Daily Updates</a>
+      <a class="toc-item" href="#s8"><span class="toc-num">8</span> KRAs &amp; Weekly Commits</a>
+      <a class="toc-item" href="#s9"><span class="toc-num">9</span> Importing Data (CSV / Excel)</a>
+      <a class="toc-item" href="#s10"><span class="toc-num">10</span> Quick Reference</a>
+    </div>
+  </div>
+
+  <!-- ── Content ────────────────────────────────────────────────── -->
+  <div class="content">
+
+    <!-- Section 1 -->
+    <div class="section" id="s1">
+      <div class="section-header">
+        <div class="section-num">1</div>
+        <h2>Getting Started &amp; Login</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p>Caveo CRM is accessible from any modern browser. You will receive your login credentials from your manager or the system administrator.</p>
+
+      <h3>How to log in</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Open your browser and go to the Caveo CRM URL provided by your admin.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Enter your email address and password, then click <strong>Sign in</strong>.</p></div>
+        <div class="step"><div class="step-num">3</div><p>You will land on your personal <strong>Dashboard</strong> automatically.</p></div>
+      </div>
+
+      <h3>Navigation sidebar</h3>
+      <p>The sidebar on the left has all the main sections grouped by category:</p>
+      <div class="two-col">
+        <div class="col-card">
+          <h4>SELL</h4>
+          <ul>
+            <li>Dashboard — your daily overview</li>
+            <li>Leads — manage lead pipeline</li>
+            <li>Opportunities — deal tracking</li>
+            <li>Pipeline Tasks — your to-do list</li>
+            <li>Analytics — pipeline charts</li>
+          </ul>
+        </div>
+        <div class="col-card">
+          <h4>OPERATE</h4>
+          <ul>
+            <li>Collections — billing &amp; payments</li>
+            <li>Daily Updates — activity log</li>
+            <li>KRAs — your goals &amp; commits</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-box tip">
+        <strong>Tip:</strong> Your name and role appear at the bottom of the sidebar. Click <strong>Sign out</strong> there when you are done for the day.
+      </div>
+    </div>
+
+    <!-- Section 2 -->
+    <div class="section" id="s2">
+      <div class="section-header">
+        <div class="section-num">2</div>
+        <h2>Your Dashboard</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p>The Dashboard is the first page you see after login. It gives you a complete snapshot of your work without navigating anywhere.</p>
+
+      <h3>What you see on your dashboard</h3>
+      <table class="guide-table">
+        <thead>
+          <tr><th>Card / Section</th><th>What it shows</th><th>Action available</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>KPI tiles (top row)</strong></td><td>Tasks due today, overdue tasks, active pipeline value, won value</td><td>—</td></tr>
+          <tr><td><strong>Tasks Due Today</strong></td><td>Your tasks whose due date is today</td><td>Click <strong>Start</strong> or <strong>Done</strong></td></tr>
+          <tr><td><strong>Overdue Tasks</strong></td><td>Tasks that are past their due date (highlighted red)</td><td>Click <strong>Done</strong> to close</td></tr>
+          <tr><td><strong>Pipeline Snapshot</strong></td><td>Your leads by stage (funnel + donut)</td><td>Click View Pipeline</td></tr>
+          <tr><td><strong>KRA Progress</strong></td><td>Your active KRAs and latest progress scores</td><td>Go to KRAs page</td></tr>
+          <tr><td><strong>Weekly Commits</strong></td><td>What you committed to deliver this week</td><td>Go to KRAs to add</td></tr>
+          <tr><td><strong>Recent Wins</strong></td><td>Deals you have marked as Won</td><td>—</td></tr>
+          <tr><td><strong>Collection Alerts</strong></td><td>Your overdue &amp; upcoming payments</td><td>Click Collections</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Marking a task done from the dashboard</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Find the task card in <em>Tasks Due Today</em> or the overdue banner.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Click <strong>Start</strong> to move it to <em>In Progress</em>, then <strong>Done</strong> when complete.</p></div>
+        <div class="step"><div class="step-num">3</div><p>The task disappears from the list immediately — the update is saved automatically.</p></div>
+      </div>
+
+      <div class="info-box">
+        <strong>Search bar:</strong> Use the search box at the top of the dashboard to instantly filter tasks and collections by name.
+      </div>
+    </div>
+
+    <!-- Section 3 -->
+    <div class="section" id="s3">
+      <div class="section-header">
+        <div class="section-num">3</div>
+        <h2>Lead Pipeline</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p>Every sales opportunity begins as a <strong>Lead</strong>. The Lead Pipeline tracks each prospect from first contact all the way through to Proposal Sent, at which point it becomes an Opportunity.</p>
+
+      <h3>Lead stages — in order</h3>
+      <div class="stages">
+        <span class="stage-pill">New Lead</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill">Contacted</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill">Qualified</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill">Req. Gathered</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill">Solution Proposed</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill">POC / Demo</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill active">Proposal Sent</span>
+      </div>
+
+      <h3>Adding a new lead</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Go to <strong>Leads</strong> from the sidebar under SELL.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Click <strong>+ New Lead</strong> (top right).</p></div>
+        <div class="step"><div class="step-num">3</div><p>Fill in the required fields: <strong>Lead Title</strong> (e.g. "NGFW Replacement Project"), <strong>Company Name</strong>, <strong>Contact Person</strong>.</p></div>
+        <div class="step"><div class="step-num">4</div><p>Add email, phone, source (Direct / Referral / LinkedIn etc.), and an expected value in ₹L if known.</p></div>
+        <div class="step"><div class="step-num">5</div><p>Click <strong>Create Lead</strong>. A first-call follow-up task is automatically created for you.</p></div>
+      </div>
+
+      <h3>Moving a lead through stages</h3>
+      <p>You can use two views — switch between them with the <kbd>Table</kbd> / <kbd>Kanban</kbd> toggle:</p>
+      <div class="two-col">
+        <div class="col-card">
+          <h4>📋 Table View</h4>
+          <ul>
+            <li>Click a lead row to open its detail page</li>
+            <li>Use the <strong>Stage</strong> dropdown on the detail page to advance the stage</li>
+            <li>Use the search bar to find leads quickly</li>
+          </ul>
+        </div>
+        <div class="col-card">
+          <h4>🗂 Kanban View</h4>
+          <ul>
+            <li>Drag a card from one column to the next to update its stage</li>
+            <li>Good for reviewing your entire pipeline at a glance</li>
+            <li>Each column shows the count and total value</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Lead detail page</h3>
+      <p>Click any lead to open its full detail page. Here you can:</p>
+      <ul>
+        <li>Edit all lead fields and save</li>
+        <li>Change the stage using the dropdown</li>
+        <li>Add <strong>Notes</strong> (meeting notes, call summaries, etc.)</li>
+        <li>View the <strong>Activity Feed</strong> — every change is logged automatically</li>
+        <li>Create <strong>Tasks</strong> linked to the lead</li>
+        <li>Convert to an Opportunity when Proposal Sent stage is reached</li>
+      </ul>
+
+      <div class="info-box tip">
+        <strong>Best practice:</strong> Always add a brief note after a customer call. Notes are visible to your manager and help maintain continuity if a colleague needs to cover for you.
+      </div>
+    </div>
+
+    <!-- Section 4 -->
+    <div class="section" id="s4">
+      <div class="section-header">
+        <div class="section-num">4</div>
+        <h2>Opportunities</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p>An <strong>Opportunity</strong> is created once a lead reaches the <em>Proposal Sent</em> stage. It tracks the deal value, probability, and negotiation progress until closure.</p>
+
+      <h3>Opportunity stages</h3>
+      <div class="stages">
+        <span class="stage-pill">Proposal Sent</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill">Follow-up</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill">Negotiation</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill won">Won ✓</span>
+        <span class="stage-arrow">/</span>
+        <span class="stage-pill lost">Lost ✗</span>
+        <span class="stage-arrow">/</span>
+        <span class="stage-pill">On Hold</span>
+      </div>
+
+      <h3>Creating an opportunity from a lead</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Open the Lead detail page (click any lead in the pipeline).</p></div>
+        <div class="step"><div class="step-num">2</div><p>Change the stage to <strong>Proposal Sent</strong> using the stage dropdown.</p></div>
+        <div class="step"><div class="step-num">3</div><p>A button <strong>Convert to Opportunity</strong> appears — click it.</p></div>
+        <div class="step"><div class="step-num">4</div><p>Enter the <strong>Deal Value (₹L)</strong>, expected closure date, and probability %.</p></div>
+        <div class="step"><div class="step-num">5</div><p>Click <strong>Save</strong>. The opportunity now appears in the <strong>Opportunities</strong> page.</p></div>
+      </div>
+
+      <h3>Marking a deal as Won</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Go to <strong>Opportunities</strong> in the sidebar.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Find the deal and open its detail page.</p></div>
+        <div class="step"><div class="step-num">3</div><p>Change the stage to <strong>Won</strong>. The deal value is added to your Won total on the dashboard.</p></div>
+      </div>
+
+      <div class="info-box warn">
+        <strong>Note:</strong> Marking a deal Lost or Won is permanent in terms of pipeline reporting. Make sure the value and close date are accurate before updating.
+      </div>
+    </div>
+
+    <!-- Section 5 -->
+    <div class="section" id="s5">
+      <div class="section-header">
+        <div class="section-num">5</div>
+        <h2>Pipeline Tasks</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p>Tasks keep you on track for follow-ups, demos, proposal submissions, and any other action tied to a lead or opportunity.</p>
+
+      <h3>Creating a task</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Go to <strong>Pipeline Tasks</strong> in the sidebar, or open a lead / opportunity detail page.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Click <strong>+ New Task</strong>.</p></div>
+        <div class="step"><div class="step-num">3</div><p>Fill in: <strong>Title</strong>, <strong>Due Date</strong>, <strong>Priority</strong> (Low / Medium / High), and optionally link to a Lead or Opportunity.</p></div>
+        <div class="step"><div class="step-num">4</div><p>Click <strong>Create</strong>. The task appears on your Dashboard and in the Tasks page.</p></div>
+      </div>
+
+      <h3>Task statuses explained</h3>
+      <table class="guide-table">
+        <thead><tr><th>Status</th><th>What it means</th><th>How to set it</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Pending</strong></td><td>Not yet started</td><td>Default when created</td></tr>
+          <tr><td><strong>In Progress</strong></td><td>You have started work on it</td><td>Click <strong>Start</strong></td></tr>
+          <tr><td><strong>Completed</strong></td><td>Done ✓</td><td>Click <strong>Done</strong></td></tr>
+          <tr><td><strong>Cancelled</strong></td><td>No longer needed</td><td>Edit task and set status</td></tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>Overdue tasks</strong> (past due date and not completed) appear in red on your dashboard. Your manager also sees overdue counts for every team member — clear them promptly.
+      </div>
+    </div>
+
+    <!-- Section 6 -->
+    <div class="section" id="s6">
+      <div class="section-header">
+        <div class="section-num">6</div>
+        <h2>Collections &amp; Billing</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p>The Collections page tracks every invoice raised and the payment received against it. Use it to record payment updates so the manager can see outstanding balances in real time.</p>
+
+      <h3>Adding a new invoice record</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Go to <strong>Collections</strong> in the sidebar under OPERATE.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Click <strong>+ Add Invoice</strong>.</p></div>
+        <div class="step"><div class="step-num">3</div><p>Fill in: <strong>Customer Name</strong> ✱, <strong>Invoice No</strong>, <strong>Invoice Date</strong>, <strong>Invoice Value (₹L)</strong> ✱, <strong>Due Date</strong> ✱.</p></div>
+        <div class="step"><div class="step-num">4</div><p>The <em>Total (Without GST)</em> auto-fills at 18% GST — click <strong>Auto (18%)</strong> or enter manually.</p></div>
+        <div class="step"><div class="step-num">5</div><p>If payment has already been received, enter <strong>Amount Received (₹L)</strong> and the <strong>Payment Received Date</strong>.</p></div>
+        <div class="step"><div class="step-num">6</div><p>Set <strong>Status</strong> (Pending / Partially Received / Fully Received) and click <strong>Add</strong>.</p></div>
+      </div>
+
+      <h3>Updating when payment arrives</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Find the invoice in the table (use the search bar or filter by <em>Upcoming</em>).</p></div>
+        <div class="step"><div class="step-num">2</div><p>Click <strong>Edit</strong> on the row.</p></div>
+        <div class="step"><div class="step-num">3</div><p>Update <strong>Amount Received</strong>, set <strong>Payment Received Date</strong> to the actual date payment hit the bank.</p></div>
+        <div class="step"><div class="step-num">4</div><p>Change status to <strong>Fully Received</strong> (or <em>Partially Received</em> for part-payment) and click <strong>Update</strong>.</p></div>
+      </div>
+
+      <h3>Filter tabs</h3>
+      <table class="guide-table">
+        <thead><tr><th>Tab</th><th>Shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>All</strong></td><td>Every invoice regardless of status</td></tr>
+          <tr><td><strong>Overdue</strong></td><td>Invoices past due date and not fully received (red)</td></tr>
+          <tr><td><strong>Upcoming (30d)</strong></td><td>Invoices due within the next 30 days</td></tr>
+          <tr><td><strong>Received</strong></td><td>Fully paid invoices</td></tr>
+          <tr><td><strong>Revenue Summary</strong></td><td>Aggregated billing and collection totals by salesperson</td></tr>
+        </tbody>
+      </table>
+
+      <div class="info-box tip">
+        <strong>Tip:</strong> The <em>Paid On</em> column shows whether payment was on time (green) or late (red with days late). Keeping this updated helps management track payment behaviour by customer.
+      </div>
+    </div>
+
+    <!-- Section 7 -->
+    <div class="section" id="s7">
+      <div class="section-header">
+        <div class="section-num">7</div>
+        <h2>Daily Updates</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p>The Daily Updates log is a lightweight end-of-day summary. Entries are visible to your manager in real time. Think of it as a brief email to your manager — without actually sending one.</p>
+
+      <h3>Adding a daily update</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Go to <strong>Daily Updates</strong> in the sidebar.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Click <strong>+ Add Update</strong>.</p></div>
+        <div class="step"><div class="step-num">3</div><p>Select the <strong>Date</strong> (defaults to today), enter a brief summary of what you did, any blockers, and next steps.</p></div>
+        <div class="step"><div class="step-num">4</div><p>Click <strong>Save</strong>.</p></div>
+      </div>
+
+      <div class="info-box">
+        <strong>Recommended:</strong> Log updates at the end of each day before signing out. Keep entries concise — 2 to 5 bullet points is ideal. Focus on outcomes, not activities (e.g. "Qualified NGFW lead at ABC Corp — demo booked for Friday" is better than "Sent emails and made calls").
+      </div>
+    </div>
+
+    <!-- Section 8 -->
+    <div class="section" id="s8">
+      <div class="section-header">
+        <div class="section-num">8</div>
+        <h2>KRAs &amp; Weekly Commits</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <p><strong>KRAs (Key Result Areas)</strong> are your goals assigned by your manager. Each week you make a <strong>Weekly Commit</strong> — a specific, measurable promise of what you will achieve that week against each KRA.</p>
+
+      <h3>Understanding your KRAs</h3>
+      <p>Go to <strong>KRAs</strong> in the sidebar. You will see each active KRA with:</p>
+      <ul>
+        <li><strong>Title</strong> — what the goal is about (e.g. Pipeline Value, Certifications)</li>
+        <li><strong>Weight</strong> — how much this KRA contributes to your overall score (%)</li>
+        <li><strong>Latest Progress</strong> — the score your manager last entered</li>
+        <li><strong>Certifications</strong> — any certifications you have logged under this KRA</li>
+      </ul>
+
+      <h3>Making a weekly commit</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>On the KRAs page, find the KRA you want to commit on.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Click <strong>+ Add Commit</strong> (or the weekly commit area next to the KRA).</p></div>
+        <div class="step"><div class="step-num">3</div><p>Write a specific commit — e.g. "Close 2 qualified demos this week" or "Complete Fortinet NSE4 module 3".</p></div>
+        <div class="step"><div class="step-num">4</div><p>Click <strong>Save</strong>. Your commit appears on your Dashboard for the week.</p></div>
+      </div>
+
+      <h3>Adding a certification</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>On the KRAs page, find the relevant KRA and click <strong>+ Cert</strong> or <strong>Add Certification</strong>.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Enter: <strong>Certification Name</strong>, <strong>Issuing Body</strong>, <strong>Date Obtained</strong>.</p></div>
+        <div class="step"><div class="step-num">3</div><p>Click <strong>Submit</strong>. The certification goes to your manager for approval (status shows <em>Pending</em> until approved).</p></div>
+      </div>
+
+      <div class="info-box tip">
+        <strong>Best practice:</strong> Make your weekly commit on Monday morning. This sets your own intention for the week and gives your manager visibility without a separate check-in call.
+      </div>
+    </div>
+
+    <!-- Section 9 -->
+    <div class="section" id="s9">
+      <div class="section-header">
+        <div class="section-num">9</div>
+        <h2>Importing Data (CSV / Excel)</h2>
+        <span class="section-badge badge-emp">Employees</span>
+      </div>
+
+      <p>The Import page lets you upload CSV or Excel files to bulk-create or update records. It's faster than entering rows one by one.</p>
+
+      <h3>What you can import</h3>
+      <div class="two-col">
+        <div class="col-card">
+          <h4>📈 Sales / Bookings</h4>
+          <ul>
+            <li><strong>Required:</strong> Customer Name, Opportunity Name</li>
+            <li><strong>Optional:</strong> Deal Value, Stage, Territory, Category, GP%, Close Date, Salesperson, Remarks</li>
+            <li>Matched by Customer + Opportunity name — re-uploading updates existing records safely</li>
+          </ul>
+        </div>
+        <div class="col-card">
+          <h4>💰 Collections</h4>
+          <ul>
+            <li><strong>Required:</strong> Customer Name, Invoice Value, Due Date</li>
+            <li><strong>Optional:</strong> Invoice No, Invoice Date, Without GST, Amount Received, <strong>Payment Received Date</strong>, Status, Salesperson, Remarks</li>
+            <li>Matched by Invoice No — safe to re-upload for updates</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>How to import</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><p>Go to <strong>Import</strong> in the sidebar.</p></div>
+        <div class="step"><div class="step-num">2</div><p>Select the tab — <em>Sales / Bookings</em> or <em>Collections</em>.</p></div>
+        <div class="step"><div class="step-num">3</div><p>Drag &amp; drop your <kbd>.csv</kbd> or <kbd>.xlsx</kbd> file into the upload area, or click to browse.</p></div>
+        <div class="step"><div class="step-num">4</div><p>The system auto-detects column names. Review the <strong>Map Columns</strong> panel — each column in your file maps to a CRM field. Adjust if any column was not detected correctly.</p></div>
+        <div class="step"><div class="step-num">5</div><p>If your file does not have a Salesperson column, select a <strong>Default Salesperson</strong> from the dropdown — all rows will be assigned to them.</p></div>
+        <div class="step"><div class="step-num">6</div><p>Check the <strong>Preview</strong> (first 5 rows) to confirm the mapping looks correct.</p></div>
+        <div class="step"><div class="step-num">7</div><p>Click <strong>Import / Update N rows</strong>. You will see a summary of how many rows were inserted, updated, or skipped (with reasons).</p></div>
+      </div>
+
+      <h3>Column name tips</h3>
+      <p>The importer is flexible — it recognises many variations automatically. For example, the <em>Payment Received Date</em> field is detected from column names like:</p>
+      <p style="margin-top:8px; font-size:13.5px; color:#555; background:#f5f5f5; padding:8px 14px; border-radius:6px; font-family:monospace;">
+        Paid On &nbsp;·&nbsp; Paid Date &nbsp;·&nbsp; Payment Date &nbsp;·&nbsp; Date Received &nbsp;·&nbsp; Date Paid &nbsp;·&nbsp; Settlement Date
+      </p>
+
+      <div class="info-box warn">
+        <strong>Important:</strong> The importer processes up to 200 rows per upload. For larger files, split them into batches. Re-uploading the same file is safe — it will update existing records rather than create duplicates.
+      </div>
+    </div>
+
+    <!-- Section 10 -->
+    <div class="section" id="s10">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <h2>Quick Reference</h2>
+        <span class="section-badge badge-all">Everyone</span>
+      </div>
+
+      <h3>Where to log what</h3>
+      <table class="guide-table">
+        <thead><tr><th>What happened</th><th>Where to record it</th></tr></thead>
+        <tbody>
+          <tr><td>Got a new business enquiry / referral</td><td>Leads → + New Lead</td></tr>
+          <tr><td>Had a call or meeting with a prospect</td><td>Lead detail page → Add Note</td></tr>
+          <tr><td>Need to follow up on a specific date</td><td>Lead detail page or Tasks → + New Task</td></tr>
+          <tr><td>Sent a proposal to a customer</td><td>Move lead to "Proposal Sent" → Convert to Opportunity</td></tr>
+          <tr><td>Deal signed / won</td><td>Opportunities → change stage to Won</td></tr>
+          <tr><td>Invoice raised for a customer</td><td>Collections → + Add Invoice</td></tr>
+          <tr><td>Payment received from customer</td><td>Collections → Edit the invoice → update Amount Received + Payment Received Date</td></tr>
+          <tr><td>End of day activity summary</td><td>Daily Updates → + Add Update</td></tr>
+          <tr><td>Completed a course or certification</td><td>KRAs → + Add Certification on the relevant KRA</td></tr>
+          <tr><td>Weekly intention / target</td><td>KRAs → + Add Commit (do this every Monday)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Colour coding at a glance</h3>
+      <table class="guide-table">
+        <thead><tr><th>Colour</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#CC2229;font-weight:700;">Red</td><td>Overdue — needs immediate attention</td></tr>
+          <tr><td style="color:#E65100;font-weight:700;">Orange</td><td>In Progress / Partially received / Medium priority</td></tr>
+          <tr><td style="color:#1F9D55;font-weight:700;">Green</td><td>Completed / Fully received / Won / On-time payment</td></tr>
+          <tr><td style="color:#0066FF;font-weight:700;">Blue</td><td>Due today / Active pipeline</td></tr>
+          <tr><td style="color:#888;font-weight:700;">Grey</td><td>Neutral / No action needed</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Need help?</h3>
+      <p>Contact your manager or the system administrator. Common issues:</p>
+      <ul>
+        <li><strong>"I can't see my lead"</strong> — Check the view filter at the top is not set to a specific stage.</li>
+        <li><strong>"My import skipped rows"</strong> — Click <em>Show details</em> on the import result to see the reason for each skipped row.</li>
+        <li><strong>"My task doesn't disappear after marking Done"</strong> — Refresh the page (F5). The update was saved, the UI just needs to reload.</li>
+        <li><strong>"I can't log in"</strong> — Contact your manager to reset your password.</li>
+      </ul>
+
+      <div class="info-box tip" style="margin-top:20px;">
+        <strong>Data quality pledge:</strong> The value of Caveo CRM depends on everyone keeping their data current. If your pipeline, collections, and daily updates are accurate, management can support you better, forecasts are reliable, and nobody gets surprised at month-end.
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- ── Footer ──────────────────────────────────────────────────── -->
+  <div class="footer">
+    <span>© 2025 <strong>Caveo Infosystems</strong> · Internal Use Only</span>
+    <span>Caveo CRM Employee User Guide · v1.0</span>
+  </div>
+
+</div><!-- /page -->
+
+</body>
+</html>
