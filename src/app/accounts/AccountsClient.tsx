@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
+import CustomerNameCombobox from "@/components/CustomerNameCombobox";
 
 type Row = {
   id: number;
@@ -293,16 +294,15 @@ function RecordPaymentModal({
 
 // ── Record-advance modal: capture an advance against a Closed Won order ─────────
 function RecordAdvanceModal({
-  customers,
   onClose,
   onSaved,
 }: {
-  customers: string[];
   onClose: () => void;
   onSaved: (a: Advance) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [customerName, setCustomerName] = useState("");
+  const [customerId, setCustomerId] = useState<number | null>(null);
   const [amountLakhs, setAmountLakhs] = useState("");
   const [receivedDate, setReceivedDate] = useState(today);
   const [mode, setMode] = useState("Bank Transfer");
@@ -323,7 +323,7 @@ function RecordAdvanceModal({
       const res = await fetch("/api/advances", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerName, amountLakhs: Number(amountLakhs), receivedDate, mode, referenceNo, notes }),
+        body: JSON.stringify({ customerName, customerId, amountLakhs: Number(amountLakhs), receivedDate, mode, referenceNo, notes }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -351,12 +351,14 @@ function RecordAdvanceModal({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Customer</label>
-            <input list="adv-customers" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+            <CustomerNameCombobox
+              value={customerName}
+              onChange={setCustomerName}
+              onSelect={(_name, id) => setCustomerId(id)}
+              linkedId={customerId}
               placeholder="Customer name"
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
-            <datalist id="adv-customers">
-              {customers.map((c) => <option key={c} value={c} />)}
-            </datalist>
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -441,10 +443,6 @@ export default function AccountsClient({
   }
 
   const unappliedAdvances = advances.filter((a) => a.status === "unapplied");
-  const customerNames = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.customerName))).sort(),
-    [rows]
-  );
 
   // ── Filtered rows ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -648,7 +646,6 @@ export default function AccountsClient({
       )}
       {showAdvanceModal && (
         <RecordAdvanceModal
-          customers={customerNames}
           onClose={() => setShowAdvanceModal(false)}
           onSaved={(a) => setAdvances((prev) => [a, ...prev])}
         />

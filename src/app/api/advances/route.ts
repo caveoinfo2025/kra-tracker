@@ -21,7 +21,10 @@ export async function GET(req: Request) {
       ...(customer ? { customerName: { contains: customer } } : {}),
     },
     orderBy: { createdAt: "desc" },
-    include: { recordedBy: { select: { name: true } } },
+    include: {
+      recordedBy: { select: { name: true } },
+      customer: { select: { id: true, name: true } },
+    },
   });
   return NextResponse.json(advances);
 }
@@ -44,6 +47,7 @@ export async function POST(req: Request) {
     data: {
       salesFunnelId: body.salesFunnelId ? Number(body.salesFunnelId) : null,
       customerName,
+      customerId: body.customerId ? Number(body.customerId) : null,
       amountLakhs,
       receivedDate: body.receivedDate ? new Date(body.receivedDate) : new Date(),
       mode: body.mode ?? "Bank Transfer",
@@ -52,7 +56,10 @@ export async function POST(req: Request) {
       status: "unapplied",
       recordedById: session.user.employeeId!,
     },
-    include: { recordedBy: { select: { name: true } } },
+    include: {
+      recordedBy: { select: { name: true } },
+      customer: { select: { id: true, name: true } },
+    },
   });
 
   return NextResponse.json(advance, { status: 201 });
