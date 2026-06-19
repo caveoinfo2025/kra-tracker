@@ -22,6 +22,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       territory: body.territory,
       leadSource: body.leadSource,
       customerName: body.customerName,
+      customerId: body.customerId !== undefined ? (body.customerId ? Number(body.customerId) : null) : undefined,
       contactPerson: body.contactPerson,
       phoneEmail: body.phoneEmail,
       activityType: body.activityType,
@@ -30,6 +31,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       qualifiedFlag: body.qualifiedFlag !== undefined ? Boolean(body.qualifiedFlag) : undefined,
       nextActionDate: body.nextActionDate ? new Date(body.nextActionDate) : null,
       remarks: body.remarks,
+    },
+    include: {
+      employee: { select: { name: true } },
+      customer: { select: { id: true, name: true } },
     },
   });
   return NextResponse.json(row);

@@ -7,7 +7,9 @@ import { useMasterValues } from "@/hooks/useMasterValues";
 
 type Lead = {
   id: number; date: string; employeeId: number; employee: { name: string };
-  territory: string; leadSource: string; customerName: string; contactPerson: string;
+  territory: string; leadSource: string; customerName: string;
+  customerId: number | null; customer: { id: number; name: string } | null;
+  contactPerson: string;
   activityType: string; activityCount: number; leadStatus: string;
   qualifiedFlag: boolean; remarks: string;
 };
@@ -22,6 +24,7 @@ const statusVariant = (s: string) =>
 
 const empty = {
   employeeId: "", date: "", territory: "", leadSource: "", customerName: "",
+  customerId: null as number | null,
   contactPerson: "", phoneEmail: "", activityType: "", activityCount: "1",
   leadStatus: "New", qualifiedFlag: false, nextActionDate: "", remarks: "",
 };
@@ -53,6 +56,7 @@ export default function LeadGenClient({
     setForm({
       employeeId: String(l.employeeId), date: l.date.slice(0, 10),
       territory: l.territory, leadSource: l.leadSource, customerName: l.customerName,
+      customerId: l.customerId,
       contactPerson: l.contactPerson, phoneEmail: "", activityType: l.activityType,
       activityCount: String(l.activityCount), leadStatus: l.leadStatus,
       qualifiedFlag: l.qualifiedFlag, nextActionDate: "", remarks: l.remarks,
@@ -217,6 +221,8 @@ export default function LeadGenClient({
                 <CustomerNameCombobox
                   value={form.customerName}
                   onChange={(v) => f("customerName", v)}
+                  onSelect={(_name, customerId) => setForm((p) => ({ ...p, customerId }))}
+                  linkedId={form.customerId}
                   required
                   className="w-full border rounded-lg px-3 py-2 text-sm"
                 />
@@ -310,7 +316,10 @@ export default function LeadGenClient({
                 <tr key={l.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-600">{l.date.slice(0, 10)}</td>
                   {isManager && <td className="px-4 py-3 font-medium">{l.employee.name}</td>}
-                  <td className="px-4 py-3 font-medium">{l.customerName}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {l.customerName}
+                    {l.customerId && <span className="ml-1.5 text-[10px] text-green-600 bg-green-50 rounded px-1 py-0.5 font-semibold">✓</span>}
+                  </td>
                   <td className="px-4 py-3">{l.activityType}</td>
                   <td className="px-4 py-3 text-center">{l.activityCount}</td>
                   <td className="px-4 py-3 text-gray-500">{l.leadSource}</td>

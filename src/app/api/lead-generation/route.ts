@@ -13,7 +13,10 @@ export async function GET(req: Request) {
 
   const rows = await prisma.leadGeneration.findMany({
     where,
-    include: { employee: { select: { name: true } } },
+    include: {
+      employee: { select: { name: true } },
+      customer: { select: { id: true, name: true } },
+    },
     orderBy: { date: "desc" },
   });
   return NextResponse.json(rows);
@@ -35,6 +38,7 @@ export async function POST(req: Request) {
       territory: body.territory ?? "",
       leadSource: body.leadSource ?? "",
       customerName: body.customerName,
+      customerId: body.customerId ? Number(body.customerId) : null,
       contactPerson: body.contactPerson ?? "",
       phoneEmail: body.phoneEmail ?? "",
       activityType: body.activityType ?? "",
@@ -44,7 +48,10 @@ export async function POST(req: Request) {
       nextActionDate: body.nextActionDate ? new Date(body.nextActionDate) : null,
       remarks: body.remarks ?? "",
     },
-    include: { employee: { select: { name: true } } },
+    include: {
+      employee: { select: { name: true } },
+      customer: { select: { id: true, name: true } },
+    },
   });
   return NextResponse.json(row, { status: 201 });
 }

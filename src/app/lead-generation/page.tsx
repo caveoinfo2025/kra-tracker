@@ -18,7 +18,10 @@ export default async function LeadGenerationPage() {
   const leadsWhere = isManager ? {} : empId ? { employeeId: empId } : { employeeId: -1 };
   const leads = await prisma.leadGeneration.findMany({
     where: leadsWhere,
-    include: { employee: { select: { name: true } } },
+    include: {
+      employee: { select: { name: true } },
+      customer: { select: { id: true, name: true } },
+    },
     orderBy: { date: "desc" },
     take: 200,
   });
