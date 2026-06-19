@@ -19,11 +19,16 @@
 
 import { Client } from "../node_modules/ssh2/lib/index.js";
 
+if (!process.env.HOSTINGER_SSH_PASSWORD) {
+  console.error("✗ HOSTINGER_SSH_PASSWORD env var is required (no hardcoded credentials).");
+  process.exit(1);
+}
+
 const SSH = {
   host:     "145.79.213.54",
   port:     65002,
   username: "u686730471",
-  password: "C@veo@2026",
+  password: process.env.HOSTINGER_SSH_PASSWORD,
 };
 
 // Update this to the exact path shown in hPanel for the UAT Node.js app

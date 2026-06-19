@@ -11,11 +11,16 @@
 
 import { Client } from "../node_modules/ssh2/lib/index.js";
 
+if (!process.env.HOSTINGER_SSH_PASSWORD || !process.env.UAT_DB_PASS) {
+  console.error("✗ HOSTINGER_SSH_PASSWORD and UAT_DB_PASS env vars are required (no hardcoded credentials).");
+  process.exit(1);
+}
+
 const SSH = {
   host:     "145.79.213.54",
   port:     65002,
   username: "u686730471",
-  password: "C@veo@2026",
+  password: process.env.HOSTINGER_SSH_PASSWORD,
 };
 
 const PROD_ENV_PATH = "/home/u686730471/domains/sales.caveoinfosystems.com/public_html/.builds/config/.env";
@@ -24,7 +29,7 @@ const UAT_APP_PATH  = "/home/u686730471/domains/uat.caveoinfosystems.com/public_
 const UAT_ENV_PATH  = `${UAT_APP_PATH}/.builds/config/.env`;
 const NODE_BIN      = "/opt/alt/alt-nodejs22/root/usr/bin";
 
-const UAT_DB_URL    = "mysql://u686730471_uatuser:C%40veo%402026@127.0.0.1:3306/u686730471_Caveo_UAT";
+const UAT_DB_URL    = `mysql://u686730471_uatuser:${encodeURIComponent(process.env.UAT_DB_PASS)}@127.0.0.1:3306/u686730471_Caveo_UAT`;
 const UAT_NEXTAUTH  = "https://uat.caveoinfosystems.com";
 
 function run(conn, cmd, opts = {}) {

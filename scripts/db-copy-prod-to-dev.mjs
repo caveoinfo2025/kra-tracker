@@ -7,11 +7,16 @@
 
 import { Client } from "../node_modules/ssh2/lib/index.js";
 
+if (!process.env.HOSTINGER_SSH_PASSWORD || !process.env.DEV_DB_PASS) {
+  console.error("✗ HOSTINGER_SSH_PASSWORD and DEV_DB_PASS env vars are required (no hardcoded credentials).");
+  process.exit(1);
+}
+
 const SSH = {
   host:     "145.79.213.54",
   port:     65002,
   username: "u686730471",
-  password: "C@veo@2026",
+  password: process.env.HOSTINGER_SSH_PASSWORD,
 };
 
 const PROD_ENV_PATH = "/home/u686730471/domains/sales.caveoinfosystems.com/public_html/.builds/config/.env";
@@ -20,7 +25,7 @@ const DUMP_FILE     = "/tmp/caveo_prod_dump.sql";
 const DEV_HOST = "srv2201.hstgr.io";
 const DEV_DB   = "u686730471_caveodev";
 const DEV_USER = "u686730471_devuser";
-const DEV_PASS = "Caveo@2026";
+const DEV_PASS = process.env.DEV_DB_PASS;
 
 function run(conn, cmd, opts = {}) {
   return new Promise((resolve, reject) => {
