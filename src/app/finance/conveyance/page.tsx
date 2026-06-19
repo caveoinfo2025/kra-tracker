@@ -26,8 +26,8 @@ export default async function ConveyancePage() {
       description="Log daily travel trips for mileage-based reimbursement at HR Policy rates."
     >
       <FinanceModuleStatusBanner
-        variant="preview"
-        message="Local Conveyance is in preview. Google Maps distance calculation, monthly approval, and payment settlement will be enabled in later phases."
+        variant="partially-live"
+        message="Trip register reads live data. Logging trips, approvals, monthly settlement, and policy config remain mock pending further backend work."
       />
       <ConveyanceClient
         caps={caps}

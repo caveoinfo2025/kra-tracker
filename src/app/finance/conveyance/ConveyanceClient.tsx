@@ -8,15 +8,15 @@
  * Monthly payment batch → Paid. NOT an immediate expense.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus, CheckCircle2, FileSpreadsheet, FileText, CreditCard, Info,
   Settings, MapPin, BarChart3,
 } from "lucide-react";
 import {
-  TravelTrip, MonthlyStatement, ConveyanceCaps, PolicyRule,
-  TRAVEL_TRIPS, MONTHLY_STATEMENTS, POLICY_RULES,
-  fmtINR, fmtDate, todayISO, tripBadge,
+  TravelTrip, MonthlyStatement, ConveyanceCaps, PolicyRule, ApiTravelClaim,
+  MONTHLY_STATEMENTS, POLICY_RULES,
+  fmtINR, fmtDate, todayISO, tripBadge, mapApiTravelClaim,
 } from "./data";
 import { ConveyanceFilterValues, EMPTY_FILTERS } from "./components/ConveyanceFilters";
 import ConveyanceSummaryCards   from "./components/ConveyanceSummaryCards";
@@ -37,7 +37,9 @@ interface Props {
 type Segment = "trips" | "monthly" | "settlement" | "policy";
 
 export default function ConveyanceClient({ caps, currentEmployee, currentGrade }: Props) {
-  const [trips,     setTrips]     = useState<TravelTrip[]>(TRAVEL_TRIPS);
+  const [trips,     setTrips]     = useState<TravelTrip[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(true);
+  const [tripsError,   setTripsError]   = useState<string | null>(null);
   const [monthly,   setMonthly]   = useState<MonthlyStatement[]>(MONTHLY_STATEMENTS);
   const [policies,  setPolicies]  = useState<PolicyRule[]>(POLICY_RULES);
   const [filters,   setFilters]   = useState<ConveyanceFilterValues>(EMPTY_FILTERS);
@@ -48,6 +50,28 @@ export default function ConveyanceClient({ caps, currentEmployee, currentGrade }
   const [toast,     setToast]     = useState("");
 
   function flash(m: string) { setToast(m); setTimeout(() => setToast(""), 2400); }
+
+  // ── Fetch live trips (read-only) ──
+  useEffect(() => {
+    let cancelled = false;
+    setTripsLoading(true);
+    setTripsError(null);
+    fetch("/api/finance/conveyance")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        const claims: ApiTravelClaim[] = json?.data?.claims ?? [];
+        setTrips(claims.map(mapApiTravelClaim));
+      })
+      .catch(() => {
+        if (!cancelled) setTripsError("Unable to load trips. Please try again.");
+      })
+      .finally(() => { if (!cancelled) setTripsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Filtered trips ──
   const scoped = useMemo(() => {
@@ -73,23 +97,13 @@ export default function ConveyanceClient({ caps, currentEmployee, currentGrade }
   // Pending approvals (for manager badge)
   const pendingCount = trips.filter((t) => t.status === "Submitted").length;
 
-  // ── Mutations ──
-  function applyStatus(id: number, status: TravelTrip["status"]) {
-    setTrips((ts) => ts.map((t) => t.id === id ? { ...t, status } : t));
-    setDrawer((d) => d?.id === id ? { ...d, status } : d);
+  // ── Mutations (gated — trips are now live read data; writes pending API) ──
+  function applyStatus(_id: number, _status: TravelTrip["status"]) {
+    flash("Approve/reject will be enabled after Conveyance write APIs are implemented.");
   }
 
-  function saveTrip(data: Partial<TravelTrip>, submit: boolean) {
-    if (formOpen?.initial) {
-      const id = formOpen.initial.id;
-      setTrips((ts) => ts.map((t) => t.id === id ? { ...t, ...data } : t));
-      flash("Trip updated");
-    } else {
-      const id = Math.max(0, ...trips.map((t) => t.id)) + 1;
-      const tripNo = `CONV/26-27/${String(id).padStart(4, "0")}`;
-      setTrips((ts) => [...ts, { ...data, id, tripNo, approvalHistory: [], attachments: [] } as TravelTrip]);
-      flash(submit ? "Trip submitted for approval" : "Draft saved");
-    }
+  function saveTrip(_data: Partial<TravelTrip>, _submit: boolean) {
+    flash("Add/edit trip will be enabled after Conveyance write APIs are implemented.");
     setFormOpen(null);
   }
 
@@ -180,14 +194,24 @@ export default function ConveyanceClient({ caps, currentEmployee, currentGrade }
         <Info size={12} />
         Signed in as <b style={{ color: "var(--fg-3)" }}>{caps.roleLabel}</b>
         {caps.scope === "own" ? " — showing your trips only" : caps.scope === "team" ? " — showing team trips" : " — full register"}
-        {" "}&nbsp;·&nbsp; illustrative mock data.
+        {" "}&nbsp;·&nbsp; {segment === "trips" ? "live trip data" : "illustrative mock data"}.
       </div>
 
       {/* Main content by segment */}
       {segment === "trips" && (
         <>
+          {tripsError && (
+            <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "var(--fg-2)" }}>
+              {tripsError}
+            </div>
+          )}
+          {tripsLoading && (
+            <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>
+              Loading trips…
+            </div>
+          )}
           {/* Pending approvals notice */}
-          {caps.canApprove && pendingCount > 0 && (
+          {!tripsLoading && caps.canApprove && pendingCount > 0 && (
             <div style={{ background: "rgba(255,107,0,0.08)", border: "1px solid rgba(255,107,0,0.25)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
               <CheckCircle2 size={15} color="var(--ot-orange)" />
               <span><b>{pendingCount}</b> trip{pendingCount > 1 ? "s" : ""} awaiting your approval</span>
@@ -198,13 +222,15 @@ export default function ConveyanceClient({ caps, currentEmployee, currentGrade }
               >Show pending</button>
             </div>
           )}
-          <TravelClaimTable
-            rows={filtered}
-            caps={caps}
-            onRowClick={setDrawer}
-            onApprove={(id) => { applyStatus(id, "Approved"); flash("Trip approved"); }}
-            onReject={(id)  => { applyStatus(id, "Rejected"); flash("Trip rejected"); }}
-          />
+          {!tripsLoading && (
+            <TravelClaimTable
+              rows={filtered}
+              caps={caps}
+              onRowClick={setDrawer}
+              onApprove={(id) => { applyStatus(id, "Approved"); }}
+              onReject={(id)  => { applyStatus(id, "Rejected"); }}
+            />
+          )}
         </>
       )}
 
@@ -237,8 +263,8 @@ export default function ConveyanceClient({ caps, currentEmployee, currentGrade }
           caps={caps}
           onClose={() => setDrawer(null)}
           onEdit={(t) => { setDrawer(null); setFormOpen({ initial: t }); }}
-          onApprove={(id) => { applyStatus(id, caps.canVerify ? "Verified" : "Approved"); flash(caps.canVerify ? "Verified" : "Approved"); }}
-          onReject={(id) => { applyStatus(id, "Rejected"); flash("Rejected"); }}
+          onApprove={(id) => applyStatus(id, caps.canVerify ? "Verified" : "Approved")}
+          onReject={(id) => applyStatus(id, "Rejected")}
           onRequestClarification={(id) => { flash("Clarification requested — employee notified"); setDrawer(null); }}
         />
       )}

@@ -303,3 +303,90 @@ export const MOCK_GEO: Record<string, GeoPoint> = {
   electroniccity: { address: "Electronic City Phase 1, Bengaluru 560100", lat: 12.84456, lng: 77.66012, time: "10:00" },
   manyata:      { address: "Manyata Tech Park, Nagawara, Bengaluru 560045", lat: 13.04700, lng: 77.61660, time: "09:45" },
 };
+
+// ── API response types (read-only trips wiring) ──────────────────────────────
+// GET /api/finance/conveyance returns TravelClaim rows. The schema has no
+// department/grade/customer/project/ticket/approval-history fields, so the
+// mapper below fills those with sensible defaults — this is a thinner shape
+// than the full mock TravelTrip, by design, until a schema extension lands.
+
+export interface ApiTravelClaim {
+  id: string;
+  claimNo: string;
+  travelDate: string;       // YYYY-MM-DD
+  employeeId: number;
+  employeeName: string;
+  department: string;
+  fromLocation: string;
+  toLocation: string;
+  fromLat: number | null;
+  fromLng: number | null;
+  toLat: number | null;
+  toLng: number | null;
+  distanceKm: number;
+  mode: string;             // bike | car | auto | public
+  ratePerKm: number;
+  amountRupees: number;
+  purpose: string;
+  status: string;           // draft | submitted | approved | rejected | paid
+  approvedByName: string | null;
+  approvedAt: string | null;
+}
+
+const MODE_TO_VEHICLE: Record<string, VehicleType> = {
+  bike: "Bike",
+  car: "Car",
+  auto: "Public Transport",
+  public: "Public Transport",
+};
+
+const STATUS_TO_TRIP_STATUS: Record<string, TripStatus> = {
+  draft: "Draft",
+  submitted: "Submitted",
+  approved: "Approved",
+  rejected: "Rejected",
+  paid: "Paid",
+};
+
+/** Map an ApiTravelClaim to the legacy TravelTrip shape used by existing components. */
+export function mapApiTravelClaim(c: ApiTravelClaim): TravelTrip {
+  const hasGps = c.fromLat != null && c.fromLng != null;
+  const status = STATUS_TO_TRIP_STATUS[c.status] ?? "Draft";
+  const approvalHistory: ApprovalEvent[] = c.approvedByName
+    ? [{
+        stage: "Manager Approval",
+        by: c.approvedByName,
+        date: c.approvedAt ? c.approvedAt.slice(0, 10) : "",
+        state: status === "Rejected" ? "rejected" : "done",
+      }]
+    : [];
+
+  return {
+    id: parseInt(c.id, 10),
+    tripNo: c.claimNo,
+    date: c.travelDate,
+    employeeId: c.employeeId,
+    employee: c.employeeName,
+    department: c.department,
+    grade: "—",
+    vehicle: MODE_TO_VEHICLE[c.mode] ?? "Car",
+    purpose: "Others",
+    customer: "",
+    customerSite: "",
+    project: "",
+    remarks: c.purpose,
+    distMethod: hasGps ? "GPS Actual" : "Standard (Office → Customer)",
+    standardKm: c.distanceKm,
+    actualKm: c.distanceKm,
+    payableKm: c.distanceKm,
+    ratePerKm: c.ratePerKm,
+    hasTicketAttachment: false,
+    claimAmount: c.amountRupees,
+    billToCustomer: false,
+    status,
+    approvalHistory,
+    month: new Date(c.travelDate + "T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
+    createdBy: c.employeeName,
+    attachments: [],
+  };
+}
