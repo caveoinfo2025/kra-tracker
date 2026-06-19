@@ -3,6 +3,44 @@
 Reverse-chronological log of notable changes. **Update at the end of every session.**
 Dates from git history (branch `master`).
 
+## [2026-06-19 — Session 9] — UAT Environment Stood Up + Prod→UAT Data Migration
+
+### Added
+- **UAT database created from scratch** — `u686730471_Caveo_UAT` had no schema at all. Built `prisma/uat-full-schema.sql` (concatenation of all 19 migrations, ~2171 lines) and imported via phpMyAdmin. Separately created `prisma/uat-prisma-tracking.sql` to populate `_prisma_migrations` so Prisma considers the UAT DB fully migrated (avoids `prisma migrate deploy` trying to re-run history on every build).
+- **`prisma/seed-uat-manager.mjs`** — one-off script to create/promote an Employee record to manager on a target DB (used to bootstrap Vijesh's UAT access before the prod data copy; superseded once prod data was copied in, since Vijesh already exists there as `isManager: true`).
+- **`prisma/migrate-prod-to-uat.mjs`** — copies data for the 33 tables that exist in **both** prod and UAT schemas, mapping only common columns (UAT has 64 additional tables from newer modules — Admin Console, Policy Engine, Workflow Engine, Master Data Management, CRM Admin Engine, Finance Admin Engine, Performance Management, Communication Engine, Integration Center, Security Center — that prod hasn't received yet). Uses `mariadb` batch inserts (100-row chunks) with `FOREIGN_KEY_CHECKS=0` during the copy. Truncates target tables first.
+  - Copied 26 non-empty tables: `AppRole`(8), `Collection`(141), `CrmActivity`(561), `CrmLead`(280), `CrmMeeting`(2), `CrmOpportunity`(49), `CrmTask`(282), `Customer`(93), `DailyUpdate`(2), `Employee`(10), `KRA`(34), `Notification`(39), `OrderAdvance`(3), `Payment`(26), `RolePageAccess`(112), `SalesFunnel`(100), `WeeklyCommit`(6), `WeeklyReview`(74).
+  - 7 tables were empty in prod too (Finance/Vendor/Voucher/TravelClaim/EmployeeAdvance/Expense/LeadGeneration) — left empty in UAT.
+  - AUTO_INCREMENT counters reset on all copied tables to `MAX(id)+1` to prevent collisions on new UAT-only inserts.
+
+### Changed
+- **`package.json` `build` script** — removed `prisma migrate deploy` (was: `prisma migrate deploy && prisma generate && next build`, now: `prisma generate && next build`). Hostinger/Passenger escapes `%`→`\%` in CLI-injected env vars, which corrupted the URL-encoded DB password and made `prisma migrate deploy` fail with `P1000: Authentication failed` during the UAT build — even though the same password works fine for the **runtime** Prisma client (which goes through `src/lib/prisma.ts`'s backslash-stripping fix). Migrations are now applied exclusively via the hand-written `apply-*.mjs` script pattern (already the established approach for Hostinger, which has no shadow DB).
+
+### Fixed
+- **UAT DB credentials/access** — went through three different DB users before finding the working one: `u686730471_devuser` (no access to UAT DB), `u686730471_Caveo_UAT` user (wrong/unwhitelisted), `u686730471_caveo` (unwhitelisted) — landed on **`u686730471_caveouat`** as the correct UAT DB user. Each required adding the connecting IP under hPanel → Remote MySQL. Note: the **app server's own outbound IP** for DB connections is an IPv6 address (`2a02:4780:11:1234::14e`), distinct from the developer's IPv4 (`49.204.126.121`) — both needed separate whitelist entries.
+- **NextAuth sign-in failure on first boot** — `DriverAdapterError: pool timeout` wrapping `Access denied for user ... (using password: YES)` — was the IPv6-whitelist gap above, not a credentials problem.
+
+### Files Modified
+- `package.json`
+- `prisma/uat-full-schema.sql` (new, generated — not hand-maintained)
+- `prisma/uat-prisma-tracking.sql` (new)
+- `prisma/seed-uat-manager.mjs` (new)
+- `prisma/migrate-prod-to-uat.mjs` (new)
+
+### Verified
+- UAT sign-in via Microsoft Entra ID works end-to-end.
+- Manager Dashboard loads with real prod-mirrored data (280 leads, 93 customers, 49 opportunities, etc.) after the data copy.
+- TypeScript clean (`npx tsc --noEmit` — no output).
+
+### Next session
+- Decide whether to commit the `prisma/uat-*.sql`, `seed-uat-manager.mjs`, `migrate-prod-to-uat.mjs` scripts (useful as a record of how UAT was bootstrapped) or delete them now that UAT is live.
+- Test full convert-lead→opportunity and delete-lead-with-audit-log flows on UAT against the real copied data.
+- Confirm Entra ID App Registration has the UAT callback URL registered (sign-in works, but worth a explicit check it's not silently falling back to a wildcard).
+- Carry over all Session 7/8 pending items below (legacy `lead-generation` customerId wiring, `OrderAdvance` customerId wiring, Finance Phase 2 backend wiring).
+- **28+ commits ahead of `origin/master`** — confirm push strategy with Vijesh before merging UAT branch work to prod.
+
+---
+
 ## [2026-06-18 — Session 8] — Lead Delete with Reason + Deletion Audit Log
 
 ### Added
