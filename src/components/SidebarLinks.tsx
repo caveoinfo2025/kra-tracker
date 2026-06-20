@@ -10,6 +10,7 @@ import {
   ClipboardList, FilePlus, ChevronDown, CheckSquare as Inbox,
   Settings,
 } from "lucide-react";
+import type { NavigationCapabilities } from "@/lib/access-control/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,8 @@ interface SidebarLinksProps {
   isManager: boolean;
   isAccounts: boolean;
   showSettings?: boolean;
+  // access-control-derived visibility (Step 2J) — see src/lib/access-control/navigation.ts
+  nav: NavigationCapabilities;
 }
 
 // ─── Role-based nav groups ─────────────────────────────────────────────────────
@@ -141,12 +144,18 @@ const ACCOUNTS_GROUPS: NavGroup[] = [
 
 // ─── Finance nav data ──────────────────────────────────────────────────────────
 
-type FinanceEntry =
-  | { kind: "link"; item: NavItem }
-  | { kind: "group"; group: NavSubGroup };
+type FinCaps = NavigationCapabilities["finance"];
 
+type FinanceEntry =
+  | { kind: "link"; item: NavItem; cap: (f: FinCaps) => boolean }
+  | { kind: "group"; group: NavSubGroup; cap: (f: FinCaps) => boolean };
+
+// `cap` decides visibility for users reached via access-control alone (no
+// manager/Accounts role). Managers and Accounts always see every entry
+// regardless of `cap` — see the `bridge` param on visibleFinanceNav() below.
 const FINANCE_FULL_NAV: FinanceEntry[] = [
-  { kind: "link", item: { href: "/finance", label: "Dashboard", icon: LayoutDashboard, exact: true } },
+  { kind: "link", item: { href: "/finance", label: "Dashboard", icon: LayoutDashboard, exact: true },
+    cap: (f) => f.canViewFinance },
   {
     kind: "group", group: {
       label: "Accounts", icon: Landmark,
@@ -155,6 +164,7 @@ const FINANCE_FULL_NAV: FinanceEntry[] = [
         { href: "/finance/bank-book", label: "Bank Book", icon: Building2 },
       ],
     },
+    cap: (f) => f.canViewPayments,
   },
   {
     kind: "group", group: {
@@ -165,6 +175,7 @@ const FINANCE_FULL_NAV: FinanceEntry[] = [
         { href: "/finance/expenses/categories", label: "Categories",       icon: Tag },
       ],
     },
+    cap: (f) => f.canViewExpenses,
   },
   {
     kind: "group", group: {
@@ -175,11 +186,28 @@ const FINANCE_FULL_NAV: FinanceEntry[] = [
         { href: "/finance/conveyance", label: "Conveyance", icon: MapPin },
       ],
     },
+    // Claims/Conveyance ride on expense-style data and have no dedicated
+    // catalogue permission (documented gap); Advance has its own. Show this
+    // group if either grants access — see RBAC_MIGRATION_TRACKER.md §8.
+    cap: (f) => f.canViewExpenses || f.canViewAdvances,
   },
-  { kind: "link", item: { href: "/finance/approvals", label: "Finance Approvals", icon: Inbox } },
-  { kind: "link", item: { href: "/finance/vouchers",  label: "Vouchers",  icon: FileText } },
-  { kind: "link", item: { href: "/finance/reports",   label: "Reports",   icon: BarChart3 } },
+  { kind: "link", item: { href: "/finance/approvals", label: "Finance Approvals", icon: Inbox },
+    cap: (f) => f.canApproveFinance },
+  // Finance/Voucher has no catalogue permission yet (documented gap) — this
+  // item only ever shows via the legacy canManageFinance bridge, never `cap`.
+  { kind: "link", item: { href: "/finance/vouchers", label: "Vouchers", icon: FileText },
+    cap: () => false },
+  // No dedicated Finance/Report permission in the catalogue — unchanged,
+  // bridge-only, same as Vouchers.
+  { kind: "link", item: { href: "/finance/reports", label: "Reports", icon: BarChart3 },
+    cap: () => false },
 ];
+
+/** Entries a manager/Accounts user always sees (`bridge`), plus anything an
+ *  access-control grant additionally unlocks for everyone else. */
+function visibleFinanceNav(bridge: boolean, fin: FinCaps): FinanceEntry[] {
+  return FINANCE_FULL_NAV.filter((e) => bridge || e.cap(fin));
+}
 
 const EMPLOYEE_FINANCE_ITEMS: NavItem[] = [
   { href: "/finance/expenses",   label: "My Expenses",  icon: Receipt },
@@ -290,8 +318,8 @@ function CollapsibleGroup({
 
 // ─── Finance section (full) ───────────────────────────────────────────────────
 
-function FinanceSectionNav({ isActive }: { isActive: (href: string, exact?: boolean) => boolean }) {
-  const hasActiveChild = FINANCE_FULL_NAV.some((entry) =>
+function FinanceSectionNav({ isActive, entries }: { isActive: (href: string, exact?: boolean) => boolean; entries: FinanceEntry[] }) {
+  const hasActiveChild = entries.some((entry) =>
     entry.kind === "link"
       ? isActive(entry.item.href, entry.item.exact)
       : entry.group.items.some((i) => isActive(i.href, i.exact))
@@ -300,7 +328,7 @@ function FinanceSectionNav({ isActive }: { isActive: (href: string, exact?: bool
   return (
     <CollapsibleSection label="Finance" hasActiveChild={hasActiveChild}>
       <nav className="sidebar-nav">
-        {FINANCE_FULL_NAV.map((entry, idx) => {
+        {entries.map((entry, idx) => {
           if (entry.kind === "link") {
             const Icon = entry.item.icon;
             const active = isActive(entry.item.href, entry.item.exact);
@@ -344,9 +372,24 @@ function EmployeeFinanceSectionNav({ isActive }: { isActive: (href: string, exac
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SidebarLinks({ isManager, isAccounts, showSettings = false }: SidebarLinksProps) {
+/** Masters group items are gated by Masters/CustomerMaster|VendorMaster VIEW
+ *  (Step 2J) — unlike the other role-based groups below, which are still the
+ *  temporary roles.ts/self-service bridge (§7 of the Step 2J brief: Pipeline,
+ *  Daily Updates, KRA, Tasks, Employees are intentionally left untouched). */
+function filterMastersItems(items: NavItem[], masters: NavigationCapabilities["masters"]): NavItem[] {
+  return items.filter((item) => {
+    if (item.href === "/masters/customers") return masters.canViewCustomerMaster;
+    if (item.href === "/masters/vendors")   return masters.canViewVendorMaster;
+    return true;
+  });
+}
+
+export default function SidebarLinks({ isManager, isAccounts, showSettings = false, nav }: SidebarLinksProps) {
   const pathname = usePathname();
 
+  // Temporary bridge: Sell/Operate/Me/People groups still use roles/session
+  // rules until access-control data scopes fully replace roles.ts (§7 — not
+  // migrated this step).
   const groups = isAccounts
     ? ACCOUNTS_GROUPS
     : isManager
@@ -358,17 +401,31 @@ export default function SidebarLinks({ isManager, isAccounts, showSettings = fal
     return pathname === href || pathname.startsWith(href + "/");
   }
 
-  const showFullFinance = isManager || isAccounts;
+  // Temporary bridge: existing manager/Accounts users keep full Finance nav
+  // regardless of access-control grants, so no current user loses access.
+  // `showFullFinance` additionally opens the section for anyone else whose
+  // access-control permissions grant at least one Finance capability.
+  const financeBridge = isManager || isAccounts;
+  const showFullFinance = financeBridge || nav.finance.canViewFinance;
+  const financeEntries = visibleFinanceNav(financeBridge, nav.finance);
+
+  // Temporary bridge: roles.ts-computed showSettings (Operations Head / Head
+  // of Sales / manager) is preserved alongside the new access-control check,
+  // since no role currently holds a Settings/* RolePermission grant in seed
+  // data — replacing instead of OR-ing would hide Settings from those users.
+  const showSettingsNav = showSettings || nav.settings.canViewSettings;
 
   return (
     <div className="sidebar-scroll">
       {/* ── Role-based sections ── */}
       {groups.map((group) => {
-        const hasActiveChild = group.items.some((item) => isActive(item.href, item.exact));
+        const items = group.label === "Masters" ? filterMastersItems(group.items, nav.masters) : group.items;
+        if (items.length === 0) return null;
+        const hasActiveChild = items.some((item) => isActive(item.href, item.exact));
         return (
           <CollapsibleSection key={group.label} label={group.label} hasActiveChild={hasActiveChild}>
             <nav className="sidebar-nav">
-              {group.items.map((item) => {
+              {items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href, item.exact);
                 return (
@@ -385,11 +442,11 @@ export default function SidebarLinks({ isManager, isAccounts, showSettings = fal
 
       {/* ── Finance Operations ── */}
       {showFullFinance
-        ? <FinanceSectionNav isActive={isActive} />
+        ? <FinanceSectionNav isActive={isActive} entries={financeEntries} />
         : <EmployeeFinanceSectionNav isActive={isActive} />
       }
 
-      {/* ── My Workspace (all users) ── */}
+      {/* ── My Workspace (all users) — self-service inbox, always visible ── */}
       <CollapsibleSection label="My Workspace" hasActiveChild={isActive("/approvals")}>
         <nav className="sidebar-nav">
           <Link href="/approvals" className={"nav-link" + (isActive("/approvals") ? " is-active" : "")}>
@@ -400,7 +457,7 @@ export default function SidebarLinks({ isManager, isAccounts, showSettings = fal
       </CollapsibleSection>
 
       {/* ── Settings ── */}
-      {showSettings && (
+      {showSettingsNav && (
         <CollapsibleSection label="Settings" hasActiveChild={isActive("/settings")}>
           <nav className="sidebar-nav">
             <Link href="/settings" className={"nav-link" + (isActive("/settings") ? " is-active" : "")}>

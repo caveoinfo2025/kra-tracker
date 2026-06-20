@@ -75,8 +75,19 @@ code in the repo at the time of writing this tracker:
   warning banner on the Roles tab plus a smaller note on the general admin-panel header (visible
   on every tab); runtime permissions remain managed exclusively by `access-control`; no runtime
   permission behavior changed.
+- ✅ **Step 2J** — Sidebar/navigation visibility now uses `access-control` permissions for
+  Masters (Customer/Vendor Master links) and Finance Operations sub-items (Cash/Bank Book,
+  Expense Register, Advances, Finance Approvals), where catalogue mappings exist. Self-service
+  navigation (My Expenses/Claims/Advance/Conveyance, Approvals inbox, Pipeline/Daily Updates/
+  KRA/Tasks/Employees) remains on the existing session/roles bridge, unchanged. Settings entry
+  visibility now also checks `access-control` Settings/* permissions, OR'd with the existing
+  roles.ts check (no role currently holds a seeded Settings/* grant, so replacing instead of
+  OR-ing would have hidden Settings from Operations Head/Head of Sales). No manager or Accounts
+  user lost any navigation item — all gating is additive (`bridge || capability`). Navigation
+  visibility is closer to, but not identical to, API/page permission behavior — remaining
+  page-guard/card-alignment work is tracked as Step 2K.
 
-No step in this list is marked "Pending confirmation" — all nine are independently verifiable in
+No step in this list is marked "Pending confirmation" — all ten are independently verifiable in
 the current codebase as of this tracker's update.
 
 ---
@@ -86,7 +97,7 @@ the current codebase as of this tracker's update.
 | Step | Task | Status | Risk | Notes |
 |---|---|---|---|---|
 | 2I | Add freeze warnings to legacy `/admin` Roles UI and `rbac.ts` comments | **Done this step (2026-06-20)** | Low | `rbac.ts` top-of-file comment added; non-blocking banner added to `AdminClient.tsx`'s "Roles & Access" tab, directly above `<RolesClient />` |
-| 2J | Align sidebar/navigation visibility with `access-control` | Not started | Medium — sidebar (`SidebarLinks.tsx`) currently gates almost entirely on `roles.ts` predicates, not `access-control` permissions, so a user granted an `access-control` permission may not see the corresponding nav link | Needs an audit of every sidebar item against its destination page's actual guard before any link visibility changes |
+| 2J | Align sidebar/navigation visibility with `access-control` | **Done this step (2026-06-20)** | Low — additive (OR'd with existing roles.ts checks), no link that was previously visible to a manager/Accounts user was removed | New `src/lib/access-control/navigation.ts` helper (`getNavigationCapabilities()`) loads all of a user's permissions once per request; `SidebarLinks.tsx`/`Navbar.tsx` now gate Masters and Finance Operations sub-items on it. Settings, Pipeline/People groups, and self-service Finance remain on the roles.ts bridge — see §10 for full detail |
 | 2K | Align Settings landing/cards visibility with `access-control` | Not started | Medium — Settings landing page cards may not consistently reflect the same permission the destination page/API enforces | Audit `/settings/page.tsx` (or its client) card-visibility logic against each linked admin surface |
 | 2L | Apply `access-control` to future Finance write APIs (and close the CRM-admin gap from Step 2F) | Not started | Medium — without a catalogue entry, any new Finance write API risks being built on `roles.ts` again by habit; the existing CRM-admin gap (no `Settings/CRM` permission) blocks completing Step 2F | Add `Settings/CRM` (VIEW/EDIT) to `PERMISSION_CATALOGUE`, seed it, migrate the 7 CRM-admin routes, then make `Settings/Finance`-style gating the default for any new Finance write surface |
 | 2M | Migrate Finance **read** APIs from `roles.ts`-only (`canManageFinance`, `isAccounts`, `isOperationsHead`) to `access-control` + own-scope rules | Not started | High — these are user-facing, high-traffic routes (`/api/finance/*`, `/api/expenses`, `/api/advances`); a careless migration could lock out legitimate Accounts/Operations-Head users who aren't `isManager` | Requires defining `Finance/{Expense,Advance,Payment,Invoice}/VIEW` scope rules (`OWN` vs `ALL`) via `DataAccessPolicy`, not a simple swap |
@@ -205,8 +216,11 @@ gap is called out explicitly — no permission was invented to fill a gap.
 - An admin may edit legacy `AppRole`/`RolePageAccess` data via the `/admin` Roles tab believing
   it changes real access, when it has zero effect — this is exactly the scenario this tracker and
   its freeze banner exist to prevent.
-- The sidebar may continue to show or hide the wrong pages relative to what `access-control`
-  actually permits, since sidebar visibility is still `roles.ts`-driven (Step 2J, not started).
+- Masters and Finance Operations sidebar visibility now reflects `access-control` (Step 2J), but
+  Settings/Pipeline/People navigation and the underlying page/API guards for several of these
+  surfaces (Customer/Vendor Master pages, several Finance read APIs) are not yet migrated — a
+  hidden-vs-visible nav item is not the same as an enforced page/API guard until Steps 2K/2M/2N
+  close those gaps too.
 - API and UI permissions may diverge — a button or nav link visible client-side does not
   guarantee the backing API agrees, until Step 2J/2K/2N close that gap.
 - Future Finance write APIs may be built on the old `isManager`-only `roles.ts` pattern by habit,
@@ -228,8 +242,9 @@ gap is called out explicitly — no permission was invented to fill a gap.
 ## 10. Recommended Next Execution Steps
 
 1. **Step 2I** — Add visible freeze warning to legacy `/admin` Roles UI and code comments in
-   `rbac.ts`. **(Completed in this step, 2026-06-20.)**
+   `rbac.ts`. **(Completed, 2026-06-20.)**
 2. **Step 2J** — Align sidebar/navigation permission visibility with `access-control`.
+   **(Completed, 2026-06-20.)**
 3. **Step 2K** — Align Settings cards with `access-control`.
 4. **Step 2L** — Add the missing `Settings/CRM` catalogue entry and plan the full Finance/CRM
    write-API `access-control` mapping (this also unblocks finishing Step 2F's CRM-admin half).

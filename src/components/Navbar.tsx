@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import { cookies } from "next/headers";
 import SidebarLinks from "./SidebarLinks";
 import { isOperationsHead, isAccounts as isAccountsRole, isHeadOfSales } from "@/lib/roles";
+import { getNavigationCapabilities } from "@/lib/access-control/navigation";
 import { LogOut } from "lucide-react";
 import prisma from "@/lib/prisma";
 
@@ -31,6 +32,10 @@ export default async function Navbar() {
   const isOpsHead  = !isManager && opsHead;
   const isAccounts = !isManager && (isAccountsRole(liveUser) || opsHead);
   const showSettings = opsHead || salesHead || isManager;
+
+  // Loaded once per request and passed straight to SidebarLinks — avoids a
+  // DB round-trip per nav item (Step 2J).
+  const nav = await getNavigationCapabilities(session);
 
   // Compute initials from name
   const displayName: string = (user.employeeName ?? user.name ?? "?") as string;
@@ -67,6 +72,7 @@ export default async function Navbar() {
         isManager={isManager}
         isAccounts={isAccounts}
         showSettings={showSettings}
+        nav={nav}
       />
 
       {/* ── Footer: user chip + sign out ── */}
