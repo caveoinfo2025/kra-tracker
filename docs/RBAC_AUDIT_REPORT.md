@@ -220,7 +220,7 @@ All Finance routes consistently use `roles.ts` predicates, not `access-control` 
 
 ## 6. Confirmed Unguarded Routes
 
-### `PATCH /api/customers/master/[id]` — still unguarded
+### `PATCH /api/customers/master/[id]` — ~~still unguarded~~ **RESOLVED 2026-06-20 (Step 2B)**
 
 - **File:** `src/app/api/customers/master/[id]/route.ts:10-37`
 - **Current auth behavior:** Calls `getSession()`; returns `401` if `!session?.user`. That is the *only* check before the Prisma `update()` call executes.
@@ -229,7 +229,7 @@ All Finance routes consistently use `roles.ts` predicates, not `access-control` 
 - **Required permission:** `Masters/CustomerMaster/EDIT` (the same one `DELETE` already checks — and arguably the more semantically correct action than the `DELETE` handler's own choice, see next finding).
 - **Recommended fix (do not implement yet):** Add `const deny = await requirePermission(session, "Masters", "CustomerMaster", "EDIT"); if (deny) return deny;` immediately after the session check, mirroring the sibling `DELETE` handler exactly.
 
-### `GET /api/admin/masters` and `POST /api/admin/masters` — still unguarded
+### `GET /api/admin/masters` and `POST /api/admin/masters` — ~~still unguarded~~ **RESOLVED 2026-06-20 (Step 2B)**
 
 - **File:** `src/app/api/admin/masters/route.ts:10-54` (GET), `:56-111` (POST)
 - **Current auth behavior:** Both call `getSession()`; return `401` if falsy. No further check.
@@ -239,13 +239,13 @@ All Finance routes consistently use `roles.ts` predicates, not `access-control` 
 
 ### Newly confirmed during this audit (not in the original two-item list, same gap pattern)
 
-| Route | Methods | Gap | Required permission (already in catalogue) |
-|---|---|---|---|
-| `/api/admin/masters/overrides` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) |
-| `/api/admin/masters/values` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) |
-| `/api/admin/customer-policy` | GET, POST | Session-only | `Masters/CustomerMaster/VIEW` or a new `Settings/Masters` sub-action — needs a product decision, not just a code fix |
-| `/api/admin/vendor-policy` | GET, POST | Session-only | `Masters/VendorMaster/VIEW`/`EDIT` equivalent — same caveat |
-| `/api/master-values` | GET | **No session check at all** | Undetermined — confirm intended public/dropdown use first |
+| Route | Methods | Gap | Required permission (already in catalogue) | Status |
+|---|---|---|---|---|
+| `/api/admin/masters/overrides` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) | **RESOLVED 2026-06-20 (Step 2B)** |
+| `/api/admin/masters/values` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) | **RESOLVED 2026-06-20 (Step 2B)** |
+| `/api/admin/customer-policy` | GET, POST | Session-only | `Masters/CustomerMaster/VIEW` or a new `Settings/Masters` sub-action — needs a product decision, not just a code fix | Open — deferred to a later step per scope |
+| `/api/admin/vendor-policy` | GET, POST | Session-only | `Masters/VendorMaster/VIEW`/`EDIT` equivalent — same caveat | Open — deferred to a later step per scope |
+| `/api/master-values` | GET | **No session check at all** | Undetermined — confirm intended public/dropdown use first | Open — deferred to a later step per scope |
 
 ---
 
@@ -332,6 +332,18 @@ In priority order (none implemented as part of this audit, per instructions):
 
 2. **`PATCH /api/customers/master/[id]`** — add the permission check its own sibling `DELETE` handler already has.
 3. **`GET`/`POST /api/admin/masters`, `/overrides`, `/values`** — add the permission check the page guard in front of them already has.
+
+   > **Step 2B completed (2026-06-20).** Permission checks added to all 7 confirmed-unguarded routes from this list, using the existing `requirePermission()` helper from `src/lib/access-control`, placed immediately after the existing session check and before any mutation/read of master data:
+   > - `PATCH /api/customers/master/[id]` now requires `Masters` / `CustomerMaster` / `EDIT` — mirrors its own sibling `DELETE` handler exactly.
+   > - `GET /api/admin/masters` now requires `Settings` / `Masters` / `VIEW`.
+   > - `POST /api/admin/masters` now requires `Settings` / `Masters` / `EDIT`.
+   > - `GET /api/admin/masters/overrides` now requires `Settings` / `Masters` / `VIEW`.
+   > - `POST /api/admin/masters/overrides` now requires `Settings` / `Masters` / `EDIT`.
+   > - `GET /api/admin/masters/values` now requires `Settings` / `Masters` / `VIEW`.
+   > - `POST /api/admin/masters/values` now requires `Settings` / `Masters` / `EDIT`.
+   >
+   > No response shapes, payloads, validation, or business logic were changed — only an added `requirePermission()` call + early return per route, identical in form to the pattern already used by the sibling `DELETE` handler and by `/settings/masters/page.tsx`'s own server-side guard. `npx tsc --noEmit`, `npx eslint`, `npx prisma validate`, and `next build` all pass. `/api/admin/customer-policy`, `/api/admin/vendor-policy`, `/api/master-values`, and `DELETE /api/customers/master/[id]`'s action-mismatch fix (item 5 below) were intentionally left untouched, per scope.
+
 4. **`/api/admin/customer-policy`, `/api/admin/vendor-policy`** — add a permission check (after a short product decision on which exact permission applies).
 5. **`DELETE /api/customers/master/[id]`** — switch the checked action from `EDIT` to `DELETE` to match the catalogue and the operation actually being performed.
 6. **Wire the 14 CRM-admin/Finance-admin route files that import but don't call `requirePermission`** (§3.2) to actually call it instead of the bare `isManager` check, so future `access-control` role grants take effect there.

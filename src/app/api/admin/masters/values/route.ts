@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession }   from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 import { listValues, createValue, updateValue } from "@/lib/master-data";
 
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Settings", "Masters", "VIEW");
+  if (deny) return deny;
 
   const { searchParams } = new URL(req.url);
   const definitionId     = searchParams.get("definitionId");
@@ -22,6 +25,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Settings", "Masters", "EDIT");
+  if (deny) return deny;
 
   const actorId = session.user.employeeId!;
 

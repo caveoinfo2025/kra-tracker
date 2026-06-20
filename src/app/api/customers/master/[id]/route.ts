@@ -13,6 +13,8 @@ export async function PATCH(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Masters", "CustomerMaster", "EDIT");
+  if (deny) return deny;
 
   const { id } = await params;
   const body = await req.json();
