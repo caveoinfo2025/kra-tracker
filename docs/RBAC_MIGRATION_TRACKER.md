@@ -126,6 +126,32 @@ code in the repo at the time of writing this tracker:
   fall through to "allow" for Finance data today, regardless of any `DataAccessPolicy` row
   configured. The CRM-admin catalogue gap from Step 2F (no `Settings/CRM` permission) is **not**
   closed by this step — it remains open, tracked separately below.
+- ✅ **Step 2N** — Customer/Vendor Master page-level guards migrated to `access-control`.
+  `/masters/customers/page.tsx` and `/masters/vendors/page.tsx` now require
+  `Masters/CustomerMaster/VIEW` and `Masters/VendorMaster/VIEW` respectively (both confirmed to
+  exist verbatim in `PERMISSION_CATALOGUE` — no catalogue gap, no permission invented), OR'd with
+  `isManager` only — deliberately the same manager-only bypass shape Step 2J's
+  `getNavigationCapabilities()` already gives the sidebar links for these two pages (no separate
+  `isOpsHead` bridge), so the page guard and the sidebar link now agree on who can reach each
+  page. This closes the "accessible to all authenticated users" gap `RBAC_AUDIT_REPORT.md` §2.4/§4
+  flagged as the most overexposed surface in the app — a non-manager employee with no real
+  `Masters/CustomerMaster`-or-`VendorMaster`/`VIEW` grant via `/settings/identity` is now
+  redirected to `/dashboard` (the same forbidden-UX pattern every Settings/Finance page guard
+  already uses — no new "unauthorized" page was created). `deriveCustomerCaps()`/
+  `deriveVendorCaps()` (`roles.ts`-only) are unchanged and retained for button-level
+  Create/Edit/Disable/GST/Bank/Export UX, each with a `// TODO: Migrate button-level capability
+  checks to access-control actions after page guard migration.` comment. Legacy `/customers`
+  (still session-only, no permission gate) was left unchanged per scope, with a TODO comment
+  added pointing at its own retirement step (Step 2O, "Retire or redirect `/customers` legacy
+  route" — the brief that requested this step labelled it "Step 2N" for the page-guard work and
+  "Step 2N" again for the next legacy-retirement step; this tracker's existing numbering, already
+  cross-referenced from `RBAC_AUDIT_REPORT.md` §3.7 and `docs/modules/finance/
+  FINANCE_WRITE_ACCESS_CONTROL_PLAN.md`, reserves 2M for Finance-read-API migration and 2N for
+  this page-guard work, so that numbering is kept rather than renumbered). No database schema,
+  migration, Customer/Vendor API logic, UI/form change, soft-delete, or sidebar/navigation change
+  was made. `npx tsc --noEmit`, `npx prisma validate`, `npx eslint` (2 pre-existing unrelated
+  unused-var warnings in `masters/customers/data.ts`, confirmed unrelated to this change), and
+  `next build` all pass.
 
 No step in this list is marked "Pending confirmation" — all are independently verifiable in
 the current codebase as of this tracker's update.
@@ -141,7 +167,7 @@ the current codebase as of this tracker's update.
 | 2K | Align Settings landing/cards visibility with `access-control` | **Done this step (2026-06-20)** | Medium — additive (`bridgeAccess \|\| capability`), no manager/Ops Head/Head of Sales lost the landing page or any card; the five subpages still on `isManager`-only guards (Finance, Communication, Integration, Security, Performance) are a documented gap, not a regression introduced by this step | New `src/lib/access-control/settings-capabilities.ts` helper (`getSettingsCapabilities()`); `AdminConsole.tsx` now filters cards on it and shows an empty-state message when no card matches; CRM card falls back to the `isManager` bridge pending the Step 2L `Settings/CRM` catalogue gap |
 | 2L | **Planning done (2026-06-20):** Finance Write Access-Control Plan created. **Implementation not started:** actually build the mapped Finance write APIs on `access-control`, add the catalogue gaps identified by the plan (`Finance/Voucher`, `Finance/Payment/EDIT`, `Finance/Advance/EDIT`, dedicated BankBook/CashBook/Conveyance/Reconciliation resources), and close the CRM-admin gap from Step 2F | **Plan: Done. Build: Not started** | Medium — without the catalogue gaps closed, any new Finance write API still risks an imprecise interim mapping (e.g. several distinct Voucher actions all falling back to `Finance/Payment/CREATE`); the existing CRM-admin gap (no `Settings/CRM` permission) still blocks completing Step 2F | See `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` for the full 33-endpoint mapping, the 8 catalogue gaps, and the Finance-transaction-model branch/department Schema Gap. Adding `Settings/CRM` (VIEW/EDIT) to `PERMISSION_CATALOGUE` and migrating the 7 CRM-admin routes remains a separate, not-yet-started sub-task of this step. |
 | 2M | Migrate Finance **read** APIs from `roles.ts`-only (`canManageFinance`, `isAccounts`, `isOperationsHead`) to `access-control` + own-scope rules | Not started | High — these are user-facing, high-traffic routes (`/api/finance/*`, `/api/expenses`, `/api/advances`); a careless migration could lock out legitimate Accounts/Operations-Head users who aren't `isManager` | Requires defining `Finance/{Expense,Advance,Payment,Invoice}/VIEW` scope rules (`OWN` vs `ALL`) via `DataAccessPolicy`, not a simple swap |
-| 2N | Migrate Customer/Vendor Master **page-level** guards to `access-control` | Not started | Medium — `/customers`, `/masters/customers`, `/masters/vendors` currently have **no permission gate beyond "is logged in"** (confirmed in `RBAC_AUDIT_REPORT.md` §2.4); API-level guards already use `Masters/CustomerMaster`/`Masters/VendorMaster` in several routes, but the pages themselves don't check anything | This is the most overexposed surface still open — every authenticated employee, including a brand-new BDE, can currently open these pages |
+| 2N | Migrate Customer/Vendor Master **page-level** guards to `access-control` | **Done this step (2026-06-20)** | Low — additive bypass (`canView \|\| isManager`, matching the sidebar's existing manager-only bypass), no manager lost access; non-manager employees with no real grant now correctly lose access to `/masters/customers`/`/masters/vendors` — this is the intended fix, not a regression | `/masters/customers/page.tsx` and `/masters/vendors/page.tsx` now call `hasPermission(userId, "Masters", "CustomerMaster"\|"VendorMaster", "VIEW")`; legacy `/customers` remains session-only (unchanged, TODO added) — its retirement is Step 2O |
 | 2O | Retire or redirect `/customers` legacy route | Not started | Low-Medium — functional overlap with `/masters/customers`; needs a product decision on which is canonical before any redirect | Blocked on a product decision, not a technical blocker |
 | 2P | Retire `/admin` legacy route after safe replacement | Not started | Medium — `/admin` already `redirect()`s to `/settings/administration`'s `AdminClient`, but the embedded Roles & Access tab (now freeze-bannered) and several other tabs have no `/settings/*` equivalent yet | Cannot retire until every tab's functionality has a confirmed `/settings/*` home |
 | 2Q | Retire `AppRole` / `RolePageAccess` after data migration decision | Not started | Low (no runtime consumers) but **data-loss risk if rushed** | Decide: migrate any real-world role customizations into `Role`/`Permission`/`UserRole`, or confirm they're fully superseded and safe to drop; do not delete the Prisma models until that decision is made and a DB backup exists |
@@ -269,9 +295,11 @@ gap is called out explicitly — no permission was invented to fill a gap.
 - `AppRole`/`RolePageAccess` may continue to mislead future developers who don't know to check
   this tracker first — mitigated by Step 2H's freeze comment and banner, but only fully resolved
   once Steps 2Q/2R retire the system entirely.
-- Customer/Vendor Master pages remain overexposed (no page-level gate beyond "is logged in") until
-  Step 2N closes that gap — this is currently the single most exposed surface in the app per
-  `RBAC_AUDIT_REPORT.md` §2.4.
+- ~~Customer/Vendor Master pages remain overexposed (no page-level gate beyond "is logged in")
+  until Step 2N closes that gap~~ **RESOLVED 2026-06-20 (Step 2N)** — `/masters/customers` and
+  `/masters/vendors` now require `Masters/CustomerMaster`-or-`VendorMaster`/`VIEW`. Legacy
+  `/customers` remains overexposed (no permission gate beyond session) until Step 2O retires or
+  redirects it.
 - Object-level authorization gaps (the Step 2A class of bug — "any authenticated user can act on
   any object by ID") can reappear if a future approval-like or workflow-like route is built
   without replicating that pattern; the checklist in §6 exists specifically to catch this in
@@ -294,5 +322,7 @@ gap is called out explicitly — no permission was invented to fill a gap.
    Reconciliation resources, `Finance/Expense/IMPORT`, `Finance/Voucher/EXPORT`), and build the
    33 mapped write endpoints themselves.
 5. **Step 2N** — Customer/Vendor Master page-guard migration (the most overexposed surface today
-   per §9).
-6. **Step 2O/2P** — Legacy route retirement plan for `/customers` and `/admin`.
+   per §9). **(Completed, 2026-06-20.)**
+6. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
+   `/api/advances`) from `roles.ts`-only to `access-control` + own-scope `DataAccessPolicy` rules.
+7. **Step 2O/2P** — Legacy route retirement plan for `/customers` and `/admin`.

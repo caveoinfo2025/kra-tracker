@@ -225,8 +225,8 @@ planned endpoint to a real `access-control` permission ahead of time:
 | `/settings/workflow` → `/settings/workflow/approval-engine` | Redirect-only shim | N/A | — | Safe | |
 | `/settings/finance` | Not independently re-verified this pass (prior implementation audit reported `requirePermission`/server permission check present) | access-control (per prior audit) | Card in `AdminConsole` | Safe (per prior finding) | |
 | `/customers` (legacy operational list) | **Session-only — no permission check at all** | none | Not in nav as a distinct top-level item separate from Masters (legacy route, superseded in nav by `/masters/customers`) | **Needs Review — effectively Missing Permission for a live-data CRM page** | Any authenticated employee, including the lowest-privilege BDE, can view the full live customer book and (per `CustomerMasterClient`'s wiring to `/api/customers/master/[id]` PATCH) edit customer master records, since neither the page nor the PATCH API checks anything beyond login. |
-| `/masters/customers` | Session-only; write capability gated **client-side only** via `deriveCustomerCaps({isManager, isAccounts, isOpsHead})` | roles.ts (client-side cosmetic) | Shown to all roles (Manager/Employee/Accounts groups all include "Customer Master") | **Needs Review — cosmetic-only write gating** | The page itself never blocks viewing; "can edit" is a client-computed boolean that a user could bypass by calling the API directly (and the API, per §3.6, often has no check of its own). |
-| `/masters/vendors` | Same pattern as above (`deriveVendorCaps`), session-only + client cosmetic caps | roles.ts (client-side cosmetic) | Shown to all roles | Needs Review — same risk as Customer Master | |
+| `/masters/customers` | ~~Session-only; write capability gated **client-side only** via `deriveCustomerCaps({isManager, isAccounts, isOpsHead})`~~ **RESOLVED 2026-06-20 (Step 2N)** — real server redirect: `hasPermission(Masters,CustomerMaster,VIEW)` (access-control) `\|\| isManager` (roles.ts bypass) | both, OR'd | Sidebar link gated on the same `Masters/CustomerMaster/VIEW` capability since Step 2J — guard and link now agree | Safe — page guard and sidebar visibility use the identical manager-bypass shape; `deriveCustomerCaps` is retained for write-button-level UX only (no longer a page-access control) | |
+| `/masters/vendors` | ~~Same pattern as above (`deriveVendorCaps`), session-only + client cosmetic caps~~ **RESOLVED 2026-06-20 (Step 2N)** — real server redirect: `hasPermission(Masters,VendorMaster,VIEW)` (access-control) `\|\| isManager` (roles.ts bypass) | both, OR'd | Sidebar link gated on the same `Masters/VendorMaster/VIEW` capability since Step 2J — guard and link now agree | Safe — same fix as Customer Master; `deriveVendorCaps` retained for write-button-level UX only | |
 | `/finance` (Dashboard) | Real server redirect: `canManageFinance(session.user)` (non-finance users redirected to `/finance/expenses` instead of blocked outright — intentional UX, not a leak) | roles.ts | Full Finance nav only for `isManager \|\| isAccounts`; limited "My ..." nav otherwise | Safe | |
 | `/finance/expenses` | Session-only; "all authenticated employees can access (own data); finance roles see all" — by design | roles.ts (client caps for elevated view) | Shown to all (as "My Expenses" or full register depending on role) | Safe (own-data-by-default design is intentional and matches the API's own-data scoping) | |
 | `/finance/{advances,claims,conveyance,bank-book,cash-book,vouchers,reports}` | Not independently re-verified this pass — prior implementation audit found consistent `canManageFinance`/own-data patterns across these | roles.ts | Full Finance nav (manager/accounts) or limited employee Finance nav | Safe (per prior finding) | |
@@ -234,6 +234,37 @@ planned endpoint to a real `access-control` permission ahead of time:
 | `/approvals` (Global Inbox) | Session-only — by design, every authenticated employee has a personal inbox | roles.ts (caps derivation only, no block) | Shown to all roles under "My Workspace" | Safe (matches intended self-service design) — but see §3.9: the *page* is fine, the *action API* behind it is not. | |
 | `/pipeline/leads`, `/pipeline/opportunities`, `/pipeline/tasks`, `/pipeline/analytics` | Session-only + server-side ownership scoping (`isManager` vs `assignedToId === self`) baked into the Prisma query itself | roles.ts | Shown per role group (Sell section) | Safe | |
 | `/employees` | Real server redirect: non-managers redirected to their own `/employees/[id]` | roles.ts (`isManager` only) | Shown in Manager group; not shown to Employee group, though direct URL would just redirect (not unblocked) — verified consistent | Safe | |
+
+**Step 2N completed (2026-06-20).** Customer and Vendor Master record pages now use
+`access-control` page guards instead of "is logged in" alone:
+- `/masters/customers` and `/masters/vendors` (table rows above) each now compute
+  `hasPermission(userId, "Masters", "CustomerMaster"|"VendorMaster", "VIEW")` server-side and
+  redirect to `/dashboard` (the same forbidden-UX pattern already used by every Settings/Finance
+  page guard — no new "unauthorized" page or component was introduced) when neither that grant
+  nor `isManager` is present. **Direct URL access to these two master pages is no longer
+  session-only** — this closes the "most overexposed surface" finding from §2.4/§5 finding 1.
+- The bypass is deliberately `isManager`-only, not the broader `isOpsHead`/`isManager` bridge used
+  by some Settings pages (e.g. `/settings/masters` above) — because Step 2J's
+  `getNavigationCapabilities()` already gives the Masters sidebar links only that same
+  manager-only bypass (manager → `ALL_TRUE`, everyone else needs the real grant). Using a wider
+  bridge on the page than the sidebar already uses would have reintroduced exactly the
+  "menu hidden but page reachable" mismatch pattern §5 finding 2 (below) describes for a
+  different pair of surfaces — so the two are now kept in lockstep instead.
+- `deriveCustomerCaps()`/`deriveVendorCaps()` (`roles.ts`-only, in each page's `data.ts`) are
+  **unchanged and retained** — they continue to drive button-level Create/Edit/Disable/GST/
+  Bank/Export visibility, which was always their actual job; the page-level "can this user be
+  here at all" decision they were never designed for is now handled by the guard above instead.
+  Each function gained a one-line `// TODO: Migrate button-level capability checks to
+  access-control actions after page guard migration.` comment — no behavior change.
+- **Legacy `/customers` route still requires a separate retirement decision.** It remains
+  session-only (no permission check beyond login) — confirmed unchanged, table row above — and was
+  explicitly left alone per this step's scope (no redirect, no gate added). A TODO comment was
+  added pointing at its retirement, tracked in `RBAC_MIGRATION_TRACKER.md` as Step 2O ("Retire or
+  redirect `/customers` legacy route").
+- No database schema, migration, Customer/Vendor API logic (`/api/customers/master*` routes were
+  read, not modified), UI/form change, soft-delete implementation, or sidebar/navigation change was
+  made. `npx tsc --noEmit`, `npx prisma validate`, `npx eslint` (2 pre-existing, unrelated
+  unused-variable warnings in `masters/customers/data.ts`), and `next build` all pass.
 
 ---
 

@@ -99,6 +99,30 @@ Finance write API, schema change, migration, UI change, `roles.ts`/`rbac.ts` cha
 permission-enforcement change was made — one new documentation file only. `npx tsc --noEmit`,
 `npx prisma validate`, and `next build` all pass (unaffected — no application code changed).
 
+### 2026-06-20 — Customer/Vendor Master page guards migrated to access-control (Step 2N)
+Closed the most overexposed surface flagged in `RBAC_AUDIT_REPORT.md` §2.4/§4/§5: `/masters/
+customers` and `/masters/vendors` were "accessible to all authenticated users" with write-only
+client-side gating (`deriveCustomerCaps`/`deriveVendorCaps`, both `roles.ts`-only). Both
+`page.tsx` files now compute `hasPermission(userId, "Masters", "CustomerMaster"|"VendorMaster",
+"VIEW")` server-side and redirect to `/dashboard` (the existing Settings/Finance forbidden-UX
+pattern — no new unauthorized page built) when neither that grant nor `isManager` is present.
+Both permissions already existed verbatim in `PERMISSION_CATALOGUE` — no catalogue gap, nothing
+invented. The bypass is deliberately `isManager`-only (not the broader `isOpsHead||isManager`
+bridge `/settings/masters` uses) to match Step 2J's `getNavigationCapabilities()`, which already
+gives these two sidebar links the same manager-only bypass — page guard and sidebar link now
+agree on who can reach each page. `deriveCustomerCaps()`/`deriveVendorCaps()` are unchanged,
+retained for button-level Create/Edit/Disable/GST/Bank/Export UX (their actual original job),
+each with a one-line TODO comment flagging the future button-level access-control migration.
+Legacy `/customers` (still session-only) was left unchanged per scope, with a TODO pointing at
+its own retirement (tracked as Step 2O in `RBAC_MIGRATION_TRACKER.md` — the task brief that
+requested this step labelled the work "Step 2M" and the next step "Step 2N," but the tracker's
+existing numbering — already cross-referenced from three other files including the just-written
+Finance Write Access-Control Plan — reserves 2M for Finance-read-API migration and 2N for this
+page-guard work, so the existing numbering was kept rather than renumbering published
+cross-references). No schema, migration, Customer/Vendor API logic, UI/form change, soft delete,
+or sidebar/navigation change was made. `npx tsc --noEmit`, `npx prisma validate`, `npx eslint` (2
+pre-existing unrelated unused-var warnings), and `next build` all pass.
+
 ### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
 - **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
 - **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓

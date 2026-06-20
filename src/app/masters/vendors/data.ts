@@ -233,6 +233,7 @@ export interface VendorCaps {
   canExport: boolean;
 }
 
+// TODO: Migrate button-level capability checks to access-control actions after page guard migration.
 export function deriveVendorCaps(f: {
   isManager: boolean;
   isAccounts: boolean;
