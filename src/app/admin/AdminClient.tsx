@@ -259,6 +259,7 @@ export default function AdminClient({ settings }: { settings: Setting[] }) {
             <div>
               <h1 style={{ fontSize: 20, fontWeight: 700, color: "#111", margin: 0 }}>Admin Panel</h1>
               <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Configuration &amp; Rules — no CRM data shown here</p>
+              <p style={{ fontSize: 11, color: "#b45309", margin: "2px 0 0" }}>This legacy administration area is being retained temporarily. New permission management should be done from Settings &gt; Identity.</p>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>

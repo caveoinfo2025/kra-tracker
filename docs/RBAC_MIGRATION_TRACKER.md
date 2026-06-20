@@ -70,9 +70,14 @@ code in the repo at the time of writing this tracker:
   `requirePermission(session,"Settings","Identity"|"Policy",...)`. `admin/identity/users/route.ts`
   (the collection endpoint, distinct from `/[id]`) was **not** in scope and still uses
   `canAccessSettings()` — flagged as a gap, not fixed.
+- ✅ **Step 2I** — `rbac.ts` marked as legacy/frozen with a top-of-file warning comment; the
+  legacy Roles & Access UI (`src/app/admin/AdminClient.tsx`) now shows a non-authoritative
+  warning banner on the Roles tab plus a smaller note on the general admin-panel header (visible
+  on every tab); runtime permissions remain managed exclusively by `access-control`; no runtime
+  permission behavior changed.
 
-No step in this list is marked "Pending confirmation" — all eight are independently verifiable in
-the current codebase as of this tracker's creation.
+No step in this list is marked "Pending confirmation" — all nine are independently verifiable in
+the current codebase as of this tracker's update.
 
 ---
 

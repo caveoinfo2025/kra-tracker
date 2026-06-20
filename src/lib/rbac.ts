@@ -1,7 +1,16 @@
 /**
- * FROZEN — This legacy RBAC file backs the old /admin Roles UI only. It is not
- * used for runtime authorization. Do not add new enforcement logic here.
- * Use src/lib/access-control for all new permissions.
+ * LEGACY RBAC WARNING
+ *
+ * This file backs the old /admin Roles & Access UI only.
+ * It is not used for runtime authorization.
+ *
+ * Runtime permissions are managed through:
+ *   src/lib/access-control/
+ *
+ * Do not add new enforcement logic here.
+ * Do not build new features on AppRole / RolePageAccess.
+ *
+ * This file is frozen until the legacy /admin Roles UI is retired.
  * See docs/RBAC_MIGRATION_TRACKER.md for the full migration plan.
  *
  * Role-based access control helpers.
