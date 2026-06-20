@@ -165,6 +165,38 @@ code in the repo at the time of writing this tracker:
   changed. Legacy `/customers` remains session-only and unchanged — its retirement/redirect is
   still Step 2O.
 
+- ✅ **Step 2O** — Legacy `/customers` route-consolidation decision: **guarded in place, not
+  redirected.** Code review (per this step's own escape-hatch clause — "if `/customers` has
+  unique functionality `/masters/customers` does not have, do not delete it; guard it instead")
+  found `/customers` is the **only real, database-backed Customer Master**: live Prisma data,
+  real create/edit via `CustomerMasterClient.tsx`'s wiring to `/api/customers/master*`, working
+  **Import from CRM** (`/api/customers/master/import`), working **duplicate detection**
+  (`/api/customers/master/deduplicate`), and working **delete**
+  (`DELETE /api/customers/master/[id]`). `/masters/customers`, by contrast, is still the
+  **UI-only mock-data phase** flagged in `docs/PROJECT_MEMORY.md`'s Global Masters section —
+  its client component (`masters/customers/CustomerMasterClient.tsx`) renders a hardcoded
+  `MOCK_CUSTOMERS` array from `masters/customers/data.ts` and contains **zero `fetch()` calls**;
+  it does not read or write the `Customer` table at all. Redirecting `/customers` to
+  `/masters/customers` per this step's stated preference would have **replaced the only
+  functional Customer Master with a non-functional preview** — a production regression, not a
+  safe consolidation — so it was not done. Instead, `/customers/page.tsx` now carries the exact
+  same page guard `/masters/customers` already has: `hasPermission(userId, "Masters",
+  "CustomerMaster", "VIEW")` (access-control) `||` `isManager` (roles.ts bypass), redirecting to
+  `/dashboard` on failure — the same manager-only bypass shape as Step 2N, so both Customer
+  Master entry points now agree on who can reach them. No navigation change was needed: a
+  repo-wide search (`href="/customers"`, `router.push("/customers"`, `redirect("/customers"`)
+  found **zero links** anywhere pointing at `/customers` — the sidebar (`SidebarLinks.tsx`) only
+  ever linked to `/masters/customers`; the one `/customers` reference in `Topbar.tsx` is a
+  breadcrumb-label prefix match for direct URL visits, not a navigational link, and was left
+  unchanged. No internal links required updating for the same reason. `GET`/`POST
+  /api/customers/master` and `PATCH`/`DELETE /api/customers/master/[id]` remain guarded exactly
+  as Step 2N (API guards) left them — unchanged. No database schema, migration, customer data
+  deletion, Customer Master API logic, `/masters/customers` UI/behavior, Vendor Master, or
+  Finance module change was made. **Recommended follow-up (not done this step):** wire
+  `/masters/customers` to the real `Customer` table (replacing `MOCK_CUSTOMERS` with live Prisma
+  data and real CRUD/import/dedupe against the now-guarded `/api/customers/master*` APIs) — only
+  after that parity is reached should `/customers` be converted to a redirect.
+
 No step in this list is marked "Pending confirmation" — all are independently verifiable in
 the current codebase as of this tracker's update.
 
@@ -309,9 +341,13 @@ gap is called out explicitly — no permission was invented to fill a gap.
   once Steps 2Q/2R retire the system entirely.
 - ~~Customer/Vendor Master pages remain overexposed (no page-level gate beyond "is logged in")
   until Step 2N closes that gap~~ **RESOLVED 2026-06-20 (Step 2N)** — `/masters/customers` and
-  `/masters/vendors` now require `Masters/CustomerMaster`-or-`VendorMaster`/`VIEW`. Legacy
+  `/masters/vendors` now require `Masters/CustomerMaster`-or-`VendorMaster`/`VIEW`. ~~Legacy
   `/customers` remains overexposed (no permission gate beyond session) until Step 2O retires or
-  redirects it.
+  redirects it.~~ **RESOLVED 2026-06-20 (Step 2O)** — `/customers` now requires the same
+  `Masters/CustomerMaster/VIEW`-or-`isManager` grant. Not redirected to `/masters/customers`
+  because that route is still UI-only mock data with no real persistence — see Step 2O's full
+  note in §3 above. Wiring `/masters/customers` to real data and then redirecting `/customers` is
+  the recommended follow-up, not yet scheduled.
 - Object-level authorization gaps (the Step 2A class of bug — "any authenticated user can act on
   any object by ID") can reappear if a future approval-like or workflow-like route is built
   without replicating that pattern; the checklist in §6 exists specifically to catch this in
@@ -337,6 +373,11 @@ gap is called out explicitly — no permission was invented to fill a gap.
    per §9). **(Completed, 2026-06-20.)**
 6. **Step 2N (API guards)** — `GET`/`POST /api/customers/master` permission hardening, aligning
    the API with the Step 2N page guard. **(Completed, 2026-06-20.)**
-7. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
+7. **Step 2O** — Legacy `/customers` route consolidation decision. **(Completed, 2026-06-20 —
+   guarded in place, not redirected; see §3 for the full functional-gap finding.)** Follow-up,
+   not started: wire `/masters/customers` to real `Customer`-table data (replacing
+   `MOCK_CUSTOMERS`) with real CRUD/import/dedupe against `/api/customers/master*`, then convert
+   `/customers` to a redirect once parity is reached.
+8. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
    `/api/advances`) from `roles.ts`-only to `access-control` + own-scope `DataAccessPolicy` rules.
-8. **Step 2O/2P** — Legacy route retirement plan for `/customers` and `/admin`.
+9. **Step 2P** — Legacy `/admin` Roles tab retirement plan.

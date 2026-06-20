@@ -4,15 +4,37 @@ import prisma from "@/lib/prisma";
 import SheetLayout from "@/components/SheetLayout";
 import CustomerMasterClient from "./CustomerMasterClient";
 import { importCustomersFromCrm } from "@/lib/customer-import";
+import { hasPermission } from "@/lib/access-control";
 
-// TODO (post-Step 2N): legacy /customers route is still session-only — no
-// Masters/CustomerMaster/VIEW gate like /masters/customers now has. The
-// underlying GET/POST /api/customers/master API is now guarded (Step 2N).
-// Retirement/redirect of this page is the next step; tracked in
-// docs/RBAC_MIGRATION_TRACKER.md — not changed here per scope.
+/**
+ * Legacy operational Customer Master — live Prisma-backed list with real
+ * Import-from-CRM, duplicate detection, and delete, all wired to
+ * /api/customers/master*.
+ *
+ * Step 2O: NOT redirected to /masters/customers. That route is still a
+ * UI-only mock-data phase (`MOCK_CUSTOMERS` in masters/customers/data.ts,
+ * no fetch calls in its client component at all) — it has no real
+ * persistence, no Import from CRM, no dedupe, and no delete. Redirecting
+ * this page there would replace the only functional Customer Master with a
+ * non-functional preview, a regression rather than a safe consolidation.
+ * See docs/RBAC_MIGRATION_TRACKER.md Step 2O for the documented functional
+ * gap and the recommended follow-up (wire /masters/customers to real data,
+ * then retire this route).
+ *
+ * Guarded the same way /masters/customers is instead: real
+ * Masters/CustomerMaster/VIEW permission check (access-control), OR'd with
+ * isManager, redirecting to /dashboard on failure — closing the
+ * "accessible to all authenticated users" gap for this entry point too.
+ */
 export default async function CustomerMasterPage() {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+
+  const userId    = session.user.employeeId!;
+  const isManager = !!session.user.isManager;
+
+  const canView = await hasPermission(userId, "Masters", "CustomerMaster", "VIEW");
+  if (!canView && !isManager) redirect("/dashboard");
 
   // Auto-seed the master table from CRM the first time it is opened on a fresh
   // database (e.g. production right after the migration). This makes existing

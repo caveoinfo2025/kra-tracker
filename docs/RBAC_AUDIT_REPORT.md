@@ -283,6 +283,32 @@ planned endpoint to a real `access-control` permission ahead of time:
 - No query params, pagination, sorting, response shape, payload structure, validation, or
   create-logic change was made.
 
+**Step 2O completed (route consolidation, 2026-06-20).** Legacy `/customers` (§3.6 table,
+finding 4 above) is no longer a separate session-only customer page:
+- `/customers` is **not** a separate session-only customer page anymore — it now requires the
+  same `Masters/CustomerMaster/VIEW`-or-`isManager` grant `/masters/customers` carries, applied
+  before any data load (including the auto-seed-from-CRM side effect on first load).
+- **Not converted to a redirect**, contrary to this step's stated preference, because code
+  review found `/customers` has unique, real functionality `/masters/customers` entirely lacks:
+  `/customers` is the only page with live Prisma-backed CRUD, working **Import from CRM**, working
+  **duplicate detection**, and working **delete**, all wired to the now-guarded
+  `/api/customers/master*` APIs. `/masters/customers`'s client component
+  (`masters/customers/CustomerMasterClient.tsx`) renders a hardcoded `MOCK_CUSTOMERS` array and
+  contains zero `fetch()` calls — it does not touch the `Customer` table at all. A redirect would
+  have replaced the only functional Customer Master with a non-functional preview.
+  Customer Master page access is centralized on the same permission (`Masters/CustomerMaster/
+  VIEW`) at both entry points, but **not** on a single route — that remains the recommended
+  follow-up once `/masters/customers` is wired to real data (tracked in
+  `RBAC_MIGRATION_TRACKER.md` §10 item 7).
+- Old `/customers` bookmarks therefore continue to resolve to the live customer list (now
+  permission-gated) rather than redirecting elsewhere.
+- **No navigation change required** — a repo-wide search for `href="/customers"`,
+  `router.push("/customers"`, and `redirect("/customers"` found zero matches; `SidebarLinks.tsx`
+  already only links to `/masters/customers`. The one `/customers` string in `Topbar.tsx` is a
+  breadcrumb-label prefix match for direct URL visits, not a link, and was left unchanged.
+- No database schema, migration, customer data deletion, Customer Master API logic,
+  `/masters/customers` UI/behavior, Vendor Master, or Finance module change was made.
+
 ---
 
 ## 5. Navigation Permission Findings
@@ -294,7 +320,7 @@ planned endpoint to a real `access-control` permission ahead of time:
 1. **Masters section always shown, page/API enforcement is weakest of all major modules.** `MANAGER_GROUPS`, `EMPLOYEE_GROUPS`, and `ACCOUNTS_GROUPS` *all* unconditionally include a "Masters" group with Customer Master and Vendor Master links (`SidebarLinks.tsx:64-69, 96-102, 126-132`). Every employee, regardless of role, sees and can open both masters pages — consistent with the pages having no permission gate (§4), so navigation visibility is at least *honest* here, but it means there is no role for which Masters is hidden, even though `access-control`'s catalogue defines granular `Masters/CustomerMaster/*` and `Masters/VendorMaster/*` actions that go entirely unused for view-gating.
 2. **Settings link visibility (`showSettings`) uses only `roles.ts`, but the pages behind it increasingly check `access-control` too (OR'd).** A role that is granted `Settings/Identity/VIEW` or `Settings/Masters/VIEW` via the new `access-control` UI, but does **not** match `isOperationsHead`/`isHeadOfSales`/`isManager`, would have **API-level access to view that one settings sub-page directly by URL, but no sidebar entry pointing to it** (case: "user cannot see menu but *could* access direct URL" — though in practice they'd also need to navigate past `/settings` itself, which is gated by `canAccessSettings` alone with no `access-control` OR-fallback, so today this is latent, not exploitable, until/unless `/settings`'s own guard is loosened).
 3. **Finance nav tier (`showFullFinance = isManager || isAccounts`) vs. API tier (`canManageFinance = isManager || isAccounts(user) || isOperationsHead(user)`).** An Operations Head who is not also flagged `isManager` and not name-matched by `isAccounts()` sees the **limited** "My ..." Finance nav (since `showFullFinance` omits the Operations Head check that `canManageFinance` includes), yet their actual API permission level (`canManageFinance`) entitles them to full cross-employee Finance data. This is a "menu hidden but page/API is more permissive than the menu suggests" mismatch — not a security leak, but a real usability/consistency bug worth fixing alongside any RBAC consolidation, since it's evidence the sidebar's boolean set and `roles.ts`'s own predicate set have already drifted apart from each other.
-4. **No link, but accessible page, for `/customers` and `/admin`.** `/customers` (legacy operational list) has no sidebar entry at all (superseded by `/masters/customers` in nav) but remains live and unguarded (§4) — directly reachable by anyone who knows or bookmarks the URL. `/admin` similarly has no sidebar entry (superseded by `/settings`) but still resolves (via redirect) to the fully functional legacy administration panel for anyone who passes `canAccessSettings`.
+4. **No link, but accessible page, for `/customers` and `/admin`.** `/customers` (legacy operational list) has no sidebar entry at all (superseded by `/masters/customers` in nav) but ~~remains live and unguarded (§4)~~ **RESOLVED 2026-06-20 (Step 2O)** — now requires `Masters/CustomerMaster/VIEW`-or-`isManager`, the same guard `/masters/customers` carries; still directly reachable by URL/bookmark, but no longer by "are you logged in" alone. **Not redirected to `/masters/customers`** — see §3.6/§5 below for the functional-gap finding that drove that decision. `/admin` similarly has no sidebar entry (superseded by `/settings`) but still resolves (via redirect) to the fully functional legacy administration panel for anyone who passes `canAccessSettings`.
 
 **Step 2J completed (2026-06-20).** Sidebar visibility migrated toward `access-control` where catalogue mappings exist:
 - New `src/lib/access-control/navigation.ts` (`getNavigationCapabilities()`) loads a session's full permission set once per request (reusing the existing `getAllPermissions()` helper) and derives a small capability object; `isManager` employees get the same automatic full-access fallback `hasPermission()` already gives them elsewhere.

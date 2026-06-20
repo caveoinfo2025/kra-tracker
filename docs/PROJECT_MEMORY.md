@@ -136,6 +136,29 @@ structure, validation, or create logic was changed. Legacy `/customers` remains 
 unchanged; its retirement is still Step 2O. `npx tsc --noEmit`, `npx prisma validate`, and `next
 build` all pass.
 
+### 2026-06-20 — Legacy /customers guarded in place, not redirected (Step 2O)
+The brief's preferred outcome was a server-side redirect from `/customers` to
+`/masters/customers`. Code review found that would be a regression: **`/customers` is the only
+real Customer Master** — live Prisma data, working Create/Edit, **Import from CRM**, **duplicate
+detection**, and **Delete**, all wired to `/api/customers/master*`. `/masters/customers`'s
+client component renders a hardcoded `MOCK_CUSTOMERS` array (`masters/customers/data.ts`) and
+makes **zero `fetch()` calls** — it has no real persistence at all (a known, previously
+documented gap — see the Global Masters section below: "Customer/Vendor masters... have no APIs
+and only client-side RBAC"). Redirecting would have sent every user to a non-functional preview
+instead of the working tool. Per the brief's own escape-hatch clause for this exact situation,
+`/customers` was **guarded instead**: it now requires `Masters/CustomerMaster/VIEW` (access-
+control) `||` `isManager`, redirecting to `/dashboard` on failure — the identical guard
+`/masters/customers` already carries, applied before the page's data load (including its
+auto-seed-from-CRM side effect). No navigation change was needed — a repo-wide search for
+`href`/`router.push`/`redirect` to `/customers` found zero real links; the sidebar already only
+links to `/masters/customers`, and the one `/customers` string in `Topbar.tsx` is a breadcrumb
+label for direct URL visits, not a link. No schema, migration, customer data, Customer Master
+API logic, `/masters/customers` UI/behavior, Vendor Master, or Finance change was made.
+Recommended follow-up: wire `/masters/customers` to the real `Customer` table (replacing
+`MOCK_CUSTOMERS` with live CRUD/import/dedupe against `/api/customers/master*`) — only then
+should `/customers` become a redirect. `npx tsc --noEmit`, `npx prisma validate`, `npm run lint`,
+and `next build` all pass.
+
 ### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
 - **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
 - **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓
