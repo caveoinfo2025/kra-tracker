@@ -1,4 +1,9 @@
 /**
+ * FROZEN — This legacy RBAC file backs the old /admin Roles UI only. It is not
+ * used for runtime authorization. Do not add new enforcement logic here.
+ * Use src/lib/access-control for all new permissions.
+ * See docs/RBAC_MIGRATION_TRACKER.md for the full migration plan.
+ *
  * Role-based access control helpers.
  *
  * PAGES  — the canonical list of pages/features that can have per-role permissions.

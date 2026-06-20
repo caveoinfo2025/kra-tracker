@@ -346,7 +346,16 @@ export default function AdminClient({ settings }: { settings: Setting[] }) {
         {/* ── Settings panel ── */}
         <main style={{ flex: 1, minWidth: 0 }}>
           {activeTab === "roles" ? (
-            <RolesClient />
+            <>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 14, padding: "10px 14px", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8 }}>
+                <AlertCircle size={14} color="#d97706" style={{ flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: 12, color: "#92400e", margin: 0, lineHeight: 1.5 }}>
+                  <strong>Legacy Roles &amp; Access is retained for reference only.</strong> Changes made here do not affect
+                  real permission decisions. Runtime permissions are managed from <strong>Settings &gt; Identity</strong>.
+                </p>
+              </div>
+              <RolesClient />
+            </>
           ) : tabSettings.length === 0 ? (
             <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 40, textAlign: "center", color: "#9ca3af" }}>
               No settings in this category yet.
