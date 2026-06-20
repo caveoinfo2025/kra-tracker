@@ -51,6 +51,27 @@ Followed up on Step 2H's tracker/freeze work with `docs/RBAC_MIGRATION_TRACKER.m
 ### 2026-06-20 — Sidebar/navigation visibility aligned with access-control (Step 2J)
 `docs/RBAC_AUDIT_REPORT.md` §5 found sidebar visibility (`SidebarLinks.tsx`/`Navbar.tsx`) consulted only `roles.ts` booleans (`isManager`/`isAccounts`), never `access-control` — so a real `access-control` permission grant had no effect on what a user saw in the nav. Added `src/lib/access-control/navigation.ts` (`getNavigationCapabilities()`) — loads a session's permissions once per request via the existing `getAllPermissions()`, with the same manager-fallback `hasPermission()` already has. Wired into `Navbar.tsx` (computed once, passed down) and `SidebarLinks.tsx`: Customer/Vendor Master links now require `Masters/CustomerMaster|VendorMaster/VIEW` (real grants already exist in `prisma/seed-admin-foundation.ts` for Business Head/Sales Head/Sales Manager/Finance Manager); Finance Operations sub-items (Cash/Bank Book, Expense Register, Advances, Finance Approvals) each carry a capability check, OR'd with the existing `isManager||isAccounts` bridge so no current manager/Accounts user loses anything; the Settings nav entry is OR'd with a new `Settings/*` aggregate check (additive, since no role currently holds a seeded `Settings/*` grant). Pipeline/Daily Updates/KRA/Tasks/Employees nav and self-service Finance items (My Expenses/Claims/Advance/Conveyance) were intentionally left on the roles.ts/session bridge, per scope. No API/page guards, permission catalogue, schema, or runtime authorization logic changed — navigation visibility only; remaining page-guard alignment is Step 2K. `npx tsc --noEmit`, `npx prisma validate`, and `next build` all pass; 2 pre-existing unrelated `react-hooks/set-state-in-effect` lint errors confirmed via diff/stash-test to predate this change.
 
+### 2026-06-20 — Settings landing/cards visibility aligned with access-control (Step 2K)
+Followed Step 2J's sidebar work by aligning the `/settings` *landing page* itself. Added
+`src/lib/access-control/settings-capabilities.ts` (`getSettingsCapabilities()`) — loads a
+session's permissions once per request and derives an `{ organization, identity, masters,
+finance, crm, workflow, policy, communication, integration, security, performance }` card map,
+with the same `isManager` full-access fallback used elsewhere in `access-control`.
+`src/app/settings/page.tsx` now computes capabilities server-side and gates the page on
+`capabilities.canViewSettings || canAccessSettings(session.user)` (additive bridge, same pattern
+as Step 2J — no Operations Head/Head of Sales/manager loses access). `AdminConsole.tsx` (the live
+landing component — `SettingsHub.tsx` is dead rollback code) now filters its card list to the
+modules the session actually has a `Settings/<Resource>/VIEW`-or-`EDIT` grant for, and shows a
+"You do not have access to any Settings modules" empty state when none match. CRM Administration
+has no `Settings/CRM` catalogue permission (documented gap, same as Step 2J/2L) so its card falls
+back to the `isManager` bridge, matching `/settings/crm`'s own page guard. **Gap surfaced, not
+fixed:** `/settings/{finance,communication,integrations,security,performance}` still gate purely
+on `isManager` and don't yet consult the `Settings/*` permissions their cards are now keyed on —
+tracked as a Step 2K follow-up in `docs/RBAC_MIGRATION_TRACKER.md`/`RBAC_AUDIT_REPORT.md`, not
+rewritten this step (out of scope — no broad page-guard refactor). No schema, migrations, API
+permission checks, business logic, routes, or `roles.ts`/`rbac.ts` deletions. `npx tsc --noEmit`,
+`npx prisma validate`, and `next build` all pass.
+
 ### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
 - **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
 - **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import {
   Building2, ShieldCheck, GitBranch, Database,
-  ScrollText, Target, ChevronRight, SlidersHorizontal, Banknote, Bell, Plug, Lock,
+  ScrollText, Target, ChevronRight, SlidersHorizontal, Banknote, Bell, Plug, Lock, ShieldOff,
 } from "lucide-react";
+import type { SettingsCardCapabilities } from "@/lib/access-control";
 
 interface SettingsItem {
   href:        string;
@@ -14,6 +15,8 @@ interface SettingsItem {
   iconColor:   string;
   iconBg:      string;
   status?:     "beta" | "coming-soon";
+  /** Key into SettingsCardCapabilities — drives card visibility. */
+  capability:  keyof SettingsCardCapabilities;
 }
 
 const SETTINGS_ITEMS: SettingsItem[] = [
@@ -24,6 +27,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Building2,
     iconColor:   "#0066FF",
     iconBg:      "rgba(0,102,255,0.1)",
+    capability:  "organization",
   },
   {
     href:        "/settings/identity",
@@ -32,6 +36,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        ShieldCheck,
     iconColor:   "#C8102E",
     iconBg:      "rgba(200,16,46,0.1)",
+    capability:  "identity",
   },
   {
     href:        "/settings/crm",
@@ -40,6 +45,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        SlidersHorizontal,
     iconColor:   "#FF6B00",
     iconBg:      "rgba(255,107,0,0.1)",
+    capability:  "crm",
   },
   {
     href:        "/settings/workflow",
@@ -48,6 +54,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        GitBranch,
     iconColor:   "#FF6B00",
     iconBg:      "rgba(255,107,0,0.1)",
+    capability:  "workflow",
   },
   {
     href:        "/settings/masters",
@@ -56,6 +63,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Database,
     iconColor:   "#0066FF",
     iconBg:      "rgba(0,102,255,0.1)",
+    capability:  "masters",
   },
   {
     href:        "/settings/policies",
@@ -64,6 +72,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        ScrollText,
     iconColor:   "#C8102E",
     iconBg:      "rgba(200,16,46,0.1)",
+    capability:  "policy",
   },
   {
     href:        "/settings/performance",
@@ -72,6 +81,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Target,
     iconColor:   "#FF6B00",
     iconBg:      "rgba(255,107,0,0.1)",
+    capability:  "performance",
   },
   {
     href:        "/settings/finance",
@@ -80,6 +90,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Banknote,
     iconColor:   "#00AA55",
     iconBg:      "rgba(0,170,85,0.1)",
+    capability:  "finance",
   },
   {
     href:        "/settings/communication",
@@ -88,6 +99,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Bell,
     iconColor:   "#7C3AED",
     iconBg:      "rgba(124,58,237,0.1)",
+    capability:  "communication",
   },
   {
     href:        "/settings/integrations",
@@ -96,6 +108,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Plug,
     iconColor:   "#0066FF",
     iconBg:      "rgba(0,102,255,0.1)",
+    capability:  "integration",
   },
   {
     href:        "/settings/security",
@@ -104,10 +117,49 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     icon:        Lock,
     iconColor:   "#C8102E",
     iconBg:      "rgba(200,16,46,0.1)",
+    capability:  "security",
   },
 ];
 
-export default function AdminConsole() {
+interface AdminConsoleProps {
+  cards: SettingsCardCapabilities;
+  /**
+   * True for Operations Head / Head of Sales under the legacy
+   * canAccessSettings() bridge — shows every card so migration doesn't
+   * regress access for users who haven't been granted explicit Settings/*
+   * permission rows yet. Step 2K migration note: remove once role→permission
+   * backfill is complete.
+   */
+  bridgeAccess: boolean;
+}
+
+export default function AdminConsole({ cards, bridgeAccess }: AdminConsoleProps) {
+  const visibleItems = SETTINGS_ITEMS.filter(
+    (item) => bridgeAccess || cards[item.capability],
+  );
+
+  if (visibleItems.length === 0) {
+    return (
+      <div style={{ maxWidth: 680, padding: "32px 32px" }}>
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--foreground)", margin: 0 }}>
+            Settings
+          </h1>
+        </div>
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+          padding: "48px 24px", borderRadius: 10, border: "1px solid var(--border)",
+          background: "var(--card)", textAlign: "center",
+        }}>
+          <ShieldOff size={28} color="var(--muted-foreground)" strokeWidth={1.6} />
+          <p style={{ fontSize: 13, color: "var(--muted-foreground)", margin: 0 }}>
+            You do not have access to any Settings modules.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 680, padding: "32px 32px" }}>
       {/* Header */}
@@ -122,7 +174,7 @@ export default function AdminConsole() {
 
       {/* Settings list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {SETTINGS_ITEMS.map(({ href, label, description, icon: Icon, iconColor, iconBg, status }) => (
+        {visibleItems.map(({ href, label, description, icon: Icon, iconColor, iconBg, status }) => (
           <Link
             key={href}
             href={href}

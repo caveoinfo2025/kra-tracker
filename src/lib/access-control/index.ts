@@ -66,6 +66,8 @@ export { canAccessScope } from "./policy";
 export { PERMISSION_CATALOGUE, MODULE, ACTION, SCOPE } from "./permissions";
 export type { Module, Action, Scope, PermissionDef } from "./permissions";
 export type { ScopeRecord } from "./policy";
+export { getSettingsCapabilities } from "./settings-capabilities";
+export type { SettingsCapabilities, SettingsCardCapabilities } from "./settings-capabilities";
 
 /**
  * Returns true if the employee (identified by their Employee.id) holds a role

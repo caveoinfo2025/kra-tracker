@@ -86,8 +86,30 @@ code in the repo at the time of writing this tracker:
   user lost any navigation item — all gating is additive (`bridge || capability`). Navigation
   visibility is closer to, but not identical to, API/page permission behavior — remaining
   page-guard/card-alignment work is tracked as Step 2K.
+- ✅ **Step 2K** — Settings landing/cards visibility now uses `access-control` permissions. New
+  `src/lib/access-control/settings-capabilities.ts` helper (`getSettingsCapabilities()`) loads all
+  of a user's permissions once per request and returns an `{ organization, identity, masters,
+  finance, crm, workflow, policy, communication, integration, security, performance }` card map.
+  `/settings/page.tsx` computes capabilities server-side and passes them to `AdminConsole`, which
+  now renders only the cards the session has a matching `Settings/<Resource>/VIEW`-or-`EDIT` grant
+  for, and shows a "You do not have access to any Settings modules" empty state if none match.
+  `/settings/page.tsx`'s own access check is now `capabilities.canViewSettings ||
+  canAccessSettings(session.user)` (additive, same bridge pattern as Step 2J) — no manager,
+  Operations Head, or Head of Sales lost access to the landing page. **CRM gap:** no `Settings/CRM`
+  permission exists in the catalogue (same gap as Step 2J/2F/2L), so the CRM Administration card
+  falls back to `isManager` via the existing `bridgeAccess` flag passed from `canAccessSettings()`,
+  matching `/settings/crm`'s own guard rather than inventing a permission name. **Documented
+  page-guard mismatches found, not fixed this step** (out of scope per Step 2K's brief — broad
+  page-guard refactors are deferred): `/settings/finance`, `/settings/communication`,
+  `/settings/integrations`, `/settings/security`, and `/settings/performance` all gate purely on
+  `isManager` and do not yet consult the `Settings/{Finance,CommunicationAdmin,IntegrationAdmin,
+  SecurityAdmin,Performance}` permissions that already exist in the catalogue and that their cards
+  are now keyed on — a non-manager granted one of these permissions would see the card but get
+  redirected by the subpage. `/settings/organization`, `/settings/identity`, `/settings/masters`,
+  `/settings/policies`, and `/settings/workflow/approval-engine` already call `hasPermission()`
+  directly and are unaffected.
 
-No step in this list is marked "Pending confirmation" — all ten are independently verifiable in
+No step in this list is marked "Pending confirmation" — all are independently verifiable in
 the current codebase as of this tracker's update.
 
 ---
@@ -98,7 +120,7 @@ the current codebase as of this tracker's update.
 |---|---|---|---|---|
 | 2I | Add freeze warnings to legacy `/admin` Roles UI and `rbac.ts` comments | **Done this step (2026-06-20)** | Low | `rbac.ts` top-of-file comment added; non-blocking banner added to `AdminClient.tsx`'s "Roles & Access" tab, directly above `<RolesClient />` |
 | 2J | Align sidebar/navigation visibility with `access-control` | **Done this step (2026-06-20)** | Low — additive (OR'd with existing roles.ts checks), no link that was previously visible to a manager/Accounts user was removed | New `src/lib/access-control/navigation.ts` helper (`getNavigationCapabilities()`) loads all of a user's permissions once per request; `SidebarLinks.tsx`/`Navbar.tsx` now gate Masters and Finance Operations sub-items on it. Settings, Pipeline/People groups, and self-service Finance remain on the roles.ts bridge — see §10 for full detail |
-| 2K | Align Settings landing/cards visibility with `access-control` | Not started | Medium — Settings landing page cards may not consistently reflect the same permission the destination page/API enforces | Audit `/settings/page.tsx` (or its client) card-visibility logic against each linked admin surface |
+| 2K | Align Settings landing/cards visibility with `access-control` | **Done this step (2026-06-20)** | Medium — additive (`bridgeAccess \|\| capability`), no manager/Ops Head/Head of Sales lost the landing page or any card; the five subpages still on `isManager`-only guards (Finance, Communication, Integration, Security, Performance) are a documented gap, not a regression introduced by this step | New `src/lib/access-control/settings-capabilities.ts` helper (`getSettingsCapabilities()`); `AdminConsole.tsx` now filters cards on it and shows an empty-state message when no card matches; CRM card falls back to the `isManager` bridge pending the Step 2L `Settings/CRM` catalogue gap |
 | 2L | Apply `access-control` to future Finance write APIs (and close the CRM-admin gap from Step 2F) | Not started | Medium — without a catalogue entry, any new Finance write API risks being built on `roles.ts` again by habit; the existing CRM-admin gap (no `Settings/CRM` permission) blocks completing Step 2F | Add `Settings/CRM` (VIEW/EDIT) to `PERMISSION_CATALOGUE`, seed it, migrate the 7 CRM-admin routes, then make `Settings/Finance`-style gating the default for any new Finance write surface |
 | 2M | Migrate Finance **read** APIs from `roles.ts`-only (`canManageFinance`, `isAccounts`, `isOperationsHead`) to `access-control` + own-scope rules | Not started | High — these are user-facing, high-traffic routes (`/api/finance/*`, `/api/expenses`, `/api/advances`); a careless migration could lock out legitimate Accounts/Operations-Head users who aren't `isManager` | Requires defining `Finance/{Expense,Advance,Payment,Invoice}/VIEW` scope rules (`OWN` vs `ALL`) via `DataAccessPolicy`, not a simple swap |
 | 2N | Migrate Customer/Vendor Master **page-level** guards to `access-control` | Not started | Medium — `/customers`, `/masters/customers`, `/masters/vendors` currently have **no permission gate beyond "is logged in"** (confirmed in `RBAC_AUDIT_REPORT.md` §2.4); API-level guards already use `Masters/CustomerMaster`/`Masters/VendorMaster` in several routes, but the pages themselves don't check anything | This is the most overexposed surface still open — every authenticated employee, including a brand-new BDE, can currently open these pages |

@@ -226,6 +226,51 @@ All Finance routes consistently use `roles.ts` predicates, not `access-control` 
 - Legacy `roles.ts` booleans (`isManager`, `isAccounts`) are retained only where this self-service/ownership behavior is still load-bearing; no `roles.ts` predicate was deleted or altered.
 - No API guard, page guard, permission catalogue, database model, or runtime authorization helper was changed — this step is navigation-visibility only, per scope. Finding 2's residual mismatch (a user with direct `Settings/Identity/VIEW` access but no sidebar entry, if also failing `canAccessSettings` on `/settings` itself) is **not fully closed** — the sidebar link now appears for them, but `/settings`'s own page guard is unchanged and is explicitly deferred to Step 2K. `npx tsc --noEmit`, `npx prisma validate`, and `next build` all pass; `npx eslint` shows 2 pre-existing, unrelated `react-hooks/set-state-in-effect` errors confirmed via diff to predate this change.
 
+**Step 2K completed (2026-06-20).** Settings card visibility now follows `access-control`
+permissions, closing the residual mismatch noted above for the `/settings` *landing page* (not
+the `Settings` sidebar link itself, which remains as Step 2J left it):
+- New `src/lib/access-control/settings-capabilities.ts` (`getSettingsCapabilities()`) loads a
+  session's full permission set once per request and derives an
+  `{ organization, identity, masters, finance, crm, workflow, policy, communication, integration,
+  security, performance }` card-visibility map; `isManager` gets the same automatic full-access
+  fallback used elsewhere in `access-control`.
+- `/settings/page.tsx` now computes capabilities server-side and gates the page on
+  `capabilities.canViewSettings || canAccessSettings(session.user)` (additive — same OR-bridge
+  pattern as Step 2J's `showSettings`, so no Operations Head/Head of Sales/manager loses access).
+  `AdminConsole.tsx` (the live landing-page component — `SettingsHub.tsx` is dead code retained
+  only for rollback, see §4 row for `/settings/administration`) filters its card list to only the
+  modules the session has a matching `Settings/<Resource>/VIEW`-or-`EDIT` grant for, and renders
+  a "You do not have access to any Settings modules" empty state if none match.
+- Users with access to individual Settings modules can now see exactly the matching card(s) —
+  e.g. a role granted only `Settings/Finance/VIEW` sees the Finance Administration card and no
+  others, rather than the previous all-or-nothing `canAccessSettings()` gate that showed every
+  card to any Operations Head/Head of Sales regardless of which specific module(s) they actually
+  hold a permission for.
+- Inaccessible Settings modules are no longer shown only because of legacy `roles.ts` predicates
+  (`canAccessSettings`/`isManager`/`isOperationsHead`/`isHeadOfSales`) — those predicates now only
+  act as the backward-compatible bridge, not the primary visibility source.
+- **CRM gap (consistent with finding 1/§8 of the tracker):** no `Settings/CRM` permission exists
+  in the catalogue, so the CRM Administration card cannot be keyed on a real grant yet; it falls
+  back to the same `isManager`-only bridge that `/settings/crm`'s own page guard already uses, so
+  card visibility and destination-page access agree for now. Closing this properly is Step 2L
+  (add `Settings/CRM` to `PERMISSION_CATALOGUE`).
+- **New mismatch surfaced, not fixed this step:** `/settings/finance`, `/settings/communication`,
+  `/settings/integrations`, `/settings/security`, and `/settings/performance` gate purely on
+  `isManager` and do not consult the `Settings/{Finance,CommunicationAdmin,IntegrationAdmin,
+  SecurityAdmin,Performance}` permissions their cards are now keyed on. A non-manager granted one
+  of those permissions would now see the card (correct per this step's brief) but get redirected
+  by the subpage itself (existing behavior, unchanged) — i.e. the card is *more* permissive than
+  the destination page for that one role shape. This is the same class of issue §7's "Settings
+  card visibility matches the page guard" checklist item is meant to catch; rewriting those five
+  guards was explicitly out of scope for Step 2K (no broad page-guard refactor) and is left as a
+  tracked follow-up.
+- Legacy `/settings/administration` and `/admin` were left unchanged — neither is a card in
+  `AdminConsole` already, so nothing needed hiding; their retirement remains tracked separately
+  (Step 2P).
+- No database schema, migration, API permission check, business logic, route deletion, or
+  deletion of `roles.ts`/`rbac.ts` occurred. `npx tsc --noEmit`, `npx prisma validate`, and
+  `next build` all pass.
+
 ---
 
 ## 6. Confirmed Unguarded Routes
