@@ -7,6 +7,14 @@
  *
  * Extends the existing `Customer` model conceptually — no duplicate model, no schema
  * changes. Backend wiring (to the existing Customer table) is a later phase.
+ *
+ * Preview-only mock data retained for reference. Do not use for production
+ * Customer Master rendering. As of Step 2P, ../page.tsx no longer imports this
+ * component — /masters/customers renders the real, Prisma-backed
+ * @/app/customers/CustomerMasterClient instead (same one /customers uses).
+ * This file's richer enterprise schema (multi-site, contacts, commercial,
+ * assets, profitability, 12-tab profile) is the target contract for a future
+ * backend-wiring phase, not yet implemented against the live `Customer` table.
  */
 
 import { useMemo, useState } from "react";

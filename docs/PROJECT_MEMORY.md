@@ -159,6 +159,34 @@ Recommended follow-up: wire `/masters/customers` to the real `Customer` table (r
 should `/customers` become a redirect. `npx tsc --noEmit`, `npx prisma validate`, `npm run lint`,
 and `next build` all pass.
 
+### 2026-06-20 — /masters/customers wired to real Customer Master data (Step 2P, Customer Master)
+Closed the Step 2O follow-up: `/masters/customers/page.tsx` now runs the same
+`prisma.customer.findMany`/auto-seed-from-CRM/stats query `/customers/page.tsx` runs and renders
+it through `@/app/customers/CustomerMasterClient` — **the same proven component `/customers`
+already uses** (live list, search/filter, create, edit, delete, Import from CRM, duplicate
+detection), reused directly rather than rewritten, matching this codebase's existing cross-route
+reuse convention (`finance/cash-book` re-using `finance/bank-book`). Both routes now hit the
+identical, already-guarded `GET`/`POST /api/customers/master` and `PATCH`/`DELETE
+/api/customers/master/[id]` — no API contract, guard, or behavior changed. The folder's own
+mock-data preview (`masters/customers/CustomerMasterClient.tsx`'s `MOCK_CUSTOMERS`,
+`deriveCustomerCaps`, and the 14 enterprise components under `masters/customers/components/`)
+is no longer imported by `page.tsx` but was **not deleted** — both main files now carry a header
+comment: "Preview-only mock data retained for reference. Do not use for production Customer
+Master rendering," confirmed safe since a repo-wide search found no other importer of either.
+Button-level capability gating (Import/Find Duplicates/Delete restricted to managers; Add/Edit
+open to all viewers) is the same real `isManager` logic `/customers` already used — preserved,
+not weakened, and not migrated to `access-control` (left for later). The page guard itself
+(`Masters/CustomerMaster/VIEW` `||` `isManager`) is unchanged from Step 2N. `/customers` was
+**not modified, not redirected, and remains fully functional** — both routes are now functionally
+equivalent (same component, same data, same APIs) for the first time, which is the prerequisite
+for a future redirect step. Note: this step is labelled "Step 2P (Customer Master)" because
+"Step 2P" was already reserved in `RBAC_MIGRATION_TRACKER.md` for the unrelated "retire legacy
+`/admin` Roles tab" plan — disambiguated the same way Step 2N's API-guards sub-step was. No
+database schema, migration, Customer Master API contract, Vendor Master, or Finance change was
+made. `npx tsc --noEmit`, `npx prisma validate`, `npm run lint`, and `npx cross-env
+RAYON_NUM_THREADS=1 next build` (the project's own `npm run build` script uses non-portable
+shell syntax — pre-existing, unrelated) all pass.
+
 ### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
 - **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
 - **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓
@@ -475,11 +503,15 @@ Sessions 5–7 changes are NOT committed. Everything from Phase 8 onwards lives 
 15. **All Finance Phase 2 UI is mock data** — no persistence. The Bank↔Cash transfer store is
     in-memory and resets on hard reload. Money shown in ₹ rupees (finance pages) vs ₹ Lakhs
     (rest of app) — reconcile when wiring the backend.
-16. **2026-06-04 modules are mock & client-gated** — Expense Categories, Vendor Master, Customer
-    Master have no APIs and only client-side RBAC. Money in ₹ rupees. Customer/Vendor masters
-    target the existing `Customer`/`Vendor` models (extend, don't duplicate).
-17. **Two "Customer Master" nav entries** — global `/masters/customers` (mock) and operational
-    `/customers` (real DB). Confusing until consolidated; decision pending.
+16. **2026-06-04 modules were mock & client-gated** — Expense Categories and Vendor Master still
+    have no APIs and only client-side RBAC. **Customer Master is the exception as of Step 2P
+    (2026-06-20):** `/masters/customers` now wires to the real `Customer` table and guarded
+    `/api/customers/master*` APIs (reusing `/customers`'s component) — no longer mock. Money in
+    ₹ rupees. Vendor Master still targets the existing `Vendor` model (extend, don't duplicate)
+    but isn't wired yet.
+17. **Two "Customer Master" nav entries, now functionally aligned** — `/masters/customers` and
+    operational `/customers` both render the same real component/data/APIs as of Step 2P
+    (2026-06-20). Still two separate routes pending a redirect decision once verified.
 18. **Orphaned `next dev` breaks dev login** — a stray process on port 3000 serves a stale
     Turbopack route tree where `/api/dev/switch` 404s, so quick-login can't set the cookie.
     Recovery: kill the port-3000 process, `rm -rf .next`, restart. (CLAUDE.md gotcha #10.)
@@ -541,14 +573,20 @@ Sessions 5–7 changes are NOT committed. Everything from Phase 8 onwards lives 
   Architecture plan in `docs/ADMIN_ARCHITECTURE_PLAN.md`. Remaining: the legacy
   `/settings/administration` flat-tab panel still coexists with the newer per-module pages —
   converge or retire it.
-- **Two "Customer Master" surfaces (2026-06-04).** The new global `/masters/customers` (enterprise
+- ~~Two "Customer Master" surfaces (2026-06-04). The new global `/masters/customers` (enterprise
   UI, mock) and the legacy operational `/customers` (real DB + CRM import/dedupe) both exist and
   both appear in the sidebar. Non-destructive by design, but must converge: fold import/dedupe into
-  the global master and back it with the existing `Customer` model. Decision asked of Vijesh.
-- **Three new 2026-06-04 modules are all mock & uncommitted** — Expense Categories (8 files),
-  Vendor Master (14), Customer Master (16). No APIs/persistence; gating is client-side only.
-  Shapes in each `data.ts` are the backend contract. Customer/Vendor masters must wire to the
-  **existing** `Customer`/`Vendor` models (extend, never duplicate).
+  the global master and back it with the existing `Customer` model. Decision asked of Vijesh.~~
+  **RESOLVED 2026-06-20 (Step 2P, Customer Master).** `/masters/customers` now reuses
+  `/customers`'s real `CustomerMasterClient` and the same `Customer`-table data/APIs — both
+  routes are functionally equivalent. Only sidebar/route consolidation (one route vs. two)
+  remains, pending a redirect decision once verified in a live session.
+- **Three new 2026-06-04 modules were all mock & uncommitted** — Expense Categories (8 files),
+  Vendor Master (14), Customer Master (16). **Customer Master is now wired (Step 2P, 2026-06-20)**
+  — real `Customer`-table data/APIs, no longer mock. Expense Categories and Vendor Master remain
+  mock; no APIs/persistence, gating is client-side only. Shapes in each `data.ts` are the backend
+  contract. Vendor Master must wire to the **existing** `Vendor` model (extend, never duplicate)
+  when its turn comes.
 - **Finance Phase 2 UI is all mock & uncommitted** — ~45 files under `src/app/finance/` run on
   in-memory mock data (each module's `data.ts`). No APIs/persistence. The Bank↔Cash transfer
   store resets on hard reload. Needs backend wiring (shapes already defined in `data.ts`).

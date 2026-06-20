@@ -197,6 +197,45 @@ code in the repo at the time of writing this tracker:
   data and real CRUD/import/dedupe against the now-guarded `/api/customers/master*` APIs) — only
   after that parity is reached should `/customers` be converted to a redirect.
 
+- ✅ **Step 2P (Customer Master)** — `/masters/customers` wired to **real** Customer Master data
+  and functionality, closing the gap Step 2O's follow-up flagged. (Disambiguation note: "Step
+  2P" was already reserved elsewhere in this tracker — §4/§9/§10 and `RBAC_AUDIT_REPORT.md` §10
+  — for the unrelated "retire legacy `/admin` Roles tab" plan, not yet started. Same situation as
+  Step 2N's API-guards sub-step: rather than renumber already-cross-referenced steps, this one is
+  suffixed "(Customer Master)" to keep both distinct. The `/admin` retirement plan remains
+  Step 2P with no suffix.) `/masters/customers/page.tsx` now
+  uses real Customer Master data and the guarded Customer APIs: it runs the same
+  `prisma.customer.findMany`/auto-seed-from-CRM/stats logic `/customers/page.tsx` runs, against
+  the same `Customer` table, through the **same already-guarded** `GET`/`POST
+  /api/customers/master` and `PATCH`/`DELETE /api/customers/master/[id]` (Steps 2B/2C/2N). No
+  new API was created and no API guard was loosened. **Component reuse, not duplication:**
+  rather than rewriting Customer Master logic a second time, `/masters/customers/page.tsx` now
+  imports `@/app/customers/CustomerMasterClient` directly — the same proven, real component
+  `/customers` already uses (live list, search/filter by name/district/state/GST, create, edit,
+  delete, Import from CRM, duplicate-detection/merge) — matching this codebase's existing
+  cross-route reuse convention (e.g. `finance/cash-book` re-using `finance/bank-book`
+  components/data). **Active mock-data rendering removed:** `/masters/customers/page.tsx` no
+  longer imports its own folder's `CustomerMasterClient.tsx` (the `MOCK_CUSTOMERS`-backed
+  preview) or `deriveCustomerCaps`/`isAccounts`/`isOperationsHead` (which existed solely to feed
+  that preview's capability prop). Both the mock client and `data.ts` remain on disk, unchanged
+  in substance, each with a new header comment: "Preview-only mock data retained for reference.
+  Do not use for production Customer Master rendering." — confirmed safe to leave in place since
+  a repo-wide search found no other file imports either one. **Button-level capabilities
+  preserved, not stripped:** the reused component's existing `isManager`-gated buttons (Import
+  from CRM, Find Duplicates, Delete restricted to managers; Add/Edit open to all viewers with
+  VIEW access) carry over unchanged — this is the same real capability gating `/customers` has
+  used in production, not a new or weaker scheme, and not a full migration of button caps to
+  `access-control` (out of scope this step; the 14 enterprise mock components under
+  `masters/customers/components/` — `CustomerProfile`, `CustomerSiteManager`,
+  `CustomerContactManager`, etc. — are untouched and still on disk for the eventual richer
+  backend-wiring phase). **Page guard unchanged:** `hasPermission(userId,"Masters",
+  "CustomerMaster","VIEW")` `||` `isManager`, redirecting to `/dashboard` — identical to Step 2N,
+  not touched this step. `/customers` was **not redirected and not deleted** — it still renders
+  the same `CustomerMasterClient` directly and remains fully functional; both routes are now
+  functionally equivalent (same component, same data, same APIs), which is the prerequisite the
+  next step needs before converting `/customers` to a redirect. No database schema, migration,
+  Customer Master API contract change, Vendor Master change, or Finance module change was made.
+
 No step in this list is marked "Pending confirmation" — all are independently verifiable in
 the current codebase as of this tracker's update.
 
@@ -377,7 +416,13 @@ gap is called out explicitly — no permission was invented to fill a gap.
    guarded in place, not redirected; see §3 for the full functional-gap finding.)** Follow-up,
    not started: wire `/masters/customers` to real `Customer`-table data (replacing
    `MOCK_CUSTOMERS`) with real CRUD/import/dedupe against `/api/customers/master*`, then convert
-   `/customers` to a redirect once parity is reached.
-8. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
+   `/customers` to a redirect once parity is reached. **(Completed, 2026-06-20 — see Step 2P
+   (Customer Master) below.)**
+8. **Step 2P (Customer Master)** — Wire `/masters/customers` to real Customer Master data,
+   reusing `/customers`'s proven `CustomerMasterClient`. **(Completed, 2026-06-20.)** Follow-up,
+   not started: verify functional parity in a live session (manual checklist, §3), then convert
+   `/customers` to a redirect to `/masters/customers`.
+9. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
    `/api/advances`) from `roles.ts`-only to `access-control` + own-scope `DataAccessPolicy` rules.
-9. **Step 2P** — Legacy `/admin` Roles tab retirement plan.
+10. **Step 2P** — Legacy `/admin` Roles tab retirement plan (unrelated to "Step 2P (Customer
+    Master)" above — see disambiguation note in §3).

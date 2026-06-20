@@ -11,20 +11,16 @@ import { hasPermission } from "@/lib/access-control";
  * Import-from-CRM, duplicate detection, and delete, all wired to
  * /api/customers/master*.
  *
- * Step 2O: NOT redirected to /masters/customers. That route is still a
- * UI-only mock-data phase (`MOCK_CUSTOMERS` in masters/customers/data.ts,
- * no fetch calls in its client component at all) — it has no real
- * persistence, no Import from CRM, no dedupe, and no delete. Redirecting
- * this page there would replace the only functional Customer Master with a
- * non-functional preview, a regression rather than a safe consolidation.
- * See docs/RBAC_MIGRATION_TRACKER.md Step 2O for the documented functional
- * gap and the recommended follow-up (wire /masters/customers to real data,
- * then retire this route).
- *
- * Guarded the same way /masters/customers is instead: real
+ * Step 2O: guarded the same way /masters/customers is: real
  * Masters/CustomerMaster/VIEW permission check (access-control), OR'd with
- * isManager, redirecting to /dashboard on failure — closing the
- * "accessible to all authenticated users" gap for this entry point too.
+ * isManager, redirecting to /dashboard on failure.
+ *
+ * Step 2P: /masters/customers now reuses this exact CustomerMasterClient
+ * (see @/app/masters/customers/page.tsx) and is functionally equivalent —
+ * both routes render real Prisma data through the same component. This
+ * page (and its client component below) remain the canonical implementation
+ * that /masters/customers imports; not yet redirected pending verification,
+ * tracked in docs/RBAC_MIGRATION_TRACKER.md.
  */
 export default async function CustomerMasterPage() {
   const session = await getSession();

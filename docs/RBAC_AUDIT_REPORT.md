@@ -225,7 +225,7 @@ planned endpoint to a real `access-control` permission ahead of time:
 | `/settings/workflow` → `/settings/workflow/approval-engine` | Redirect-only shim | N/A | — | Safe | |
 | `/settings/finance` | Not independently re-verified this pass (prior implementation audit reported `requirePermission`/server permission check present) | access-control (per prior audit) | Card in `AdminConsole` | Safe (per prior finding) | |
 | `/customers` (legacy operational list) | **Session-only — no permission check at all** | none | Not in nav as a distinct top-level item separate from Masters (legacy route, superseded in nav by `/masters/customers`) | **Needs Review — effectively Missing Permission for a live-data CRM page** | Any authenticated employee, including the lowest-privilege BDE, can view the full live customer book and (per `CustomerMasterClient`'s wiring to `/api/customers/master/[id]` PATCH) edit customer master records, since neither the page nor the PATCH API checks anything beyond login. |
-| `/masters/customers` | ~~Session-only; write capability gated **client-side only** via `deriveCustomerCaps({isManager, isAccounts, isOpsHead})`~~ **RESOLVED 2026-06-20 (Step 2N)** — real server redirect: `hasPermission(Masters,CustomerMaster,VIEW)` (access-control) `\|\| isManager` (roles.ts bypass) | both, OR'd | Sidebar link gated on the same `Masters/CustomerMaster/VIEW` capability since Step 2J — guard and link now agree | Safe — page guard and sidebar visibility use the identical manager-bypass shape; `deriveCustomerCaps` is retained for write-button-level UX only (no longer a page-access control) | |
+| `/masters/customers` | ~~Session-only; write capability gated **client-side only** via `deriveCustomerCaps({isManager, isAccounts, isOpsHead})`~~ **RESOLVED 2026-06-20 (Step 2N)** — real server redirect: `hasPermission(Masters,CustomerMaster,VIEW)` (access-control) `\|\| isManager` (roles.ts bypass). ~~Rendered mock-data preview, no real persistence~~ **RESOLVED 2026-06-20 (Step 2P, Customer Master)** — now renders real Prisma data via the shared `@/app/customers/CustomerMasterClient`, identical to `/customers`. | both, OR'd | Sidebar link gated on the same `Masters/CustomerMaster/VIEW` capability since Step 2J — guard and link now agree | Safe — page guard and sidebar visibility use the identical manager-bypass shape; button-level capability gating is the same `isManager`-based logic the reused component already used in production (no longer `deriveCustomerCaps`, which was tied to the now-inactive mock preview) | |
 | `/masters/vendors` | ~~Same pattern as above (`deriveVendorCaps`), session-only + client cosmetic caps~~ **RESOLVED 2026-06-20 (Step 2N)** — real server redirect: `hasPermission(Masters,VendorMaster,VIEW)` (access-control) `\|\| isManager` (roles.ts bypass) | both, OR'd | Sidebar link gated on the same `Masters/VendorMaster/VIEW` capability since Step 2J — guard and link now agree | Safe — same fix as Customer Master; `deriveVendorCaps` retained for write-button-level UX only | |
 | `/finance` (Dashboard) | Real server redirect: `canManageFinance(session.user)` (non-finance users redirected to `/finance/expenses` instead of blocked outright — intentional UX, not a leak) | roles.ts | Full Finance nav only for `isManager \|\| isAccounts`; limited "My ..." nav otherwise | Safe | |
 | `/finance/expenses` | Session-only; "all authenticated employees can access (own data); finance roles see all" — by design | roles.ts (client caps for elevated view) | Shown to all (as "My Expenses" or full register depending on role) | Safe (own-data-by-default design is intentional and matches the API's own-data scoping) | |
@@ -308,6 +308,40 @@ finding 4 above) is no longer a separate session-only customer page:
   breadcrumb-label prefix match for direct URL visits, not a link, and was left unchanged.
 - No database schema, migration, customer data deletion, Customer Master API logic,
   `/masters/customers` UI/behavior, Vendor Master, or Finance module change was made.
+
+**Step 2P (Customer Master) completed (2026-06-20).** Note: "Step 2P" is also used elsewhere in
+`RBAC_MIGRATION_TRACKER.md`/§10 below for the unrelated, not-yet-started "retire legacy `/admin`
+Roles tab" plan — this entry is the Customer Master consolidation step Step 2O recommended as
+follow-up, disambiguated with the "(Customer Master)" suffix, same pattern as Step 2N's
+"(API guards)" sub-step.
+- `/masters/customers` is **no longer mock-data-only.** Its `page.tsx` now runs the same
+  `prisma.customer.findMany`/auto-seed-from-CRM/stats query `/customers/page.tsx` runs, against
+  the same `Customer` table, and renders it through `@/app/customers/CustomerMasterClient` — the
+  exact same component `/customers` already used in production (live list, search/filter,
+  create, edit, delete, Import from CRM, duplicate detection), reused rather than duplicated.
+- **Functional Customer Master capability has been moved — more precisely, shared — under
+  `/masters/customers`.** No logic was rewritten or forked: both routes' `page.tsx` files now
+  import the identical client component and hit the identical, already-guarded
+  `GET`/`POST /api/customers/master` and `PATCH`/`DELETE /api/customers/master/[id]` endpoints
+  (Steps 2B/2C/2N). API contracts, guards, and behavior are unchanged.
+- The folder's own UI-only preview (`masters/customers/CustomerMasterClient.tsx`,
+  `masters/customers/data.ts`'s `MOCK_CUSTOMERS`/`deriveCustomerCaps`, and the 14 enterprise
+  components under `masters/customers/components/`) is **no longer imported by `page.tsx`** but
+  was **not deleted** — each of the two main files now carries a header comment marking it
+  preview-only/inactive, confirmed safe to leave in place via a repo-wide search showing no other
+  file imports either one.
+- Button-level capability gating was **preserved, not weakened**: the reused component's existing
+  `isManager`-only gating on Import/Find Duplicates/Delete (Add/Edit open to all `VIEW`-holders)
+  is the same real, already-proven logic `/customers` used — not a new scheme, and not a full
+  migration of button caps to `access-control` (left for a later step).
+- **`/customers` can now be retired or redirected in a later step after verification** — both
+  routes are functionally equivalent (same component, same data, same APIs) for the first time,
+  which is the prerequisite the redirect step needs. `/customers` itself was not changed, not
+  redirected, and not deleted this step — it remains fully functional, confirmed by inspection
+  (no edits to its own `page.tsx` rendering path or `CustomerMasterClient.tsx`, only a comment
+  update).
+- No database schema, migration, Customer Master API contract change, Vendor Master change, or
+  Finance module change was made.
 
 ---
 

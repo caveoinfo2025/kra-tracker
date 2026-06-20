@@ -13,6 +13,13 @@
  *
  * GST validation + Indian state-code map are REUSED from the Vendor Master
  * (`../vendors/data`) — one validator, shared across both global masters.
+ *
+ * Preview-only mock data retained for reference. Do not use for production
+ * Customer Master rendering. As of Step 2P, ../page.tsx renders the real,
+ * Prisma-backed @/app/customers/CustomerMasterClient instead — this file
+ * (MOCK_CUSTOMERS, CustomerCaps, deriveCustomerCaps) is no longer on the
+ * active render path. It remains the target enterprise-schema contract for
+ * a future backend-wiring phase.
  */
 
 import { validateGSTIN, GST_STATE_CODES, STATE_TO_CODE, STATE_NAMES } from "../vendors/data";
