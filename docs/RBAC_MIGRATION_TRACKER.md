@@ -109,6 +109,24 @@ code in the repo at the time of writing this tracker:
   `/settings/policies`, and `/settings/workflow/approval-engine` already call `hasPermission()`
   directly and are unaffected.
 
+- ✅ **Step 2L (planning only)** — Created `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md`,
+  a detailed permission-mapping plan for every planned Finance write API (Expense, Bank Book, Cash
+  Book, Advance, Claims, Conveyance, Voucher, Reconciliation — 33 endpoints total), cross-checked
+  line-by-line against `permissions.ts`. No Finance write API, schema change, migration, UI
+  change, or permission-enforcement change was made — this is documentation only, per the step's
+  explicit scope. Findings: `Finance/Invoice`, `Finance/Expense`, `Finance/Payment`,
+  `Finance/Advance` permissions are usable today; `Finance/Voucher` has **no resource at all**,
+  `Finance/Payment/EDIT` and `Finance/Advance/EDIT` **do not exist**, and no dedicated
+  `BankBook`/`CashBook`/`Conveyance`/`Reconciliation` resource exists — all documented as
+  Catalogue Gaps with interim closest-fit mappings (mostly `Finance/Payment/CREATE` for
+  Ledger-posting actions), not invented permissions. Also documented as a **Schema Gap**: no
+  Finance transaction model (`Expense`, `EmployeeAdvance`, `TravelClaim`, `Voucher`, `Ledger`,
+  `FinAccount`) has a real `branchId`/`departmentId` FK — only `FinAccount.branchName`
+  (free-text, no `@relation`) — meaning `canAccessScope()`'s BRANCH/DEPARTMENT cases will always
+  fall through to "allow" for Finance data today, regardless of any `DataAccessPolicy` row
+  configured. The CRM-admin catalogue gap from Step 2F (no `Settings/CRM` permission) is **not**
+  closed by this step — it remains open, tracked separately below.
+
 No step in this list is marked "Pending confirmation" — all are independently verifiable in
 the current codebase as of this tracker's update.
 
@@ -121,7 +139,7 @@ the current codebase as of this tracker's update.
 | 2I | Add freeze warnings to legacy `/admin` Roles UI and `rbac.ts` comments | **Done this step (2026-06-20)** | Low | `rbac.ts` top-of-file comment added; non-blocking banner added to `AdminClient.tsx`'s "Roles & Access" tab, directly above `<RolesClient />` |
 | 2J | Align sidebar/navigation visibility with `access-control` | **Done this step (2026-06-20)** | Low — additive (OR'd with existing roles.ts checks), no link that was previously visible to a manager/Accounts user was removed | New `src/lib/access-control/navigation.ts` helper (`getNavigationCapabilities()`) loads all of a user's permissions once per request; `SidebarLinks.tsx`/`Navbar.tsx` now gate Masters and Finance Operations sub-items on it. Settings, Pipeline/People groups, and self-service Finance remain on the roles.ts bridge — see §10 for full detail |
 | 2K | Align Settings landing/cards visibility with `access-control` | **Done this step (2026-06-20)** | Medium — additive (`bridgeAccess \|\| capability`), no manager/Ops Head/Head of Sales lost the landing page or any card; the five subpages still on `isManager`-only guards (Finance, Communication, Integration, Security, Performance) are a documented gap, not a regression introduced by this step | New `src/lib/access-control/settings-capabilities.ts` helper (`getSettingsCapabilities()`); `AdminConsole.tsx` now filters cards on it and shows an empty-state message when no card matches; CRM card falls back to the `isManager` bridge pending the Step 2L `Settings/CRM` catalogue gap |
-| 2L | Apply `access-control` to future Finance write APIs (and close the CRM-admin gap from Step 2F) | Not started | Medium — without a catalogue entry, any new Finance write API risks being built on `roles.ts` again by habit; the existing CRM-admin gap (no `Settings/CRM` permission) blocks completing Step 2F | Add `Settings/CRM` (VIEW/EDIT) to `PERMISSION_CATALOGUE`, seed it, migrate the 7 CRM-admin routes, then make `Settings/Finance`-style gating the default for any new Finance write surface |
+| 2L | **Planning done (2026-06-20):** Finance Write Access-Control Plan created. **Implementation not started:** actually build the mapped Finance write APIs on `access-control`, add the catalogue gaps identified by the plan (`Finance/Voucher`, `Finance/Payment/EDIT`, `Finance/Advance/EDIT`, dedicated BankBook/CashBook/Conveyance/Reconciliation resources), and close the CRM-admin gap from Step 2F | **Plan: Done. Build: Not started** | Medium — without the catalogue gaps closed, any new Finance write API still risks an imprecise interim mapping (e.g. several distinct Voucher actions all falling back to `Finance/Payment/CREATE`); the existing CRM-admin gap (no `Settings/CRM` permission) still blocks completing Step 2F | See `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` for the full 33-endpoint mapping, the 8 catalogue gaps, and the Finance-transaction-model branch/department Schema Gap. Adding `Settings/CRM` (VIEW/EDIT) to `PERMISSION_CATALOGUE` and migrating the 7 CRM-admin routes remains a separate, not-yet-started sub-task of this step. |
 | 2M | Migrate Finance **read** APIs from `roles.ts`-only (`canManageFinance`, `isAccounts`, `isOperationsHead`) to `access-control` + own-scope rules | Not started | High — these are user-facing, high-traffic routes (`/api/finance/*`, `/api/expenses`, `/api/advances`); a careless migration could lock out legitimate Accounts/Operations-Head users who aren't `isManager` | Requires defining `Finance/{Expense,Advance,Payment,Invoice}/VIEW` scope rules (`OWN` vs `ALL`) via `DataAccessPolicy`, not a simple swap |
 | 2N | Migrate Customer/Vendor Master **page-level** guards to `access-control` | Not started | Medium — `/customers`, `/masters/customers`, `/masters/vendors` currently have **no permission gate beyond "is logged in"** (confirmed in `RBAC_AUDIT_REPORT.md` §2.4); API-level guards already use `Masters/CustomerMaster`/`Masters/VendorMaster` in several routes, but the pages themselves don't check anything | This is the most overexposed surface still open — every authenticated employee, including a brand-new BDE, can currently open these pages |
 | 2O | Retire or redirect `/customers` legacy route | Not started | Low-Medium — functional overlap with `/masters/customers`; needs a product decision on which is canonical before any redirect | Blocked on a product decision, not a technical blocker |
@@ -267,9 +285,14 @@ gap is called out explicitly — no permission was invented to fill a gap.
    `rbac.ts`. **(Completed, 2026-06-20.)**
 2. **Step 2J** — Align sidebar/navigation permission visibility with `access-control`.
    **(Completed, 2026-06-20.)**
-3. **Step 2K** — Align Settings cards with `access-control`.
-4. **Step 2L** — Add the missing `Settings/CRM` catalogue entry and plan the full Finance/CRM
-   write-API `access-control` mapping (this also unblocks finishing Step 2F's CRM-admin half).
+3. **Step 2K** — Align Settings cards with `access-control`. **(Completed, 2026-06-20.)**
+4. **Step 2L** — Finance Write Access-Control Mapping Plan. **(Planning completed, 2026-06-20 —
+   see `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md`.)** Remaining, not started:
+   add the missing `Settings/CRM` catalogue entry (unblocks finishing Step 2F's CRM-admin half),
+   add the 8 Finance catalogue gaps the plan identified (`Finance/Voucher`,
+   `Finance/Payment/EDIT`, `Finance/Advance/EDIT`, dedicated BankBook/CashBook/Conveyance/
+   Reconciliation resources, `Finance/Expense/IMPORT`, `Finance/Voucher/EXPORT`), and build the
+   33 mapped write endpoints themselves.
 5. **Step 2N** — Customer/Vendor Master page-guard migration (the most overexposed surface today
    per §9).
 6. **Step 2O/2P** — Legacy route retirement plan for `/customers` and `/admin`.

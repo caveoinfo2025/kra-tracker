@@ -143,6 +143,37 @@ All five of the above let **any authenticated employee** create master-data cate
 
 All Finance routes consistently use `roles.ts` predicates, not `access-control` — even though `access-control`'s catalogue already defines `Finance/Invoice/Expense/Payment/Advance` resources with VIEW/CREATE/EDIT/DELETE/APPROVE actions (`permissions.ts:75-91`) that are **currently unused by any Finance route**. This is the single largest "Wrong Permission System" surface by route count, and it is also the highest-value one to fix correctly given §5's finding that Finance write APIs don't exist yet — wiring them onto `access-control` from day one avoids ever having to migrate them later.
 
+**Step 2L completed (2026-06-20, planning only).** Before any Finance write API in this gap is
+built, `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` was created to map every
+planned endpoint to a real `access-control` permission ahead of time:
+- **Finance write APIs must use `access-control` from day one** — the plan maps all 33 planned
+  endpoints (Expense, Bank Book, Cash Book, Advance, Claims, Conveyance, Voucher, Reconciliation)
+  to a permission in `PERMISSION_CATALOGUE`, or documents a Catalogue Gap with an interim
+  closest-fit mapping where no exact resource exists (`Finance/Voucher` has no resource at all;
+  `Finance/Payment/EDIT` and `Finance/Advance/EDIT` don't exist; no dedicated
+  BankBook/CashBook/Conveyance/Reconciliation resource exists). No permission was invented or
+  added to the catalogue as part of this step — gaps are documented, not guessed at.
+- **`roles.ts` remains a temporary bridge for existing Finance read/self-service routes only** —
+  the plan explicitly does not touch the GET routes in the table above, nor the one existing real
+  write endpoint (`POST /api/finance/advances`, self-service create, unchanged); migrating those
+  is the separate, larger Step 2M (own-scope `DataAccessPolicy` work), out of scope here.
+- **Future Finance write endpoints have a documented permission mapping** — including
+  self-service vs. Finance-Operations authorization rules (an employee acting on their own record
+  needs no grant; a Finance user acting on someone else's needs the mapped permission), an
+  object-level authorization rule set per entity (draft-only edit, no hard-delete on posted
+  records, approval routed exclusively through the existing Step 2A-protected Global Approval
+  Engine — never a bespoke per-entity approval check), and a Scope Rules table.
+- **New Schema Gap surfaced, not fixed this step:** none of the Finance transaction models
+  (`Expense`, `EmployeeAdvance`, `TravelClaim`, `Voucher`, `Ledger`, `FinAccount`) have a real
+  `branchId`/`departmentId` foreign key — only `FinAccount.branchName`, a free-text field with no
+  `@relation`. `canAccessScope()`'s BRANCH/DEPARTMENT cases will therefore always fall through to
+  "allow" for Finance data, regardless of any `DataAccessPolicy` row configured — a real
+  limitation for whoever eventually builds branch-scoped Finance write APIs, not something this
+  planning step could resolve under its "do not modify database schema" constraint.
+- No Finance write API, schema change, migration, UI change, or permission-enforcement change was
+  made — this step produced one new documentation file only. `npx tsc --noEmit`, `npx prisma
+  validate`, and `next build` all pass (unaffected, since no application code changed).
+
 ### 3.8 Settings / Organization (mixed — both systems checked, OR'd together)
 
 | API Route | Methods | Auth Check | Permission Check | System Used | Risk |

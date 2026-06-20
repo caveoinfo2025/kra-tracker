@@ -72,6 +72,33 @@ rewritten this step (out of scope — no broad page-guard refactor). No schema, 
 permission checks, business logic, routes, or `roles.ts`/`rbac.ts` deletions. `npx tsc --noEmit`,
 `npx prisma validate`, and `next build` all pass.
 
+### 2026-06-20 — Finance Write Access-Control Plan created (Step 2L, planning only)
+Before building any Finance write API, created
+`docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` mapping all 33 planned write
+endpoints (Expense create/edit/delete/submit/approve/reject/mark-paid/import; Bank Book entry/
+edit/import/reconcile; Cash Book entry/edit/transfers/adjustment/reconcile; Advance submit/
+approve/reject/disburse/settle; Claims create/edit/approve/reject/mark-paid; Conveyance trip
+log/edit/submit/approve/reject/monthly-settlement/distance-calc; Voucher create/cancel/PDF/
+tally-export; Reconciliation submit/approve/reject) to real `access-control` permissions from
+`permissions.ts`, cross-checked line by line — no permission invented. Findings: `Finance/
+Invoice`, `Finance/Expense`, `Finance/Payment`, `Finance/Advance` are usable today; confirmed
+**Catalogue Gaps** — `Finance/Voucher` has no resource at all, `Finance/Payment/EDIT` and
+`Finance/Advance/EDIT` don't exist, no dedicated BankBook/CashBook/Conveyance/Reconciliation
+resource exists, no `Finance/Expense/IMPORT` or `Finance/Voucher/EXPORT` action exists — all
+documented with an interim closest-fit mapping (mostly `Finance/Payment/CREATE` for
+Ledger-posting actions), not closed in this step. New **Schema Gap** surfaced: no Finance
+transaction model (`Expense`, `EmployeeAdvance`, `TravelClaim`, `Voucher`, `Ledger`,
+`FinAccount`) has a real `branchId`/`departmentId` FK — only `FinAccount.branchName` (free-text,
+no `@relation`) — so `canAccessScope()`'s BRANCH/DEPARTMENT cases always fall through to "allow"
+for Finance data today. Also documented: self-service vs. Finance-Operations authorization rules
+(own-record actions need no grant; cross-employee actions need the mapped permission), an
+object-level rule set per entity (no edit-after-submit, no hard-delete on posted records,
+approval routed exclusively through the Step 2A-protected Global Approval Engine — never a
+bespoke per-entity check), an API guard code template, and the recommended build sequence. No
+Finance write API, schema change, migration, UI change, `roles.ts`/`rbac.ts` change, or
+permission-enforcement change was made — one new documentation file only. `npx tsc --noEmit`,
+`npx prisma validate`, and `next build` all pass (unaffected — no application code changed).
+
 ### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
 - **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
 - **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓
