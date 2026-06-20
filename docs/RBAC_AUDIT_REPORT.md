@@ -111,10 +111,10 @@ This is a distinct and important finding: **7 CRM-admin + 7 Finance-admin route 
 | `/api/admin/masters` | GET, POST | `getSession()` (session-only, null check) | **None** | none | **Missing Permission** |
 | `/api/admin/masters/overrides` | GET, POST | `getSession()` | **None** | none | **Missing Permission** |
 | `/api/admin/masters/values` | GET, POST | `getSession()` | **None** | none | **Missing Permission** |
-| `/api/admin/customer-policy` | GET, POST | `getSession()` | **None** | none | **Missing Permission** |
-| `/api/admin/vendor-policy` | GET, POST | `getSession()` | **None** | none | **Missing Permission** |
+| `/api/admin/customer-policy` | GET, POST | `getSession()` | ~~**None**~~ **RESOLVED 2026-06-20 (Step 2D)** | access-control | **Safe** |
+| `/api/admin/vendor-policy` | GET, POST | `getSession()` | ~~**None**~~ **RESOLVED 2026-06-20 (Step 2D)** | access-control | **Safe** |
 
-All five of the above let **any authenticated employee** create master-data categories/definitions/validation rules, master values, value-overrides, and customer/vendor governance policy (GST-required flags, duplicate thresholds, credit-approval-required toggles, bank-verification-required toggles) with no manager/permission check whatsoever — only "are you logged in." This is a materially larger unguarded surface than the two routes the prior report flagged; `/api/admin/masters` was already known, but `overrides`, `values`, `customer-policy`, and `vendor-policy` were not previously enumerated.
+All five of the above let **any authenticated employee** create master-data categories/definitions/validation rules, master values, value-overrides, and customer/vendor governance policy (GST-required flags, duplicate thresholds, credit-approval-required toggles, bank-verification-required toggles) with no manager/permission check whatsoever — only "are you logged in." This is a materially larger unguarded surface than the two routes the prior report flagged; `/api/admin/masters` was already known, but `overrides`, `values`, `customer-policy`, and `vendor-policy` were not previously enumerated. *(Status: all five — `admin/masters`, `/overrides`, `/values`, `customer-policy`, `vendor-policy` — are now fixed as of Step 2D; see §10 item 4.)*
 
 ### 3.6 Customers / Masters
 
@@ -243,8 +243,8 @@ All Finance routes consistently use `roles.ts` predicates, not `access-control` 
 |---|---|---|---|---|
 | `/api/admin/masters/overrides` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) | **RESOLVED 2026-06-20 (Step 2B)** |
 | `/api/admin/masters/values` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) | **RESOLVED 2026-06-20 (Step 2B)** |
-| `/api/admin/customer-policy` | GET, POST | Session-only | `Masters/CustomerMaster/VIEW` or a new `Settings/Masters` sub-action — needs a product decision, not just a code fix | Open — deferred to a later step per scope |
-| `/api/admin/vendor-policy` | GET, POST | Session-only | `Masters/VendorMaster/VIEW`/`EDIT` equivalent — same caveat | Open — deferred to a later step per scope |
+| `/api/admin/customer-policy` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) — product decision made, treated as master-governance config | **RESOLVED 2026-06-20 (Step 2D)** |
+| `/api/admin/vendor-policy` | GET, POST | Session-only | `Settings/Masters/VIEW` (GET), `Settings/Masters/EDIT` (POST) — same decision | **RESOLVED 2026-06-20 (Step 2D)** |
 | `/api/master-values` | GET | **No session check at all** | Undetermined — confirm intended public/dropdown use first | Open — deferred to a later step per scope |
 
 ---
@@ -345,6 +345,9 @@ In priority order (none implemented as part of this audit, per instructions):
    > No response shapes, payloads, validation, or business logic were changed — only an added `requirePermission()` call + early return per route, identical in form to the pattern already used by the sibling `DELETE` handler and by `/settings/masters/page.tsx`'s own server-side guard. `npx tsc --noEmit`, `npx eslint`, `npx prisma validate`, and `next build` all pass. `/api/admin/customer-policy`, `/api/admin/vendor-policy`, `/api/master-values`, and `DELETE /api/customers/master/[id]`'s action-mismatch fix (item 5 below) were intentionally left untouched, per scope.
 
 4. **`/api/admin/customer-policy`, `/api/admin/vendor-policy`** — add a permission check (after a short product decision on which exact permission applies).
+
+   > **Step 2D completed (2026-06-20).** Product decision: these routes manage master-governance config (customer/vendor GST-required flags, duplicate thresholds, credit-approval-required, bank-verification-required), the same category of data as `/api/admin/masters` and its `/overrides`/`/values` siblings — so they are gated with the same `Settings/Masters` permission rather than a new dedicated permission. `GET /api/admin/customer-policy` and `GET /api/admin/vendor-policy` now require `Settings` / `Masters` / `VIEW`; `POST /api/admin/customer-policy` and `POST /api/admin/vendor-policy` now require `Settings` / `Masters` / `EDIT` — identical in form to the pattern already applied to `/api/admin/masters`, `/overrides`, and `/values` in Step 2B. Customer/vendor governance policy is no longer readable or writable by every authenticated employee. No payload validation, save logic, or response shape changed. `/api/master-values`, CRM-admin routes, Finance-admin routes, Identity APIs, Policy APIs, sidebar visibility, `rbac.ts`, and `roles.ts` were intentionally left untouched, per scope. `npx tsc --noEmit`, `npx eslint`, `npx prisma validate`, and `next build` all pass.
+
 5. **`DELETE /api/customers/master/[id]`** — switch the checked action from `EDIT` to `DELETE` to match the catalogue and the operation actually being performed.
 
    > **Step 2C completed (2026-06-20).** `DELETE /api/customers/master/[id]` now requires `Masters` / `CustomerMaster` / `DELETE` (was checking `EDIT`). A role granted `EDIT` but not `DELETE` on Customer Master can no longer delete customer records through this endpoint — closing the action-mismatch gap described in §7 finding 5. `PATCH /api/customers/master/[id]` remains guarded by `Masters` / `CustomerMaster` / `EDIT`, unchanged. The fix is a single-line change (the permission action string in the existing `requirePermission()` call); delete payload, query, response shape, and validation are all unchanged. `npx tsc --noEmit`, `npx eslint`, `npx prisma validate`, and `next build` all pass.
