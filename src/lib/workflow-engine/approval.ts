@@ -13,6 +13,14 @@
 import { logWorkflowEvent } from "./audit";
 import { resolveApprovers } from "./resolver";
 import { getActiveDelegate } from "./delegation";
+import { assertCanActOnApprovalRequest, type ApprovalDenialReason } from "./authorization";
+
+export type ApprovalActionResultReason = ApprovalDenialReason | "ERROR";
+
+export interface ApprovalActionResult {
+  ok:      boolean;
+  reason?: ApprovalActionResultReason;
+}
 
 export interface ApprovalRequest {
   id:           number;
@@ -174,16 +182,19 @@ export async function approveRequest(
   requestId: number,
   actorId:   number,
   comments?: string,
-): Promise<boolean> {
+): Promise<ApprovalActionResult> {
   try {
+    const auth = await assertCanActOnApprovalRequest(requestId, actorId, "APPROVE");
+    if (!auth.allowed) return { ok: false, reason: auth.reason };
+
     const prisma = (await import("@/lib/prisma")).default;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = prisma as any;
     const req = await _fetchRequestWithWorkflow(db, requestId);
-    if (!req || req.status !== "PENDING") return false;
+    if (!req || req.status !== "PENDING") return { ok: false, reason: "NOT_PENDING" };
 
     const step = _currentStep(req);
-    if (!step) return false;
+    if (!step) return { ok: false, reason: "NOT_ELIGIBLE" };
 
     await db.approvalAction.create({
       data: {
@@ -211,9 +222,9 @@ export async function approveRequest(
     });
 
     await logWorkflowEvent("APPROVAL_REQUEST", requestId, newStatus === "APPROVED" ? "APPROVED" : "STEP_ADVANCED", actorId, { step: req.currentStep, newStep: newCurrent });
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "ERROR" };
   }
 }
 
@@ -221,16 +232,19 @@ export async function rejectRequest(
   requestId: number,
   actorId:   number,
   comments?: string,
-): Promise<boolean> {
+): Promise<ApprovalActionResult> {
   try {
+    const auth = await assertCanActOnApprovalRequest(requestId, actorId, "REJECT");
+    if (!auth.allowed) return { ok: false, reason: auth.reason };
+
     const prisma = (await import("@/lib/prisma")).default;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = prisma as any;
     const req = await _fetchRequestWithWorkflow(db, requestId);
-    if (!req || req.status !== "PENDING") return false;
+    if (!req || req.status !== "PENDING") return { ok: false, reason: "NOT_PENDING" };
 
     const step = _currentStep(req);
-    if (!step) return false;
+    if (!step) return { ok: false, reason: "NOT_ELIGIBLE" };
 
     await db.approvalAction.create({
       data: { requestId, stepId: step.id as number, approverId: actorId, action: "REJECT", comments: comments ?? null },
@@ -240,9 +254,9 @@ export async function rejectRequest(
       data:  { status: "REJECTED", completedAt: new Date() },
     });
     await logWorkflowEvent("APPROVAL_REQUEST", requestId, "REJECTED", actorId, { step: req.currentStep });
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "ERROR" };
   }
 }
 
@@ -250,16 +264,19 @@ export async function returnRequest(
   requestId: number,
   actorId:   number,
   comments?: string,
-): Promise<boolean> {
+): Promise<ApprovalActionResult> {
   try {
+    const auth = await assertCanActOnApprovalRequest(requestId, actorId, "RETURN");
+    if (!auth.allowed) return { ok: false, reason: auth.reason };
+
     const prisma = (await import("@/lib/prisma")).default;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = prisma as any;
     const req = await _fetchRequestWithWorkflow(db, requestId);
-    if (!req || req.status !== "PENDING") return false;
+    if (!req || req.status !== "PENDING") return { ok: false, reason: "NOT_PENDING" };
 
     const step = _currentStep(req);
-    if (!step) return false;
+    if (!step) return { ok: false, reason: "NOT_ELIGIBLE" };
 
     await db.approvalAction.create({
       data: { requestId, stepId: step.id as number, approverId: actorId, action: "RETURN", comments: comments ?? null },
@@ -269,9 +286,9 @@ export async function returnRequest(
       data:  { status: "RETURNED", completedAt: new Date() },
     });
     await logWorkflowEvent("APPROVAL_REQUEST", requestId, "RETURNED", actorId, { step: req.currentStep });
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "ERROR" };
   }
 }
 
@@ -280,29 +297,35 @@ export async function delegateRequest(
   actorId:    number,
   toUserId:   number,
   comments?:  string,
-): Promise<boolean> {
+): Promise<ApprovalActionResult> {
   try {
+    const auth = await assertCanActOnApprovalRequest(requestId, actorId, "DELEGATE");
+    if (!auth.allowed) return { ok: false, reason: auth.reason };
+
     const prisma = (await import("@/lib/prisma")).default;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = prisma as any;
     const req = await _fetchRequestWithWorkflow(db, requestId);
-    if (!req || req.status !== "PENDING") return false;
+    if (!req || req.status !== "PENDING") return { ok: false, reason: "NOT_PENDING" };
 
     const step = _currentStep(req);
-    if (!step) return false;
+    if (!step) return { ok: false, reason: "NOT_ELIGIBLE" };
 
     await db.approvalAction.create({
       data: { requestId, stepId: step.id as number, approverId: actorId, action: "DELEGATE", comments: comments ?? null, toUserId },
     });
     await logWorkflowEvent("APPROVAL_REQUEST", requestId, "DELEGATED", actorId, { toUserId });
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "ERROR" };
   }
 }
 
-export async function cancelRequest(requestId: number, actorId: number): Promise<boolean> {
+export async function cancelRequest(requestId: number, actorId: number): Promise<ApprovalActionResult> {
   try {
+    const auth = await assertCanActOnApprovalRequest(requestId, actorId, "CANCEL");
+    if (!auth.allowed) return { ok: false, reason: auth.reason };
+
     const prisma = (await import("@/lib/prisma")).default;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = prisma as any;
@@ -311,9 +334,9 @@ export async function cancelRequest(requestId: number, actorId: number): Promise
       data:  { status: "CANCELLED", completedAt: new Date() },
     });
     await logWorkflowEvent("APPROVAL_REQUEST", requestId, "CANCELLED", actorId);
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "ERROR" };
   }
 }
 

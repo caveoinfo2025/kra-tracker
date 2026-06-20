@@ -56,4 +56,8 @@ export {
   delegateRequest,
   cancelRequest,
 } from "./approval";
-export type { ApprovalRequest } from "./approval";
+export type { ApprovalRequest, ApprovalActionResult, ApprovalActionResultReason } from "./approval";
+
+// Authorization
+export { assertCanActOnApprovalRequest } from "./authorization";
+export type { ApprovalActionType, ApprovalAuthorizationResult, ApprovalDenialReason } from "./authorization";
