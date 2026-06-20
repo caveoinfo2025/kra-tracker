@@ -44,7 +44,7 @@ export async function DELETE(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const deny = await requirePermission(session, "Masters", "CustomerMaster", "EDIT");
+  const deny = await requirePermission(session, "Masters", "CustomerMaster", "DELETE");
   if (deny) return deny;
 
   const { id } = await params;
