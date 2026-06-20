@@ -5,9 +5,11 @@ import SheetLayout from "@/components/SheetLayout";
 import CustomerMasterClient from "./CustomerMasterClient";
 import { importCustomersFromCrm } from "@/lib/customer-import";
 
-// TODO (Step 2N): legacy /customers route is still session-only — no Masters/CustomerMaster/VIEW
-// gate like /masters/customers now has. Retirement/redirect plan tracked in
-// docs/RBAC_MIGRATION_TRACKER.md; not changed in Step 2M per scope.
+// TODO (post-Step 2N): legacy /customers route is still session-only — no
+// Masters/CustomerMaster/VIEW gate like /masters/customers now has. The
+// underlying GET/POST /api/customers/master API is now guarded (Step 2N).
+// Retirement/redirect of this page is the next step; tracked in
+// docs/RBAC_MIGRATION_TRACKER.md — not changed here per scope.
 export default async function CustomerMasterPage() {
   const session = await getSession();
   if (!session?.user) redirect("/login");

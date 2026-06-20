@@ -5,10 +5,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 
 export async function GET() {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Masters", "CustomerMaster", "VIEW");
+  if (deny) return deny;
 
   const customers = await prisma.customer.findMany({
     where: { parentId: null },          // top-level (HO) first
@@ -27,6 +30,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Masters", "CustomerMaster", "CREATE");
+  if (deny) return deny;
 
   const body = await req.json();
   const { name, address, district, state, pincode, gstNo, officeType, parentId } = body;

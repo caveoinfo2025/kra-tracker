@@ -123,7 +123,7 @@ All five of the above let **any authenticated employee** create master-data cate
 |---|---|---|---|---|---|---|
 | `PATCH /api/customers/master/[id]` | PATCH | `getSession()` (null check only) | **None** | none | **Missing Permission** | Confirmed still unguarded — see §6 for full detail and sibling-file comparison. |
 | `DELETE /api/customers/master/[id]` | DELETE | `getSession()` | `requirePermission(session,"Masters","CustomerMaster","EDIT")` | access-control | **Wrong Permission System (action mismatch)** | Checks the `EDIT` action for a delete operation, even though the catalogue defines a distinct `Masters/CustomerMaster/DELETE` action (`permissions.ts:126`) that is never referenced anywhere in the codebase. Should check `"DELETE"`. |
-| `GET/POST /api/customers/master` | GET, POST | `getSession()` (null check only on POST data path) | **None** | none | **Missing Permission** | Bulk customer-master read/create has no permission check beyond login. |
+| `GET/POST /api/customers/master` | GET, POST | `getSession()` (null check) | ~~**None**~~ **RESOLVED 2026-06-20 (Step 2N, API guards)** — `GET` now requires `Masters/CustomerMaster/VIEW`, `POST` now requires `Masters/CustomerMaster/CREATE` | access-control | **Safe** | Bulk customer-master read/create now aligned with the page-level guard added to `/masters/customers`. |
 | `/api/customers/master/deduplicate` | GET, POST | `getSession()` | `requirePermission(session,"Masters","CustomerMaster","DELETE")` on POST only; GET unguarded beyond session | access-control (POST) / none (GET) | Needs Review | GET likely returns duplicate-candidate previews — confirm it doesn't leak more than intended to unprivileged users. |
 | `/api/customers/master/import` | POST | `getSession()` | `requirePermission(session,"Masters","CustomerMaster","IMPORT")` | access-control | Safe | |
 | `/api/customers/suggestions` | GET | `getSession()` (null check only) | **None** | none | Needs Review | Likely a low-risk autocomplete/typeahead; confirm it doesn't expose more customer detail than the master list already does. |
@@ -265,6 +265,23 @@ planned endpoint to a real `access-control` permission ahead of time:
   read, not modified), UI/form change, soft-delete implementation, or sidebar/navigation change was
   made. `npx tsc --noEmit`, `npx prisma validate`, `npx eslint` (2 pre-existing, unrelated
   unused-variable warnings in `masters/customers/data.ts`), and `next build` all pass.
+
+**Step 2N completed (API guards, 2026-06-20).** The base Customer Master API
+(`src/app/api/customers/master/route.ts`, §3.6 table row above) is no longer session-only:
+- `GET /api/customers/master` now requires `Masters/CustomerMaster/VIEW`.
+- `POST /api/customers/master` now requires `Masters/CustomerMaster/CREATE`.
+- Both permissions already existed verbatim in `PERMISSION_CATALOGUE` (`permissions.ts:123-124`)
+  — no catalogue gap, no permission invented.
+- `PATCH`/`DELETE /api/customers/master/[id]` were reviewed, not rewritten — already correct
+  (`EDIT`/`DELETE` respectively, per the Step 2B/2C fixes recorded above).
+- This closes the mismatch the Step 2N page-guard work exposed: page access to
+  `/masters/customers` was guarded, but the underlying list/create API any client could call
+  directly was not. Customer Master page and API access are now aligned for list/create
+  operations.
+- **`/customers` legacy route still requires a separate retirement decision** — unchanged, still
+  session-only, tracked as Step 2O in `RBAC_MIGRATION_TRACKER.md`.
+- No query params, pagination, sorting, response shape, payload structure, validation, or
+  create-logic change was made.
 
 ---
 

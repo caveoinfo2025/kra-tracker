@@ -153,6 +153,18 @@ code in the repo at the time of writing this tracker:
   unused-var warnings in `masters/customers/data.ts`, confirmed unrelated to this change), and
   `next build` all pass.
 
+- ✅ **Step 2N (API guards)** — `GET`/`POST /api/customers/master` migrated to `access-control`,
+  closing the gap Step 2N's page-guard work (above) exposed: page access was guarded but the
+  underlying list/create API was still session-only. `GET /api/customers/master` now requires
+  `Masters/CustomerMaster/VIEW`; `POST /api/customers/master` now requires
+  `Masters/CustomerMaster/CREATE` (both confirmed to exist verbatim in `PERMISSION_CATALOGUE` —
+  no catalogue gap, no permission invented). `PATCH`/`DELETE /api/customers/master/[id]`
+  (`EDIT`/`DELETE`) were reviewed and confirmed already correct from Step 2B/2C — left unchanged.
+  Customer Master page and API access are now aligned for list/create operations. No query
+  params, pagination, sorting, response shape, payload structure, or create/validation logic was
+  changed. Legacy `/customers` remains session-only and unchanged — its retirement/redirect is
+  still Step 2O.
+
 No step in this list is marked "Pending confirmation" — all are independently verifiable in
 the current codebase as of this tracker's update.
 
@@ -323,6 +335,8 @@ gap is called out explicitly — no permission was invented to fill a gap.
    33 mapped write endpoints themselves.
 5. **Step 2N** — Customer/Vendor Master page-guard migration (the most overexposed surface today
    per §9). **(Completed, 2026-06-20.)**
-6. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
+6. **Step 2N (API guards)** — `GET`/`POST /api/customers/master` permission hardening, aligning
+   the API with the Step 2N page guard. **(Completed, 2026-06-20.)**
+7. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
    `/api/advances`) from `roles.ts`-only to `access-control` + own-scope `DataAccessPolicy` rules.
-7. **Step 2O/2P** — Legacy route retirement plan for `/customers` and `/admin`.
+8. **Step 2O/2P** — Legacy route retirement plan for `/customers` and `/admin`.

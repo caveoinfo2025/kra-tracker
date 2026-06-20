@@ -123,6 +123,19 @@ cross-references). No schema, migration, Customer/Vendor API logic, UI/form chan
 or sidebar/navigation change was made. `npx tsc --noEmit`, `npx prisma validate`, `npx eslint` (2
 pre-existing unrelated unused-var warnings), and `next build` all pass.
 
+### 2026-06-20 — Customer Master base API guarded with access-control (Step 2N, API guards)
+Closed the mismatch the page-guard step above exposed: `/masters/customers` was guarded, but the
+underlying `GET`/`POST /api/customers/master` API was still session-only and callable directly
+by any authenticated employee. `GET /api/customers/master` now requires
+`Masters/CustomerMaster/VIEW`; `POST /api/customers/master` now requires
+`Masters/CustomerMaster/CREATE`. Both permissions already existed verbatim in
+`PERMISSION_CATALOGUE` — no catalogue gap, nothing invented. `PATCH`/`DELETE
+/api/customers/master/[id]` were reviewed and confirmed already correct (`EDIT`/`DELETE`, from
+Steps 2B/2C) — left unchanged. No query params, pagination, sorting, response shape, payload
+structure, validation, or create logic was changed. Legacy `/customers` remains session-only and
+unchanged; its retirement is still Step 2O. `npx tsc --noEmit`, `npx prisma validate`, and `next
+build` all pass.
+
 ### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
 - **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
 - **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓
