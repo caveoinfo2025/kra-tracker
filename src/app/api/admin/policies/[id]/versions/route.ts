@@ -3,7 +3,7 @@
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
-import { canAccessSettings } from "@/lib/roles";
+import { requirePermission } from "@/lib/access-control";
 
 export async function GET(
   _req: Request,
@@ -11,7 +11,8 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canAccessSettings(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Policy", "VIEW");
+  if (deny) return deny;
 
   const { id } = await params;
   const policyId = parseInt(id);

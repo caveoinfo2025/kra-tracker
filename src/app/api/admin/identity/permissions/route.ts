@@ -6,18 +6,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
-import { canAccessSettings } from "@/lib/roles";
-
-async function requireSettingsAccess() {
-  const session = await getSession();
-  if (!session?.user) return { error: "Unauthorized", status: 401 as const };
-  if (!canAccessSettings(session.user)) return { error: "Forbidden", status: 403 as const };
-  return { session };
-}
 
 export async function GET(req: Request) {
-  const check = await requireSettingsAccess();
-  if ("error" in check) return NextResponse.json({ error: check.error }, { status: check.status });
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Settings", "Identity", "VIEW");
+  if (deny) return deny;
 
   const { searchParams } = new URL(req.url);
   const roleId = parseInt(searchParams.get("roleId") ?? "", 10);

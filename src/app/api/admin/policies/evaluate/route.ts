@@ -12,10 +12,13 @@
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
+import { requirePermission } from "@/lib/access-control";
 
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Settings", "Policy", "VIEW");
+  if (deny) return deny;
 
   const body = await req.json();
   const { module, event, data } = body as {

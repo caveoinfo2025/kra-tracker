@@ -6,21 +6,15 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
-import { canAccessSettings } from "@/lib/roles";
-
-async function requireSettingsEdit() {
-  const session = await getSession();
-  if (!session?.user) return { error: "Unauthorized", status: 401 as const };
-  if (!canAccessSettings(session.user)) return { error: "Forbidden", status: 403 as const };
-  return { session };
-}
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const check = await requireSettingsEdit();
-  if ("error" in check) return NextResponse.json({ error: check.error }, { status: check.status });
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = await requirePermission(session, "Settings", "Identity", "EDIT");
+  if (deny) return deny;
 
   const { id } = await params;
   const roleId = parseInt(id, 10);
