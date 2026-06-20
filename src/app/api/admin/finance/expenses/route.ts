@@ -12,7 +12,8 @@ import {
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "VIEW");
+  if (deny) return deny;
 
   const categoryId = req.nextUrl.searchParams.get("categoryId");
   const [categories, limitRules] = await Promise.all([
@@ -25,7 +26,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json() as {
     type: "category" | "limit_rule";
@@ -54,7 +56,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json() as { id: number; [key: string]: unknown };
   if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });

@@ -6,7 +6,8 @@ import { listVoucherConfigs, createVoucherConfig, updateVoucherConfig } from "@/
 export async function GET() {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "VIEW");
+  if (deny) return deny;
 
   const configs = await listVoucherConfigs();
   return NextResponse.json({ configs });
@@ -15,7 +16,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json() as Parameters<typeof createVoucherConfig>[0];
   if (!body.voucherType || !body.prefix) {
@@ -29,7 +31,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json() as { id: number; [key: string]: unknown };
   if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });

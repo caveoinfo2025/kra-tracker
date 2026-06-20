@@ -8,7 +8,8 @@ const ALLOWED_TYPES = ["EXPENSE", "CONVEYANCE", "ADVANCE", "CUSTOMER_CREDIT", "V
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "VIEW");
+  if (deny) return deny;
 
   const policyType = req.nextUrl.searchParams.get("policyType") ?? undefined;
   try {
@@ -25,7 +26,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json() as {
     companyId?: number;
@@ -61,7 +63,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!session?.user?.isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deny = await requirePermission(session, "Settings", "Finance", "EDIT");
+  if (deny) return deny;
 
   const body = await req.json() as { id: number; [key: string]: unknown };
   if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
