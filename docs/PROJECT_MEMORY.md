@@ -21,6 +21,32 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Soft-delete decision log / scope lock created (Step 3B-0, sign-off only)
+Step 3B-0 completed with final approved Phase A models. Reviewed Step 3A's
+`SOFT_DELETE_MIGRATION_PLAN.md` §13 open decisions (which models support restore, whether
+`deleteReason` should be required, who can view/restore deleted records, whether Voucher/Ledger
+should ever be deleted, what happens to the Employee hard-delete) and locked final answers into
+new `docs/database/SOFT_DELETE_DECISION_LOG.md`. **Approved Phase A model list for Step 3B:**
+`Customer`, `Vendor`, `Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, `Collection` — 7
+models, each to receive `deletedAt DateTime?` / `deletedById Int?` / `deleteReason String?
+@db.Text`. **Voucher and Ledger confirmed excluded** — Voucher keeps its existing
+`voidedAt`/`voidReason` pattern; Ledger stays reversal-only via the existing `pairedLedgerId`
+self-pair field; neither gets a `deletedAt` column, ever. **Employee delete lifecycle deferred**
+to a separate HR/Admin identity-lifecycle step — likely deactivation, not soft-delete, given its
+cascade into `Collection`→`Payment` and 9+ other models. **`Permission`/`UserRole`/
+`DataAccessPolicy` confirmed Do Not Soft Delete** (revoke/remove is the correct semantic;
+`Permission` is a seeded catalogue). **Restore API and "view deleted records" both deferred** —
+schema keeps restore technically possible later, but no restore route or admin view ships yet.
+`deleteReason` decided as DB-optional, API-required-where-practical (full per-model table in the
+decision log §4). Audit logging decided as mandatory for every soft delete, reusing the existing
+`AuditLog` model and its one working call site (`DELETE /api/pipeline/leads/[id]`) — no new audit
+model needed; new `action` values (`SOFT_DELETE`/`RESTORE`/`DELETE_BLOCKED_REFERENCE_EXISTS`/
+`VOUCHER_VOID`/`LEDGER_REVERSAL`) documented for the future route-conversion step. No Prisma
+schema change, migration, API code change, or UI code change was made — `prisma migrate` was not
+run. See `docs/database/SOFT_DELETE_DECISION_LOG.md` for the full 13-section decision record and
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3B-0 row) for the cross-reference. `npx prisma validate`
+passes (schema untouched, so this is a no-op confirmation, not a meaningful check this step).
+
 ### 2026-06-21 — Soft-delete migration plan created (Step 3A, planning only)
 Created `docs/database/SOFT_DELETE_MIGRATION_PLAN.md` (new `docs/database/` folder), addressing
 `IMPLEMENTATION_STATUS_REPORT.md`'s #2-ranked risk ("No soft delete anywhere — all 108 Prisma
