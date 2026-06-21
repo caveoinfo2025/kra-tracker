@@ -662,6 +662,36 @@ now check their dedicated resource first, falling through to the prior closest-f
 
 ---
 
+## 16. Step 2U — Dev Database Sync (2026-06-21)
+
+Dedicated Finance permissions described in §15 are now **materialized in the dev database**, not
+just in the `PERMISSION_CATALOGUE` source file. `npx tsx prisma/seed-admin-foundation.ts` was run
+against the dev DB (`u686730471_caveodev`); all 22 `Finance/{Voucher,BankBook,CashBook,Conveyance}`
+rows were confirmed present via a read-only verification query, with zero duplicates and the 4
+pre-existing Finance resources (`Invoice`/`Expense`/`Payment`/`Advance`) unchanged. (Note: §15's
+"27 new permission rows" figure does not reconcile with the per-resource action counts listed in
+the same section's table — 6+6+5+5=22 — the table is treated as authoritative since it matches
+`permissions.ts` verbatim.)
+
+**Future Finance write APIs can now rely on these permission rows existing** — `requirePermission`/
+`hasPermission` calls against `Finance/Voucher/*`, `Finance/BankBook/*`, `Finance/CashBook/*`, or
+`Finance/Conveyance/*` will resolve against real `Permission` rows rather than a catalogue entry
+with no corresponding database row.
+
+**Curated role grants remain a separate step.** No business role (Finance Manager, Account
+Manager, etc.) was granted any of the 22 new permissions this step — only the seed script's
+pre-existing, unmodified Super-Admin-gets-all loop applies. Extending `Finance Manager`'s
+`ROLE_GRANTS` (or granting via the Settings → Identity → Permission Matrix UI) remains the
+recommended next step from §15, still not done.
+
+**UI gap found, not fixed (out of scope this step):** the Permission Matrix UI
+(`PermissionMatrix.tsx`) has a hardcoded `MODULE_GROUPS` constant whose `Finance` entry does not
+yet list `Voucher`/`BankBook`/`CashBook`/`Conveyance`, so the new resources — though present in the
+database and returned by the API — will not visually render in the matrix grid until that
+component is updated. See `docs/RBAC_MIGRATION_TRACKER.md` §13 for full detail.
+
+---
+
 ## Sources Reviewed
 
 - `docs/RBAC_AUDIT_REPORT.md` (§§2–11, especially §3.7 Finance route matrix, §8 recommended

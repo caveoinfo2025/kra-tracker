@@ -47,6 +47,30 @@ workaround used throughout recent sessions was `npx cross-env RAYON_NUM_THREADS=
 - No application code, Prisma schema, migration, API, UI, or RBAC logic changed. `npm run build`,
   `npx tsc --noEmit`, and `npx prisma validate` all pass.
 
+### 2026-06-21 — Finance permission catalogue seeded to dev database (Step 2U)
+Ran `npx tsx prisma/seed-admin-foundation.ts` against the dev database
+(`u686730471_caveodev` on `srv2201.hstgr.io`, confirmed via `.env`'s `DATABASE_URL` before
+running) to materialize the Step 2S catalogue additions as real `Permission` rows. Pre-run
+review confirmed the script is upsert-only on the schema's `@@unique([module, resource, action])`
+key, never deletes, and its `ROLE_GRANTS` array was untouched — safe to run. Seed output:
+`Permissions upserted: 101`, `Role grants upserted: 98`, `DataAccessPolicies upserted: 24`. A
+read-only verification script (written, run, then deleted) confirmed all 22
+`Finance/{Voucher,BankBook,CashBook,Conveyance}` rows present (Voucher 6 + BankBook 6 + CashBook 5
++ Conveyance 5 = 22 — Step 2S's own "27 new rows" figure does not reconcile with its own
+per-resource action lists; the action lists, which match `permissions.ts` verbatim, are treated as
+correct), zero duplicate `(module,resource,action)` triples across all 101 rows, and the 4
+pre-existing Finance resources (`Invoice`/`Expense`/`Payment`/`Advance`, 17 rows) unchanged.
+**UI gap found, not fixed:** `/api/admin/identity/permissions` already returns all 101 live rows,
+but `PermissionMatrix.tsx`'s hardcoded `MODULE_GROUPS` constant lists only
+`["Invoice","Expense","Payment","Advance"]` under `Finance` — the 4 new resources exist in the DB
+and API response but will not render as matrix rows until that array is updated (recommended
+follow-up, not done this step — out of scope per the task brief's "do not modify Finance UI").
+No role besides the pre-existing Super-Admin-gets-all loop was granted the new permissions. No
+schema change, migration, Finance write API, Finance API/UI logic change, or curated role-grant
+change was made. `npx prisma validate`, `npx tsc --noEmit`, and `npx cross-env
+RAYON_NUM_THREADS=1 next build` all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §13 and
+`docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §16 for full detail.
+
 ### 2026-06-21 — Finance permission catalogue gap closure (Step 2S)
 `docs/RBAC_MIGRATION_TRACKER.md` §4 Step 2L flagged that Voucher, BankBook, CashBook, and
 Conveyance had no dedicated `access-control` resource, forcing the Step 2M/2R Finance read-API

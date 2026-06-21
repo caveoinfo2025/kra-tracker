@@ -292,6 +292,7 @@ the current codebase as of this tracker's update.
 | 2Q | Retire `AppRole` / `RolePageAccess` after data migration decision | Not started | Low (no runtime consumers) but **data-loss risk if rushed** | Decide: migrate any real-world role customizations into `Role`/`Permission`/`UserRole`, or confirm they're fully superseded and safe to drop; do not delete the Prisma models until that decision is made and a DB backup exists |
 | 2R | Remove dead `rbac.ts` enforcement helpers (`hasPermission`, `loadRolePermissions`) after no consumers remain | Not started | Low | Straightforward once Step 2Q is complete and the `/admin` Roles tab (Step 2P) is gone — `seedDefaultRoles()`/`PAGES`/`DEFAULT_ROLES` would need their own follow-up decision since they're still referenced by `/api/admin/roles*` |
 | 2S | Close Finance permission catalogue gaps (`Finance/Voucher`, `Finance/BankBook`, `Finance/CashBook`, `Finance/Conveyance`) before building Finance write APIs | **Done this step (2026-06-21)** | Low — purely additive catalogue entries; no role assignment, schema, API behavior, or UI change; every `src/lib/finance/access.ts` helper still falls back through the prior bridge to `canManageFinance()`, so no current Manager/Accounts/Operations-Head user lost access | 4 new `Finance/*` resources added to `PERMISSION_CATALOGUE` (27 new permission rows total). `Finance/Reconciliation` deliberately deferred — folds into the new `BankBook`/`CashBook` `APPROVE` actions instead, per the existing "avoid a parallel reconciliation surface" recommendation. See §12 below for full detail. |
+| 2U | Seed/sync the Step 2S Finance catalogue entries into the dev database and verify | **Done this step (2026-06-21)** | Low — pure data sync against the dev DB (`u686730471_caveodev`); idempotent upsert, no deletes, no role-grant changes beyond the pre-existing Super-Admin-gets-all loop | Ran `npx tsx prisma/seed-admin-foundation.ts` against dev. Confirmed via read-only script: all 22 `Finance/{Voucher,BankBook,CashBook,Conveyance}` rows present (6+6+5+5 — note the brief/§12 said "27 new rows," which doesn't match the 4-resource action counts actually listed in §8/§12; actual new-row count is 22), zero duplicate `(module,resource,action)` triples across all 101 permission rows, and the 4 pre-existing Finance resources (`Invoice`/`Expense`/`Payment`/`Advance`, 17 rows) untouched. **Settings → Identity → Permission Matrix UI gap found:** the API (`/api/admin/identity/permissions`) correctly returns all 101 live rows, but `PermissionMatrix.tsx`'s hardcoded `MODULE_GROUPS` constant only lists `Finance: ["Invoice","Expense","Payment","Advance"]` — the new resources will not render in the matrix grid until that array is updated. Not fixed this step (UI change out of scope). No role grants changed beyond Super Admin (automatic, pre-existing loop). |
 
 ---
 
@@ -486,6 +487,11 @@ gap is called out explicitly — no permission was invented to fill a gap.
     Master)" above — see disambiguation note in §3).
 13. **Step 2Q** — Decide migrate-vs-delete for `AppRole`/`RolePageAccess` (unrelated to "Step 2Q
     (Customer Master)" above — see disambiguation note in §3).
+14. **Step 2U** — Seed/sync the Step 2S catalogue entries into the dev database. **(Completed,
+    2026-06-21 — see §13 below.)** Recommended follow-up, not started: update
+    `PermissionMatrix.tsx`'s hardcoded `MODULE_GROUPS` constant to include the new Finance
+    resources so they render in the UI; extend `Finance Manager`'s `ROLE_GRANTS` (or grant via the
+    Permission Matrix UI once it renders them) per Step 2S's existing recommendation.
 
 ---
 
@@ -640,3 +646,62 @@ every `src/lib/finance/access.ts` helper, exactly as Step 2M/2R left it.
 10. Normal employee self-service access (own expenses/advances/conveyance) — unaffected; no
     self-service code path was touched this step.
 11. Finance APIs compile and build — confirmed via the validation commands above.
+
+---
+
+## 13. Step 2U Detail — Dev Database Seed/Sync (2026-06-21)
+
+**Scope:** run the existing `prisma/seed-admin-foundation.ts` against the dev database to
+materialize the Step 2S catalogue entries as real `Permission` rows, and verify the result. No
+Prisma schema change, no migration, no Finance write API, no Finance API logic change, no Finance
+UI change, and no role-grant change beyond the seed script's pre-existing, unmodified
+"Super Admin gets every permission" loop.
+
+**Pre-run safety check:** `prisma/seed-admin-foundation.ts` was inspected line-by-line —
+`Permission` rows are `upsert`ed on the same `@@unique([module, resource, action])` key the schema
+defines (confirmed in `prisma/schema.prisma`), `update: { description: def.description }` never
+deletes a row, `RolePermission`/`DataAccessPolicy` rows are also `upsert`-only, and the curated
+`ROLE_GRANTS` array (Business Head/Sales Head/Sales Manager/Account Manager/Finance Manager) was
+not edited as part of Step 2S or this step — confirmed safe to run.
+
+**Environment confirmed:** `.env`'s `DATABASE_URL` resolves to `srv2201.hstgr.io` /
+`u686730471_caveodev` — the documented dev database (`CLAUDE.md` "Local dev now uses a Hostinger
+DEV database"), not production.
+
+**Command run:** `DATABASE_URL=<dev URL> npx tsx prisma/seed-admin-foundation.ts` (Prisma 7 does
+not auto-load `.env` for standalone CLI scripts — set inline, per the existing documented gotcha).
+
+**Output:** `Permissions upserted: 101`, `Roles ready: 6`, `Super Admin granted 101 permissions`,
+`Role grants upserted: 98`, `DataAccessPolicies upserted: 24`, `Admin Console Phase 2 seed
+complete.`
+
+**DB verification (read-only script, deleted after use):**
+- All 22 `Finance/{Voucher,BankBook,CashBook,Conveyance}` rows present and exactly matching §12's
+  per-resource action lists (Voucher 6, BankBook 6, CashBook 5, Conveyance 5 = 22). Note: §3/§12
+  describe this as "27 new permission rows" — that figure does not reconcile against the action
+  lists documented in the same sections (6+6+5+5=22); treating the §8/§12 action-by-action lists as
+  authoritative since they match the catalogue file verbatim.
+- Zero duplicate `(module, resource, action)` triples across all 101 rows in the `Permission`
+  table.
+- The 4 pre-existing Finance resources (`Invoice`, `Expense`, `Payment`, `Advance` — 17 rows)
+  confirmed still present and unmodified.
+
+**Settings → Identity → Permission Matrix UI verification:** partially blocked. The backing API
+(`GET /api/admin/identity/permissions`) queries `prisma.permission.findMany()` directly with no
+hardcoded filter, so it already returns all 101 live rows including the 22 new ones. However,
+`src/app/settings/identity/components/PermissionMatrix.tsx`'s client-side `MODULE_GROUPS` constant
+hardcodes which resources render per module, and its `Finance` entry is
+`["Invoice", "Expense", "Payment", "Advance"]` — it does not include `Voucher`, `BankBook`,
+`CashBook`, or `Conveyance`. Until that array is updated, the new resources exist in the database
+and are returned by the API, but will not appear as rows in the matrix grid. This is a pre-existing
+UI gap, not introduced by this step — flagged per this step's own scope (UI changes were out of
+bounds) rather than fixed.
+
+**Role grants:** unchanged beyond the seed script's existing, untouched Super-Admin-gets-all loop.
+No business role (`Finance Manager`, `Account Manager`, etc.) was granted any of the 22 new
+permissions — consistent with Step 2S's own recommendation that role-grant extension is a separate
+product decision.
+
+**Validation:** `npx prisma validate`, `npx tsc --noEmit`, and
+`npx cross-env RAYON_NUM_THREADS=1 next build` all pass (build completed successfully, including
+`/settings/identity`).
