@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && RAYON_NUM_THREADS=1 next build",
+    "build": "prisma generate && cross-env RAYON_NUM_THREADS=1 next build",
     "build:test": "node scripts/run-build-test.mjs",
     "start": "next start",
     "lint": "eslint",
@@ -44,6 +44,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "sharp": "^0.34.5",

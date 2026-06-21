@@ -21,6 +21,32 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Build script portability fix (Step 2T)
+Recent validation steps found `npm run build` failed on Windows shells (PowerShell/Git Bash):
+`package.json`'s `build` script set `RAYON_NUM_THREADS=1` using POSIX inline-assignment syntax
+(`RAYON_NUM_THREADS=1 next build`), which Windows shells parse as an attempt to run a command
+named `RAYON_NUM_THREADS=1` rather than as an environment-variable assignment. The portable
+workaround used throughout recent sessions was `npx cross-env RAYON_NUM_THREADS=1 next build`.
+**Step 2T completed:**
+- `package.json`'s `build` script updated from `"prisma generate && RAYON_NUM_THREADS=1 next
+  build"` to `"prisma generate && cross-env RAYON_NUM_THREADS=1 next build"` — only the env-var
+  prefix changed; the existing `prisma generate` step was preserved exactly (this project's build
+  script never ran `prisma migrate deploy`, so none was added).
+- `cross-env` was not previously a dependency — added via `npm install -D cross-env`
+  (`^10.1.0`), since `package-lock.json` confirms npm is the project's package manager (no
+  pnpm/yarn lock file exists).
+- `npm run build` now works across Windows/Linux shells — the previous portable validation
+  command `npx cross-env RAYON_NUM_THREADS=1 next build` is now embedded in `npm run build`
+  itself; both are equivalent going forward.
+- **Other scripts referencing `RAYON_NUM_THREADS=1` were intentionally left unchanged**
+  (`scripts/{deploy-uat,build-uat-detached,fix-uat-database-url,fix-uat-db-env-vars,
+  setup-uat-server}.mjs`) — these set the variable via POSIX `export ... &&` inside a remote SSH
+  command string that always executes in a Linux bash shell on the Hostinger server, never
+  locally on Windows, so the portability issue does not apply to them; rewriting working
+  remote-deploy commands to use `cross-env` would have been an unrelated, unrequested change.
+- No application code, Prisma schema, migration, API, UI, or RBAC logic changed. `npm run build`,
+  `npx tsc --noEmit`, and `npx prisma validate` all pass.
+
 ### 2026-06-21 — Finance permission catalogue gap closure (Step 2S)
 `docs/RBAC_MIGRATION_TRACKER.md` §4 Step 2L flagged that Voucher, BankBook, CashBook, and
 Conveyance had no dedicated `access-control` resource, forcing the Step 2M/2R Finance read-API
