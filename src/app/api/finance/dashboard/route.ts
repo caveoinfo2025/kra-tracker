@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewFinanceDashboard } from "@/lib/finance/access";
 
 // ── Money helpers (consistent with existing Finance APIs) ─────────────────────
 
@@ -62,7 +62,9 @@ function periodLabel(from: Date, to: Date): string {
  *   accountId      — restricts Ledger cash/bank flow queries to one FinAccount.
  *   departmentId   — no department column on finance models; accepted but ignored.
  *
- * Permission: canManageFinance (Accounts, Operations Head, Manager).
+ * Permission: at least one of Finance/Expense/Payment/Advance VIEW, with a
+ * temporary canManageFinance() fallback (Accounts, Operations Head, Manager).
+ * No self-service full-dashboard access.
  *
  * Assumptions documented in FINANCE_API_WIRING_PLAN.md § Step 2G.
  */
@@ -71,7 +73,7 @@ export async function GET(req: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageFinance(session.user)) {
+  if (!(await canViewFinanceDashboard(session))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

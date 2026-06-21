@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { isAccounts, isOperationsHead } from "@/lib/roles";
+import { canViewAllConveyance } from "@/lib/finance/access";
 
 /**
  * GET /api/finance/conveyance
  *
  * Read-only list of TravelClaim rows (local conveyance trips), scoped:
  *   - Employees see only their own claims.
- *   - Managers / Accounts / Operations Head see all claims.
+ *   - Finance/Expense/VIEW (closest catalogue fit — no dedicated Conveyance
+ *     resource exists), with a temporary canManageFinance() fallback
+ *     (Managers / Accounts / Operations Head) see all claims.
  *
  * No write endpoints yet — Add Trip, approve/reject, monthly settlement, and
  * policy config remain client-side mock pending a future schema extension
@@ -22,7 +24,7 @@ export async function GET(_req: NextRequest) {
   }
 
   const user = session.user;
-  const seesAll = !!user.isManager || isAccounts(user) || isOperationsHead(user);
+  const seesAll = await canViewAllConveyance(session);
 
   const claims = await prisma.travelClaim.findMany({
     where: seesAll ? {} : { employeeId: user.employeeId! },

@@ -285,7 +285,7 @@ the current codebase as of this tracker's update.
 | 2J | Align sidebar/navigation visibility with `access-control` | **Done this step (2026-06-20)** | Low — additive (OR'd with existing roles.ts checks), no link that was previously visible to a manager/Accounts user was removed | New `src/lib/access-control/navigation.ts` helper (`getNavigationCapabilities()`) loads all of a user's permissions once per request; `SidebarLinks.tsx`/`Navbar.tsx` now gate Masters and Finance Operations sub-items on it. Settings, Pipeline/People groups, and self-service Finance remain on the roles.ts bridge — see §10 for full detail |
 | 2K | Align Settings landing/cards visibility with `access-control` | **Done this step (2026-06-20)** | Medium — additive (`bridgeAccess \|\| capability`), no manager/Ops Head/Head of Sales lost the landing page or any card; the five subpages still on `isManager`-only guards (Finance, Communication, Integration, Security, Performance) are a documented gap, not a regression introduced by this step | New `src/lib/access-control/settings-capabilities.ts` helper (`getSettingsCapabilities()`); `AdminConsole.tsx` now filters cards on it and shows an empty-state message when no card matches; CRM card falls back to the `isManager` bridge pending the Step 2L `Settings/CRM` catalogue gap |
 | 2L | **Planning done (2026-06-20):** Finance Write Access-Control Plan created. **Implementation not started:** actually build the mapped Finance write APIs on `access-control`, add the catalogue gaps identified by the plan (`Finance/Voucher`, `Finance/Payment/EDIT`, `Finance/Advance/EDIT`, dedicated BankBook/CashBook/Conveyance/Reconciliation resources), and close the CRM-admin gap from Step 2F | **Plan: Done. Build: Not started** | Medium — without the catalogue gaps closed, any new Finance write API still risks an imprecise interim mapping (e.g. several distinct Voucher actions all falling back to `Finance/Payment/CREATE`); the existing CRM-admin gap (no `Settings/CRM` permission) still blocks completing Step 2F | See `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` for the full 33-endpoint mapping, the 8 catalogue gaps, and the Finance-transaction-model branch/department Schema Gap. Adding `Settings/CRM` (VIEW/EDIT) to `PERMISSION_CATALOGUE` and migrating the 7 CRM-admin routes remains a separate, not-yet-started sub-task of this step. |
-| 2M | Migrate Finance **read** APIs from `roles.ts`-only (`canManageFinance`, `isAccounts`, `isOperationsHead`) to `access-control` + own-scope rules | Not started | High — these are user-facing, high-traffic routes (`/api/finance/*`, `/api/expenses`, `/api/advances`); a careless migration could lock out legitimate Accounts/Operations-Head users who aren't `isManager` | Requires defining `Finance/{Expense,Advance,Payment,Invoice}/VIEW` scope rules (`OWN` vs `ALL`) via `DataAccessPolicy`, not a simple swap |
+| 2M | Migrate Finance **read** APIs from `roles.ts`-only (`canManageFinance`, `isAccounts`, `isOperationsHead`) to `access-control` + own-scope rules | **Done this step (2026-06-21)** | Medium — additive (`access-control` permission OR'd with the existing `canManageFinance()` bridge), no Accounts/Operations-Head/Manager user lost access; employee self-service own-data access unchanged | New `src/lib/finance/access.ts` helper module (`canViewFinancePayments`, `canViewFinanceVouchers`, `canViewFinanceDashboard`, `canViewAllFinanceExpenses`, `canViewAllFinanceAdvances`, `canViewAllConveyance`, `isSelfFinanceRequest`). All 11 `/api/finance/*` GET routes now check the matching `access-control` permission first, falling back to `canManageFinance()` (or the equivalent inline `isManager\|\|isAccounts\|\|isOperationsHead` for conveyance) until Finance-Operations roles hold the real grant. See §11 below for the full route-by-route mapping and catalogue-gap detail. |
 | 2N | Migrate Customer/Vendor Master **page-level** guards to `access-control` | **Done this step (2026-06-20)** | Low — additive bypass (`canView \|\| isManager`, matching the sidebar's existing manager-only bypass), no manager lost access; non-manager employees with no real grant now correctly lose access to `/masters/customers`/`/masters/vendors` — this is the intended fix, not a regression | `/masters/customers/page.tsx` and `/masters/vendors/page.tsx` now call `hasPermission(userId, "Masters", "CustomerMaster"\|"VendorMaster", "VIEW")`; legacy `/customers` remains session-only (unchanged, TODO added) — its retirement is Step 2O |
 | 2O | Retire or redirect `/customers` legacy route | Not started | Low-Medium — functional overlap with `/masters/customers`; needs a product decision on which is canonical before any redirect | Blocked on a product decision, not a technical blocker |
 | 2P | Retire `/admin` legacy route after safe replacement | Not started | Medium — `/admin` already `redirect()`s to `/settings/administration`'s `AdminClient`, but the embedded Roles & Access tab (now freeze-bannered) and several other tabs have no `/settings/*` equivalent yet | Cannot retire until every tab's functionality has a confirmed `/settings/*` home |
@@ -464,9 +464,61 @@ gap is called out explicitly — no permission was invented to fill a gap.
    2026-06-20 — live-verified: redirect chain, real data, manager and non-manager permission
    behavior all confirmed in a browser session; see §3.)** Customer Master now has one canonical
    page route. No further follow-up planned for Customer Master route consolidation.
-10. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
-    `/api/advances`) from `roles.ts`-only to `access-control` + own-scope `DataAccessPolicy` rules.
+10. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`) from `roles.ts`-only to
+    `access-control`, preserving self-service own-data access. **(Completed, 2026-06-21 — see §11
+    below.)** `/api/expenses` and `/api/advances` (the existing mobile/CRM routes, distinct from
+    `/api/finance/*`) were explicitly out of scope for this step and remain unchanged.
 11. **Step 2P** — Legacy `/admin` Roles tab retirement plan (unrelated to "Step 2P (Customer
     Master)" above — see disambiguation note in §3).
 12. **Step 2Q** — Decide migrate-vs-delete for `AppRole`/`RolePageAccess` (unrelated to "Step 2Q
     (Customer Master)" above — see disambiguation note in §3).
+
+---
+
+## 11. Step 2M Detail — Finance Read API Migration (2026-06-21)
+
+**Scope:** the 11 `GET` handlers under `/api/finance/*` (accounts, dashboard, bank-book,
+cash-book, expenses, expenses/[id], advances, conveyance, vouchers, vouchers/[id],
+voucher-sequences). No Finance write API, schema change, migration, UI change, or business-logic
+change was made. `roles.ts` and `canManageFinance()` were **not removed** — they remain a
+documented temporary fallback.
+
+**New helper:** `src/lib/finance/access.ts` —
+
+| Helper | Used by | access-control check | Fallback |
+|---|---|---|---|
+| `canViewFinancePayments` | `accounts`, `bank-book`, `cash-book` | `Finance/Payment/VIEW` | `canManageFinance()` |
+| `canViewFinanceVouchers` | `vouchers`, `vouchers/[id]`, `voucher-sequences` | `Finance/Payment/VIEW` OR `Settings/Finance/VIEW` | `canManageFinance()` |
+| `canViewFinanceDashboard` | `dashboard` | `Finance/Expense/VIEW` OR `Finance/Payment/VIEW` OR `Finance/Advance/VIEW` | `canManageFinance()` |
+| `canViewAllFinanceExpenses` | `expenses`, `expenses/[id]` | `Finance/Expense/VIEW` | `canManageFinance()` |
+| `canViewAllFinanceAdvances` | `advances` (GET only) | `Finance/Advance/VIEW` | `canManageFinance()` |
+| `canViewAllConveyance` | `conveyance` | delegates to `canViewAllFinanceExpenses` (no dedicated resource) | `canManageFinance()` (equivalent to the prior inline `isManager\|\|isAccounts\|\|isOperationsHead`) |
+
+**Catalogue gaps used (none invented — see `permissions.ts` and
+`FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §3 for the original confirmation):**
+- `Finance/Voucher` does not exist as a resource at all — `Finance/Payment/VIEW` and
+  `Settings/Finance/VIEW` are the closest-fit grants for vouchers/voucher-sequences.
+- No dedicated `BankBook`/`CashBook`/`Account` resource exists — `Finance/Payment/VIEW` is the
+  closest fit for `accounts`, `bank-book`, `cash-book`.
+- No dedicated `Conveyance` resource exists — `Finance/Expense/VIEW` is the closest fit
+  (conveyance is travel-expense reimbursement on the `TravelClaim` model).
+
+**Self-service preserved, not changed:**
+- `expenses`, `expenses/[id]`, `advances` (GET), `conveyance` — own-data filtering logic
+  (`employeeId === session.user.employeeId`) is untouched; only the *full-visibility* boolean
+  (previously `canManageFinance(session.user)`, a synchronous call) now also accepts the matching
+  `access-control` grant via an `await`-ed helper. No employee gained or lost visibility into
+  another employee's records.
+- `POST /api/finance/advances` (the one existing Finance write endpoint) was **not touched** —
+  out of scope per the task brief ("Do not create Finance write APIs").
+
+**Scope/DataAccessPolicy:** not applied this step. None of the Finance transaction models
+(`Expense`, `EmployeeAdvance`, `TravelClaim`, `Voucher`, `Ledger`, `FinAccount`) carry a real
+`branchId`/`departmentId` FK (confirmed in `FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §9 — only
+`FinAccount.branchName`, free-text, no `@relation`), so `canAccessScope()`'s BRANCH/DEPARTMENT
+cases would always fall through to "allow" for Finance data regardless of any `DataAccessPolicy`
+row configured. Permission-level checks were applied; scope-level checks were not, per that
+pre-existing, documented schema limitation — not introduced by this step.
+
+**Validation:** `npx tsc --noEmit`, `npx prisma validate`, and
+`npx cross-env RAYON_NUM_THREADS=1 next build` all pass.

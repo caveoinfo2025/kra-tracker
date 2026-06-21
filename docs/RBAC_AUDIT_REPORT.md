@@ -174,6 +174,20 @@ planned endpoint to a real `access-control` permission ahead of time:
   made — this step produced one new documentation file only. `npx tsc --noEmit`, `npx prisma
   validate`, and `next build` all pass (unaffected, since no application code changed).
 
+**Step 2R completed (2026-06-21).** Finance read APIs no longer rely only on `roles.ts` where
+`access-control` permissions exist: a new `src/lib/finance/access.ts` helper module checks the
+closest-fit `Finance/*` (or `Settings/Finance`) permission first for all 11
+`GET /api/finance/*` route files in the table above, falling back to `canManageFinance()` (or the
+prior inline `isManager||isAccounts||isOperationsHead` for `conveyance`) until Finance-Operations
+roles hold the real grant. Normal employees retain own-record access only — the existing own-data
+filtering in `expenses`, `expenses/[id]`, `advances` (GET), and `conveyance` is unchanged. Bank
+Book, Cash Book, and Voucher operational reads (`accounts`, `bank-book`, `cash-book`, `vouchers`,
+`vouchers/[id]`, `voucher-sequences`) are now protected by `Finance/Payment/VIEW` (the closest
+catalogue fit — no dedicated `BankBook`/`CashBook`/`Voucher` resource exists, see §10 item 4 of
+`RBAC_MIGRATION_TRACKER.md`), OR `Settings/Finance/VIEW` for vouchers. `POST
+/api/finance/advances` and the separate `/api/expenses`/`/api/advances` mobile/CRM routes were not
+touched — out of scope. See `RBAC_MIGRATION_TRACKER.md` §11 for the full route-by-route mapping.
+
 ### 3.8 Settings / Organization (mixed — both systems checked, OR'd together)
 
 | API Route | Methods | Auth Check | Permission Check | System Used | Risk |

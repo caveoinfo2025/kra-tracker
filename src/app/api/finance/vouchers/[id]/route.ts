@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewFinanceVouchers } from "@/lib/finance/access";
 
 // ── Money helpers ─────────────────────────────────────────────────────────────
 
@@ -99,7 +99,9 @@ function derivePaymentMode(entries: { type: string }[]): string | null {
  * GET /api/finance/vouchers/[id]
  *
  * Full voucher detail for the Voucher Details Drawer.
- * Permission: canManageFinance.
+ * Permission: Finance/Payment/VIEW or Settings/Finance/VIEW (closest
+ * catalogue fit — no dedicated Finance/Voucher resource exists), with a
+ * temporary canManageFinance() fallback.
  *
  * Schema gaps (returned as null / empty — no columns in current schema):
  *   - tallyExportStatus  → always "NOT_EXPORTED"
@@ -119,7 +121,7 @@ export async function GET(
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageFinance(session.user)) {
+  if (!(await canViewFinanceVouchers(session))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

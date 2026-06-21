@@ -573,6 +573,20 @@ here.
   in §4 routes through `Workflow/ApprovalRequest/APPROVE` and the Step 2A object-level check, never
   a bespoke per-entity Finance approval implementation, per §7.
 
+> **Update (2026-06-21, Step 2M/2R) — Finance read API migration completed.** The `GET
+> /api/finance/*` read surface this plan deliberately left untouched (§2, §14 above) has now been
+> migrated to `access-control` permissions, using the exact closest-fit mappings this plan
+> identified (`Finance/Payment/VIEW` for BankBook/CashBook/Accounts/Vouchers,
+> `Settings/Finance/VIEW` as an additional accepted grant for Vouchers, `Finance/Expense/VIEW` for
+> the Expense Register and Conveyance, `Finance/Advance/VIEW` for Advances), each with a temporary
+> `canManageFinance()` fallback. See `docs/RBAC_MIGRATION_TRACKER.md` §11 for the full
+> route-by-route detail and the new `src/lib/finance/access.ts` helper module. **This does not
+> change anything in this document** — every catalogue gap, scope-rule limitation, and build
+> sequence item above remains exactly as written. **Future Finance write APIs must still follow
+> this plan and use `access-control` from day one** — the read-API migration did not add, remove,
+> or alter any permission in `PERMISSION_CATALOGUE`, so every Catalogue Gap in §3/§12 is still
+> open.
+
 ---
 
 ## Sources Reviewed

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewFinancePayments } from "@/lib/finance/access";
 
 /**
  * Format a Float (₹ Lakhs stored as DOUBLE) as a fixed-precision string.
@@ -21,14 +21,16 @@ function fmtMoney(v: number): string {
  *   branchId   - filter by branchName (FinAccount has no FK branch; branchId is treated as branchName)
  *   activeOnly - true | false  (default: true)
  *
- * Permission: canManageFinance (Accounts, Operations Head, Manager)
+ * Permission: Finance/Payment/VIEW (closest catalogue fit — no dedicated
+ * Account resource exists), with a temporary canManageFinance() fallback
+ * (Accounts, Operations Head, Manager). No self-service access.
  */
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageFinance(session.user)) {
+  if (!(await canViewFinancePayments(session))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

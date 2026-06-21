@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewFinanceVouchers } from "@/lib/finance/access";
 
 /**
  * GET /api/finance/voucher-sequences
@@ -26,14 +26,17 @@ import { canManageFinance } from "@/lib/roles";
  *   status         – ACTIVE | INACTIVE
  *   updatedAt      – ISO timestamp of last counter update
  *
- * Permission: canManageFinance (Accounts, Operations Head, Manager).
+ * Permission: Finance/Payment/VIEW or Settings/Finance/VIEW (closest
+ * catalogue fit — no dedicated Finance/Voucher resource exists), with a
+ * temporary canManageFinance() fallback (Accounts, Operations Head, Manager).
+ * No public/self-service access.
  */
 export async function GET() {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageFinance(session.user)) {
+  if (!(await canViewFinanceVouchers(session))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

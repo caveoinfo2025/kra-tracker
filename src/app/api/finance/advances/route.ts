@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewAllFinanceAdvances } from "@/lib/finance/access";
 import { startApproval, getWorkflowByCode } from "@/lib/workflow-engine";
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -19,7 +19,8 @@ function fmt(v: number): string {
  * GET /api/finance/advances
  *
  * Lists EmployeeAdvance records with summary aggregations.
- * Finance managers (canManageFinance) see all; others see only their own.
+ * Finance/Advance/VIEW (temporary canManageFinance() fallback) sees all;
+ * others see only their own.
  *
  * Query params:
  *   page, pageSize
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const isFinMgr = canManageFinance(session.user);
+  const isFinMgr = await canViewAllFinanceAdvances(session);
   const empId    = session.user.employeeId!;
   const sp       = req.nextUrl.searchParams;
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewAllFinanceExpenses } from "@/lib/finance/access";
 
 /** Serialize a Float (₹ Lakhs, DOUBLE) as a 2-decimal string. */
 function fmtMoney(v: number): string {
@@ -46,7 +46,7 @@ function parseAttachments(json: string): { fileName: string; fileUrl: string }[]
  * approval history (from ApprovalRequest/ApprovalAction), and audit trail.
  *
  * Permission:
- *   canManageFinance → any expense
+ *   Finance/Expense/VIEW (temporary canManageFinance() fallback) → any expense
  *   Regular employee → own expense only (403 otherwise)
  *
  * Money: returned as 2-decimal strings in ₹ Lakhs.
@@ -81,7 +81,7 @@ export async function GET(
   }
 
   // Ownership check: non-finance employees may only view their own expenses.
-  const isFinanceManager = canManageFinance(session.user);
+  const isFinanceManager = await canViewAllFinanceExpenses(session);
   if (!isFinanceManager && expense.employeeId !== session.user.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

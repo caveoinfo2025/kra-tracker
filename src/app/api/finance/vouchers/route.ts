@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewFinanceVouchers } from "@/lib/finance/access";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -144,7 +144,10 @@ function deriveAccountName(ledgerEntries: { account: { name: string } }[]): stri
  * GET /api/finance/vouchers
  *
  * Returns a paginated Voucher Register with summary aggregations.
- * Permission: canManageFinance (Accounts, Operations Head, Manager).
+ * Permission: Finance/Payment/VIEW or Settings/Finance/VIEW (closest catalogue
+ * fit — no dedicated Finance/Voucher resource exists), with a temporary
+ * canManageFinance() fallback (Accounts, Operations Head, Manager). No
+ * self-service access to the general voucher register.
  *
  * Query params:
  *   page, pageSize, dateFrom, dateTo, financialYear,
@@ -163,7 +166,7 @@ export async function GET(req: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageFinance(session.user)) {
+  if (!(await canViewFinanceVouchers(session))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

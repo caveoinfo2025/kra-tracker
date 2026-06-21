@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewAllFinanceExpenses } from "@/lib/finance/access";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -59,7 +59,7 @@ function parseAttachments(json: string): { fileName: string; fileUrl: string }[]
  *   search       — text search on narration, category, customerName
  *
  * Permission:
- *   canManageFinance → all expenses
+ *   Finance/Expense/VIEW (temporary canManageFinance() fallback) → all expenses
  *   Regular employee → own expenses only (same RBAC as /api/expenses)
  *
  * Money: returned as 2-decimal strings in ₹ Lakhs (same unit as DB).
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const isFinanceManager = canManageFinance(session.user);
+  const isFinanceManager = await canViewAllFinanceExpenses(session);
   const empId = session.user.employeeId!;
 
   const sp = req.nextUrl.searchParams;

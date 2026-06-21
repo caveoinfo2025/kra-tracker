@@ -21,6 +21,26 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Finance read API migration to access-control (Step 2M/2R)
+`docs/RBAC_MIGRATION_TRACKER.md` §4/§10 Step 2M ("migrate Finance read APIs from `roles.ts`-only to
+`access-control`") was completed. New `src/lib/finance/access.ts` helper module
+(`canViewFinancePayments`, `canViewFinanceVouchers`, `canViewFinanceDashboard`,
+`canViewAllFinanceExpenses`, `canViewAllFinanceAdvances`, `canViewAllConveyance`,
+`isSelfFinanceRequest`) checks the closest-fit `access-control` permission first, falling back to
+`canManageFinance()` (or the prior inline `isManager||isAccounts||isOperationsHead` for
+conveyance). All 11 `GET /api/finance/*` route files (`accounts`, `dashboard`, `bank-book`,
+`cash-book`, `expenses`, `expenses/[id]`, `advances`, `conveyance`, `vouchers`, `vouchers/[id]`,
+`voucher-sequences`) were updated. Mapping: `Finance/Payment/VIEW` for BankBook/CashBook/Accounts/
+Vouchers (closest fit — no dedicated resource exists), `Settings/Finance/VIEW` as an additional
+accepted grant for Vouchers, `Finance/Expense/VIEW` for the Expense Register and Conveyance,
+`Finance/Advance/VIEW` for Advances. Employee self-service own-data filtering (own expenses/
+advances/conveyance) is unchanged; only the full-visibility boolean now also accepts the matching
+permission. `roles.ts`/`canManageFinance()` were **not removed** — retained as a temporary
+fallback per the freeze rules. `POST /api/finance/advances`, `/api/expenses`, and `/api/advances`
+were not touched (out of scope). No schema, migration, UI, or business-logic change. See
+`docs/RBAC_MIGRATION_TRACKER.md` §11 for the full route-by-route detail. `npx tsc --noEmit`, `npx
+prisma validate`, and `npx cross-env RAYON_NUM_THREADS=1 next build` all pass.
+
 ### 2026-06-20 — Security fix: Approval Engine object-level authorization (committed separately from session 7)
 `docs/RBAC_AUDIT_REPORT.md` flagged that `POST /api/approvals/[id]/action` let any authenticated employee approve/reject/return/delegate/cancel **any** approval request by guessing/incrementing a `requestId` — `approveRequest`/`rejectRequest`/`returnRequest`/`delegateRequest`/`cancelRequest` in `src/lib/workflow-engine/approval.ts` never checked that the caller was an eligible approver. Fixed via a new `src/lib/workflow-engine/authorization.ts` (`assertCanActOnApprovalRequest()`), called from inside each action function before any mutation. APPROVE/REJECT/RETURN/DELEGATE now require the request to be `PENDING` and the actor to be a resolved current-step approver, an active delegate of one, or hold the `Workflow/ApprovalRequest/APPROVE` permission via `access-control`; CANCEL is restricted to the original requester on a still-`PENDING` request (no admin override exists yet — documented limitation). The action functions now return `{ ok, reason? }` instead of a bare `boolean`; the API route maps reasons to 401/403/404/409. No UI changes needed (`/approvals` and `/finance/approvals` already render API `error` text). See `docs/RBAC_AUDIT_REPORT.md` §10 item 1 for full detail. `npx tsc --noEmit`, `npx eslint`, `npx prisma validate`, and `next build` all pass.
 

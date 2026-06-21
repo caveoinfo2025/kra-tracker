@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canManageFinance } from "@/lib/roles";
+import { canViewFinancePayments } from "@/lib/finance/access";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE     = 100;
@@ -43,14 +43,16 @@ function r2(v: number): number {
  *   Balances are NEVER calculated or mutated here; only read from the DB / derived
  *   read-only from existing rows.
  *
- * Permission: canManageFinance (Accounts, Operations Head, Manager)
+ * Permission: Finance/Payment/VIEW (closest catalogue fit — no dedicated
+ * BankBook resource exists), with a temporary canManageFinance() fallback
+ * (Accounts, Operations Head, Manager). No self-service access.
  */
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageFinance(session.user)) {
+  if (!(await canViewFinancePayments(session))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
