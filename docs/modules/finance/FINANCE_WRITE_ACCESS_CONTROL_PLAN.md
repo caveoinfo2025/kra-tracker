@@ -589,6 +589,79 @@ here.
 
 ---
 
+## 15. Finance Permission Catalogue Gap Closure (Step 2S, 2026-06-21)
+
+The four highest-priority Catalogue Gaps from §3/§12 — `Finance/Voucher` (no resource at all),
+and the missing dedicated `BankBook`/`CashBook`/`Conveyance` resources — have been **closed**.
+`PERMISSION_CATALOGUE` (`src/lib/access-control/permissions.ts`) now defines:
+
+| Resource | Actions added | Notes |
+|---|---|---|
+| `Finance/Voucher` | `VIEW`, `CREATE`, `EDIT`, `DELETE`, `APPROVE`, `EXPORT` | Closes the §3/§12 gap — previously did not exist as a resource at all. |
+| `Finance/BankBook` | `VIEW`, `CREATE`, `EDIT`, `APPROVE`, `IMPORT`, `EXPORT` | `IMPORT` covers bank statement import; `APPROVE` covers reconciliation/adjustment sign-off. |
+| `Finance/CashBook` | `VIEW`, `CREATE`, `EDIT`, `APPROVE`, `EXPORT` | No `IMPORT` action — no cash-statement-import use case exists. |
+| `Finance/Conveyance` | `VIEW`, `CREATE`, `EDIT`, `APPROVE`, `EXPORT` | Closes the conflation flagged in §12 ("folds into `Finance/Expense`, conflating travel reimbursement with general expense management"). |
+
+**`Finance/Reconciliation` was deliberately deferred, not added.** §4/§12 already recommended
+folding reconciliation into the Bank/Cash Book `mark-reconciled`/`reconcile` actions rather than
+building a parallel surface, to avoid "two systems for one concern." Consistent with that
+recommendation, reconciliation approval now maps to `Finance/BankBook/APPROVE` /
+`Finance/CashBook/APPROVE` (added above) instead of a dedicated `Reconciliation` resource. This
+remains a documented future catalogue gap if a standalone Reconciliation workflow is ever built
+that doesn't fit inside Bank/Cash Book.
+
+**Updated permission mapping for §4/§5 (supersedes the interim mappings, where noted):**
+
+| Planned API (§4) | §5 interim mapping | **Updated mapping (Step 2S)** |
+|---|---|---|
+| Voucher create | `Finance/Payment/CREATE` | **`Finance/Voucher/CREATE`** |
+| Voucher cancel/void | `Finance/Payment/CREATE` | **`Finance/Voucher/DELETE`** |
+| Voucher approve | `Workflow/ApprovalRequest/APPROVE` (unchanged — per §7, approval always routes through the global engine) | unchanged |
+| Voucher PDF generate (mutates `pdfUrl`) | `Finance/Payment/CREATE` | **`Finance/Voucher/EDIT`** |
+| Voucher PDF view (read-only) | `Finance/Payment/VIEW` | **`Finance/Voucher/VIEW`** |
+| Voucher Tally export | `Finance/Invoice/EXPORT` (closest fit, semantically about invoices) | **`Finance/Voucher/EXPORT`** |
+| Bank ledger entry create | `Finance/Payment/CREATE` | **`Finance/BankBook/CREATE`** |
+| Bank ledger entry edit | Catalogue Gap (no `Finance/Payment/EDIT`) | **`Finance/BankBook/EDIT`** |
+| Bank statement import | `Finance/Payment/CREATE` (no `IMPORT` action existed) | **`Finance/BankBook/IMPORT`** |
+| Bank reconciliation approve | `Finance/Payment/APPROVE` (closest fit) | **`Finance/BankBook/APPROVE`** |
+| Cash ledger entry create / transfer | `Finance/Payment/CREATE` | **`Finance/CashBook/CREATE`** |
+| Cash ledger entry edit | Catalogue Gap | **`Finance/CashBook/EDIT`** |
+| Cash adjustment approve / reconcile | `Finance/Payment/APPROVE` | **`Finance/CashBook/APPROVE`** |
+| Conveyance trip create | self-service (unchanged) / `Finance/Expense/CREATE` for cross-employee | **self-service (unchanged) / `Finance/Conveyance/CREATE`** |
+| Conveyance trip edit | `Finance/Expense/EDIT` (closest fit) | **`Finance/Conveyance/EDIT`** |
+| Conveyance approve / monthly settlement | `Workflow/ApprovalRequest/APPROVE` (unchanged) / `Finance/Payment/CREATE` for the settlement-create step | `Workflow/ApprovalRequest/APPROVE` (unchanged) / **`Finance/Conveyance/APPROVE`** or `Finance/CashBook/CREATE` depending on whether the action is "approve the batch" vs. "post the resulting Ledger entry" |
+
+**Mappings explicitly NOT changed by this step** (no catalogue resource added for these — still
+open Catalogue Gaps, tracked in §12): `Finance/Payment/EDIT` does not exist (Bank/Cash entry edit
+above is now covered by the new `BankBook`/`CashBook` `EDIT` actions instead, which supersedes the
+need for a `Payment/EDIT` action specifically); `Finance/Advance/EDIT` does not exist (Advance
+Settle still has no clean mapping — recommend `Finance/Payment/CREATE` as before); `Finance/
+Expense/IMPORT` does not exist (Expense bulk import still maps to `Finance/Expense/CREATE`
+per-row, as before).
+
+**Permission sync / seed status:** `prisma/seed-admin-foundation.ts` iterates
+`PERMISSION_CATALOGUE` directly and upserts every entry into the `Permission` table — the 27 new
+rows above will be created automatically the next time that script runs (`npx tsx
+prisma/seed-admin-foundation.ts`), no script change was required for that part. The script's
+"Super Admin gets every permission" loop (queries all `Permission` rows after the upsert) will
+also automatically grant Super Admin all 27 new permissions. **No other role (Business Head,
+Sales Head, Sales Manager, Account Manager, Finance Manager) was granted any of the new
+permissions** — `ROLE_GRANTS` was deliberately left unchanged, since extending a specific role's
+grants is a product decision distinct from catalogue-gap closure, and the temporary
+`canManageFinance()` bridge in every helper means no Finance-Operations user loses access in the
+meantime. Granting `Finance Manager` (and possibly `Account Manager`) the new Voucher/BankBook/
+CashBook/Conveyance permissions — matching the existing pattern where Finance Manager already
+holds full `Invoice`/`Expense`/`Payment`/`Advance` access — is the recommended next step, either
+by extending `ROLE_GRANTS` or via the Settings → Identity → Permission Matrix UI.
+
+**`src/lib/finance/access.ts` updated** — `canViewFinanceBankBook()` and
+`canViewFinanceCashBook()` (new) and `canViewFinanceVouchers()`/`canViewAllConveyance()` (updated)
+now check their dedicated resource first, falling through to the prior closest-fit bridge
+(`Finance/Payment/VIEW` or `Finance/Expense/VIEW`) and finally `canManageFinance()`. See
+`docs/RBAC_MIGRATION_TRACKER.md` §11 for the full helper-to-route mapping.
+
+---
+
 ## Sources Reviewed
 
 - `docs/RBAC_AUDIT_REPORT.md` (§§2–11, especially §3.7 Finance route matrix, §8 recommended

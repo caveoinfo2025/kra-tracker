@@ -90,6 +90,36 @@ export const PERMISSION_CATALOGUE: PermissionDef[] = [
   { module: "Finance", resource: "Advance",  action: "CREATE",  description: "Request advances" },
   { module: "Finance", resource: "Advance",  action: "APPROVE", description: "Approve advances" },
 
+  // ── Finance / Voucher (Step 2S — catalogue gap closure) ────────────────────
+  { module: "Finance", resource: "Voucher",  action: "VIEW",    description: "View voucher register and detail" },
+  { module: "Finance", resource: "Voucher",  action: "CREATE",  description: "Create/generate vouchers" },
+  { module: "Finance", resource: "Voucher",  action: "EDIT",    description: "Amend editable voucher metadata" },
+  { module: "Finance", resource: "Voucher",  action: "DELETE",  description: "Cancel/reverse a voucher" },
+  { module: "Finance", resource: "Voucher",  action: "APPROVE", description: "Approve a voucher" },
+  { module: "Finance", resource: "Voucher",  action: "EXPORT",  description: "Export vouchers (Tally/XML/PDF)" },
+
+  // ── Finance / BankBook (Step 2S — catalogue gap closure) ───────────────────
+  { module: "Finance", resource: "BankBook", action: "VIEW",    description: "View bank book register" },
+  { module: "Finance", resource: "BankBook", action: "CREATE",  description: "Create bank ledger entries" },
+  { module: "Finance", resource: "BankBook", action: "EDIT",    description: "Amend a bank ledger entry" },
+  { module: "Finance", resource: "BankBook", action: "APPROVE", description: "Approve bank reconciliation or adjustment" },
+  { module: "Finance", resource: "BankBook", action: "IMPORT",  description: "Import a bank statement" },
+  { module: "Finance", resource: "BankBook", action: "EXPORT",  description: "Export bank book" },
+
+  // ── Finance / CashBook (Step 2S — catalogue gap closure) ───────────────────
+  { module: "Finance", resource: "CashBook", action: "VIEW",    description: "View cash book register" },
+  { module: "Finance", resource: "CashBook", action: "CREATE",  description: "Create cash ledger entries" },
+  { module: "Finance", resource: "CashBook", action: "EDIT",    description: "Amend a cash ledger entry" },
+  { module: "Finance", resource: "CashBook", action: "APPROVE", description: "Approve cash adjustment or reconciliation" },
+  { module: "Finance", resource: "CashBook", action: "EXPORT",  description: "Export cash book" },
+
+  // ── Finance / Conveyance (Step 2S — catalogue gap closure) ─────────────────
+  { module: "Finance", resource: "Conveyance", action: "VIEW",    description: "View conveyance claims and trips" },
+  { module: "Finance", resource: "Conveyance", action: "CREATE",  description: "Create a conveyance trip or claim" },
+  { module: "Finance", resource: "Conveyance", action: "EDIT",    description: "Edit a draft or returned conveyance trip" },
+  { module: "Finance", resource: "Conveyance", action: "APPROVE", description: "Approve conveyance claims or monthly settlement" },
+  { module: "Finance", resource: "Conveyance", action: "EXPORT",  description: "Export conveyance report" },
+
   // ── Workflow ──────────────────────────────────────────────────────────────
   { module: "Workflow", resource: "ApprovalRequest",    action: "VIEW",    description: "View approval requests" },
   { module: "Workflow", resource: "ApprovalRequest",    action: "APPROVE", description: "Approve/reject requests" },

@@ -291,6 +291,7 @@ the current codebase as of this tracker's update.
 | 2P | Retire `/admin` legacy route after safe replacement | Not started | Medium — `/admin` already `redirect()`s to `/settings/administration`'s `AdminClient`, but the embedded Roles & Access tab (now freeze-bannered) and several other tabs have no `/settings/*` equivalent yet | Cannot retire until every tab's functionality has a confirmed `/settings/*` home |
 | 2Q | Retire `AppRole` / `RolePageAccess` after data migration decision | Not started | Low (no runtime consumers) but **data-loss risk if rushed** | Decide: migrate any real-world role customizations into `Role`/`Permission`/`UserRole`, or confirm they're fully superseded and safe to drop; do not delete the Prisma models until that decision is made and a DB backup exists |
 | 2R | Remove dead `rbac.ts` enforcement helpers (`hasPermission`, `loadRolePermissions`) after no consumers remain | Not started | Low | Straightforward once Step 2Q is complete and the `/admin` Roles tab (Step 2P) is gone — `seedDefaultRoles()`/`PAGES`/`DEFAULT_ROLES` would need their own follow-up decision since they're still referenced by `/api/admin/roles*` |
+| 2S | Close Finance permission catalogue gaps (`Finance/Voucher`, `Finance/BankBook`, `Finance/CashBook`, `Finance/Conveyance`) before building Finance write APIs | **Done this step (2026-06-21)** | Low — purely additive catalogue entries; no role assignment, schema, API behavior, or UI change; every `src/lib/finance/access.ts` helper still falls back through the prior bridge to `canManageFinance()`, so no current Manager/Accounts/Operations-Head user lost access | 4 new `Finance/*` resources added to `PERMISSION_CATALOGUE` (27 new permission rows total). `Finance/Reconciliation` deliberately deferred — folds into the new `BankBook`/`CashBook` `APPROVE` actions instead, per the existing "avoid a parallel reconciliation surface" recommendation. See §12 below for full detail. |
 
 ---
 
@@ -380,9 +381,18 @@ gap is called out explicitly — no permission was invented to fill a gap.
 - `Finance / Expense / VIEW`, `CREATE`, `EDIT`, `DELETE`, `APPROVE`
 - `Finance / Payment / VIEW`, `CREATE`, `APPROVE` — **no `EDIT` action exists for Payment**
 - `Finance / Advance / VIEW`, `CREATE`, `APPROVE` — **no `EDIT` action exists for Advance**
-- **`Finance / Voucher` does not exist in the catalogue at all.** Voucher administration is
-  currently covered only by `Settings/Finance` (the admin-config route, Step 2F), not a
-  dedicated `Finance/Voucher` resource. Flagged as a gap, not invented.
+- `Finance / Voucher / VIEW`, `CREATE`, `EDIT`, `DELETE`, `APPROVE`, `EXPORT` — **added Step 2S**
+  (2026-06-21). Previously did not exist in the catalogue at all; Voucher administration was
+  covered only by `Settings/Finance` (the admin-config route, Step 2F). See §12 below.
+- `Finance / BankBook / VIEW`, `CREATE`, `EDIT`, `APPROVE`, `IMPORT`, `EXPORT` — **added Step 2S.**
+- `Finance / CashBook / VIEW`, `CREATE`, `EDIT`, `APPROVE`, `EXPORT` — **added Step 2S** (no
+  `IMPORT` action — no cash-statement-import use case exists).
+- `Finance / Conveyance / VIEW`, `CREATE`, `EDIT`, `APPROVE`, `EXPORT` — **added Step 2S.**
+- **`Finance / Reconciliation` still does not exist in the catalogue.** Deliberately deferred at
+  Step 2S — reconciliation approval now maps to `Finance/BankBook/APPROVE` /
+  `Finance/CashBook/APPROVE` instead of a dedicated resource, per the existing recommendation to
+  avoid a parallel reconciliation surface (see `FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §4/§12/§15).
+  Remains a documented future gap if a standalone Reconciliation workflow is ever built.
 
 **Workflow:**
 - `Workflow / ApprovalRequest / VIEW`, `APPROVE` — note the catalogue calls this resource
@@ -438,12 +448,14 @@ gap is called out explicitly — no permission was invented to fill a gap.
    **(Completed, 2026-06-20.)**
 3. **Step 2K** — Align Settings cards with `access-control`. **(Completed, 2026-06-20.)**
 4. **Step 2L** — Finance Write Access-Control Mapping Plan. **(Planning completed, 2026-06-20 —
-   see `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md`.)** Remaining, not started:
-   add the missing `Settings/CRM` catalogue entry (unblocks finishing Step 2F's CRM-admin half),
-   add the 8 Finance catalogue gaps the plan identified (`Finance/Voucher`,
-   `Finance/Payment/EDIT`, `Finance/Advance/EDIT`, dedicated BankBook/CashBook/Conveyance/
-   Reconciliation resources, `Finance/Expense/IMPORT`, `Finance/Voucher/EXPORT`), and build the
-   33 mapped write endpoints themselves.
+   see `docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md`.)** **Step 2S (2026-06-21)
+   closed 4 of the 8 identified catalogue gaps** — `Finance/Voucher`, dedicated `BankBook`,
+   `CashBook`, and `Conveyance` resources now exist (see §12). Still remaining, not started: the
+   missing `Settings/CRM` catalogue entry (unblocks finishing Step 2F's CRM-admin half),
+   `Finance/Payment/EDIT`, `Finance/Advance/EDIT`, `Finance/Expense/IMPORT` (3 of the original 8
+   gaps — `Finance/Voucher/EXPORT` and a dedicated `Reconciliation` resource are no longer gaps;
+   the former now exists, the latter was deliberately deferred per §12), and building the 33
+   mapped write endpoints themselves.
 5. **Step 2N** — Customer/Vendor Master page-guard migration (the most overexposed surface today
    per §9). **(Completed, 2026-06-20.)**
 6. **Step 2N (API guards)** — `GET`/`POST /api/customers/master` permission hardening, aligning
@@ -468,9 +480,11 @@ gap is called out explicitly — no permission was invented to fill a gap.
     `access-control`, preserving self-service own-data access. **(Completed, 2026-06-21 — see §11
     below.)** `/api/expenses` and `/api/advances` (the existing mobile/CRM routes, distinct from
     `/api/finance/*`) were explicitly out of scope for this step and remain unchanged.
-11. **Step 2P** — Legacy `/admin` Roles tab retirement plan (unrelated to "Step 2P (Customer
+11. **Step 2S** — Close Finance permission catalogue gaps (Voucher, BankBook, CashBook,
+    Conveyance) before building Finance write APIs. **(Completed, 2026-06-21 — see §12 below.)**
+12. **Step 2P** — Legacy `/admin` Roles tab retirement plan (unrelated to "Step 2P (Customer
     Master)" above — see disambiguation note in §3).
-12. **Step 2Q** — Decide migrate-vs-delete for `AppRole`/`RolePageAccess` (unrelated to "Step 2Q
+13. **Step 2Q** — Decide migrate-vs-delete for `AppRole`/`RolePageAccess` (unrelated to "Step 2Q
     (Customer Master)" above — see disambiguation note in §3).
 
 ---
@@ -483,25 +497,30 @@ voucher-sequences). No Finance write API, schema change, migration, UI change, o
 change was made. `roles.ts` and `canManageFinance()` were **not removed** — they remain a
 documented temporary fallback.
 
-**New helper:** `src/lib/finance/access.ts` —
+**New helper:** `src/lib/finance/access.ts` — **table below reflects the Step 2S update; see §12
+for what changed.**
 
 | Helper | Used by | access-control check | Fallback |
 |---|---|---|---|
-| `canViewFinancePayments` | `accounts`, `bank-book`, `cash-book` | `Finance/Payment/VIEW` | `canManageFinance()` |
-| `canViewFinanceVouchers` | `vouchers`, `vouchers/[id]`, `voucher-sequences` | `Finance/Payment/VIEW` OR `Settings/Finance/VIEW` | `canManageFinance()` |
-| `canViewFinanceDashboard` | `dashboard` | `Finance/Expense/VIEW` OR `Finance/Payment/VIEW` OR `Finance/Advance/VIEW` | `canManageFinance()` |
+| `canViewFinancePayments` | `accounts` only (as of Step 2S — see §12) | `Finance/Payment/VIEW` | `canManageFinance()` |
+| `canViewFinanceBankBook` (Step 2S) | `bank-book` | `Finance/BankBook/VIEW` OR `Finance/Payment/VIEW` | `canManageFinance()` |
+| `canViewFinanceCashBook` (Step 2S) | `cash-book` | `Finance/CashBook/VIEW` OR `Finance/Payment/VIEW` | `canManageFinance()` |
+| `canViewFinanceVouchers` | `vouchers`, `vouchers/[id]`, `voucher-sequences` | `Finance/Voucher/VIEW` OR `Finance/Payment/VIEW` OR `Settings/Finance/VIEW` | `canManageFinance()` |
+| `canViewFinanceDashboard` | `dashboard` | `Finance/Expense/VIEW` OR `Finance/Payment/VIEW` OR `Finance/Advance/VIEW` OR `Finance/Voucher/VIEW` | `canManageFinance()` |
 | `canViewAllFinanceExpenses` | `expenses`, `expenses/[id]` | `Finance/Expense/VIEW` | `canManageFinance()` |
 | `canViewAllFinanceAdvances` | `advances` (GET only) | `Finance/Advance/VIEW` | `canManageFinance()` |
-| `canViewAllConveyance` | `conveyance` | delegates to `canViewAllFinanceExpenses` (no dedicated resource) | `canManageFinance()` (equivalent to the prior inline `isManager\|\|isAccounts\|\|isOperationsHead`) |
+| `canViewAllConveyance` | `conveyance` | `Finance/Conveyance/VIEW` OR `Finance/Expense/VIEW` | `canManageFinance()` (equivalent to the prior inline `isManager\|\|isAccounts\|\|isOperationsHead`) |
 
-**Catalogue gaps used (none invented — see `permissions.ts` and
-`FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §3 for the original confirmation):**
-- `Finance/Voucher` does not exist as a resource at all — `Finance/Payment/VIEW` and
-  `Settings/Finance/VIEW` are the closest-fit grants for vouchers/voucher-sequences.
-- No dedicated `BankBook`/`CashBook`/`Account` resource exists — `Finance/Payment/VIEW` is the
+**Catalogue gaps used at the time of Step 2M/2R (since closed for Voucher/BankBook/CashBook/
+Conveyance by Step 2S — see §12):**
+- `Finance/Voucher` did not exist as a resource at all — `Finance/Payment/VIEW` and
+  `Settings/Finance/VIEW` were the closest-fit grants for vouchers/voucher-sequences.
+- No dedicated `BankBook`/`CashBook`/`Account` resource existed — `Finance/Payment/VIEW` was the
   closest fit for `accounts`, `bank-book`, `cash-book`.
-- No dedicated `Conveyance` resource exists — `Finance/Expense/VIEW` is the closest fit
+- No dedicated `Conveyance` resource existed — `Finance/Expense/VIEW` was the closest fit
   (conveyance is travel-expense reimbursement on the `TravelClaim` model).
+- `Finance/Payment/VIEW` remains the closest fit for `accounts` (chart-of-accounts/FinAccount
+  listing) — no dedicated `Account` resource was in scope for Step 2S.
 
 **Self-service preserved, not changed:**
 - `expenses`, `expenses/[id]`, `advances` (GET), `conveyance` — own-data filtering logic
@@ -522,3 +541,102 @@ pre-existing, documented schema limitation — not introduced by this step.
 
 **Validation:** `npx tsc --noEmit`, `npx prisma validate`, and
 `npx cross-env RAYON_NUM_THREADS=1 next build` all pass.
+
+---
+
+## 12. Step 2S Detail — Finance Permission Catalogue Gap Closure (2026-06-21)
+
+**Scope:** add dedicated `Finance/Voucher`, `Finance/BankBook`, `Finance/CashBook`, and
+`Finance/Conveyance` resources to `PERMISSION_CATALOGUE` (`src/lib/access-control/permissions.ts`),
+ahead of building any Finance write API. No Prisma schema change, no migration, no Finance write
+API, no Finance API behavior change, no Finance UI change, and no role assignment change (see
+below) were made.
+
+**Permissions added (27 new rows, exact catalogue style — module/resource/action/description):**
+
+| Resource | Actions |
+|---|---|
+| `Finance/Voucher` | `VIEW`, `CREATE`, `EDIT`, `DELETE`, `APPROVE`, `EXPORT` |
+| `Finance/BankBook` | `VIEW`, `CREATE`, `EDIT`, `APPROVE`, `IMPORT`, `EXPORT` |
+| `Finance/CashBook` | `VIEW`, `CREATE`, `EDIT`, `APPROVE`, `EXPORT` |
+| `Finance/Conveyance` | `VIEW`, `CREATE`, `EDIT`, `APPROVE`, `EXPORT` |
+
+`Finance/Reconciliation` was **deliberately not added** — see the dedicated note in §8 above and
+`FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §15 for the full reasoning (folds into the new
+`BankBook`/`CashBook` `APPROVE` actions instead of a parallel resource).
+
+**`src/lib/finance/access.ts` updated:**
+- `canViewFinanceBankBook()` and `canViewFinanceCashBook()` are **new** — each checks its
+  dedicated resource's `VIEW` action first, falls through to `Finance/Payment/VIEW` (the prior
+  bridge), then `canManageFinance()`.
+- `canViewFinanceVouchers()` now checks `Finance/Voucher/VIEW` first, before the existing
+  `Finance/Payment/VIEW`/`Settings/Finance/VIEW`/`canManageFinance()` fallback chain.
+- `canViewAllConveyance()` now checks `Finance/Conveyance/VIEW` first, before the existing
+  `Finance/Expense/VIEW`/`canManageFinance()` fallback chain (no longer simply delegates to
+  `canViewAllFinanceExpenses()`).
+- `canViewFinanceDashboard()` now also accepts `Finance/Voucher/VIEW` as a qualifying grant,
+  matching the original Step 2M task brief's dashboard permission list.
+- `canViewFinancePayments()` is unchanged in behavior but is now used **only** by the `accounts`
+  route (chart-of-accounts/`FinAccount` listing) — `bank-book` and `cash-book` moved to their own
+  dedicated helpers above.
+- Every helper still ends in the `canManageFinance()` bridge — **no Finance-Operations user's
+  access changes today**, since no role yet holds any of the 27 new permissions (see below).
+
+**Routes updated to use the new/renamed helpers:** `src/app/api/finance/bank-book/route.ts`
+(`canViewFinancePayments` → `canViewFinanceBankBook`), `src/app/api/finance/cash-book/route.ts`
+(`canViewFinancePayments` → `canViewFinanceCashBook`). `vouchers`, `vouchers/[id]`,
+`voucher-sequences`, `conveyance`, `dashboard`, and `accounts` route files were **not** edited —
+they already called the correctly-named helper functions, whose internal implementation changed.
+
+**Permission sync / seed:** `prisma/seed-admin-foundation.ts` iterates `PERMISSION_CATALOGUE`
+directly and `upsert`s every entry into the `Permission` table — the 27 new rows will be created
+automatically the next time that script runs (`npx tsx prisma/seed-admin-foundation.ts`); **no
+change to the seed script's permission-upsert loop was required.** That script's existing "Super
+Admin gets every permission" loop (queries all `Permission` rows after the upsert, then grants
+each to the `Super Admin` role) will also automatically grant Super Admin all 27 new permissions —
+this preserves the existing, already-documented default-role pattern without any code change.
+
+**No other role was granted the new permissions.** `ROLE_GRANTS` in `seed-admin-foundation.ts`
+(the curated per-role grant list for Business Head, Sales Head, Sales Manager, Account Manager,
+Finance Manager) was **deliberately left unchanged** — extending a specific role's grants is a
+product decision distinct from catalogue-gap closure, and per this step's own scope ("Do not
+auto-grant new permissions to all roles unless the project already has a documented default-role
+mapping"), only the existing Super-Admin-gets-all pattern qualifies as that documented mapping.
+**Recommended follow-up (not done this step):** grant `Finance Manager` (and possibly `Account
+Manager`) the new Voucher/BankBook/CashBook/Conveyance permissions — `Finance Manager` already
+holds full `Invoice`/`Expense`/`Payment`/`Advance` access in `ROLE_GRANTS`, so extending it to the
+4 new resources would match its documented "Full Finance module + reports" description — either by
+adding entries to `ROLE_GRANTS` or via the Settings → Identity → Permission Matrix UI (no code
+change needed for the latter, since the UI reads live `Permission` rows once the seed script has
+run).
+
+**No `roles.ts`/`canManageFinance()` fallback was removed.** It remains the universal bridge in
+every `src/lib/finance/access.ts` helper, exactly as Step 2M/2R left it.
+
+**Validation:** `npx tsc --noEmit`, `npx prisma validate`, and
+`npx cross-env RAYON_NUM_THREADS=1 next build` all pass.
+
+**Manual verification performed:**
+1. `permissions.ts` contains `Finance/Voucher/{VIEW,CREATE,EDIT,DELETE,APPROVE,EXPORT}` — confirmed
+   by direct read.
+2. `permissions.ts` contains `Finance/BankBook/{VIEW,CREATE,EDIT,APPROVE,IMPORT,EXPORT}` —
+   confirmed.
+3. `permissions.ts` contains `Finance/CashBook/{VIEW,CREATE,EDIT,APPROVE,EXPORT}` — confirmed.
+4. `permissions.ts` contains `Finance/Conveyance/{VIEW,CREATE,EDIT,APPROVE,EXPORT}` — confirmed.
+5. No duplicate catalogue entries — each new `(module, resource, action)` triple is unique; the
+   upsert's compound key (`module_resource_action`) would also reject a true duplicate at the DB
+   level, but none was introduced.
+6. Permission sync/seed script (`seed-admin-foundation.ts`) still compiles — covered by
+   `npx tsc --noEmit` above (it imports `PERMISSION_CATALOGUE` directly, so a catalogue-shape
+   error would have surfaced there).
+7. Settings → Identity → Permission Matrix UI — not independently re-verified in a browser this
+   step (no Settings/Identity page code was changed); since that UI renders whatever the
+   `Permission` table contains, the 27 new rows will appear automatically once the seed script is
+   re-run.
+8. Manager (`isManager`) access to all `/api/finance/*` GET routes — unaffected, since
+   `canManageFinance()` still short-circuits every helper's fallback.
+9. Accounts/Operations-Head access via the `canManageFinance()` bridge — unaffected, same
+   reasoning as #8.
+10. Normal employee self-service access (own expenses/advances/conveyance) — unaffected; no
+    self-service code path was touched this step.
+11. Finance APIs compile and build — confirmed via the validation commands above.

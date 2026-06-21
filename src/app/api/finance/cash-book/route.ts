@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
-import { canViewFinancePayments } from "@/lib/finance/access";
+import { canViewFinanceCashBook } from "@/lib/finance/access";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE     = 100;
@@ -84,9 +84,10 @@ function mapTxnType(ledgerType: string): string {
  *   direction = "credit" (cash arriving)  → debit  column  (Cash In)
  *   direction = "debit"  (cash departing) → credit column  (Cash Out)
  *
- * Permission: Finance/Payment/VIEW (closest catalogue fit — no dedicated
- * CashBook resource exists), with a temporary canManageFinance() fallback
- * (Accounts, Operations Head, Manager). No self-service access.
+ * Permission: Finance/CashBook/VIEW (dedicated resource added Step 2S),
+ * falling back to Finance/Payment/VIEW (prior closest-fit bridge) and then
+ * canManageFinance() (Accounts, Operations Head, Manager). No self-service
+ * access.
  */
 export async function GET(req: NextRequest) {
   // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!(await canViewFinancePayments(session))) {
+  if (!(await canViewFinanceCashBook(session))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

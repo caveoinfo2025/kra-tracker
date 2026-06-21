@@ -21,6 +21,29 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Finance permission catalogue gap closure (Step 2S)
+`docs/RBAC_MIGRATION_TRACKER.md` §4 Step 2L flagged that Voucher, BankBook, CashBook, and
+Conveyance had no dedicated `access-control` resource, forcing the Step 2M/2R Finance read-API
+migration onto closest-fit `Finance/Payment/VIEW`/`Finance/Expense/VIEW` mappings — not clean
+enough for future write APIs. Added 27 new permission rows to `PERMISSION_CATALOGUE`
+(`src/lib/access-control/permissions.ts`): `Finance/Voucher/{VIEW,CREATE,EDIT,DELETE,APPROVE,
+EXPORT}`, `Finance/BankBook/{VIEW,CREATE,EDIT,APPROVE,IMPORT,EXPORT}`, `Finance/CashBook/{VIEW,
+CREATE,EDIT,APPROVE,EXPORT}`, `Finance/Conveyance/{VIEW,CREATE,EDIT,APPROVE,EXPORT}` — exact
+existing catalogue style, no duplicates. `Finance/Reconciliation` was deliberately deferred
+(folds into the new `BankBook`/`CashBook` `APPROVE` actions instead, per the existing
+"avoid a parallel reconciliation surface" recommendation). `src/lib/finance/access.ts`: two new
+helpers (`canViewFinanceBankBook`, `canViewFinanceCashBook`) split off from
+`canViewFinancePayments` (now used only by the `accounts` route); `canViewFinanceVouchers` and
+`canViewAllConveyance` now check their dedicated resource first; `canViewFinanceDashboard` also
+accepts `Finance/Voucher/VIEW`. Every helper still falls through to `canManageFinance()` — no
+manager/Accounts/Operations-Head user lost access, and no role besides the pre-existing
+Super-Admin-gets-all seed pattern was granted the new permissions (`seed-admin-foundation.ts`'s
+`ROLE_GRANTS` intentionally left unchanged; the 27 rows will appear in the `Permission` table
+automatically next time that script runs, since it iterates `PERMISSION_CATALOGUE` directly). No
+schema change, migration, Finance write API, Finance API/UI behavior change, or role-assignment
+change was made. `npx tsc --noEmit`, `npx prisma validate`, and `npx cross-env
+RAYON_NUM_THREADS=1 next build` all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §12 for full detail.
+
 ### 2026-06-21 — Finance read API migration to access-control (Step 2M/2R)
 `docs/RBAC_MIGRATION_TRACKER.md` §4/§10 Step 2M ("migrate Finance read APIs from `roles.ts`-only to
 `access-control`") was completed. New `src/lib/finance/access.ts` helper module

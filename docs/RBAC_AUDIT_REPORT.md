@@ -188,6 +188,28 @@ catalogue fit — no dedicated `BankBook`/`CashBook`/`Voucher` resource exists, 
 /api/finance/advances` and the separate `/api/expenses`/`/api/advances` mobile/CRM routes were not
 touched — out of scope. See `RBAC_MIGRATION_TRACKER.md` §11 for the full route-by-route mapping.
 
+**Step 2S completed (2026-06-21).** Finance catalogue gaps for Voucher, BankBook, CashBook, and
+Conveyance have been closed: `PERMISSION_CATALOGUE` (`permissions.ts`) now defines
+`Finance/Voucher/{VIEW,CREATE,EDIT,DELETE,APPROVE,EXPORT}`, `Finance/BankBook/{VIEW,CREATE,EDIT,
+APPROVE,IMPORT,EXPORT}`, `Finance/CashBook/{VIEW,CREATE,EDIT,APPROVE,EXPORT}`, and `Finance/
+Conveyance/{VIEW,CREATE,EDIT,APPROVE,EXPORT}` — 27 new permission rows, none duplicated, all
+following the exact existing catalogue style. `Finance/Reconciliation` was deliberately **not**
+added — reconciliation approval now maps to the new `BankBook`/`CashBook` `APPROVE` actions
+instead of a dedicated resource, consistent with the prior recommendation to avoid a parallel
+reconciliation surface (`FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §15). `src/lib/finance/access.ts`
+was updated so `canViewFinanceVouchers()` and `canViewAllConveyance()` check their dedicated
+resource first, and two new helpers (`canViewFinanceBankBook()`, `canViewFinanceCashBook()`)
+replace `canViewFinancePayments()` for the `bank-book`/`cash-book` routes specifically —
+`accounts` keeps using `canViewFinancePayments()` (no dedicated Account resource was in scope).
+**Temporary Payment/Expense fallback mappings can be phased out after roles are granted dedicated
+permissions** — every helper still ends in the `canManageFinance()` bridge, and no role (other
+than the pre-existing Super-Admin-gets-all seed pattern) has yet been granted any of the 27 new
+permissions; `prisma/seed-admin-foundation.ts`'s `ROLE_GRANTS` was deliberately left unchanged
+(extending specific roles is a follow-up product decision, not catalogue-gap closure). No Prisma
+schema change, migration, Finance write API, Finance API behavior change, or Finance UI change was
+made. See `RBAC_MIGRATION_TRACKER.md` §12 for the full detail. `npx tsc --noEmit`, `npx prisma
+validate`, and `npx cross-env RAYON_NUM_THREADS=1 next build` all pass.
+
 ### 3.8 Settings / Organization (mixed — both systems checked, OR'd together)
 
 | API Route | Methods | Auth Check | Permission Check | System Used | Risk |
