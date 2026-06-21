@@ -640,11 +640,12 @@ Expense/IMPORT` does not exist (Expense bulk import still maps to `Finance/Expen
 per-row, as before).
 
 **Permission sync / seed status:** `prisma/seed-admin-foundation.ts` iterates
-`PERMISSION_CATALOGUE` directly and upserts every entry into the `Permission` table — the 27 new
-rows above will be created automatically the next time that script runs (`npx tsx
+`PERMISSION_CATALOGUE` directly and upserts every entry into the `Permission` table — the 22 new
+rows above (corrected 2026-06-21, Step 2V, from an earlier "27" that did not reconcile with this
+table) will be created automatically the next time that script runs (`npx tsx
 prisma/seed-admin-foundation.ts`), no script change was required for that part. The script's
 "Super Admin gets every permission" loop (queries all `Permission` rows after the upsert) will
-also automatically grant Super Admin all 27 new permissions. **No other role (Business Head,
+also automatically grant Super Admin all 22 new permissions. **No other role (Business Head,
 Sales Head, Sales Manager, Account Manager, Finance Manager) was granted any of the new
 permissions** — `ROLE_GRANTS` was deliberately left unchanged, since extending a specific role's
 grants is a product decision distinct from catalogue-gap closure, and the temporary
@@ -668,10 +669,7 @@ Dedicated Finance permissions described in §15 are now **materialized in the de
 just in the `PERMISSION_CATALOGUE` source file. `npx tsx prisma/seed-admin-foundation.ts` was run
 against the dev DB (`u686730471_caveodev`); all 22 `Finance/{Voucher,BankBook,CashBook,Conveyance}`
 rows were confirmed present via a read-only verification query, with zero duplicates and the 4
-pre-existing Finance resources (`Invoice`/`Expense`/`Payment`/`Advance`) unchanged. (Note: §15's
-"27 new permission rows" figure does not reconcile with the per-resource action counts listed in
-the same section's table — 6+6+5+5=22 — the table is treated as authoritative since it matches
-`permissions.ts` verbatim.)
+pre-existing Finance resources (`Invoice`/`Expense`/`Payment`/`Advance`) unchanged.
 
 **Future Finance write APIs can now rely on these permission rows existing** — `requirePermission`/
 `hasPermission` calls against `Finance/Voucher/*`, `Finance/BankBook/*`, `Finance/CashBook/*`, or
@@ -688,7 +686,34 @@ recommended next step from §15, still not done.
 (`PermissionMatrix.tsx`) has a hardcoded `MODULE_GROUPS` constant whose `Finance` entry does not
 yet list `Voucher`/`BankBook`/`CashBook`/`Conveyance`, so the new resources — though present in the
 database and returned by the API — will not visually render in the matrix grid until that
-component is updated. See `docs/RBAC_MIGRATION_TRACKER.md` §13 for full detail.
+component is updated. See `docs/RBAC_MIGRATION_TRACKER.md` §13 for full detail. **Closed
+2026-06-21 (Step 2V) — see §17 below.**
+
+---
+
+## 17. Step 2V — Permission Matrix UI Updated (2026-06-21)
+
+Dedicated Finance permissions are now **visible in the Permission Matrix UI**, closing the gap §16
+flagged. `src/app/settings/identity/components/PermissionMatrix.tsx`'s `MODULE_GROUPS` Finance
+entry was extended to include `Voucher`, `BankBook`, `CashBook`, `Conveyance` (appended after the
+4 pre-existing resources, none renamed/removed/duplicated), and its `NOT_APPLICABLE` set was
+extended with each new resource's missing actions (`Voucher`: no `IMPORT`/`ASSIGN`; `BankBook`: no
+`DELETE`/`ASSIGN`; `CashBook`/`Conveyance`: no `DELETE`/`IMPORT`/`ASSIGN`) so the grid only offers
+toggles for actions that actually exist in `PERMISSION_CATALOGUE`. No other file was changed — the
+backing API (`GET /api/admin/identity/permissions`) already had no hardcoded resource filter and
+needed no change.
+
+**Future role-grant mapping can now assign these permissions to Finance/Admin roles** through the
+Permission Matrix UI directly, once that work (Step 2W) begins — no further UI change is needed
+to support it.
+
+**Finance write APIs remain pending** — out of scope for this step and the next one (Step 2W is
+role-grant mapping, not API implementation).
+
+**27 → 22 correction:** completed in this step across `RBAC_MIGRATION_TRACKER.md`,
+`RBAC_AUDIT_REPORT.md`, this document (§15), and `docs/PROJECT_MEMORY.md`.
+
+**Validation:** `npm run build`, `npx tsc --noEmit`, and `npx prisma validate` all pass.
 
 ---
 

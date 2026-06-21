@@ -8,7 +8,7 @@ import { MOCK_ROLES, ACTIONS_ALL } from "../data/identityDefaults";
 // Groups to display in the matrix rows
 const MODULE_GROUPS: Array<{ module: string; resources: string[] }> = [
   { module: "CRM",      resources: ["Lead", "Opportunity", "Activity", "Report"] },
-  { module: "Finance",  resources: ["Invoice", "Expense", "Payment", "Advance"] },
+  { module: "Finance",  resources: ["Invoice", "Expense", "Payment", "Advance", "Voucher", "BankBook", "CashBook", "Conveyance"] },
   { module: "Workflow", resources: ["ApprovalRequest", "WorkflowDefinition"] },
   { module: "Settings", resources: ["Configuration", "UserManagement", "RoleManagement", "Organization"] },
   { module: "Reports",  resources: ["Dashboard", "Analytics"] },
@@ -32,6 +32,10 @@ const NOT_APPLICABLE = new Set([
   "CRM/Report/CREATE", "CRM/Report/EDIT", "CRM/Report/DELETE", "CRM/Report/APPROVE", "CRM/Report/IMPORT", "CRM/Report/ASSIGN",
   "Finance/Payment/CREATE", "Finance/Payment/EDIT", "Finance/Payment/DELETE", "Finance/Payment/IMPORT", "Finance/Payment/ASSIGN",
   "Finance/Advance/CREATE", "Finance/Advance/EDIT", "Finance/Advance/DELETE", "Finance/Advance/IMPORT", "Finance/Advance/ASSIGN",
+  "Finance/Voucher/IMPORT", "Finance/Voucher/ASSIGN",
+  "Finance/BankBook/DELETE", "Finance/BankBook/ASSIGN",
+  "Finance/CashBook/DELETE", "Finance/CashBook/IMPORT", "Finance/CashBook/ASSIGN",
+  "Finance/Conveyance/DELETE", "Finance/Conveyance/IMPORT", "Finance/Conveyance/ASSIGN",
   "Workflow/ApprovalRequest/CREATE", "Workflow/ApprovalRequest/EDIT", "Workflow/ApprovalRequest/DELETE", "Workflow/ApprovalRequest/IMPORT", "Workflow/ApprovalRequest/ASSIGN",
   "Workflow/WorkflowDefinition/DELETE", "Workflow/WorkflowDefinition/IMPORT", "Workflow/WorkflowDefinition/ASSIGN",
   "Settings/Configuration/DELETE", "Settings/Configuration/IMPORT", "Settings/Configuration/ASSIGN", "Settings/Configuration/APPROVE",
