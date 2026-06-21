@@ -21,6 +21,33 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Soft-delete schema fields added to Phase A models (Step 3B, schema + migration only)
+Step 3B completed: added `deletedAt`/`deletedById`/`deleteReason` to `Customer`, `Vendor`,
+`Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, and `Collection` — the exact 7 models
+locked by Step 3B-0's decision log, each field nullable (`deletedAt DateTime?`, `deletedById
+Int?`, `deleteReason String? @db.Text`), each model getting a new `@@index([deletedAt])`.
+**Voucher/Ledger/Employee intentionally excluded as per decision log** — Voucher keeps
+`voidedAt`/`voidReason`; Ledger stays reversal-only; Employee delete remains a separate, deferred
+identity-lifecycle decision. `Permission`/`UserRole`/`DataAccessPolicy`/`AppRole`/
+`RolePageAccess`/`ApprovalRequest`/`ApprovalAction` also untouched. **`prisma migrate dev` hit
+Hostinger's known no-shadow-database limitation (`P3014`, no `CREATE DATABASE` privilege)** — the
+same constraint documented in this file's Phase 8/Integration Center/Security Center notes.
+Worked around with the project's existing pattern: `prisma migrate diff
+--from-config-datasource --to-schema prisma/schema.prisma --script` (diffs the live dev DB
+directly, no shadow DB needed) to generate the migration SQL, a new one-off
+`prisma/apply-soft-delete-fields-phase-a.mjs` (mariadb driver, refuses to run unless
+`DATABASE_URL`'s database name is exactly `u686730471_caveodev`) to apply it, then `prisma
+migrate resolve --applied` + `prisma generate`. **Dev migration validated**: the raw diff also
+surfaced pre-existing unrelated schema drift (missing FKs on workflow/approval/master-data/
+integration tables from earlier incompletely-applied migrations) — that drift was deliberately
+excluded from this migration's SQL file and left for a separate cleanup, not bundled in here. A
+read-only `information_schema.COLUMNS` query confirmed exactly the 7 approved models carry the 3
+new columns and `Voucher`/`Ledger`/`Employee` carry none. No API route, read filter, DELETE
+endpoint, restore route, or UI file was touched — this step only changes `prisma/schema.prisma`
+and the dev database's column/index set. `npx prisma validate`, `npx tsc --noEmit`, and `npm run
+build` (159 pages) all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3B row) and
+`docs/database/SOFT_DELETE_DECISION_LOG.md` for full detail.
+
 ### 2026-06-21 — Soft-delete decision log / scope lock created (Step 3B-0, sign-off only)
 Step 3B-0 completed with final approved Phase A models. Reviewed Step 3A's
 `SOFT_DELETE_MIGRATION_PLAN.md` §13 open decisions (which models support restore, whether

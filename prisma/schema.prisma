@@ -193,6 +193,9 @@ model Collection {
   collectionStatus      String    @default("Pending")
   remarks               String    @default("") @db.Text
   createdAt             DateTime  @default(now())
+  deletedAt             DateTime?
+  deletedById           Int?
+  deleteReason          String?   @db.Text
 
   payments Payment[]
 
@@ -200,6 +203,7 @@ model Collection {
   @@index([collectionStatus])
   @@index([dueDate])
   @@index([customerId])
+  @@index([deletedAt])
 }
 
 model Payment {
@@ -215,10 +219,14 @@ model Payment {
   recordedBy    Employee   @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
   recordedById  Int
   createdAt     DateTime   @default(now())
+  deletedAt     DateTime?
+  deletedById   Int?
+  deleteReason  String?    @db.Text
 
   @@index([collectionId])
   @@index([paymentDate])
   @@index([recordedById])
+  @@index([deletedAt])
 }
 
 model OrderAdvance {
@@ -470,6 +478,9 @@ model Customer {
   crmSource  String     @default("")
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+  deletedAt  DateTime?
+  deletedById Int?
+  deleteReason String?  @db.Text
 
   // Back-references from operational tables (Phase 17 + CRM)
   leadGenerations LeadGeneration[] @relation("LeadGenerationCustomer")
@@ -480,6 +491,7 @@ model Customer {
 
   @@index([parentId])
   @@index([name])
+  @@index([deletedAt])
 }
 
 model AppSetting {
@@ -609,11 +621,15 @@ model Vendor {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  deletedById   Int?
+  deleteReason  String?  @db.Text
 
   expenses Expense[]
 
   @@index([name])
   @@index([isActive])
+  @@index([deletedAt])
 }
 
 // â"€â"€ Expense register (category + attachments held inline for Phase 1) â"€â"€
@@ -644,6 +660,9 @@ model Expense {
   paidDate        DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletedById     Int?
+  deleteReason    String?   @db.Text
 
   @@index([category])
   @@index([expenseCategoryId])
@@ -653,6 +672,7 @@ model Expense {
   @@index([status])
   @@index([customerName])
   @@index([voucherId])
+  @@index([deletedAt])
 }
 
 // â"€â"€ Voucher â"€â"€
@@ -718,11 +738,15 @@ model EmployeeAdvance {
   remarks              String    @default("") @db.Text
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+  deletedById          Int?
+  deleteReason         String?   @db.Text
 
   @@index([employeeId])
   @@index([status])
   @@index([requestDate])
   @@index([voucherId])
+  @@index([deletedAt])
 }
 
 // â"€â"€ Travel claim: local conveyance / travel reimbursement (GPS-aware) â"€â"€
@@ -752,11 +776,15 @@ model TravelClaim {
   voucherId    Int?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  deletedById  Int?
+  deleteReason String?   @db.Text
 
   @@index([employeeId])
   @@index([travelDate])
   @@index([status])
   @@index([voucherId])
+  @@index([deletedAt])
 }
 
 // â"€â"€ Approval rule: configurable amount-limit approval policy â"€â"€

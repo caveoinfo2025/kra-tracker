@@ -6,6 +6,17 @@
 > add schema fields against an approved, unambiguous model list rather than re-deriving scope from
 > the plan's recommendations at migration time.
 
+> **Implementation note (Step 3B, 2026-06-21):** the schema fields and migration approved in §2/
+> §12 below have been implemented. Migration `20260621120000_add_soft_delete_fields_phase_a`
+> applied to the dev DB (`u686730471_caveodev`) only — additive `ADD COLUMN`/`CREATE INDEX`
+> statements for exactly the 7 approved models, no destructive SQL, no API/UI change. `prisma
+> migrate dev` could not run directly (Hostinger has no shadow-database privilege, `P3014`); the
+> migration SQL was instead generated via `prisma migrate diff --from-config-datasource
+> --to-schema prisma/schema.prisma --script` and applied via a one-off
+> `prisma/apply-soft-delete-fields-phase-a.mjs` script, then marked resolved. See
+> `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3B row) and `docs/PROJECT_MEMORY.md`'s Step 3B entry
+> for full detail. The §13 exit criteria below are now satisfied.
+
 ---
 
 ## 1. Decision Summary

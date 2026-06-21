@@ -413,6 +413,16 @@ Phase C, Finance half.
 
 ---
 
+> **Implementation progress note (2026-06-21).** Step 3B-0 (`docs/database/SOFT_DELETE_DECISION_LOG.md`)
+> locked the open §13 decisions below into final answers. **Step 3B is now complete**:
+> `deletedAt`/`deletedById`/`deleteReason` were added to the 7 approved models (`Customer`,
+> `Vendor`, `Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, `Collection`) and migration
+> `20260621120000_add_soft_delete_fields_phase_a` was applied to the dev DB only. Steps 3C–3H below
+> (read-filter updates, DELETE-route conversion, audit-log wiring, restore UI) remain not started.
+> See `docs/RBAC_MIGRATION_TRACKER.md` §4 and `docs/PROJECT_MEMORY.md` for full detail.
+
+---
+
 ## 13. Risks And Decisions Needed
 
 Decisions required before implementation (Step 3B onward) — none of these are answered by this
