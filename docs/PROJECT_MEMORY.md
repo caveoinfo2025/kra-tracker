@@ -21,6 +21,36 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Soft-delete migration plan created (Step 3A, planning only)
+Created `docs/database/SOFT_DELETE_MIGRATION_PLAN.md` (new `docs/database/` folder), addressing
+`IMPLEMENTATION_STATUS_REPORT.md`'s #2-ranked risk ("No soft delete anywhere — all 108 Prisma
+models use hard deletes") ahead of any Finance write API. **Inventoried every
+`prisma.*.delete()`/`deleteMany()` call under `src/app/api`** (18 routes found) and every relevant
+model's actual `ON DELETE` FK behavior (read directly from `prisma/migrations/*/migration.sql`, not
+assumed): `Customer` (hard delete, `SetNull` dependents — real risk), `Collection`/`Payment`
+(hard delete, `ON DELETE CASCADE` chain from `Employee`→`Collection`→`Payment` — **highest current
+live risk**, confirmed at the SQL level), and `Expense`/`Voucher`/`EmployeeAdvance`/`TravelClaim`/
+`Ledger` (**zero delete routes exist for any of them today** — `ON DELETE RESTRICT` on their
+`Employee` FKs, confirmed in the SQL migration files, already protects them from employee-delete
+cascades). Recommended schema pattern: `deletedAt DateTime?` as the sole marker (no parallel
+boolean), `deletedById Int?` (bare FK first, typed relation later), `deleteReason String?`.
+**`Voucher` deliberately excluded from the soft-delete field list** — it already has
+`voidedAt`/`voidReason`, the correct accounting-reversal pattern, which this plan recommends
+extending rather than duplicating with a second "is this gone" signal. **`Ledger`/
+`ApprovalRequest`/`ApprovalAction`/`Permission`/`UserRole`/`DataAccessPolicy` recommended as Do Not
+Soft Delete** for documented reasons (immutable audit trail, seeded catalogue, or "delete is the
+correct semantic" join-table rows). Found and reused an existing audit-log convention rather than
+inventing one: `AuditLog` model already exists and is already used once (`DELETE
+/api/pipeline/leads/[id]`, which already requires a `reason` and logs before deleting) — the plan's
+§9 extends that exact pattern with new `action` values (`SOFT_DELETE`/`RESTORE`/`HARD_DELETE`/
+`DELETE_BLOCKED_REFERENCE_EXISTS`) rather than proposing a new model. 5-phase safety sequence
+(A: add columns → B: update read filters → C: convert delete routes → D: audit logging → E:
+optional restore UI), explicitly ordered so read filters land before delete-route conversion.
+No Prisma schema, migration, API, or UI change was made — `prisma migrate` was not run. See the new
+plan doc for the full 14-section breakdown, including 8 open decisions flagged for product
+sign-off (e.g. "should Ledger ever be deleted, or only reversed?"). `npx prisma validate` passes
+(schema untouched, so this is a no-op confirmation, not a meaningful check this step).
+
 ### 2026-06-21 — Build script portability fix (Step 2T)
 Recent validation steps found `npm run build` failed on Windows shells (PowerShell/Git Bash):
 `package.json`'s `build` script set `RAYON_NUM_THREADS=1` using POSIX inline-assignment syntax
