@@ -21,6 +21,38 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Read filters added so Phase A reads exclude soft-deleted records (Step 3C, read-filter only)
+Step 3C completed: every normal read query against the 7 Step 3B models (`Customer`, `Vendor`,
+`Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, `Collection`) now filters `deletedAt:
+null`, landed deliberately **before** any DELETE route is converted (Step 3D) — converting a
+delete route first would have let "deleted" records keep reappearing in lists, a worse regression
+than today's hard delete. Audited every `prisma.<model>.{findMany,findFirst,findUnique,count,
+aggregate,groupBy}` call under `src/` (excluding generated Prisma client code): Customer Master
+list/dedup/suggestions/import-dedup (`api/customers/master/route.ts`, `.../deduplicate/route.ts`,
+`api/customers/suggestions/route.ts`, `lib/customer-import.ts`, `app/masters/customers/page.tsx`),
+the lead-conversion existing-customer lookup (`api/pipeline/leads/[id]/convert/route.ts` —
+`findUnique` converted to `findFirst` per the task's own guidance on adding filters to unique
+lookups), Finance Expense list/detail/dashboard, EmployeeAdvance list, TravelClaim list, Payment
+ledger/today-summary (`lib/payments.ts`'s `syncCollectionTotals`/`reconcileOpeningBalance` also
+converted their internal Collection `findUnique` lookups to `findFirst` with the filter), and
+Collection across every list/dashboard/KRA-engine read site (`app/page.tsx`,
+`app/dashboard/page.tsx` ×2, `app/accounts/page.tsx`, `app/collections/page.tsx`,
+`app/employees/[id]/page.tsx`, `lib/kra-engine.ts` ×5, `api/kra/sync-achievements/route.ts`,
+`api/import/route.ts`'s upsert-dedup check, `api/advances/[id]/apply/route.ts`). **`Vendor` had no
+application-level read queries at all** — `/masters/vendors` is still UI-only mock data, so there
+was nothing to update; documented rather than silently skipped. **No DELETE route was touched** —
+the two ownership-check `findUnique` reads inside `api/collections/[id]/route.ts`'s PUT/DELETE
+handlers were deliberately left alone (write-path internals, not normal reads). Step
+2M/2R/2S self-service `employeeId` scoping was preserved exactly everywhere, with `deletedAt: null`
+merged alongside it — no authorization logic weakened, no API response shape changed. No helper
+module was created (`src/lib/db/soft-delete.ts` was considered but skipped) — each call site's
+`where` shape differs enough that inline `deletedAt: null` was clearer than a shared constant
+would have been. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` (159 pages), and `npm
+run lint` all pass — lint's pre-existing failures (`SidebarLinks.tsx`, `OpportunityCard.tsx`,
+`policy-engine/*`, `settings.ts`, `workflow-engine/audit.ts`) are all in files this step did not
+touch, confirmed via `git show HEAD` diff. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3C row)
+and `docs/database/SOFT_DELETE_DECISION_LOG.md`/`SOFT_DELETE_MIGRATION_PLAN.md` for full detail.
+
 ### 2026-06-21 — Soft-delete schema fields added to Phase A models (Step 3B, schema + migration only)
 Step 3B completed: added `deletedAt`/`deletedById`/`deleteReason` to `Customer`, `Vendor`,
 `Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, and `Collection` — the exact 7 models

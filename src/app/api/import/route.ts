@@ -218,7 +218,7 @@ export async function POST(req: Request) {
       // Upsert by invoiceNo — only when invoice number is present
       if (invoiceNo) {
         const existing = await prisma.collection.findFirst({
-          where: { invoiceNo, employeeId },
+          where: { invoiceNo, employeeId, deletedAt: null },
         });
         if (existing) {
           await prisma.collection.update({ where: { id: existing.id }, data });

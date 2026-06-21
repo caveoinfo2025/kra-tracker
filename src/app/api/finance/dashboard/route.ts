@@ -156,8 +156,8 @@ export async function GET(req: NextRequest) {
     ...(accountIdFilter !== undefined ? { accountId: accountIdFilter } : {}),
   };
 
-  // Expense entries restricted to the selected period
-  const expensePeriodWhere = { expenseDate: { gte: dateFrom, lte: dateTo } };
+  // Expense entries restricted to the selected period (active records only)
+  const expensePeriodWhere = { expenseDate: { gte: dateFrom, lte: dateTo }, deletedAt: null };
 
   // For 6-month trend: start 5 full months before the first month of dateFrom
   const trendStart = new Date(Date.UTC(dateFrom.getUTCFullYear(), dateFrom.getUTCMonth() - 5, 1));
@@ -197,7 +197,7 @@ export async function GET(req: NextRequest) {
 
     // 3. Today's expense total (base + GST)
     prisma.expense.aggregate({
-      where: { expenseDate: { gte: todayStart, lte: todayEnd } },
+      where: { expenseDate: { gte: todayStart, lte: todayEnd }, deletedAt: null },
       _sum:  { amountLakhs: true, gstAmountLakhs: true },
     }),
 
@@ -226,14 +226,14 @@ export async function GET(req: NextRequest) {
     // 7. Advances outstanding — disbursed advances with uncollected balance.
     //    EmployeeAdvance.balanceLakhs is a CACHED field (disbursed − settled).
     prisma.employeeAdvance.aggregate({
-      where: { status: "disbursed" },
+      where: { status: "disbursed", deletedAt: null },
       _sum:  { balanceLakhs: true },
     }),
 
     // 8. Employee claims pending — submitted TravelClaims awaiting reimbursement.
     //    Expense submissions are already captured in pendingApprovals above.
     prisma.travelClaim.aggregate({
-      where: { status: "submitted" },
+      where: { status: "submitted", deletedAt: null },
       _sum:  { amountLakhs: true },
     }),
 
@@ -273,18 +273,18 @@ export async function GET(req: NextRequest) {
 
     // 14. Expenses for the 6-month trend (lightweight: date + amounts only)
     prisma.expense.findMany({
-      where:  { expenseDate: { gte: trendStart } },
+      where:  { expenseDate: { gte: trendStart }, deletedAt: null },
       select: { expenseDate: true, amountLakhs: true, gstAmountLakhs: true },
     }),
 
     // 15. Unpaid expenses count — approved but not yet paid
-    prisma.expense.count({ where: { status: "approved" } }),
+    prisma.expense.count({ where: { status: "approved", deletedAt: null } }),
 
     // 16. Pending advances count — pending or approved (not yet disbursed)
-    prisma.employeeAdvance.count({ where: { status: { in: ["pending", "approved"] } } }),
+    prisma.employeeAdvance.count({ where: { status: { in: ["pending", "approved"] }, deletedAt: null } }),
 
     // 17. Pending travel claims count
-    prisma.travelClaim.count({ where: { status: "submitted" } }),
+    prisma.travelClaim.count({ where: { status: "submitted", deletedAt: null } }),
   ]);
 
   // ── Compute scalar values ─────────────────────────────────────────────────────

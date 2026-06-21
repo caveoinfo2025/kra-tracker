@@ -21,6 +21,7 @@ export default async function AccountsPage() {
 
   const [rawRows, rawAdvances] = await Promise.all([
     prisma.collection.findMany({
+      where: { deletedAt: null },
       include: { employee: { select: { name: true } } },
       orderBy: { dueDate: "asc" },
       take: 1000,

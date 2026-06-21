@@ -114,7 +114,7 @@ export default async function DashboardPage({
           select: { id: true, stage: true, value: true, updatedAt: true },
         }),
         prisma.collection.findMany({
-          where: { collectionStatus: { not: "Fully Received" } },
+          where: { collectionStatus: { not: "Fully Received" }, deletedAt: null },
           select: {
             id: true,
             employeeId: true,
@@ -290,7 +290,7 @@ export default async function DashboardPage({
         include: { kra: { select: { id: true, title: true } } },
       }),
       prisma.collection.findMany({
-        where: { employeeId: empId, collectionStatus: { not: "Fully Received" } },
+        where: { employeeId: empId, collectionStatus: { not: "Fully Received" }, deletedAt: null },
         select: {
           id: true,
           customerName: true,

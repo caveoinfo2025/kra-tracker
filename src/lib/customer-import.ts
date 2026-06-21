@@ -23,7 +23,7 @@ export async function importCustomersFromCrm(): Promise<{
   // 1. Collect all unique names from CRM with their source label
   const [leads, collections, funnel, legacyLeads] = await Promise.all([
     prisma.crmLead.findMany({ select: { companyName: true }, distinct: ["companyName"] }),
-    prisma.collection.findMany({ select: { customerName: true }, distinct: ["customerName"] }),
+    prisma.collection.findMany({ where: { deletedAt: null }, select: { customerName: true }, distinct: ["customerName"] }),
     prisma.salesFunnel.findMany({ select: { customerName: true }, distinct: ["customerName"] }),
     prisma.leadGeneration.findMany({ select: { customerName: true }, distinct: ["customerName"] }),
   ]);
@@ -40,7 +40,7 @@ export async function importCustomersFromCrm(): Promise<{
   legacyLeads.forEach((r) => addSource(r.customerName, "lead_generation"));
 
   // 2. Existing customers in master table (normalised)
-  const existing = await prisma.customer.findMany({ select: { name: true } });
+  const existing = await prisma.customer.findMany({ where: { deletedAt: null }, select: { name: true } });
   const existingSet = new Set(existing.map((c) => normalise(c.name)));
 
   // 3. Insert missing ones

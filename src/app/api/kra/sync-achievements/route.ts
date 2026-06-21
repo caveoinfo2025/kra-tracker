@@ -71,7 +71,7 @@ async function appointmentsFixed(employeeId: number): Promise<number> {
 // Helper: compute total billing (ex-GST)
 async function totalBilling(employeeId: number): Promise<number> {
   const rows = await prisma.collection.findMany({
-    where: { employeeId },
+    where: { employeeId, deletedAt: null },
     select: { amountWithoutGstLakhs: true },
   });
   return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);

@@ -14,9 +14,10 @@ export async function GET() {
   if (deny) return deny;
 
   const customers = await prisma.customer.findMany({
-    where: { parentId: null },          // top-level (HO) first
+    where: { parentId: null, deletedAt: null },          // top-level (HO) first
     include: {
       branches: {
+        where: { deletedAt: null },
         orderBy: { name: "asc" },
       },
     },

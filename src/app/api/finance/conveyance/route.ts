@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest) {
   const seesAll = await canViewAllConveyance(session);
 
   const claims = await prisma.travelClaim.findMany({
-    where: seesAll ? {} : { employeeId: user.employeeId! },
+    where: { deletedAt: null, ...(seesAll ? {} : { employeeId: user.employeeId! }) },
     include: {
       employee: { select: { id: true, name: true, department: true } },
       approvedBy: { select: { name: true } },

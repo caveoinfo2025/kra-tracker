@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
 
   const expenses = await prisma.expense.findMany({
     where: {
+      deletedAt: null,
       ...(isManager ? {} : { employeeId: empId }),
       ...(searchParams.get("status") ? { status: searchParams.get("status")! } : {}),
     },

@@ -41,7 +41,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let customerName  = lead.companyName;
 
   if (body.existingCustomerId) {
-    const existing = await prisma.customer.findUnique({ where: { id: Number(body.existingCustomerId) } });
+    const existing = await prisma.customer.findFirst({
+      where: { id: Number(body.existingCustomerId), deletedAt: null },
+    });
     if (!existing) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     customerRefId = existing.id;
     customerName  = existing.name;

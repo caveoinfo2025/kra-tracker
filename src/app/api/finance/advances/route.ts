@@ -68,9 +68,12 @@ export async function GET(req: NextRequest) {
     if (isNaN(dateTo.getTime())) return NextResponse.json({ error: "Invalid dateTo" }, { status: 400 });
   }
 
-  const ownerWhere = isFinMgr
-    ? (employeeIdFilter !== undefined ? { employeeId: employeeIdFilter } : {})
-    : { employeeId: empId };
+  const ownerWhere = {
+    deletedAt: null,
+    ...(isFinMgr
+      ? (employeeIdFilter !== undefined ? { employeeId: employeeIdFilter } : {})
+      : { employeeId: empId }),
+  };
 
   const dateWhere = (dateFrom || dateTo)
     ? { requestDate: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lte: dateTo } : {}) } }

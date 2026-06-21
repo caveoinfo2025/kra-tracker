@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   if (!collectionId) return NextResponse.json({ error: "collectionId required" }, { status: 400 });
 
   const payments = await prisma.payment.findMany({
-    where: { collectionId: Number(collectionId) },
+    where: { collectionId: Number(collectionId), deletedAt: null },
     orderBy: { paymentDate: "desc" },
     include: { recordedBy: { select: { name: true } } },
   });
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "collectionId and a positive amount are required" }, { status: 400 });
   }
 
-  const coll = await prisma.collection.findUnique({ where: { id: collectionId } });
+  const coll = await prisma.collection.findFirst({ where: { id: collectionId, deletedAt: null } });
   if (!coll) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
   const result = await recordPayment({

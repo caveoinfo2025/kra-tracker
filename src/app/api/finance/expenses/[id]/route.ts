@@ -66,8 +66,8 @@ export async function GET(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const expense = await prisma.expense.findUnique({
-    where: { id },
+  const expense = await prisma.expense.findFirst({
+    where: { id, deletedAt: null },
     include: {
       employee:   { select: { id: true, name: true } },
       vendor:     true,

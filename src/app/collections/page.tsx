@@ -23,7 +23,10 @@ export default async function CollectionsPage({
   });
 
   const rows = await prisma.collection.findMany({
-    where: seeAll ? {} : empId ? { employeeId: empId } : { employeeId: -1 },
+    where: {
+      deletedAt: null,
+      ...(seeAll ? {} : empId ? { employeeId: empId } : { employeeId: -1 }),
+    },
     include: { employee: { select: { name: true } } },
     orderBy: { dueDate: "asc" },
     take: 500,

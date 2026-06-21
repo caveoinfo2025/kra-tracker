@@ -23,9 +23,12 @@ export async function GET(req: Request) {
 
   const isManagerOrAccounts = canSeeAllCollections(session?.user);
 
-  const where = isManagerOrAccounts
-    ? empId ? { employeeId: Number(empId) } : {}
-    : { employeeId: session?.user?.employeeId };
+  const where = {
+    deletedAt: null,
+    ...(isManagerOrAccounts
+      ? empId ? { employeeId: Number(empId) } : {}
+      : { employeeId: session?.user?.employeeId }),
+  };
 
   const rows = await prisma.collection.findMany({
     where,

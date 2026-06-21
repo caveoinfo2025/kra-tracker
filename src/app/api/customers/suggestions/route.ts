@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
   // 1. Customer master (canonical, with ID)
   const masterCustomers = await prisma.customer.findMany({
-    where: { name: contains },
+    where: { name: contains, deletedAt: null },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
     take: 10,
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       take: 10,
     }),
     prisma.collection.findMany({
-      where: { customerName: contains },
+      where: { customerName: contains, deletedAt: null },
       select: { customerName: true, customerId: true },
       distinct: ["customerName"],
       take: 10,

@@ -25,7 +25,7 @@ export async function POST(
   const collectionId = Number(body.collectionId);
   if (!collectionId) return NextResponse.json({ error: "collectionId required" }, { status: 400 });
 
-  const coll = await prisma.collection.findUnique({ where: { id: collectionId } });
+  const coll = await prisma.collection.findFirst({ where: { id: collectionId, deletedAt: null } });
   if (!coll) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
   const result = await applyAdvance(Number(id), collectionId, session.user.employeeId!);

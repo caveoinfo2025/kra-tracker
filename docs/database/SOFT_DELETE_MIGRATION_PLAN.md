@@ -417,9 +417,13 @@ Phase C, Finance half.
 > locked the open §13 decisions below into final answers. **Step 3B is now complete**:
 > `deletedAt`/`deletedById`/`deleteReason` were added to the 7 approved models (`Customer`,
 > `Vendor`, `Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, `Collection`) and migration
-> `20260621120000_add_soft_delete_fields_phase_a` was applied to the dev DB only. Steps 3C–3H below
-> (read-filter updates, DELETE-route conversion, audit-log wiring, restore UI) remain not started.
-> See `docs/RBAC_MIGRATION_TRACKER.md` §4 and `docs/PROJECT_MEMORY.md` for full detail.
+> `20260621120000_add_soft_delete_fields_phase_a` was applied to the dev DB only. **Step 3C is now
+> also complete: Phase B read filters implemented before delete-route conversion** — every normal
+> read (list/detail/dropdown/search/duplicate-detection/import-dedup/count/aggregate/dashboard) on
+> the 7 approved models now filters `deletedAt: null`, deliberately landed before any DELETE route
+> is converted (Step 3D), per this plan's own §6/§10 ordering. Steps 3D–3H below (DELETE-route
+> conversion, restore routes, audit-log wiring, restore UI) remain not started. See
+> `docs/RBAC_MIGRATION_TRACKER.md` §4 and `docs/PROJECT_MEMORY.md` for full detail.
 
 ---
 

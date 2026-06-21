@@ -86,7 +86,7 @@ export default async function EmployeeDetailPage({
       take: 10,
     }),
     prisma.collection.findMany({
-      where: { employeeId: Number(id), collectionStatus: { not: "Fully Received" } },
+      where: { employeeId: Number(id), collectionStatus: { not: "Fully Received" }, deletedAt: null },
       orderBy: { dueDate: "asc" },
     }),
     prisma.dailyUpdate.findMany({

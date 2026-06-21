@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
     : {};
 
   // ── Summary scope (date + owner scope; no status / search / vendor filter) ───
-  const summaryWhere = { ...ownerFilter, ...dateFilter };
+  const summaryWhere = { ...ownerFilter, ...dateFilter, deletedAt: null };
 
   // Today boundaries (UTC)
   const todayStart = new Date();
@@ -207,6 +207,7 @@ export async function GET(req: NextRequest) {
   const listWhere: Record<string, unknown> = {
     ...ownerFilter,
     ...dateFilter,
+    deletedAt: null,
     ...(statusParam        ? { status:   statusParam }       : {}),
     ...(categoryParam      ? { category: categoryParam }     : {}),
     ...(vendorIdFilter !== undefined ? { vendorId: vendorIdFilter } : {}),

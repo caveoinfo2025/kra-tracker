@@ -16,16 +16,16 @@ function round2(n: number) {
 /** Recompute and persist a Collection's cached totals from its payment ledger. */
 export async function syncCollectionTotals(collectionId: number) {
   const [coll, agg, lastPayment] = await Promise.all([
-    prisma.collection.findUnique({
-      where: { id: collectionId },
+    prisma.collection.findFirst({
+      where: { id: collectionId, deletedAt: null },
       select: { invoiceValueLakhs: true },
     }),
     prisma.payment.aggregate({
-      where: { collectionId },
+      where: { collectionId, deletedAt: null },
       _sum: { amountLakhs: true },
     }),
     prisma.payment.findFirst({
-      where: { collectionId },
+      where: { collectionId, deletedAt: null },
       orderBy: { paymentDate: "desc" },
       select: { paymentDate: true },
     }),
@@ -73,11 +73,11 @@ interface RecordPaymentInput {
  */
 async function reconcileOpeningBalance(collectionId: number, recordedById: number) {
   const [coll, agg] = await Promise.all([
-    prisma.collection.findUnique({
-      where: { id: collectionId },
+    prisma.collection.findFirst({
+      where: { id: collectionId, deletedAt: null },
       select: { amountReceivedLakhs: true, paymentReceivedDate: true, createdAt: true },
     }),
-    prisma.payment.aggregate({ where: { collectionId }, _sum: { amountLakhs: true } }),
+    prisma.payment.aggregate({ where: { collectionId, deletedAt: null }, _sum: { amountLakhs: true } }),
   ]);
   if (!coll) return;
 
@@ -201,6 +201,7 @@ export async function paymentsToday(employeeId?: number) {
 
   const where = {
     paymentDate: { gte: start, lt: end },
+    deletedAt: null,
     ...(employeeId ? { collection: { employeeId } } : {}),
   };
 

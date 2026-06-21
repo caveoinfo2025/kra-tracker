@@ -47,7 +47,7 @@ export default async function DashboardPage() {
   const in30 = new Date(today);
   in30.setDate(today.getDate() + 30);
 
-  const allCollections = await prisma.collection.findMany({ orderBy: { invoiceDate: "desc" } });
+  const allCollections = await prisma.collection.findMany({ where: { deletedAt: null }, orderBy: { invoiceDate: "desc" } });
   const pendingCollections = allCollections.filter((c) => c.collectionStatus !== "Fully Received");
 
   const overdueMap: Record<number, number>  = {};

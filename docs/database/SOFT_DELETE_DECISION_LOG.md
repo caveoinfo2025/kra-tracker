@@ -17,6 +17,14 @@
 > `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3B row) and `docs/PROJECT_MEMORY.md`'s Step 3B entry
 > for full detail. The §13 exit criteria below are now satisfied.
 
+> **Implementation note (Step 3C, 2026-06-21):** `deletedAt: null` read-filter behavior is now
+> live. Every normal read query (list, detail, dropdown, search, duplicate detection, import-dedup
+> check, count, aggregate, groupBy, dashboard summary) against the 7 approved models now excludes
+> soft-deleted records, deliberately landed before any DELETE route is converted (Step 3D) — see
+> §6/§10's Phase B-before-Phase C ordering. No DELETE route, restore route, schema, migration, or
+> UI behavior changed. `Vendor` had no application-level read queries to update (still UI-only mock
+> data). See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3C row) for the full file-by-file list.
+
 ---
 
 ## 1. Decision Summary

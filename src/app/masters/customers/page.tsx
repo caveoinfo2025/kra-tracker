@@ -48,22 +48,22 @@ export default async function GlobalCustomerMasterPage() {
   // Auto-seed the master table from CRM the first time it is opened on a fresh
   // database — mirrors /customers/page.tsx so both entry points behave
   // identically against the same underlying Customer table.
-  const existingCount = await prisma.customer.count();
+  const existingCount = await prisma.customer.count({ where: { deletedAt: null } });
   if (existingCount === 0) {
     await importCustomersFromCrm();
   }
 
   const customers = await prisma.customer.findMany({
-    where: { parentId: null },
-    include: { branches: { orderBy: { name: "asc" } } },
+    where: { parentId: null, deletedAt: null },
+    include: { branches: { where: { deletedAt: null }, orderBy: { name: "asc" } } },
     orderBy: { name: "asc" },
   });
 
   const stats = {
-    total:    await prisma.customer.count(),
-    ho:       await prisma.customer.count({ where: { officeType: "HO", parentId: null } }),
-    branches: await prisma.customer.count({ where: { officeType: "Branch" } }),
-    withGst:  await prisma.customer.count({ where: { gstNo: { not: "" } } }),
+    total:    await prisma.customer.count({ where: { deletedAt: null } }),
+    ho:       await prisma.customer.count({ where: { officeType: "HO", parentId: null, deletedAt: null } }),
+    branches: await prisma.customer.count({ where: { officeType: "Branch", deletedAt: null } }),
+    withGst:  await prisma.customer.count({ where: { gstNo: { not: "" }, deletedAt: null } }),
   };
 
   return (

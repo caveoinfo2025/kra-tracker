@@ -73,7 +73,7 @@ async function closedWonBooking(employeeId: number) {
 
 async function totalCollectionsWithoutGst(employeeId: number) {
   const rows = await prisma.collection.findMany({
-    where: { employeeId },
+    where: { employeeId, deletedAt: null },
     select: { amountWithoutGstLakhs: true },
   });
   return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
@@ -94,7 +94,7 @@ async function totalGrossProfit(employeeId: number) {
  */
 async function onTimeCollectionRate(employeeId: number) {
   const rows = await prisma.collection.findMany({
-    where: { employeeId },
+    where: { employeeId, deletedAt: null },
     select: { collectionStatus: true, invoiceValueLakhs: true, dueDate: true, paymentReceivedDate: true },
   });
   if (!rows.length) return { rate: 0, onTime: 0, late: 0, total: 0 };
@@ -130,7 +130,7 @@ async function onTimeCollectionRate(employeeId: number) {
  */
 async function customerRetentionRate(employeeId: number) {
   const rows = await prisma.collection.findMany({
-    where: { employeeId },
+    where: { employeeId, deletedAt: null },
     select: { customerName: true },
   });
   if (!rows.length) return { rate: 0, returning: 0, total: 0 };
@@ -288,6 +288,7 @@ async function teamBooking() {
 
 async function teamBilling() {
   const rows = await prisma.collection.findMany({
+    where: { deletedAt: null },
     select: { amountWithoutGstLakhs: true },
   });
   return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
@@ -304,6 +305,7 @@ async function teamTotalGrossProfit() {
 
 async function teamCollectionsEfficiency() {
   const rows = await prisma.collection.findMany({
+    where: { deletedAt: null },
     select: { collectionStatus: true, invoiceValueLakhs: true },
   });
   if (!rows.length) return 0;
