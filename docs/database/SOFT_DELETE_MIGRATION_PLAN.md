@@ -421,9 +421,15 @@ Phase C, Finance half.
 > also complete: Phase B read filters implemented before delete-route conversion** — every normal
 > read (list/detail/dropdown/search/duplicate-detection/import-dedup/count/aggregate/dashboard) on
 > the 7 approved models now filters `deletedAt: null`, deliberately landed before any DELETE route
-> is converted (Step 3D), per this plan's own §6/§10 ordering. Steps 3D–3H below (DELETE-route
-> conversion, restore routes, audit-log wiring, restore UI) remain not started. See
-> `docs/RBAC_MIGRATION_TRACKER.md` §4 and `docs/PROJECT_MEMORY.md` for full detail.
+> is converted (Step 3D), per this plan's own §6/§10 ordering. **Step 3D is now also complete:
+> Phase C started with Customer and Collection delete-route conversion after read filters were in
+> place** — `DELETE /api/customers/master/[id]`, `POST /api/customers/master/deduplicate`,
+> `DELETE /api/collections/[id]`, and `DELETE /api/collections` (bulk) all now soft-delete via
+> `update()`/`updateMany()` plus a per-record `AuditLog` write, instead of `delete()`/
+> `deleteMany()` — exactly this plan's §7 behavior, scoped to the two confirmed live-risk models
+> only. Steps 3E–3H below (Finance delete-route conversion once those write APIs exist, restore
+> routes, restore UI) remain not started. See `docs/RBAC_MIGRATION_TRACKER.md` §4 and
+> `docs/PROJECT_MEMORY.md` for full detail.
 
 ---
 

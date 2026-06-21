@@ -8,12 +8,52 @@ export async function DELETE(req: Request) {
   if (!canSeeAllCollections(session?.user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const { ids } = await req.json() as { ids: number[] };
+  const body = await req.json() as { ids: number[]; deleteReason?: string };
+  const { ids } = body;
   if (!Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json({ error: "No ids provided" }, { status: 400 });
   }
-  await prisma.collection.deleteMany({ where: { id: { in: ids } } });
-  return NextResponse.json({ success: true, deleted: ids.length });
+
+  // Only soft-delete still-active rows — an already-deleted id has nothing to audit again.
+  const existing = await prisma.collection.findMany({ where: { id: { in: ids }, deletedAt: null } });
+  if (existing.length === 0) {
+    return NextResponse.json({ success: true, deleted: 0 });
+  }
+
+  // Step 3D: existing bulk-delete UI sends no reason field — optional with a
+  // safe fallback so the current button keeps working unmodified.
+  const deleteReason = (body.deleteReason ?? "").toString().trim() || "Deleted by user";
+  const empId = session!.user!.employeeId!;
+  const now = new Date();
+  const activeIds = existing.map((c) => c.id);
+
+  await prisma.$transaction([
+    prisma.collection.updateMany({
+      where: { id: { in: activeIds } },
+      data:  { deletedAt: now, deletedById: empId, deleteReason },
+    }),
+    ...existing.map((c) =>
+      prisma.auditLog.create({
+        data: {
+          entityType:    "collection",
+          entityId:      c.id,
+          action:        "SOFT_DELETE",
+          performedById: empId,
+          notes:         deleteReason,
+          changes: JSON.stringify({
+            invoiceNo:         c.invoiceNo,
+            customerName:      c.customerName,
+            invoiceValueLakhs: c.invoiceValueLakhs,
+            dueDate:           c.dueDate,
+            collectionStatus:  c.collectionStatus,
+            employeeId:        c.employeeId,
+          }),
+        },
+      }),
+    ),
+  ]);
+
+  return NextResponse.json({ success: true, deleted: activeIds.length });
 }
 
 export async function GET(req: Request) {

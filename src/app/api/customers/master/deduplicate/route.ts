@@ -57,14 +57,56 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "keepId and deleteIds required" }, { status: 400 });
   }
 
-  // Re-parent any branches of deleted customers to the kept customer
+  // Only merge currently-active duplicates — an already soft-deleted id has
+  // nothing to re-parent or merge again.
+  const duplicates = await prisma.customer.findMany({
+    where: { id: { in: deleteIds }, deletedAt: null },
+  });
+  if (duplicates.length === 0) {
+    return NextResponse.json({ ok: true, deleted: 0 });
+  }
+  const activeIds = duplicates.map((c) => c.id);
+  const empId = session!.user.employeeId!;
+  const now = new Date();
+  const deleteReason = `Merged into customer ${keepId}`;
+
+  // Re-parent any branches of the merged-away customers to the kept customer
   await prisma.customer.updateMany({
-    where: { parentId: { in: deleteIds } },
+    where: { parentId: { in: activeIds } },
     data:  { parentId: keepId },
   });
 
-  // Delete the duplicates
-  await prisma.customer.deleteMany({ where: { id: { in: deleteIds } } });
+  // No unique constraint on Customer (name/gstNo are plain Strings, not @unique
+  // in prisma/schema.prisma), so soft-deleting the merged-away rows alongside
+  // the still-active kept customer cannot collide — safe to soft-delete here.
+  await prisma.customer.updateMany({
+    where: { id: { in: activeIds } },
+    data:  { deletedAt: now, deletedById: empId, deleteReason },
+  });
 
-  return NextResponse.json({ ok: true, deleted: deleteIds.length });
+  await prisma.$transaction(
+    duplicates.map((c) =>
+      prisma.auditLog.create({
+        data: {
+          entityType:    "customer",
+          entityId:      c.id,
+          action:        "SOFT_DELETE",
+          performedById: empId,
+          notes:         deleteReason,
+          changes: JSON.stringify({
+            name:       c.name,
+            address:    c.address,
+            district:   c.district,
+            state:      c.state,
+            gstNo:      c.gstNo,
+            officeType: c.officeType,
+            parentId:   c.parentId,
+            mergedIntoId: keepId,
+          }),
+        },
+      }),
+    ),
+  );
+
+  return NextResponse.json({ ok: true, deleted: activeIds.length });
 }

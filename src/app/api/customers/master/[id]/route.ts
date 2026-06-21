@@ -39,7 +39,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
@@ -50,12 +50,45 @@ export async function DELETE(
   const { id } = await params;
   const numId = Number(id);
 
-  // Re-parent any branches to null before deleting the HO
+  const customer = await prisma.customer.findFirst({ where: { id: numId, deletedAt: null } });
+  if (!customer) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Step 3D: existing Customer Master UI sends no request body on DELETE — the
+  // reason field is supported but optional, falling back to a default so the
+  // current delete button keeps working unmodified (see SOFT_DELETE_DECISION_LOG.md).
+  const body = await req.json().catch(() => ({} as { deleteReason?: string }));
+  const deleteReason = (body.deleteReason ?? "").toString().trim() || "Deleted by user";
+  const empId = session.user.employeeId!;
+
+  // Re-parent any branches to null before soft-deleting the HO
   await prisma.customer.updateMany({
     where: { parentId: numId },
     data:  { parentId: null, officeType: "HO" },
   });
 
-  await prisma.customer.delete({ where: { id: numId } });
+  await prisma.customer.update({
+    where: { id: numId },
+    data: { deletedAt: new Date(), deletedById: empId, deleteReason },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      entityType:    "customer",
+      entityId:      numId,
+      action:        "SOFT_DELETE",
+      performedById: empId,
+      notes:         deleteReason,
+      changes: JSON.stringify({
+        name:       customer.name,
+        address:    customer.address,
+        district:   customer.district,
+        state:      customer.state,
+        gstNo:      customer.gstNo,
+        officeType: customer.officeType,
+        parentId:   customer.parentId,
+      }),
+    },
+  });
+
   return NextResponse.json({ ok: true });
 }

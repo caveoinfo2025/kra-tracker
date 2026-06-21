@@ -25,6 +25,22 @@
 > UI behavior changed. `Vendor` had no application-level read queries to update (still UI-only mock
 > data). See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3C row) for the full file-by-file list.
 
+> **Implementation note (Step 3D, 2026-06-21):** Customer and Collection soft-delete behavior is
+> now live. All 4 confirmed hard-delete paths — `DELETE /api/customers/master/[id]`,
+> `POST /api/customers/master/deduplicate` (merge), `DELETE /api/collections/[id]`, and
+> `DELETE /api/collections` (bulk) — now call `update()`/`updateMany()` to set
+> `deletedAt`/`deletedById`/`deleteReason` instead of `delete()`/`deleteMany()`, and each writes a
+> `SOFT_DELETE` `AuditLog` row per affected record (reusing the existing `auditLog.create()` shape
+> from `DELETE /api/pipeline/leads/[id]` — no new audit model or helper framework). **Reason-body
+> limitation, as anticipated in §4 above:** neither the Customer Master nor Collections delete
+> buttons send a request body today — `deleteReason` is accepted as optional with a safe fallback
+> (`"Deleted by user"` for direct deletes, `"Merged into customer <keepId>"` for merges) so the
+> existing UI keeps working unmodified; wiring an actual reason-prompt UI is a future, separate
+> step, not done here. Merge-delete was confirmed safe to soft-delete (no `@unique` constraint on
+> `Customer.name`/`gstNo`), so no physical-delete exception was needed anywhere. Live-verified
+> against disposable dev-only test rows (created and removed within this step). See
+> `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3D row) for the full file-by-file detail.
+
 ---
 
 ## 1. Decision Summary

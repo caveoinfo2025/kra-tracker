@@ -21,6 +21,38 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Customer and Collection hard-delete converted to soft delete (Step 3D)
+Step 3D completed: the two confirmed live-risk hard-delete paths — `Customer` and `Collection` —
+no longer physically remove rows. Inventoried every `prisma.{customer,collection}.{delete,
+deleteMany}` call under `src/` (excluding generated code) and converted all 4 found: `DELETE
+/api/customers/master/[id]` (single), `POST /api/customers/master/deduplicate` (merge-delete),
+`DELETE /api/collections/[id]` (single), `DELETE /api/collections` (bulk). Each route now
+re-checks `deletedAt: null` before acting (404 if already gone), sets `deletedAt`/`deletedById`/
+`deleteReason` via `update()`/`updateMany()`, and writes one `AuditLog` row per affected record
+(`action: "SOFT_DELETE"`, `entityType: "customer"` or `"collection"`, `changes` = JSON snapshot of
+the pre-delete row) — reusing the exact `prisma.auditLog.create()` shape `DELETE
+/api/pipeline/leads/[id]` already used; no new audit helper or framework was built. **Reason-body
+limitation:** neither the Customer Master nor Collections delete buttons send a request body
+today (confirmed by reading `CustomerMasterClient.tsx`/`CollectionsClient.tsx`) — `deleteReason`
+is optional with a fallback (`"Deleted by user"`, or `"Merged into customer <keepId>"` for
+merges) so both existing delete buttons keep working with zero UI changes; this is a documented
+temporary limitation, not a UI rewrite. **Merge-delete confirmed safe** — `Customer` has no
+`@unique` on `name`/`gstNo`, so soft-deleting merged-away duplicates next to the still-active kept
+customer cannot collide; no physical-delete exception was needed. **Bulk Collection delete** uses
+one `updateMany()` + one `auditLog.create()` per record inside a single `$transaction([...])` —
+audited per-record, not a silent bulk soft-delete. **Live-verified in the dev DB** using disposable
+test rows created and deleted within this step (never touching real data): single Customer
+delete, single Collection delete, bulk Collection delete, and Customer merge-delete all set the
+correct fields, wrote the correct audit row, left the row physically present, and were
+immediately excluded from `GET /api/customers/master`/`GET /api/collections` afterward. **No
+Vendor/Expense/EmployeeAdvance/TravelClaim/Payment/Voucher/Ledger/Employee delete behavior was
+touched** — confirmed no `prisma.vendor.delete*` call exists anywhere (Vendor Master still has no
+real DELETE API). No schema, migration, read-filter, or UI layout change was made. `npx prisma
+validate`, `npx tsc --noEmit`, `npm run build` (159 pages), and `npm run lint` (589 problems —
+identical to the Step 3C baseline, confirmed no new issues) all pass. See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3D row) and `docs/database/SOFT_DELETE_DECISION_LOG.md`/
+`SOFT_DELETE_MIGRATION_PLAN.md` for full detail.
+
 ### 2026-06-21 — Read filters added so Phase A reads exclude soft-deleted records (Step 3C, read-filter only)
 Step 3C completed: every normal read query against the 7 Step 3B models (`Customer`, `Vendor`,
 `Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, `Collection`) now filters `deletedAt:

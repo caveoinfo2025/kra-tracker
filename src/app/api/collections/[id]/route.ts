@@ -37,18 +37,48 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   return NextResponse.json(row);
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const existing = await prisma.collection.findUnique({ where: { id: Number(id) }, select: { employeeId: true } });
+  const numId = Number(id);
+  const existing = await prisma.collection.findFirst({ where: { id: numId, deletedAt: null } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (!session.user.isManager && existing.employeeId !== session.user.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await prisma.collection.delete({ where: { id: Number(id) } });
+  // Step 3D: existing Collections UI sends no request body on DELETE — the
+  // reason field is supported but optional, falling back to a default so the
+  // current delete button keeps working unmodified (see SOFT_DELETE_DECISION_LOG.md).
+  const body = await req.json().catch(() => ({} as { deleteReason?: string }));
+  const deleteReason = (body.deleteReason ?? "").toString().trim() || "Deleted by user";
+  const empId = session.user.employeeId!;
+
+  await prisma.collection.update({
+    where: { id: numId },
+    data: { deletedAt: new Date(), deletedById: empId, deleteReason },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      entityType:    "collection",
+      entityId:      numId,
+      action:        "SOFT_DELETE",
+      performedById: empId,
+      notes:         deleteReason,
+      changes: JSON.stringify({
+        invoiceNo:         existing.invoiceNo,
+        customerName:      existing.customerName,
+        invoiceValueLakhs: existing.invoiceValueLakhs,
+        dueDate:           existing.dueDate,
+        collectionStatus:  existing.collectionStatus,
+        employeeId:        existing.employeeId,
+      }),
+    },
+  });
+
   return NextResponse.json({ success: true });
 }
