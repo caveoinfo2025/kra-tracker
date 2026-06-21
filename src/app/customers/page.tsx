@@ -1,68 +1,24 @@
-import { getSession } from "@/lib/dev-session";
-import { redirect } from "next/navigation";
-import prisma from "@/lib/prisma";
-import SheetLayout from "@/components/SheetLayout";
-import CustomerMasterClient from "./CustomerMasterClient";
-import { importCustomersFromCrm } from "@/lib/customer-import";
-import { hasPermission } from "@/lib/access-control";
-
 /**
- * Legacy operational Customer Master — live Prisma-backed list with real
- * Import-from-CRM, duplicate detection, and delete, all wired to
- * /api/customers/master*.
+ * Legacy Customer Master — permanently redirects to the Global Customer Master.
+ * Customer Master is a global CRM master, not a standalone operational page.
+ * Route: /masters/customers
  *
- * Step 2O: guarded the same way /masters/customers is: real
- * Masters/CustomerMaster/VIEW permission check (access-control), OR'd with
- * isManager, redirecting to /dashboard on failure.
+ * Step 2O: this page was guarded in place (Masters/CustomerMaster/VIEW ||
+ * isManager) rather than redirected, because /masters/customers was still
+ * mock-data-only at the time — redirecting then would have replaced the only
+ * functional Customer Master with a non-functional preview.
  *
- * Step 2P: /masters/customers now reuses this exact CustomerMasterClient
- * (see @/app/masters/customers/page.tsx) and is functionally equivalent —
- * both routes render real Prisma data through the same component. This
- * page (and its client component below) remain the canonical implementation
- * that /masters/customers imports; not yet redirected pending verification,
- * tracked in docs/RBAC_MIGRATION_TRACKER.md.
+ * Step 2P (Customer Master): /masters/customers was wired to the same real
+ * Prisma data and the same CustomerMasterClient this page used, closing that
+ * gap — both routes became functionally equivalent.
+ *
+ * Step 2Q (Customer Master): now that parity is confirmed, this page is the
+ * compatibility redirect. CustomerMasterClient.tsx (in this folder) is NOT
+ * deleted — /masters/customers imports it directly
+ * (@/app/customers/CustomerMasterClient) and depends on it remaining here.
  */
-export default async function CustomerMasterPage() {
-  const session = await getSession();
-  if (!session?.user) redirect("/login");
+import { redirect } from "next/navigation";
 
-  const userId    = session.user.employeeId!;
-  const isManager = !!session.user.isManager;
-
-  const canView = await hasPermission(userId, "Masters", "CustomerMaster", "VIEW");
-  if (!canView && !isManager) redirect("/dashboard");
-
-  // Auto-seed the master table from CRM the first time it is opened on a fresh
-  // database (e.g. production right after the migration). This makes existing
-  // customers reflect immediately without needing a manual "Import from CRM".
-  const existingCount = await prisma.customer.count();
-  if (existingCount === 0) {
-    await importCustomersFromCrm();
-  }
-
-  const customers = await prisma.customer.findMany({
-    where: { parentId: null },
-    include: { branches: { orderBy: { name: "asc" } } },
-    orderBy: { name: "asc" },
-  });
-
-  const stats = {
-    total:    await prisma.customer.count(),
-    ho:       await prisma.customer.count({ where: { officeType: "HO", parentId: null } }),
-    branches: await prisma.customer.count({ where: { officeType: "Branch" } }),
-    withGst:  await prisma.customer.count({ where: { gstNo: { not: "" } } }),
-  };
-
-  return (
-    <SheetLayout
-      title="Customer Master"
-      description="Central repository of all customers — import from CRM, add branches, remove duplicates."
-    >
-      <CustomerMasterClient
-        initialCustomers={JSON.parse(JSON.stringify(customers))}
-        stats={stats}
-        isManager={!!session.user.isManager}
-      />
-    </SheetLayout>
-  );
+export default function CustomersRedirectPage() {
+  redirect("/masters/customers");
 }

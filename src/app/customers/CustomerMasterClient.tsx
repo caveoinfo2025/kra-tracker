@@ -250,6 +250,10 @@ function DedupModal({ groups, onClose, onMerge }: {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+// Shared live Customer Master client. Rendered from /masters/customers
+// (@/app/customers/CustomerMasterClient). /customers itself (this folder's
+// page.tsx) is now a redirect to /masters/customers (Step 2Q) — this
+// component stays here and stays active; do not move, rename, or delete it.
 export default function CustomerMasterClient({
   initialCustomers, stats: initialStats, isManager,
 }: {

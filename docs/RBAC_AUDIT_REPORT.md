@@ -343,6 +343,36 @@ follow-up, disambiguated with the "(Customer Master)" suffix, same pattern as St
 - No database schema, migration, Customer Master API contract change, Vendor Master change, or
   Finance module change was made.
 
+**Step 2Q (Customer Master) completed (2026-06-20).** Note: "Step 2Q" is also reserved elsewhere
+(§2.2-style decisions on `AppRole`/`RolePageAccess` migrate-vs-delete, tracked in
+`RBAC_MIGRATION_TRACKER.md` §2/§4/§10) for an unrelated, not-yet-started item — this entry is the
+final Customer Master route-consolidation step Step 2P recommended as follow-up, disambiguated
+the same way.
+- `/customers` is **no longer a separate functional Customer Master page.** Pre-check confirmed
+  zero remaining unique functionality before changing it: `/masters/customers/page.tsx` already
+  imported the live `@/app/customers/CustomerMasterClient` and ran the identical
+  Prisma query/auto-seed/stats logic (Step 2P) — both routes were byte-for-byte equivalent in
+  behavior. `src/app/customers/page.tsx` is now a bare server-side redirect
+  (`redirect("/masters/customers")`), matching this codebase's existing redirect-page convention
+  (same shape as `finance/vendors/page.tsx` → `/masters/vendors`). It carries no permission check
+  of its own — enforcement is left entirely to `/masters/customers`'s own guard.
+- **`/customers` now redirects to `/masters/customers`.** Confirmed live in a browser session
+  against the dev database (not just static analysis): unauthenticated → `/login`; a non-manager
+  Employee with no `Masters/CustomerMaster/VIEW` grant → `/dashboard` (both routes' guards fire
+  correctly in the same chain); a Manager → a fully real `/masters/customers` page showing 98 live
+  database customers and working Search/Import-from-CRM/Find-Duplicates/Add-Customer controls.
+- **Customer Master access is now centralized under the access-control-guarded
+  `/masters/customers` route.** `CustomerMasterClient.tsx` (in `src/app/customers/`) was **not**
+  deleted, renamed, or moved — `/masters/customers` imports it directly and depends on it
+  remaining at that path; it now carries a comment noting it is shared and actively rendered from
+  `/masters/customers`. A repo-wide link search (`href="/customers"`, `router.push("/customers"`,
+  `redirect("/customers"`, plain `"/customers"`) found no active navigational links — the sole
+  remaining match, `Topbar.tsx`'s breadcrumb `PATH_LABELS` entry, is not a link and is now
+  effectively dead code since the URL bar will never show `/customers` post-redirect; left
+  unchanged per scope.
+- No database schema, migration, customer data deletion, Customer Master API, Customer Master
+  client logic, Vendor Master, or Finance module change was made.
+
 ---
 
 ## 5. Navigation Permission Findings
@@ -354,7 +384,7 @@ follow-up, disambiguated with the "(Customer Master)" suffix, same pattern as St
 1. **Masters section always shown, page/API enforcement is weakest of all major modules.** `MANAGER_GROUPS`, `EMPLOYEE_GROUPS`, and `ACCOUNTS_GROUPS` *all* unconditionally include a "Masters" group with Customer Master and Vendor Master links (`SidebarLinks.tsx:64-69, 96-102, 126-132`). Every employee, regardless of role, sees and can open both masters pages — consistent with the pages having no permission gate (§4), so navigation visibility is at least *honest* here, but it means there is no role for which Masters is hidden, even though `access-control`'s catalogue defines granular `Masters/CustomerMaster/*` and `Masters/VendorMaster/*` actions that go entirely unused for view-gating.
 2. **Settings link visibility (`showSettings`) uses only `roles.ts`, but the pages behind it increasingly check `access-control` too (OR'd).** A role that is granted `Settings/Identity/VIEW` or `Settings/Masters/VIEW` via the new `access-control` UI, but does **not** match `isOperationsHead`/`isHeadOfSales`/`isManager`, would have **API-level access to view that one settings sub-page directly by URL, but no sidebar entry pointing to it** (case: "user cannot see menu but *could* access direct URL" — though in practice they'd also need to navigate past `/settings` itself, which is gated by `canAccessSettings` alone with no `access-control` OR-fallback, so today this is latent, not exploitable, until/unless `/settings`'s own guard is loosened).
 3. **Finance nav tier (`showFullFinance = isManager || isAccounts`) vs. API tier (`canManageFinance = isManager || isAccounts(user) || isOperationsHead(user)`).** An Operations Head who is not also flagged `isManager` and not name-matched by `isAccounts()` sees the **limited** "My ..." Finance nav (since `showFullFinance` omits the Operations Head check that `canManageFinance` includes), yet their actual API permission level (`canManageFinance`) entitles them to full cross-employee Finance data. This is a "menu hidden but page/API is more permissive than the menu suggests" mismatch — not a security leak, but a real usability/consistency bug worth fixing alongside any RBAC consolidation, since it's evidence the sidebar's boolean set and `roles.ts`'s own predicate set have already drifted apart from each other.
-4. **No link, but accessible page, for `/customers` and `/admin`.** `/customers` (legacy operational list) has no sidebar entry at all (superseded by `/masters/customers` in nav) but ~~remains live and unguarded (§4)~~ **RESOLVED 2026-06-20 (Step 2O)** — now requires `Masters/CustomerMaster/VIEW`-or-`isManager`, the same guard `/masters/customers` carries; still directly reachable by URL/bookmark, but no longer by "are you logged in" alone. **Not redirected to `/masters/customers`** — see §3.6/§5 below for the functional-gap finding that drove that decision. `/admin` similarly has no sidebar entry (superseded by `/settings`) but still resolves (via redirect) to the fully functional legacy administration panel for anyone who passes `canAccessSettings`.
+4. **No link, but accessible page, for `/customers` and `/admin`.** ~~`/customers` (legacy operational list) has no sidebar entry at all (superseded by `/masters/customers` in nav) but remains live and unguarded (§4)~~ **RESOLVED 2026-06-20 (Step 2O, then Step 2Q (Customer Master)).** Step 2O first guarded `/customers` in place (`Masters/CustomerMaster/VIEW`-or-`isManager`); once Step 2P brought `/masters/customers` to functional parity, Step 2Q (Customer Master) converted `/customers` into a bare server-side redirect to `/masters/customers` — it is no longer directly reachable as a separate page at all, by bookmark or otherwise; the URL always resolves forward to the guarded canonical route. `/admin` similarly has no sidebar entry (superseded by `/settings`) but still resolves (via redirect) to the fully functional legacy administration panel for anyone who passes `canAccessSettings` — unchanged, tracked separately as Step 2P (the unrelated, `/admin`-retirement one).
 
 **Step 2J completed (2026-06-20).** Sidebar visibility migrated toward `access-control` where catalogue mappings exist:
 - New `src/lib/access-control/navigation.ts` (`getNavigationCapabilities()`) loads a session's full permission set once per request (reusing the existing `getAllPermissions()` helper) and derives a small capability object; `isManager` employees get the same automatic full-access fallback `hasPermission()` already gives them elsewhere.

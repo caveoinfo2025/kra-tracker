@@ -236,6 +236,42 @@ code in the repo at the time of writing this tracker:
   next step needs before converting `/customers` to a redirect. No database schema, migration,
   Customer Master API contract change, Vendor Master change, or Finance module change was made.
 
+- ✅ **Step 2Q (Customer Master)** — Legacy `/customers` route converted to a server-side
+  redirect to `/masters/customers`, the final Customer Master consolidation step. (Disambiguation
+  note, same pattern as Step 2N's "(API guards)" and Step 2P's "(Customer Master)" sub-steps:
+  "Step 2Q" was already reserved elsewhere in this tracker — §2/§4 and `RBAC_AUDIT_REPORT.md`
+  §39-41/§263 — for the unrelated "decide migrate-vs-delete for `AppRole`/`RolePageAccess`" plan,
+  not yet started. Suffixed "(Customer Master)" to keep both distinct; the `AppRole`/
+  `RolePageAccess` decision remains plain Step 2Q.) Pre-check confirmed before redirecting:
+  `/masters/customers/page.tsx` imports the live `@/app/customers/CustomerMasterClient` (not
+  mock data — Step 2P), and a line-by-line comparison of `/customers/page.tsx`'s prior rendering
+  logic against `/masters/customers/page.tsx` found **zero remaining unique functionality** —
+  both ran the identical `prisma.customer.findMany`/auto-seed/stats query and rendered the
+  identical component. `src/app/customers/page.tsx` now matches this codebase's existing
+  redirect-page convention (same shape as `src/app/finance/vendors/page.tsx` → `/masters/vendors`):
+  a bare `export default function CustomersRedirectPage() { redirect("/masters/customers"); }`,
+  with no `getSession()`/permission check of its own — permission enforcement is left entirely to
+  `/masters/customers`'s own guard, which a logged-out or unpermitted user now reaches via this
+  redirect and is turned back by exactly as before. **`CustomerMasterClient.tsx` (in
+  `src/app/customers/`) was explicitly NOT deleted, renamed, or moved** — `/masters/customers`
+  imports it directly and depends on it staying at that path; a one-line comment was added above
+  the component noting it's shared and actively rendered from `/masters/customers`. **Internal
+  link search:** `href="/customers"`, `router.push("/customers"`, `redirect("/customers"`, and a
+  plain `"/customers"` string search across `src/` found **no active links** — the only match is
+  `Topbar.tsx`'s breadcrumb-label `PATH_LABELS` entry (`{ prefix: "/customers", label: "Customer
+  Master" }`), which is not a navigational link and is now effectively dead code (the URL bar
+  will never show `/customers` again once the redirect fires), left unchanged per scope ("do not
+  change comments/non-link references"). **Manual verification performed live** (dev server +
+  browser preview, not just static analysis): unauthenticated `/customers` → `/masters/customers`
+  → `/login` (session check); a non-permitted Employee (`Akshayah M`, no `CustomerMaster/VIEW`
+  grant) hitting `/customers` → `/masters/customers` → `/dashboard` (permission check, confirms
+  both routes' guards fire correctly in the same request chain); the Manager account (`Vijesh
+  Vijayan`) hitting `/customers` → `/masters/customers` and landing on a fully real page — 98
+  live customers from the database, working Search/State/Type filters, and the Import from
+  CRM/Find Duplicates/Add Customer buttons all present. No database schema, migration, customer
+  data, Customer Master API, Customer Master client logic, Vendor Master, or Finance change was
+  made.
+
 No step in this list is marked "Pending confirmation" — all are independently verifiable in
 the current codebase as of this tracker's update.
 
@@ -421,8 +457,16 @@ gap is called out explicitly — no permission was invented to fill a gap.
 8. **Step 2P (Customer Master)** — Wire `/masters/customers` to real Customer Master data,
    reusing `/customers`'s proven `CustomerMasterClient`. **(Completed, 2026-06-20.)** Follow-up,
    not started: verify functional parity in a live session (manual checklist, §3), then convert
-   `/customers` to a redirect to `/masters/customers`.
-9. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
-   `/api/advances`) from `roles.ts`-only to `access-control` + own-scope `DataAccessPolicy` rules.
-10. **Step 2P** — Legacy `/admin` Roles tab retirement plan (unrelated to "Step 2P (Customer
+   `/customers` to a redirect to `/masters/customers`. **(Completed, 2026-06-20 — see Step 2Q
+   (Customer Master) below.)**
+9. **Step 2Q (Customer Master)** — Convert legacy `/customers` to a redirect to
+   `/masters/customers`, completing Customer Master route consolidation. **(Completed,
+   2026-06-20 — live-verified: redirect chain, real data, manager and non-manager permission
+   behavior all confirmed in a browser session; see §3.)** Customer Master now has one canonical
+   page route. No further follow-up planned for Customer Master route consolidation.
+10. **Step 2M** — Migrate Finance **read** APIs (`/api/finance/*`, `/api/expenses`,
+    `/api/advances`) from `roles.ts`-only to `access-control` + own-scope `DataAccessPolicy` rules.
+11. **Step 2P** — Legacy `/admin` Roles tab retirement plan (unrelated to "Step 2P (Customer
     Master)" above — see disambiguation note in §3).
+12. **Step 2Q** — Decide migrate-vs-delete for `AppRole`/`RolePageAccess` (unrelated to "Step 2Q
+    (Customer Master)" above — see disambiguation note in §3).

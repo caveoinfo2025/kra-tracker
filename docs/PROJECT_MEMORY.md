@@ -187,6 +187,32 @@ made. `npx tsc --noEmit`, `npx prisma validate`, `npm run lint`, and `npx cross-
 RAYON_NUM_THREADS=1 next build` (the project's own `npm run build` script uses non-portable
 shell syntax — pre-existing, unrelated) all pass.
 
+### 2026-06-20 — Legacy /customers converted to a redirect (Step 2Q, Customer Master)
+Final Customer Master route consolidation. Pre-check confirmed `/masters/customers/page.tsx`
+already imported the live `@/app/customers/CustomerMasterClient` (Step 2P) and ran the identical
+Prisma query/auto-seed/stats logic — zero unique functionality remained on `/customers`, so it
+was safe to redirect. `src/app/customers/page.tsx` is now a bare server-side redirect
+(`redirect("/masters/customers")`), matching the existing `finance/vendors → masters/vendors`
+redirect-page convention exactly — no permission check of its own; `/masters/customers`'s own
+guard now handles enforcement for both entry points. `CustomerMasterClient.tsx` (in
+`src/app/customers/`) was **not deleted, renamed, or moved** — `/masters/customers` imports it
+directly and needs it to stay at that path; added a one-line comment noting it's shared and
+actively rendered from `/masters/customers`. A repo-wide search for `href="/customers"`,
+`router.push("/customers"`, `redirect("/customers"`, and plain `"/customers"` found no active
+links — only `Topbar.tsx`'s breadcrumb `PATH_LABELS` entry, not a link, now effectively dead
+since the URL bar will never show `/customers` post-redirect (left unchanged, out of scope).
+**Live-verified in a browser session against the dev database** (not just static checks):
+unauthenticated `/customers` → `/masters/customers` → `/login`; non-manager Employee (no
+`Masters/CustomerMaster/VIEW` grant) → `/masters/customers` → `/dashboard` (both routes' guards
+fire in the same chain); Manager → real `/masters/customers` page, 98 live customers, working
+Search/Import-from-CRM/Find-Duplicates/Add-Customer controls. Hit a transient remote-MySQL pool
+timeout mid-verification (Hostinger shared-hosting connection-cap flakiness, not a credential or
+code issue — a direct connection retry succeeded immediately after) — resolved itself, not a
+regression from this change. No database schema, migration, customer data, Customer Master API,
+Customer Master client logic, Vendor Master, or Finance change was made. `npx tsc --noEmit`,
+`npx prisma validate`, `npm run lint`, and `npx cross-env RAYON_NUM_THREADS=1 next build` all
+pass.
+
 ### This session (UNCOMMITTED — dev DB migration applied, TypeScript clean)
 - **SFDC-style Lead Standardization** (`/pipeline/leads`): `customerRefId` FK added to `CrmLead`, migration applied to dev DB. Smart `CustomerNameCombobox` replaces old separate customer dropdown. `ConvertModal` on both list + detail pages. New `POST /api/pipeline/leads/[id]/convert` endpoint. ✓
 - **RBAC Role Assignment in Employees tab** (Settings → Identity & Access): Assign/Remove toggles per role in the Manage drawer; `PATCH /api/admin/identity/users/[id]` with `addRoleId`/`removeRoleId`. ✓
@@ -509,9 +535,11 @@ Sessions 5–7 changes are NOT committed. Everything from Phase 8 onwards lives 
     `/api/customers/master*` APIs (reusing `/customers`'s component) — no longer mock. Money in
     ₹ rupees. Vendor Master still targets the existing `Vendor` model (extend, don't duplicate)
     but isn't wired yet.
-17. **Two "Customer Master" nav entries, now functionally aligned** — `/masters/customers` and
+17. ~~Two "Customer Master" nav entries, now functionally aligned — `/masters/customers` and
     operational `/customers` both render the same real component/data/APIs as of Step 2P
-    (2026-06-20). Still two separate routes pending a redirect decision once verified.
+    (2026-06-20). Still two separate routes pending a redirect decision once verified.~~
+    **RESOLVED 2026-06-20 (Step 2Q, Customer Master).** `/customers` is now a bare redirect to
+    `/masters/customers` — one canonical Customer Master route, live-verified end-to-end.
 18. **Orphaned `next dev` breaks dev login** — a stray process on port 3000 serves a stale
     Turbopack route tree where `/api/dev/switch` 404s, so quick-login can't set the cookie.
     Recovery: kill the port-3000 process, `rm -rf .next`, restart. (CLAUDE.md gotcha #10.)
@@ -577,10 +605,11 @@ Sessions 5–7 changes are NOT committed. Everything from Phase 8 onwards lives 
   UI, mock) and the legacy operational `/customers` (real DB + CRM import/dedupe) both exist and
   both appear in the sidebar. Non-destructive by design, but must converge: fold import/dedupe into
   the global master and back it with the existing `Customer` model. Decision asked of Vijesh.~~
-  **RESOLVED 2026-06-20 (Step 2P, Customer Master).** `/masters/customers` now reuses
-  `/customers`'s real `CustomerMasterClient` and the same `Customer`-table data/APIs — both
-  routes are functionally equivalent. Only sidebar/route consolidation (one route vs. two)
-  remains, pending a redirect decision once verified in a live session.
+  **RESOLVED 2026-06-20 (Step 2P, then Step 2Q, Customer Master).** Step 2P wired
+  `/masters/customers` to `/customers`'s real `CustomerMasterClient` and the same
+  `Customer`-table data/APIs; Step 2Q then converted `/customers` to a redirect to
+  `/masters/customers`, live-verified end-to-end (unauthenticated, non-manager, and manager
+  flows all behave correctly). One canonical Customer Master route now — fully consolidated.
 - **Three new 2026-06-04 modules were all mock & uncommitted** — Expense Categories (8 files),
   Vendor Master (14), Customer Master (16). **Customer Master is now wired (Step 2P, 2026-06-20)**
   — real `Customer`-table data/APIs, no longer mock. Expense Categories and Vendor Master remain
