@@ -294,6 +294,7 @@ the current codebase as of this tracker's update.
 | 2S | Close Finance permission catalogue gaps (`Finance/Voucher`, `Finance/BankBook`, `Finance/CashBook`, `Finance/Conveyance`) before building Finance write APIs | **Done this step (2026-06-21)** | Low — purely additive catalogue entries; no role assignment, schema, API behavior, or UI change; every `src/lib/finance/access.ts` helper still falls back through the prior bridge to `canManageFinance()`, so no current Manager/Accounts/Operations-Head user lost access | 4 new `Finance/*` resources added to `PERMISSION_CATALOGUE` (**22 new permission rows total** — Voucher 6 + BankBook 6 + CashBook 5 + Conveyance 5; corrected 2026-06-21, Step 2V, from an earlier "27" count that did not reconcile with these action lists). `Finance/Reconciliation` deliberately deferred — folds into the new `BankBook`/`CashBook` `APPROVE` actions instead, per the existing "avoid a parallel reconciliation surface" recommendation. See §12 below for full detail. |
 | 2U | Seed/sync the Step 2S Finance catalogue entries into the dev database and verify | **Done this step (2026-06-21)** | Low — pure data sync against the dev DB (`u686730471_caveodev`); idempotent upsert, no deletes, no role-grant changes beyond the pre-existing Super-Admin-gets-all loop | Ran `npx tsx prisma/seed-admin-foundation.ts` against dev. Confirmed via read-only script: all 22 `Finance/{Voucher,BankBook,CashBook,Conveyance}` rows present (6+6+5+5 = 22), zero duplicate `(module,resource,action)` triples across all 101 permission rows, and the 4 pre-existing Finance resources (`Invoice`/`Expense`/`Payment`/`Advance`, 17 rows) untouched. **Settings → Identity → Permission Matrix UI gap found:** the API (`/api/admin/identity/permissions`) correctly returns all 101 live rows, but `PermissionMatrix.tsx`'s hardcoded `MODULE_GROUPS` constant only lists `Finance: ["Invoice","Expense","Payment","Advance"]` — the new resources will not render in the matrix grid until that array is updated. Not fixed this step (UI change out of scope) — **closed by Step 2V below.** No role grants changed beyond Super Admin (automatic, pre-existing loop). |
 | 2V | Update Settings → Identity → Permission Matrix UI to display the new Finance resources | **Done this step (2026-06-21)** | Low — pure UI rendering change; no schema, API, permission-enforcement, or role-grant change | `PermissionMatrix.tsx`'s `MODULE_GROUPS` Finance entry extended to include `Voucher`, `BankBook`, `CashBook`, `Conveyance` (appended after the existing 4, per their documented action lists); `NOT_APPLICABLE` extended with the action gaps each new resource doesn't have in the catalogue (`Voucher` has no `IMPORT`/`ASSIGN`; `BankBook` has no `DELETE`/`ASSIGN`; `CashBook`/`Conveyance` have no `DELETE`/`IMPORT`/`ASSIGN`). Also corrected the "27 new rows" documentation error to the correct **22** wherever it appeared. See §14 below for full detail. |
+| 2W | Decide and apply curated role grants for the new Finance permission resources | **Done this step (2026-06-21)** | Medium — additive only; extends `ROLE_GRANTS` for 2 existing roles, no schema/API/UI change, no role deleted or reset, `roles.ts`/`canManageFinance()` fallback untouched | `Finance Manager` granted full `Voucher`/`BankBook`/`CashBook`/`Conveyance` (22 permissions, matching its existing "Full Finance module + reports" description). `Business Head` granted only `Conveyance/VIEW`+`Conveyance/APPROVE` (2 permissions), extending its existing `Expense` approval pattern to the now-dedicated Conveyance resource — no `BankBook`/`CashBook`/`Voucher` access given to Business Head (no existing policy basis for ledger/voucher operations at that role). No "Accounts Team"/"Accounts Admin" role exists in the `Role` model (only the legacy `Employee.role` string "Accounts" exists, governed by `roles.ts`, a separate system) — documented as not applicable rather than invented. Sales Head, Sales Manager, Account Manager received no new grants. See §15 below for full detail. |
 
 ---
 
@@ -491,9 +492,11 @@ gap is called out explicitly — no permission was invented to fill a gap.
 14. **Step 2U** — Seed/sync the Step 2S catalogue entries into the dev database. **(Completed,
     2026-06-21 — see §13 below.)**
 15. **Step 2V** — Update the Permission Matrix UI's `MODULE_GROUPS` so the new Finance resources
-    render. **(Completed, 2026-06-21 — see §14 below.)** Recommended follow-up, not started
-    (Step 2W): extend `Finance Manager`'s `ROLE_GRANTS` (or grant via the now-updated Permission
-    Matrix UI) per Step 2S's existing recommendation.
+    render. **(Completed, 2026-06-21 — see §14 below.)**
+16. **Step 2W** — Decide and apply curated `ROLE_GRANTS` for the new Finance permission resources.
+    **(Completed, 2026-06-21 — see §15 below.)** No further follow-up planned for this batch of
+    catalogue gaps; Finance write APIs (out of scope for every step so far) remain the next major
+    body of work whenever that is explicitly requested.
 
 ---
 
@@ -765,3 +768,85 @@ note), `FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` (§15), and `PROJECT_MEMORY.md` (S
 6. Settings → Identity → Permission Matrix rendering — see browser verification note below.
 
 **Validation:** `npm run build`, `npx tsc --noEmit`, and `npx prisma validate` all pass.
+
+---
+
+## 15. Step 2W Detail — Curated Role Grants for New Finance Permissions (2026-06-21)
+
+**Scope:** decide and apply curated `ROLE_GRANTS` for the 22 Step 2S/2U/2V Finance permissions
+(`Finance/Voucher`, `Finance/BankBook`, `Finance/CashBook`, `Finance/Conveyance`). No Prisma
+schema change, no migration, no Finance write API, no Finance API/UI logic change, and no
+`roles.ts`/`canManageFinance()` fallback removal were made.
+
+**Task 1 — role-grant pattern confirmed before any edit:**
+- `ROLE_GRANTS` (`prisma/seed-admin-foundation.ts`) is the curated mapping: an array of
+  `[roleName, module, resource, actions[]]` tuples, matched against the `Role` model by **name**
+  (`roleMap.get(roleName)`), not by ID or slug — IDs are assigned at seed time via
+  `findFirst`-or-`create` and looked up by name afterward.
+- Grant application is `prisma.rolePermission.upsert()` on the `@@unique([roleId, permissionId])`
+  key — idempotent, never deletes an existing `RolePermission` row. Super Admin is granted every
+  permission in a separate, earlier loop (`allPerms.forEach(...)`), independent of `ROLE_GRANTS`.
+- Confirmed via the dev DB itself before editing: `Role` model has exactly 6 rows (`Super Admin`,
+  `Business Head`, `Sales Head`, `Sales Manager`, `Account Manager`, `Finance Manager`). No
+  `Accounts Team`/`Accounts Admin`/generic `Manager` role exists in this system. The legacy
+  `Employee.role` column has a literal `"Accounts"` value (one employee, `isManager: false`), but
+  that string is consumed only by `src/lib/roles.ts`'s `isAccounts()` predicate — a parallel,
+  separate authorization bridge with no relationship to `Role`/`RolePermission`. Conflating the
+  two would have meant inventing a `Role` row the project doesn't have; this was deliberately not
+  done.
+
+**Task 2 — roles discovered (from the dev DB, not assumed):** `Super Admin`, `Business Head`,
+`Sales Head`, `Sales Manager`, `Account Manager`, `Finance Manager`. No `Accounts`, `Accounts
+Team`, `Accounts Admin`, or generic `Manager` role exists as a `Role` row.
+
+**Task 3 — grant mapping decided:**
+| Role | New grants | Reasoning |
+|---|---|---|
+| `Finance Manager` | Full `Voucher` (VIEW/CREATE/EDIT/DELETE/APPROVE/EXPORT), `BankBook` (VIEW/CREATE/EDIT/APPROVE/IMPORT/EXPORT), `CashBook` (VIEW/CREATE/EDIT/APPROVE/EXPORT), `Conveyance` (VIEW/CREATE/EDIT/APPROVE/EXPORT) — 22 permissions | Matches the role's own documented description ("Full Finance module + reports") and the exact mapping the task brief specified for "Finance Manager / Accounts Admin" (no distinct Accounts Admin role exists, so only Finance Manager applies) |
+| `Business Head` | `Conveyance/VIEW`, `Conveyance/APPROVE` — 2 permissions | Business Head already holds `Finance/Expense/{VIEW,APPROVE}` in `ROLE_GRANTS` — Conveyance (travel-expense reimbursement on the `TravelClaim` model, per Step 2M's own characterization) is the same class of organization-wide expense approval, now expressed through its dedicated resource instead of the prior `Finance/Expense` fallback. No `BankBook`/`CashBook`/`Voucher` granted — Business Head has never had ledger-level or voucher-issuance access, and the task brief explicitly cautioned against granting those "unless the current project policy says managers need finance operations access," which it does not |
+| `Sales Head`, `Sales Manager`, `Account Manager` | None | No existing Finance-approval grants to extend (Account Manager's existing `Finance/{Invoice,Payment}/VIEW` and `Finance/Expense/{VIEW,CREATE}` are sales-side, self-scoped CRM-adjacent grants, not finance-operations authority); per the task brief's "Normal Employee/BDE/Sales" guidance, operational Finance permissions were not extended to these roles |
+| `Super Admin` | None needed | Already covered by the existing, untouched grant-all loop |
+| `Accounts Team` / `Accounts Admin` | N/A — role does not exist | Documented rather than invented; if a dedicated Accounts-operations `Role` is created in the future, the task brief's suggested mapping (Voucher VIEW/CREATE/EDIT/EXPORT; BankBook VIEW/CREATE/EDIT/IMPORT/EXPORT; CashBook VIEW/CREATE/EDIT/EXPORT; Conveyance VIEW/EXPORT — no DELETE/APPROVE) is recorded here as the recommended starting grant for that future role |
+
+**File changed:** `prisma/seed-admin-foundation.ts` only — 6 new `ROLE_GRANTS` tuples added (4 for
+`Finance Manager`, 1 for `Business Head` covering 2 actions), inserted adjacent to each role's
+existing Finance grants. No existing tuple was edited, reordered, or removed.
+
+**Task 5 — seed run:** `DATABASE_URL` confirmed pointing at the dev DB
+(`u686730471_caveodev` on `srv2201.hstgr.io`) before running. `npx tsx
+prisma/seed-admin-foundation.ts` executed against dev only. Output: `Permissions upserted: 101`,
+`Super Admin granted 101 permissions`, `Role grants upserted: 122` (up from Step 2U's 98 — exactly
++22 for Finance Manager +2 for Business Head = +24, reconciling precisely), `DataAccessPolicies
+upserted: 24` (unchanged, confirming no policy rows were touched).
+
+**Task 6 — DB verification (read-only script, deleted after use):**
+- `Finance Manager`: 22/22 new permissions present in `RolePermission`, exactly matching the
+  planned mapping (`BankBook`×6, `CashBook`×5, `Conveyance`×5, `Voucher`×6).
+- `Business Head`: 2/2 — only `Conveyance/VIEW` and `Conveyance/APPROVE`.
+- `Sales Head`, `Sales Manager`, `Account Manager`: zero grants on any of the 4 new resources —
+  confirmed by querying for `RolePermission` rows against the 22 new `Permission` IDs and finding
+  no matches for these three roles.
+- `Super Admin`: still holds all 101/101 permissions (`rolePermission.count` for Super Admin's
+  `roleId` equals `permission.count()` for the whole table).
+- Zero duplicate `RolePermission` rows (checked by `roleId:permissionId` composite key across all
+  46 grant rows touching the 4 new resources).
+
+**Task 7 — Permission Matrix UI verification (live API, not mock fallback):** Same `.next`-cache
+gotcha from Step 2V's verification recurred (a prior `next build` run had written a stale
+production manifest that 404'd every `/api/admin/identity/*` route mid-session, silently
+triggering the component's mock-data fallback). Caught it the same way — a raw `fetch()` to
+`/api/admin/identity/permissions?roleId=6` returned an HTML 404 body instead of JSON — cleared
+`.next`, restarted the dev server, and re-verified. With live data confirmed (`fetch` returning
+real JSON, `granted: false`/`granted: true` values matching the DB query above), the UI was
+checked for: `Finance Manager` — all 4 new resources fully Granted matching the catalogue's action
+list per resource; `Business Head` — only `Conveyance/VIEW`+`Conveyance/APPROVE` Granted, all
+other new-resource actions Denied; `Account Manager` — all new-resource actions Denied; `Super
+Admin` — all new-resource actions Granted. Screenshot captured of the Finance Manager view as
+visual proof.
+
+**Self-service / Finance read routes unaffected:** no file in `src/lib/finance/access.ts` or any
+`/api/finance/*` route was touched this step — those routes still resolve through
+`canManageFinance()`/the existing `access-control` helper chain exactly as Step 2M/2S/2U left them.
+Employee self-service (own expenses/advances/conveyance) filtering is untouched.
+
+**Validation:** `npx tsc --noEmit`, `npx prisma validate`, and `npm run build` all pass.

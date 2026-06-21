@@ -717,6 +717,43 @@ role-grant mapping, not API implementation).
 
 ---
 
+## 18. Step 2W — Curated Role Grants Applied (2026-06-21)
+
+Dedicated Finance permissions are now **seeded and granted to appropriate Finance/Admin roles**,
+closing the gap §15/§16/§17 flagged as a recommended follow-up. `prisma/seed-admin-foundation.ts`'s
+`ROLE_GRANTS` extended:
+
+- **`Finance Manager`** — full `Voucher`, `BankBook`, `CashBook`, `Conveyance` (22 permissions),
+  matching its existing "Full Finance module + reports" description and exactly the mapping this
+  plan's §15 already recommended.
+- **`Business Head`** — `Conveyance/VIEW` + `Conveyance/APPROVE` only (2 permissions), extending
+  its existing `Finance/Expense` approval authority to the now-dedicated Conveyance resource. No
+  `BankBook`/`CashBook`/`Voucher` granted — no existing policy basis for ledger/ voucher operations
+  at that role.
+- **No "Accounts Team"/"Accounts Admin" role exists** in the `Role` model (confirmed by direct DB
+  query: only `Super Admin`, `Business Head`, `Sales Head`, `Sales Manager`, `Account Manager`,
+  `Finance Manager` exist) — not invented. The legacy `Employee.role` string `"Accounts"` belongs
+  to the separate `roles.ts` system and was left untouched.
+- **`Sales Head`, `Sales Manager`, `Account Manager`** received no new grants — confirmed via DB
+  query that zero `RolePermission` rows exist for these roles against any of the 22 new
+  permissions.
+
+**Future Finance write APIs can now rely on `Finance/Voucher`, `BankBook`, `CashBook`, and
+`Conveyance` permissions being both seeded (Step 2U) and meaningfully assigned (Step 2W)** —
+`requirePermission()`/`hasPermission()` checks against these resources will resolve against real,
+intentionally-curated grants rather than permission rows nobody holds.
+
+**Self-service users remain governed by own-record access rules** — no change to
+`src/lib/finance/access.ts`, any `/api/finance/*` route, or employee-ownership filtering logic.
+
+**Verified against the live API/DB**, not the Permission Matrix's mock-data fallback (see
+`docs/RBAC_MIGRATION_TRACKER.md` §15 for the `.next`-cache gotcha that briefly masked this on the
+first verification attempt, and how it was caught and corrected).
+
+**Validation:** `npx tsc --noEmit`, `npx prisma validate`, and `npm run build` all pass.
+
+---
+
 ## Sources Reviewed
 
 - `docs/RBAC_AUDIT_REPORT.md` (§§2–11, especially §3.7 Finance route matrix, §8 recommended

@@ -47,6 +47,30 @@ workaround used throughout recent sessions was `npx cross-env RAYON_NUM_THREADS=
 - No application code, Prisma schema, migration, API, UI, or RBAC logic changed. `npm run build`,
   `npx tsc --noEmit`, and `npx prisma validate` all pass.
 
+### 2026-06-21 — Curated role grants applied for new Finance permissions (Step 2W)
+Decided and applied `ROLE_GRANTS` (`prisma/seed-admin-foundation.ts`) for the Step 2S/2U/2V Finance
+permissions. Confirmed first, by direct DB query, that the `Role` model has exactly 6 rows (`Super
+Admin`, `Business Head`, `Sales Head`, `Sales Manager`, `Account Manager`, `Finance Manager`) — no
+`Accounts Team`/`Accounts Admin`/generic `Manager` role exists; the legacy `Employee.role` string
+`"Accounts"` belongs to the separate `src/lib/roles.ts` system and was left untouched, not conflated
+with a `Role` row. **Grants applied:** `Finance Manager` → full `Voucher`/`BankBook`/`CashBook`/
+`Conveyance` (22 permissions, matching its "Full Finance module + reports" description).
+`Business Head` → `Conveyance/VIEW` + `Conveyance/APPROVE` only (2 permissions), extending its
+existing `Finance/Expense` approval pattern to the now-dedicated Conveyance resource — no
+`BankBook`/`CashBook`/`Voucher` given (no policy basis for ledger/voucher ops at that role).
+`Sales Head`/`Sales Manager`/`Account Manager` received no new grants. Ran `npx tsx
+prisma/seed-admin-foundation.ts` against the dev DB (confirmed `DATABASE_URL` first); output
+showed `Role grants upserted: 122` (up from Step 2U's 98, reconciling exactly to +22+2=+24).
+Read-only DB query confirmed: Finance Manager 22/22, Business Head 2/2, Super Admin still 101/101,
+zero duplicate `RolePermission` rows, zero grants for Sales Head/Sales Manager/Account Manager on
+the new resources. **Permission Matrix UI re-verified against live data** (hit and resolved the
+same `.next`-stale-cache mock-fallback gotcha documented in Step 2V — cleared `.next`, restarted
+dev server, confirmed via raw `fetch()` returning real JSON before trusting the rendered grid).
+Screenshot captured of Finance Manager's fully-granted new-resource rows. No schema, migration,
+Finance write API, Finance API/UI logic, or `roles.ts` fallback change was made. `npx tsc --noEmit`,
+`npx prisma validate`, and `npm run build` all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §15 and
+`docs/modules/finance/FINANCE_WRITE_ACCESS_CONTROL_PLAN.md` §18 for full detail.
+
 ### 2026-06-21 — Permission Matrix UI updated for new Finance resources (Step 2V)
 Closed the UI gap Step 2U flagged: `src/app/settings/identity/components/PermissionMatrix.tsx`'s
 hardcoded `MODULE_GROUPS` Finance entry extended from `["Invoice","Expense","Payment","Advance"]`
