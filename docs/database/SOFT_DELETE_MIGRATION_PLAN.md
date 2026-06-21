@@ -431,6 +431,19 @@ Phase C, Finance half.
 > routes, restore UI) remain not started. See `docs/RBAC_MIGRATION_TRACKER.md` §4 and
 > `docs/PROJECT_MEMORY.md` for full detail.
 
+> **Implementation progress note (2026-06-21, UI step — distinct from this plan's own "Step 3E"
+> Finance-read-filter step above, which remains not started).** Tracked as **Step 3E** in
+> `docs/RBAC_MIGRATION_TRACKER.md` §4 and `docs/PROJECT_MEMORY.md`: user-triggered Customer and
+> Collection soft deletes now capture a reason. The Customer Master and Collections delete UIs
+> (single + bulk) were converted from `window.confirm()` to a required-reason modal
+> (`DeleteCustomerModal` / shared `DeleteReasonModal`, following the existing `DeleteLeadModal`
+> pattern), so the `deleteReason` accepted by the Step 3D APIs is now actually user-entered
+> instead of always falling back to `"Deleted by user"`. No schema, migration, read filter, API
+> response shape, or authorization logic changed; no API route code changed. Merge-delete
+> intentionally kept its system-generated reason, no UI prompt added. Live-verified against
+> disposable dev-only test rows. See `docs/database/SOFT_DELETE_DECISION_LOG.md`'s Step 3E note
+> for full detail.
+
 ---
 
 ## 13. Risks And Decisions Needed

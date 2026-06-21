@@ -21,6 +21,33 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Customer and Collection delete UI flows now require a delete reason (Step 3E)
+Step 3E completed: Customer and Collection delete UI flows now require delete reason. Closed the
+"reason-body limitation" Step 3D documented above — `CustomerMasterClient.tsx`'s new
+`DeleteCustomerModal` and `CollectionsClient.tsx`'s new shared `DeleteReasonModal` (used for both
+single and bulk delete) replaced the old `window.confirm()` flows, mirroring the existing
+`DeleteLeadModal` pattern from `pipeline/leads/LeadsClient.tsx` (same overlay/card styling, a
+required `textarea`, submit button `disabled` until the reason is non-empty after trim, an inline
+error `div` that does not auto-close the dialog, separate Cancel button). All three flows now send
+the user-entered reason as `deleteReason` in the request body: `DELETE
+/api/customers/master/[id]`, `DELETE /api/collections/[id]`, and `DELETE /api/collections` (bulk,
+alongside `ids`). Soft-delete APIs receive user-entered `deleteReason`; the API fallback reason
+(`"Deleted by user"`) remains only for non-UI or legacy callers — no API route code was changed,
+since no body-parsing bug was found that prevented the UI from sending a body. Customer
+duplicate-merge delete (`POST /api/customers/master/deduplicate`) intentionally received no reason
+prompt — its existing system-generated reason (`"Merged into customer <keepId>"`, from Step 3D)
+already satisfies accountability for a system-initiated delete. No schema/API authorization
+changes were made. **Live-verified in the dev DB** using disposable test rows (created and cleaned
+up within this step, never touching real data): Customer single delete, Collection single delete,
+and Collection bulk delete (2 rows) — for each, the Delete button was programmatically confirmed
+`disabled` before a reason was entered and enabled after, the network request carried the entered
+`deleteReason`, and the resulting `Customer`/`Collection` row's `deletedAt`/`deletedById`/
+`deleteReason` plus a matching `AuditLog` row were confirmed directly against the database.
+`npx prisma validate`, `npx tsc --noEmit`, `npm run build` (159 pages), and `npm run lint` (589
+problems — identical to the Step 3D baseline, confirmed no new issues) all pass. See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3E row) and `docs/database/SOFT_DELETE_DECISION_LOG.md`/
+`SOFT_DELETE_MIGRATION_PLAN.md` for full detail.
+
 ### 2026-06-21 — Customer and Collection hard-delete converted to soft delete (Step 3D)
 Step 3D completed: the two confirmed live-risk hard-delete paths — `Customer` and `Collection` —
 no longer physically remove rows. Inventoried every `prisma.{customer,collection}.{delete,

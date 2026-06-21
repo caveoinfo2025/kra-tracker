@@ -41,6 +41,20 @@
 > against disposable dev-only test rows (created and removed within this step). See
 > `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3D row) for the full file-by-file detail.
 
+> **Implementation note (Step 3E, 2026-06-21):** Customer/Collection UI now enforces
+> API-required-where-practical `deleteReason` policy. `DeleteCustomerModal`
+> (`CustomerMasterClient.tsx`) and the shared `DeleteReasonModal` (`CollectionsClient.tsx`, used
+> by both single and bulk delete) replaced the old `window.confirm()` flows, requiring a
+> non-empty reason before the Delete button enables and sending it as `deleteReason` in the
+> `DELETE` request body. This closes the gap the Step 3D note above flagged: the API-level
+> "required for user-triggered deletes" policy (§4) is now actually enforced at the point of
+> entry, not just accepted-if-present. The merge-delete path
+> (`POST /api/customers/master/deduplicate`) keeps its Step 3D system-generated reason — no UI
+> prompt added there, consistent with §4's "system cleanup: optional reason, audit log still
+> mandatory" row. No schema, migration, read filter, API response shape, or authorization logic
+> changed. Live-verified against disposable dev-only test rows (created and removed within this
+> step). See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3E row) for full detail.
+
 ---
 
 ## 1. Decision Summary

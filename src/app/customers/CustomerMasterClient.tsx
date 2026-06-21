@@ -161,6 +161,79 @@ function CustomerForm({
   );
 }
 
+// ─── Delete (soft-delete) modal ────────────────────────────────────────────────
+
+function DeleteCustomerModal({
+  customer, onClose, onDeleted,
+}: {
+  customer: { id: number; name: string };
+  onClose: () => void;
+  onDeleted: (id: number) => void;
+}) {
+  const [reason,   setReason]   = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error,    setError]    = useState("");
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) { setError("Please enter a reason."); return; }
+    setError(""); setDeleting(true);
+    try {
+      const res = await fetch(`/api/customers/master/${customer.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteReason: reason.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Failed to delete customer.");
+        return;
+      }
+      onDeleted(customer.id);
+      onClose();
+    } catch { setError("Network error."); }
+    finally { setDeleting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-bold text-red-700 mb-1">Delete Customer</h3>
+        <p className="text-sm font-semibold text-gray-800 mb-1">{customer.name}</p>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 mb-4">
+          This record will be removed from normal views but retained for audit history. Please enter a reason.
+        </div>
+        {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded mb-3 border border-red-200">{error}</div>}
+        <form onSubmit={handleDelete} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Reason for deletion <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Duplicate entry, customer no longer active…"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+            />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={deleting || !reason.trim()}
+              className="flex-1 bg-red-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-red-700 disabled:opacity-50">
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+            <button type="button" onClick={onClose}
+              className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Dedup modal ──────────────────────────────────────────────────────────────
 
 function DedupModal({ groups, onClose, onMerge }: {
@@ -270,6 +343,7 @@ export default function CustomerMasterClient({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [formCustomer, setFormCustomer] = useState<(typeof EMPTY_FORM & { id?: number }) | null>(null);
   const [dupeGroups, setDupeGroups] = useState<DupeGroup[] | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [importing, setImporting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [toast, setToast] = useState("");
@@ -329,15 +403,11 @@ export default function CustomerMasterClient({
     finally { setChecking(false); }
   }, []);
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
-  const deleteCustomer = useCallback(async (id: number, name: string) => {
-    if (!confirm(`Delete "${name}"? Any branches will become standalone HOs.`)) return;
-    const res = await fetch(`/api/customers/master/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setCustomers(p => p.filter(c => c.id !== id));
-      setStats(s => ({ ...s, total: s.total - 1, ho: s.ho - 1 }));
-      showToast("Deleted");
-    }
+  // ── Delete (opens the reason-confirmation modal — see DeleteCustomerModal) ──
+  const onCustomerDeleted = useCallback((id: number) => {
+    setCustomers(p => p.filter(c => c.id !== id));
+    setStats(s => ({ ...s, total: s.total - 1, ho: s.ho - 1 }));
+    showToast("Deleted");
   }, []);
 
   // ── Form save ──────────────────────────────────────────────────────────────
@@ -481,7 +551,7 @@ export default function CustomerMasterClient({
                             officeType: c.officeType, parentId: "",
                           })} className="text-xs text-[#CC2229] hover:underline font-medium">Edit</button>
                           {isManager && (
-                            <button onClick={() => deleteCustomer(c.id, c.name)}
+                            <button onClick={() => setDeleteTarget({ id: c.id, name: c.name })}
                               className="text-xs text-red-400 hover:underline font-medium">Del</button>
                           )}
                         </div>
@@ -511,7 +581,7 @@ export default function CustomerMasterClient({
                               officeType: "Branch", parentId: String(c.id),
                             })} className="text-xs text-[#CC2229] hover:underline font-medium">Edit</button>
                             {isManager && (
-                              <button onClick={() => deleteCustomer(b.id, b.name)}
+                              <button onClick={() => setDeleteTarget({ id: b.id, name: b.name })}
                                 className="text-xs text-red-400 hover:underline font-medium">Del</button>
                             )}
                           </div>
@@ -542,6 +612,15 @@ export default function CustomerMasterClient({
           groups={dupeGroups}
           onClose={() => setDupeGroups(null)}
           onMerge={() => { setDupeGroups(null); router.refresh(); showToast("✅ Duplicates merged"); }}
+        />
+      )}
+
+      {/* Delete (soft-delete) reason modal */}
+      {deleteTarget !== null && (
+        <DeleteCustomerModal
+          customer={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={onCustomerDeleted}
         />
       )}
     </div>

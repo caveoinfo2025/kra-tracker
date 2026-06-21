@@ -4,6 +4,65 @@ import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 import CustomerNameCombobox from "@/components/CustomerNameCombobox";
 
+// ─── Delete (soft-delete) reason modal — shared by single + bulk delete ───────
+
+function DeleteReasonModal({
+  title, description, confirmLabel, deleting, error, onConfirm, onClose,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  deleting: boolean;
+  error: string;
+  onConfirm: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) return;
+    onConfirm(reason.trim());
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-bold text-red-700 mb-1">{title}</h3>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 mb-4">
+          {description}
+        </div>
+        {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded mb-3 border border-red-200">{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Reason for deletion <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Duplicate invoice, entered in error…"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+            />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={deleting || !reason.trim()}
+              className="flex-1 bg-red-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-red-700 disabled:opacity-50">
+              {deleting ? "Deleting…" : confirmLabel}
+            </button>
+            <button type="button" onClick={onClose}
+              className="flex-1 border text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 type Row = {
   id: number; invoiceDate: string; invoiceNo: string; employeeId: number;
   employee: { name: string }; customerName: string; invoiceValueLakhs: number;
@@ -86,6 +145,11 @@ export default function CollectionsClient({
   const [error, setError] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState("");
 
   // ── Filter state ─────────────────────────────────────────────────────────────
   const [view, setView]           = useState(initialView ?? "all");
@@ -156,11 +220,31 @@ export default function CollectionsClient({
     finally { setLoading(false); }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Delete this billing record?")) return;
-    await fetch(`/api/collections/${id}`, { method: "DELETE" });
-    setRows((prev) => prev.filter((r) => r.id !== id));
-    setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  // Opens DeleteReasonModal — see render below. Confirmed via confirmDelete().
+  function handleDelete(id: number) {
+    setDeleteError("");
+    setDeleteTargetId(id);
+  }
+
+  async function confirmDelete(reason: string) {
+    if (deleteTargetId === null) return;
+    setDeleting(true); setDeleteError("");
+    try {
+      const res = await fetch(`/api/collections/${deleteTargetId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteReason: reason }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setDeleteError(d.error ?? "Failed to delete record.");
+        return;
+      }
+      setRows((prev) => prev.filter((r) => r.id !== deleteTargetId));
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(deleteTargetId); return next; });
+      setDeleteTargetId(null);
+    } catch { setDeleteError("Network error."); }
+    finally { setDeleting(false); }
   }
 
   function toggleSelect(id: number) {
@@ -189,22 +273,29 @@ export default function CollectionsClient({
     }
   }
 
-  async function handleBulkDelete() {
+  // Opens DeleteReasonModal for the bulk selection — see render below.
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    setBulkDeleteError("");
+    setShowBulkDeleteModal(true);
+  }
+
+  async function confirmBulkDelete(reason: string) {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    if (!confirm(`Delete ${ids.length} selected record${ids.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
-    setBulkDeleting(true);
+    setBulkDeleting(true); setBulkDeleteError("");
     try {
       const res = await fetch("/api/collections", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ ids, deleteReason: reason }),
       });
       if (!res.ok) throw new Error("Bulk delete failed");
       setRows((prev) => prev.filter((r) => !selectedIds.has(r.id)));
       setSelectedIds(new Set());
+      setShowBulkDeleteModal(false);
     } catch {
-      alert("Failed to delete selected records. Please try again.");
+      setBulkDeleteError("Failed to delete selected records. Please try again.");
     } finally {
       setBulkDeleting(false);
     }
@@ -645,6 +736,32 @@ export default function CollectionsClient({
             )}
           </div>
         </>
+      )}
+
+      {/* Delete (soft-delete) reason modal — single record */}
+      {deleteTargetId !== null && (
+        <DeleteReasonModal
+          title="Delete Billing Record"
+          description="This record will be removed from normal views but retained for audit history. Please enter a reason."
+          confirmLabel="Delete"
+          deleting={deleting}
+          error={deleteError}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTargetId(null)}
+        />
+      )}
+
+      {/* Delete (soft-delete) reason modal — bulk selection */}
+      {showBulkDeleteModal && (
+        <DeleteReasonModal
+          title={`Delete ${selectedIds.size} Selected Record${selectedIds.size !== 1 ? "s" : ""}`}
+          description="These records will be removed from normal views but retained for audit history. Please enter a reason."
+          confirmLabel={`Delete ${selectedIds.size}`}
+          deleting={bulkDeleting}
+          error={bulkDeleteError}
+          onConfirm={confirmBulkDelete}
+          onClose={() => setShowBulkDeleteModal(false)}
+        />
       )}
     </div>
   );
