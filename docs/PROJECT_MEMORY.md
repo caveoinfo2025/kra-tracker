@@ -21,6 +21,58 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3T: Release 2 KRA boundary decision locked (Option A approved)
+Step 3T completed: a business-decision documentation step only — no Prisma schema change, no
+migration, no API/UI code change, no database data altered, no `kra-engine.ts`/`payments.ts`
+change, no Payment/Collection value converted.
+
+**Final business decision locked: Option A approved.** Finance Collection storage will move to
+actual INR in Release 2. KRA targets will remain Lakhs-based for now. `src/lib/kra-engine.ts`
+must explicitly convert Collection INR to Lakhs only at the KRA scoring boundary — i.e. inside
+`totalCollectionsWithoutGst()`/`teamBilling()`, not anywhere else. This is not permission to
+keep Collection in Lakhs: Collection storage conversion to INR is mandatory in Release 2; only
+the KRA target *comparison* boundary inside `kra-engine.ts` is allowed to operate in Lakhs
+terms, and only at that one explicit point.
+
+**Option B** (convert KRA targets to actual INR too — the stricter reading of "only
+Leads/Opportunities use Lakhs") is **Deferred** — not adopted now; KRA target migration to INR
+is left for a future, KRA-specific project if the business later decides it's needed.
+**Option C** (leave Collection in Lakhs) is **Rejected** outright — it violates the locked Money
+Unit Policy and was never a real candidate, only documented for completeness in Step 3S.
+
+Updated `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`:
+- §4 (KRA Boundary Options) — added a Decision Status column marking A Approved, B Deferred, C
+  Rejected, with an explanation that Option A is approved because KRA targets are
+  sales/performance targets that can remain Lakhs-based for now, while Finance Collection
+  storage must move to INR regardless.
+- §5 (Recommended KRA Boundary Decision) — reworded from a recommendation awaiting sign-off to a
+  locked decision statement.
+- §12 (Decision Ledger) — every row updated to **Approved**: Payment conversion scope,
+  Collection conversion scope, KRA target unit policy (keep Lakhs for now), KRA engine boundary
+  conversion (Collection INR→Lakhs inside `kra-engine.ts` only), `src/lib/payments.ts`
+  retirement (replace `round2()`/epsilon logic with `money.ts`), API response policy (preserve
+  shape where practical, no Decimal leakage), UI label policy (remove Lakhs labels from
+  Payment/Collection finance UI post-conversion), and Release 2 permission to implement
+  (**approved for dev implementation only**) — except the production migration-history gap
+  review, which remains Pending and non-blocking.
+- New §13 ("Release 2 Implementation Preconditions") added with 9 explicit preconditions for the
+  future implementation step: dev DB only; Payment/Collection fields only; the KRA engine
+  boundary conversion must ship in the same release; `src/lib/payments.ts` must be updated in
+  the same release; Payment/Collection UI labels and converters must be updated in the same
+  release; no CRM Lead/Opportunity/KRA target migration in Release 2; no Voucher/Ledger
+  migration in Release 2; a before/after Collection KRA score comparison is required; no
+  half-converted state is allowed.
+- §14 (Final Recommendation, renumbered from §13) updated to state the decision is locked but
+  implementation has still not started — the next step is a Step 3U implementation prompt.
+
+**No code or schema was changed as a result of this decision.** `src/lib/kra-engine.ts`,
+`src/lib/payments.ts`, every API route, every UI component, `prisma/schema.prisma`, and every
+migration file remain completely untouched; no database row was written or altered.
+Cross-referenced (Step 3T progress notes appended) in
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`. `npx prisma validate`, `npx tsc --noEmit`, and
+`npm run build` all pass (reconfirmations, no app code changed). See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3T row) for the tracker entry.
+
 ### 2026-06-22 — Step 3S: Release 2 Payment/Collection/KRA boundary sign-off plan
 Step 3S completed: a planning and decision-lock step only — no Prisma schema change, no
 migration, no API/UI code change, no database data altered, no Payment/Collection value

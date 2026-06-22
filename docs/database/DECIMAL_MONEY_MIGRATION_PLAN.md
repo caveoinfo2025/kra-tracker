@@ -702,3 +702,20 @@ This document is **planning only**. As of this step:
 >   corruption tolerance).
 > - **Release 2 remains unconverted and blocked** pending the KRA target unit policy decision.
 >   `npx prisma validate` passes; no schema/code/data touched.
+
+> **Step 3T completed (2026-06-22):**
+> - Release 2 KRA boundary decision locked to Option A.
+> - Collection will move to INR storage.
+> - KRA targets remain Lakhs-based for now.
+> - `kra-engine.ts` will convert Collection INR to Lakhs only at the KRA scoring boundary.
+> - Updated `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`: Section 4 (KRA Boundary Options)
+>   now marks Option A Approved, Option B Deferred, Option C Rejected; Section 12 (Decision
+>   Ledger) updated to Approved for every row except the production migration-history gap
+>   review; new Section 13 ("Release 2 Implementation Preconditions") added with 9 explicit
+>   preconditions for the future Step 3U implementation.
+> - **This decision is a lock, not an implementation.** No Prisma schema field was converted, no
+>   migration was generated, no API route or UI component was modified, `src/lib/kra-engine.ts`
+>   and `src/lib/payments.ts` were not touched, and no database row was written or altered.
+>   `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass (reconfirmations, no
+>   app code changed). Release 2 implementation remains not started — the next step is a Step 3U
+>   implementation prompt.
