@@ -394,3 +394,20 @@ database (`u686730471_caveodev`).**
   models).
 - `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass.
 - Release 2 (`Payment`/`Collection`) remains explicitly Blocked, unaffected by this step.
+
+---
+
+## Implementation Note (Step 3R, 2026-06-22)
+
+**Step 3R completed post-migration audit.** Re-confirmed, via independent read-only checks
+(DB column types, live API calls, and live browser UI inspection — not a re-read of Step 3Q's
+own claims), that the Release 1 migration is correct end-to-end: all 9 fields are `Decimal` in
+the dev DB with exactly the expected values, every audited API response serializes correctly
+with no Decimal-object leakage, and every audited UI screen displays correct INR amounts with
+no 100,000× inflation and no leftover "Lakhs" labeling. `Payment`/`Collection`/`Voucher`/
+`Ledger` confirmed still `double` (untouched); `kra-engine.ts`, Collections UI, and
+Leads/Opportunities UI confirmed zero diff across the whole Step 3O→3Q range. The mobile
+`/api/expenses` collateral fix (`AUTO_APPROVE_LIMIT_INR = 10000`) was confirmed correct by
+static review. One pre-existing, unrelated migration-history gap was found and documented
+(not fixed — out of scope). No blockers or functional bugs found. Full detail:
+`docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md` §"Step 3R Post-Migration Audit".

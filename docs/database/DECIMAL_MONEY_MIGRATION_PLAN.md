@@ -670,3 +670,17 @@ This document is **planning only**. As of this step:
 > - **Release 2 remains blocked.** `Payment`/`Collection`/`Voucher`/`Ledger`/CRM Lead-Opportunity/
 >   KRA targets were not touched — confirmed via `git diff --stat` and a migration-SQL safety
 >   review. `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass.
+
+> **Step 3R completed (2026-06-22):**
+> - Release 1 Decimal/INR API and UI audit completed — independently re-verified (DB column
+>   types via `INFORMATION_SCHEMA`, live authenticated API calls, and live browser UI checks)
+>   rather than re-reading Step 3Q's own claims. All 9 Release 1 fields confirmed `Decimal`
+>   with correct INR values in the dev DB; all 5 audited API routes return correct, stable,
+>   non-leaking responses; the Finance Dashboard, Employee Claims, and Employee Advances UI
+>   screens all display correct INR amounts with no 100,000× inflation; the Cr/L/K chart
+>   compact-display logic still works via the new `inrToLakhsEquivalent()` conversion.
+> - **Release 2 remains blocked.** `Payment`/`Collection`/`Voucher`/`Ledger` confirmed still
+>   `double` in the dev DB; `kra-engine.ts`, Collections UI, and Leads/Opportunities UI
+>   confirmed zero diff across the entire Step 3O→3Q range.
+> - One pre-existing, unrelated migration-history gap was found and documented (not fixed). No
+>   blockers or functional bugs found in the Release 1 implementation.

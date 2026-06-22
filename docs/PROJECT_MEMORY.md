@@ -21,6 +21,51 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3R: post-migration audit of Release 1 Decimal/INR behavior (DB, APIs, UI)
+Step 3R completed: a read-only audit step only — no schema, migration, API, UI, or data change.
+Independently re-verified Step 3Q's Release 1 implementation rather than re-reading its own
+claims.
+
+**DB/migration state**: confirmed `DATABASE_URL` → `u686730471_caveodev`; confirmed
+`20260622120000_decimal_release1_lakhs_to_inr` is recorded as applied (not rolled back) in
+`_prisma_migrations`; confirmed via `INFORMATION_SCHEMA.COLUMNS` that all 9 Release 1 columns
+are genuinely `decimal(18,2)`/`decimal(10,4)` while `Payment`/`Collection`/`Voucher`/`Ledger`
+remain `double` (untouched).
+
+**Data values**: re-verified the 2 smoke `Expense` rows, the `EmployeeAdvance` row, and the
+smoke `TravelClaim` row via a fresh read-only script — 11/11 checks pass exactly, no null
+introduced, no double-multiplication, nothing left in Lakhs.
+
+**API boundaries**: hit the live API with authenticated `fetch()` calls (dev quick-login) —
+`/api/finance/expenses`, `/api/finance/advances`, `/api/finance/conveyance`,
+`/api/finance/dashboard` all return correct, stable, non-leaking responses (no
+`[object Object]`, no Decimal objects, no 100,000× inflation).
+
+**UI (live dev server)**: `/finance` dashboard KPI cards and the donut chart (via the new
+`inrToLakhsEquivalent()` conversion, correctly showing "₹12.6L") render correctly;
+`/finance/claims` and `/finance/advances` show correct INR amounts and the corrected "Amount
+(₹)" form label; `/finance/approvals` loads cleanly (no pending requests exist in dev to
+exercise the entity-type branch live — verified by source review, documented as a known
+limitation); `/collections` confirmed still genuinely Lakhs-labeled, untouched. No
+console/hydration errors.
+
+**Exclusions confirmed untouched**: `git diff 54bb67e..1c1447e --stat` shows zero diff for
+`kra-engine.ts`, Collections UI, Leads/Opportunities UI, and `payments.ts`.
+
+**Mobile collateral fix**: confirmed `src/app/api/expenses/route.ts`'s
+`AUTO_APPROVE_LIMIT_INR = 10000` is correct and the only threshold constant present, by static
+review (did not POST new live test data, to avoid non-canonical rows).
+
+**One pre-existing, unrelated issue found and documented (not fixed)**: two earlier migrations
+(`20260615000000_add_advance_category`, `20260617100000_employeetarget_relations`) have no row
+in `_prisma_migrations`, so `prisma migrate status` reports them unapplied even though their
+schema changes are live — classified Minor/Documentation-only, predates Step 3Q, out of scope
+for this audit.
+
+**No blockers, major issues, or functional bugs found in the Release 1 implementation.** Full
+results: `docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md` §"Step 3R Post-Migration Audit".
+`npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass.
+
 ### 2026-06-22 — Step 3Q: Release 1 Decimal + INR migration implemented on dev DB (Expense/EmployeeAdvance/TravelClaim)
 Step 3Q completed: implemented the Release 1 Decimal + Lakhs-to-INR migration atomically on the
 dev database (`u686730471_caveodev`) only — no production change, no Payment/Collection/

@@ -29,6 +29,13 @@
 > Full results: `docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md` (11/11 verification checks
 > pass). **Production has NOT been migrated** — this applies to dev only.
 >
+> **Step 3R (2026-06-22) post-migration audit confirms Release 1 end-to-end.** Independently
+> re-verified column types (`INFORMATION_SCHEMA`), live API responses, and live UI rendering on
+> the dev DB — all correct, no Decimal-object leakage, no 100,000× inflation, no leftover Lakhs
+> labeling. `Payment`/`Collection`/`Voucher`/`Ledger` reconfirmed still `double`. No blockers or
+> functional bugs found; one pre-existing, unrelated migration-history gap (two earlier
+> migrations missing from `_prisma_migrations`) was documented but not fixed (out of scope).
+>
 > **Release 2 — `Payment`/`Collection` (4 fields) — remains explicitly BLOCKED**, pending
 > sign-off on the `src/lib/kra-engine.ts` scoring-boundary conversion (`Collection` feeds KRA
 > billing targets, which stay Lakhs-based by design). See the readiness check's §12 sign-off
