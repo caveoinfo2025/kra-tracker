@@ -595,3 +595,18 @@ This document is **planning only**. As of this step:
 >   written, or altered (the only DB interaction attempted was rejected at the connection-auth
 >   stage before any query executed). `npx prisma validate`, `npx tsc --noEmit`, and `npm run
 >   build` all pass (no code changed, so these are reconfirmations, not new test surface).
+
+> **Money Unit Policy (locked, 2026-06-22, before Step 3O):** Only CRM Leads and Opportunities
+> (and Sales pipeline/forecast fields) should use Lakhs-based values. Finance and Accounting
+> values must use actual INR amounts without Lakhs conversion. This applies to every model
+> previously discussed in this plan as "money-like" — `Collection`, `Payment`, `Expense`,
+> `Voucher`, `Ledger`, `EmployeeAdvance`, `TravelClaim`, `FinAccount` — none of which are exempt.
+> Verification in `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 confirms every
+> Finance `*Lakhs` field genuinely stores ₹ Lakhs today (not a misleading name — an accurate one,
+> for a unit the business has now decided Finance must stop using), so adopting this policy
+> requires a value transformation (×100,000 per existing row) coordinated with the Decimal
+> column-type change and with every Finance UI converter — not a naming-only fix. This materially
+> changes the scope of every future Decimal-conversion implementation step described in §7/§9 of
+> this plan; see the readiness check's §0/§8/§10/§11 for the full revised analysis. No schema or
+> code change has been made as a result of this policy yet — it is a locked decision pending
+> Step 3O's design work.

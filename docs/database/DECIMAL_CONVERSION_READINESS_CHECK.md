@@ -5,6 +5,89 @@
 > database data altered. This document assesses whether the 5 critical Finance models
 > (`Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, `Collection`) are ready for a future
 > Decimal schema conversion — it does not perform that conversion.
+>
+> **Update (2026-06-22, before Step 3O):** A business-rule decision was made — Lakhs-based values
+> are now restricted to CRM Leads/Opportunities/pipeline-estimation fields only; all Finance and
+> Accounting values must use actual INR amounts. See **§0 Money Unit Policy Decision** below,
+> added before this readiness check's conversion-batch recommendation is finalized. §2/§8/§10/§11
+> are superseded where they conflict with §0 — §0 governs.
+
+---
+
+## 0. Money Unit Policy Decision
+
+**Final decision** (locked, business-rule update, 2026-06-22):
+
+- CRM `Lead` and CRM `Opportunity` values (and Sales pipeline/forecast fields) **may remain
+  Lakhs-based.** This applies to: `CrmLead.expectedValue`, `CrmOpportunity.value`/
+  `dealValueExTax`/`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/`billingValueLakhs`. These are
+  intentionally designed pipeline-estimation values, not posted accounting transactions.
+- **All Finance and Accounting values must be actual INR values.** This applies, without
+  exception, to: `Expense`, `EmployeeAdvance`, `TravelClaim`/Conveyance, `Payment`, `Collection`,
+  `Voucher`, `Ledger`, Bank Book, Cash Book, `FinAccount` balances, Reports, Tally export,
+  GST/tax calculations, reimbursements, settlements, vendor payments, and customer receipts.
+- **Future Finance write APIs must not convert values to Lakhs.** Any Finance write endpoint
+  built after this decision must accept and persist actual INR amounts directly — no `/100000`
+  or `*100000` step at the write boundary.
+- **Decimal conversion for Finance must use actual-INR-amount semantics** — i.e. when a Finance
+  `Float` column is eventually converted, the column's *meaning* must become "this many rupees,"
+  not "this many Lakhs of rupees," whatever the column's literal stored numeric value ends up
+  being after the transformation described below.
+- **Any existing Finance field name ending in `Lakhs` is to be treated as a legacy naming
+  artifact going forward** — but see the verification findings immediately below: in this
+  codebase, that legacy naming is **not** a *misleading* name. Every such field genuinely and
+  intentionally stores a value denominated in Lakhs today, by design, end-to-end (DB seed data,
+  every Finance API route's own doc comments, and 9+ independent UI unit-converters). The
+  `Lakhs` suffix is accurate, not a bug — it just describes a unit that the business has now
+  decided Finance must stop using.
+
+### Field-by-field verification (required before any Decimal conversion)
+
+For every Finance field currently named `*Lakhs` (or otherwise unit-ambiguous), the table below
+answers the 6 required questions from direct evidence in the codebase — dev seed data
+(`prisma/seed-dev-finance.ts`), API route doc comments, and UI converter functions — not
+assumption.
+
+| Field | 1. Stored in INR today? | 2. Stored in Lakhs today? | 3. Name misleading? | 4. UI ×/÷ 100,000 anywhere? | 5. API converts to/from Lakhs? | 6. Recommended future name |
+|---|---|---|---|---|---|---|
+| `Expense.amountLakhs` | No | **Yes** — seed: `amountLakhs: 0.3` representing ₹0.30L (₹30,000) incl. GST | No — accurately named | Yes — `src/app/finance/expenses/data.ts`'s `lakhsToRupees()` | No — API returns the raw stored Lakhs value as a 2dp string per its own doc comment ("returned... in ₹ Lakhs (same unit as DB)") | `amountInr` (not renamed this step) |
+| `Expense.gstAmountLakhs` | No | **Yes** — same expense row, same scale (`gst = round4(total - base)` where `total` is the ₹0.30L figure) | No | Yes — same converter as above | No | `gstAmountInr` |
+| `EmployeeAdvance.amountLakhs` | No | **Yes** — seed: `amountLakhs: 0.5` representing ₹0.5L (₹50,000) | No | Yes — `AdvancesClient.tsx`'s `lakhsToRupees()` | No | `amountInr` |
+| `EmployeeAdvance.disbursedAmountLakhs` | No | **Yes** — same model/scale as `amountLakhs` (no seed value populated, but the same `AdvancesClient.tsx` formatter is applied to it) | No | Yes — same component | No | `disbursedAmountInr` |
+| `EmployeeAdvance.settledAmountLakhs` | No | **Yes** — same reasoning | No | Yes — same component | No | `settledAmountInr` |
+| `EmployeeAdvance.balanceLakhs` | No | **Yes** — CACHED (disbursed − settled), same scale; seed sets it to `0` alongside `amountLakhs: 0.5` | No | Yes — same component | No | `balanceInr` |
+| `TravelClaim.ratePerKm` | **N/A — this is a rate, not an amount** | N/A | No | N/A | No | Unchanged — already a real ₹/km rate (seed: `rate = 2.0`, i.e. ₹2/km) |
+| `TravelClaim.amountRupees` | **Yes — already actual INR** | No | No — correctly named and already in the target unit | Not needed — `src/app/finance/conveyance/data.ts` consumes it directly as a plain number, no conversion | No | Already correct — could become the canonical field with no unit change, only a Decimal type change |
+| `TravelClaim.amountLakhs` | No | **Yes** — seed: `amountLakhs: round4(rupees / 100000)`, an explicit derived duplicate of `amountRupees` in a different unit | No — but **redundant**: this field exists purely as a Lakhs-denominated mirror of `amountRupees` | N/A (display mirror only) | No | Candidate for **deprecation**, not renaming — `amountRupees` already satisfies the new policy; keeping both invites drift |
+| `Payment.amountLakhs` | No | **Yes** — same scale as the `Collection`/`Expense` it posts against (flows through `applyAdvance()`/`recordPayment()` in `src/lib/payments.ts`) | No | Yes — `ApprovalInboxPage.tsx` and `FinanceApprovalsClient.tsx` both do `Math.round(ctx.amountLakhs * 100_000)` for display | No | `amountInr` |
+| `Collection.invoiceValueLakhs` | No | **Yes** — confirmed directly in the UI: `CollectionsClient.tsx`/`kra-engine.ts`'s edit form renders the raw form value with a literal `"...}L"` suffix, i.e. the user types the amount in Lakhs | No | Yes — pervasive (Dashboard, KRA engine, Collections UI) | No | `invoiceValueInr` — **see cross-cutting risk below** |
+| `Collection.amountWithoutGstLakhs` | No | **Yes** — same row/scale as `invoiceValueLakhs` | No | Yes | No | `amountWithoutGstInr` |
+| `Collection.amountReceivedLakhs` | No | **Yes** — CACHED, re-derived from `Payment.amountLakhs` sum via `syncCollectionTotals()` | No | Yes | No | `amountReceivedInr` — **see cross-cutting risk below** |
+| `Voucher.amountLakhs` | No | **Yes** — seed: `amountLakhs: total` (the same ₹0.30L figure as the linked `Expense`) | No | Yes — `VouchersClient.tsx`'s `lakhsToRupees()`, and the `amountInWords()` helper in `vouchers/[id]/route.ts` explicitly does `lakhs * 100_000` to convert before generating the words string | No | `amountInr` (excluded from this batch per §1 — Voucher/Ledger remain separate) |
+| `Ledger.amountLakhs` | No | **Yes** — seed: `amountLakhs: total`, same scale as the linked Voucher/Expense | No | Yes — Bank Book/Cash Book route `fmtMoney()` + UI's `lakhsToRupees()`/`fmtINRfromLakhs()` in `bank-book/data.ts` | No | `amountInr` (excluded from this batch per §1) |
+| `FinAccount.openingBalance` / `currentBalance` | No | **Yes (by the same UI convention)** — seeded at `0` in `prisma/seed.ts` so no nonzero magnitude is directly confirmable from seed data alone, but every consuming UI component (`bank-book/data.ts`'s `fmtINRfromLakhs`) treats these exactly like every other `*Lakhs` field, and the field naming convention is consistent with the rest of the schema | No | Yes — same Bank Book/Cash Book converters | No | `openingBalanceInr` / `currentBalanceInr` (excluded from this batch per §1/§3 — tied to the Ledger/Voucher accounting flow) |
+
+**No field in this list has an unclear or ambiguous stored unit.** Every one is confirmed, by
+direct evidence, to genuinely store ₹ Lakhs today (except `TravelClaim.ratePerKm`/`amountRupees`,
+which are already correct). None are blocked under the "unit cannot be confirmed" condition —
+they are all blocked under a different, larger condition: **the new policy requires an actual
+value transformation (multiply every stored amount by 100,000), not just a column-type change,**
+and that transformation has not been designed, reviewed, or scheduled. See the revised
+recommendation in §8/§11 below.
+
+### Cross-cutting risk: `Collection.invoiceValueLakhs`/`amountReceivedLakhs` also feed KRA scoring
+
+`Collection.invoiceValueLakhs` is consumed directly by `src/lib/kra-engine.ts` (confirmed: 6 call
+sites computing `totalValue`/`onTimeVal`/`lateVal`/collection-achievement aggregates for
+**employee KRA performance scoring**, e.g. `rows.reduce((s, r) => s + r.invoiceValueLakhs, 0)`).
+KRA scoring is **not** one of the areas the new Money Unit Policy names (it names CRM Lead/
+Opportunity/pipeline fields as the Lakhs-exempt set, and Finance/Accounting fields as the
+real-INR set — KRA achievement tracking is neither). If `Collection.invoiceValueLakhs` is
+converted from Lakhs to actual-INR semantics under this policy, every KRA-engine aggregation that
+reads this field must be updated in lockstep, or KRA achievement-vs-target comparisons will be
+silently wrong by a factor of 100,000. **This decision needs explicit scope confirmation before
+`Collection` is converted** — it is not addressed by the policy text as given and is flagged here
+as a new, additional blocking item (see §10).
 
 ---
 
@@ -220,6 +303,17 @@ with dev-DB access, or directly via `npx tsx` from a machine already permitted i
 
 ## 8. Recommended First Decimal Conversion Batch
 
+> **Superseded in part by §0.** The batch composition below (Option A) is still the recommended
+> *grouping*, but it no longer describes a schema-only change. Per §0, every field in this batch
+> genuinely stores ₹ Lakhs today (verified, not assumed) and the new policy requires Finance
+> fields to store actual INR — so "converting" these fields now means **(a)** a value
+> transformation (multiply every existing stored row by 100,000), **(b)** the Decimal column-type
+> change, and **(c)** updating every UI converter (`lakhsToRupees()`/`fmtINRfromLakhs()`, 9+
+> call sites) and API doc comment that currently assumes a Lakhs-denominated input — all as one
+> coordinated change, not three separate steps that could be done independently. This is a larger
+> piece of work than the original Step 3G/3N framing assumed, and is reflected in the revised
+> Final Recommendation (§11).
+
 **Recommendation: Option A — Conservative first batch (Expense, EmployeeAdvance, TravelClaim
 money/rate fields only). Defer Payment and Collection to a second batch.**
 
@@ -278,6 +372,30 @@ For the next implementation step (whichever batch is approved):
 
 ## 10. Decisions Needed Before Schema Conversion
 
+- **(New, per §0 policy update)** Who owns and reviews the value-transformation script that
+  multiplies every existing Finance `*Lakhs` row by 100,000 before/alongside the Decimal column
+  change? This is a data-rewriting operation distinct from, and riskier than, the `ALTER COLUMN`
+  type change itself — it needs its own before/after `SUM()` comparison (the post-transform sum
+  should equal the pre-transform sum × 100,000, exactly, for every row).
+- **(New, per §0 policy update)** How should `src/lib/kra-engine.ts`'s consumption of
+  `Collection.invoiceValueLakhs` be handled? Options: (a) update every KRA-engine call site to
+  divide by 100,000 after Collection converts, (b) keep a separate Lakhs-denominated cached
+  column on `Collection` specifically for KRA-engine consumption, or (c) treat KRA scoring math
+  as out of scope and explicitly leave `Collection`'s conversion blocked until this is resolved.
+  This readiness check does not recommend one of these — it flags that a decision is required.
+- **(New, per §0 policy update)** Should `TravelClaim.amountLakhs` be deprecated/dropped once
+  `TravelClaim.amountRupees` (already real INR) becomes the canonical field, or kept as a
+  read-only derived/cached mirror? §0's field table recommends deprecation but this needs
+  explicit sign-off since it's a schema change, not just a unit-semantics change.
+- **(New, per §0 policy update)** Should the 9+ UI converter functions
+  (`lakhsToRupees`/`fmtINRfromLakhs` in `FinanceDashboardClient.tsx`, `VouchersClient.tsx`,
+  `expenses/data.ts`, `ClaimsClient.tsx`, `bank-book/data.ts`, `AdvancesClient.tsx`, plus the
+  `* 100_000` inline conversions in `ApprovalInboxPage.tsx`/`FinanceApprovalsClient.tsx`) be
+  removed in the same implementation step as the schema/value change, or kept temporarily as
+  identity/no-op functions during a transition window? A "convert the data and the schema but
+  leave the UI still multiplying by 100,000" half-state would silently display every Finance
+  amount 100,000× too large — this must not happen, so the UI change cannot be deferred past the
+  same release as the data/schema change.
 - Should the first batch include `Payment` and `Collection`, or only `Expense`/`EmployeeAdvance`/
   `TravelClaim`? This readiness check recommends the latter (§8) — needs explicit sign-off.
 - Should APIs continue returning `number` (current behavior, via `fmtMoney()`/`fmt()`/raw
@@ -305,31 +423,47 @@ For the next implementation step (whichever batch is approved):
 
 ## 11. Final Recommendation
 
-- **Schema conversion is BLOCKED on data quality confirmation — not ready to proceed.** §4's live
-  dev data profile could not be completed in this environment (DB access denied — see §4 for full
-  detail and the documented methodology to re-run it). Without row counts, null counts, min/max,
-  negative-value counts, and scale-exceed counts for the 13 candidate fields in §2, "is the data
-  clean enough to convert" cannot be answered from this step alone.
-- **Once data quality is confirmed acceptable**, the recommended first conversion batch is the
-  conservative one (§8, Option A): `Expense.amountLakhs`/`gstAmountLakhs`,
-  `EmployeeAdvance.amountLakhs`/`disbursedAmountLakhs`/`settledAmountLakhs`/`balanceLakhs`, and
-  `TravelClaim.ratePerKm`/`amountRupees`/`amountLakhs` — 9 fields across 3 models, deferring
-  `Payment`/`Collection` (4 fields across 2 models) to a second batch because they are
-  already-live, actively-written models whose conversion is inherently bundled with the
-  `round2()`/epsilon-comparison retirement in `src/lib/payments.ts`.
+> **Revised following the §0 Money Unit Policy Decision (2026-06-22).** The determination below
+> now reflects two independent blocking conditions, not one.
+
+- **Schema conversion is BLOCKED — not ready to proceed, on two independent grounds:**
+  1. **Data quality is unconfirmed.** §4's live dev data profile could not be completed in this
+     environment (DB access denied — see §4 for full detail and the documented methodology to
+     re-run it). Without row counts, null counts, min/max, negative-value counts, and
+     scale-exceed counts for the candidate fields, "is the data clean enough to convert" cannot
+     be answered from this step alone.
+  2. **The unit-semantics transformation is unscoped.** §0's verification confirms every
+     candidate field genuinely stores ₹ Lakhs today (not an ambiguous or misleading name — a
+     real, consistent, intentional unit used end-to-end). The new policy requires these fields to
+     store actual INR. That is **not** the schema-only change this readiness check originally
+     evaluated — it requires a coordinated value transformation (×100,000 on every existing row),
+     a column-type change, and synchronized updates to 9+ UI converters and the API's documented
+     unit contract, plus an explicit decision on the `Collection` ↔ `kra-engine.ts` cross-cutting
+     risk (§0). None of that has been designed yet — only identified.
+- **The §8 batch grouping (conservative Option A: `Expense`/`EmployeeAdvance`/`TravelClaim`
+  first, `Payment`/`Collection` second) still stands as the recommended *order of operations*** —
+  but each batch's scope now includes the value transformation and UI/API synchronization
+  described above, not just an `ALTER COLUMN`. `TravelClaim.amountRupees` is the one field in
+  the entire candidate list that needs **no unit change** (already real INR) — only the Decimal
+  type change applies to it cleanly.
 - **Route/UI risk that needs mitigation before conversion**: `GET /api/finance/conveyance` and
   `GET /api/collections`(`+[id]`) currently return raw, unformatted numbers with zero
   Decimal-safe serialization layer — both were flagged High risk in §5/§6 and would need an
   explicit `moneyToNumberForDisplay()` (or string) boundary added *before* their underlying
   columns become `Decimal`, or their JSON responses would start serializing Decimal objects
   unsafely. `GET /api/finance/advances` was flagged Medium for the same underlying reason (its
-  `fmt()` formatter isn't yet wired through `src/lib/money.ts`, unlike Expense/Dashboard).
+  `fmt()` formatter isn't yet wired through `src/lib/money.ts`, unlike Expense/Dashboard). These
+  findings are unchanged by §0 — they apply on top of the unit-semantics work, not instead of it.
 - **Exact next step name: "Step 3O — Live dev data profile (re-run from a DB-accessible
-  environment) and conversion batch sign-off."** This step should (a) actually execute the §4
-  profiling query from a machine on Hostinger's Remote MySQL allowlist, (b) bring the resulting
-  numbers back into this document's §4 table, and (c) obtain explicit sign-off on the §10 open
-  decisions before any `prisma/schema.prisma` edit is made. Only after Step 3O closes those gaps
-  should an implementation step that actually edits the schema be scheduled.
+  environment), Money Unit value-transformation design, and conversion batch sign-off."** Step
+  3O now has three deliverables, not one: (a) actually execute the §4 profiling query from a
+  machine on Hostinger's Remote MySQL allowlist and bring the numbers back into this document's
+  §4 table; (b) design (not implement) the Lakhs→INR value-transformation approach for the
+  approved batch, including the `Collection`/`kra-engine.ts` decision from §0; and (c) obtain
+  explicit sign-off on every §10 open decision (the original ones plus the four new §0-driven
+  ones) before any `prisma/schema.prisma` edit or any value-transformation script is written.
+  Only after Step 3O closes all of these gaps should an implementation step that actually edits
+  the schema or transforms data be scheduled.
 
 ---
 
@@ -351,3 +485,22 @@ For the next implementation step (whichever batch is approved):
 - **No Prisma schema field was converted, no migration was generated or applied, no API route or
   UI component was modified, and no database row was read, written, or altered** (the only DB
   interaction attempted was rejected at the connection-auth stage before any query executed).
+
+## Implementation Note (Money Unit Policy update, 2026-06-22, before Step 3O)
+
+- Added §0 Money Unit Policy Decision: CRM Lead/Opportunity/pipeline-estimate fields may remain
+  Lakhs-based; all Finance/Accounting fields must use actual INR. Verified, field-by-field, that
+  every Finance `*Lakhs` candidate field genuinely stores ₹ Lakhs today (via dev seed data, API
+  doc comments, and 9+ independent UI converters) — none are ambiguous, and none are misleadingly
+  named; the naming is accurate for a unit the business has now decided Finance must stop using.
+  `TravelClaim.ratePerKm`/`amountRupees` are the exception — already real INR/real ₹-per-km.
+- Flagged a new cross-cutting risk not addressed by the policy text as given:
+  `Collection.invoiceValueLakhs`/`amountReceivedLakhs` are consumed directly by
+  `src/lib/kra-engine.ts` for employee KRA performance scoring — a non-Finance domain the policy
+  doesn't mention. Converting `Collection`'s unit without updating the KRA engine in lockstep
+  would silently corrupt KRA achievement-vs-target math by a factor of 100,000.
+- Revised §8/§10/§11: schema conversion remains BLOCKED, now on two independent grounds — the
+  unresolved §4 data-quality gap, and the newly-identified need to design (not yet implement) a
+  Lakhs→INR value transformation, synchronized UI/API updates, and the Collection/KRA-engine
+  decision. Step 3O's scope was expanded accordingly (still no implementation).
+- **No schema/runtime behavior changed by this update.** Documentation only.

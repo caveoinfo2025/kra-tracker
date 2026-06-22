@@ -21,6 +21,50 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Money unit policy locked: Lakhs restricted to Leads/Opportunities, Finance must use actual INR (before Step 3O)
+**Money unit policy locked: only Leads and Opportunities use Lakhs. Finance and Accounting
+modules must use actual INR values without Lakhs conversion.** This is a business-rule decision,
+documented in `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 and cross-referenced in
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`, made before Step 3O begins.
+
+Scope: `CrmLead.expectedValue`, `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`,
+`SalesFunnel.dealValueLakhs`/`billingValueLakhs` may remain Lakhs-based (intentional
+pipeline-estimation values). Every Finance/Accounting model — `Expense`, `EmployeeAdvance`,
+`TravelClaim`/Conveyance, `Payment`, `Collection`, `Voucher`, `Ledger`, Bank Book, Cash Book,
+`FinAccount` balances, Reports, Tally export, GST/tax calculations, reimbursements, settlements,
+vendor/customer payments — must use actual INR going forward.
+
+**Verification finding (not assumption):** every existing Finance field named `*Lakhs`
+(`Expense.amountLakhs`/`gstAmountLakhs`, `EmployeeAdvance.amountLakhs`/`disbursedAmountLakhs`/
+`settledAmountLakhs`/`balanceLakhs`, `Payment.amountLakhs`, `Collection.invoiceValueLakhs`/
+`amountWithoutGstLakhs`/`amountReceivedLakhs`, `Voucher.amountLakhs`, `Ledger.amountLakhs`,
+`FinAccount.openingBalance`/`currentBalance`) genuinely and intentionally stores ₹ Lakhs today —
+confirmed via `prisma/seed-dev-finance.ts` (e.g. `EmployeeAdvance.amountLakhs: 0.5` = ₹50,000),
+the Collections form literally rendering an `"L"` suffix on the raw input, and 9+ independent UI
+unit-converters (`lakhsToRupees()`/`fmtINRfromLakhs()` across `FinanceDashboardClient.tsx`,
+`VouchersClient.tsx`, `expenses/data.ts`, `ClaimsClient.tsx`, `bank-book/data.ts`,
+`AdvancesClient.tsx`, plus inline `* 100_000` conversions in `ApprovalInboxPage.tsx`/
+`FinanceApprovalsClient.tsx`). **None of these names are misleading — they are accurate for a
+unit the business has now decided Finance must stop using.** The one exception:
+`TravelClaim.amountRupees`/`ratePerKm` are already real INR/real ₹-per-km and need no unit change.
+
+**New cross-cutting risk identified**: `Collection.invoiceValueLakhs`/`amountReceivedLakhs` feed
+`src/lib/kra-engine.ts`'s employee KRA performance-scoring aggregations (6 confirmed call sites)
+— a non-Finance domain the policy text doesn't address. Converting `Collection`'s unit without
+updating the KRA engine in lockstep would silently corrupt KRA achievement-vs-target comparisons
+by a factor of 100,000. This is now an explicit open decision (readiness check §10) before
+`Collection` can be converted.
+
+**Consequence for the Decimal conversion plan**: adopting actual-INR semantics for Finance is not
+a naming fix — it requires a coordinated value transformation (multiply every existing stored row
+by 100,000), the Decimal column-type change, and synchronized updates to every Finance UI
+converter and API doc comment, all in one release (a half-converted state would silently display
+amounts 100,000× too large). Schema conversion remains **blocked** on two grounds now: the §4 data
+profile gap (Step 3N) and this newly-scoped unit-transformation design work. Step 3O's scope was
+expanded to include designing (not implementing) this transformation alongside the original data
+profile and decision sign-off. No schema, migration, API, or UI code was changed by this policy
+update — documentation only. See `docs/RBAC_MIGRATION_TRACKER.md` §4 for the tracker entry.
+
 ### 2026-06-22 — Decimal conversion readiness check for critical Finance money fields (Step 3N)
 Step 3N completed: a data-audit and decision-lock step only — no Prisma schema change, no
 migration, no API/UI code change, no database data altered. Created
