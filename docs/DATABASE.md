@@ -5,6 +5,13 @@
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
 **60+ models, 10 migrations.** Dev DB fully migrated (2026-06-05, session 4).
 
+> **Planned: Decimal money migration.** Before Finance write APIs are built, every money-like
+> `Float`/`Float?` field (`Collection`, `Payment`, `Expense`, `Voucher`, `Ledger`,
+> `EmployeeAdvance`, `TravelClaim`, `FinAccount`, etc.) should migrate to `Decimal(18,2)` to
+> avoid float-rounding errors in accounting totals. See
+> `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` (Step 3G) for the full field inventory and
+> phased plan — not yet implemented; schema is still `Float` everywhere as of this note.
+
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
 >

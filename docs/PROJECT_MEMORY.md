@@ -21,6 +21,40 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Decimal money migration plan created (Step 3G)
+Step 3G completed: created `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` — a planning/
+documentation step only, ahead of Finance write APIs being built. Inventoried every money-like
+`Float`/`Float?` field in `prisma/schema.prisma`: 35 fields classified Critical (`Collection`,
+`Payment`, `OrderAdvance`, `FinAccount`, `Ledger`, `Expense`, `Voucher`, `EmployeeAdvance`,
+`TravelClaim` — the models with live or imminent Finance write-API exposure), Important
+(approval/policy money thresholds — `ApprovalRule`, `ExpenseLimitRule`, `ConveyancePolicy`,
+`AdvancePolicy`, `CustomerCreditPolicy` — plus CRM pipeline deal-value estimates —
+`SalesFunnel.dealValueLakhs`/`billingValueLakhs`, `CrmLead.expectedValue`,
+`CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`), and Later (`Notification.amountLakhs`,
+a display-only denormalized copy). Explicitly excluded 12 non-money numeric fields so a future
+implementation step doesn't assume every `Float` is money: `TravelClaim.distanceKm` and its GPS
+lat/lng fields, `SalesFunnel.grossProfitPct`/`probabilityPct`, `CrmOpportunity.discountPct`/
+`probability`, `Expense.gstRate` (a tax *rate*, distinct from the already-included
+`gstAmountLakhs` tax *amount*), and the metric-dependent KRA target/score/rating fields
+(`KRATemplateItem`, `KRAAchievement`, `PerformanceReview`). Recommended standard: money amounts
+→ `Decimal(18,2)`, per-unit rate fields (`ratePerKm`) → `Decimal(10,4)`, tax/percentage fields →
+`Decimal(8,4)` or left unchanged. Documented the API-serialization risk (Prisma `Decimal` is not
+a plain JS `number`) with a recommendation to build one central money-serialization helper before
+any column conversion — citing the concrete, already-existing symptom of this exact problem:
+`src/lib/payments.ts`'s `round2()` (`Math.round(n*100)/100`) and the `received + 0.001 >= invoice`
+epsilon-comparison hack in `syncCollectionTotals()`, both workarounds for float-precision noise on
+`Payment.amountLakhs`/`Collection.invoiceValueLakhs` today. Defined a 7-phase (A–G) migration
+safety plan, MySQL `ALTER COLUMN` data-rewrite risk notes (back up dev/prod first, compare
+before/after `SUM()` totals, reuse the Step 3B shadow-DB-free migration workaround with manual
+SQL review), and a proposed Step 3H (money helper) → 3I (Expense/Advance/TravelClaim) → 3J
+(Payment/Collection) → 3K (Voucher/Ledger/FinAccount, gated on the cancellation/reversal design
+per the existing Step 3B-0 void/reversal-only decision) → 3L (dashboard/report updates) → 3M
+(data comparison checks) sequence. **No Prisma schema field was converted, no migration was
+generated or applied, no API route or UI component was changed, and no calculation logic
+(`round2()`, `syncCollectionTotals()`, or any other) was touched.** `npx prisma validate` passes
+(no-op confirmation — schema untouched). See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3G row)
+for the tracker entry.
+
 ### 2026-06-21 — Reusable AuditLog helper created; soft-delete routes refactored to use it (Step 3F)
 Step 3F completed: created `src/lib/audit-log.ts`, exporting `logAuditEvent` (the core writer —
 accepts `entityType`, `entityId`, `action`, `performedById`, `notes`, `changes`, and an optional
