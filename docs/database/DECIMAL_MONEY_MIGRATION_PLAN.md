@@ -525,3 +525,51 @@ This document is **planning only**. As of this step:
 >   touched. Bank Book, Cash Book, Expense, and Dashboard are now the four routes using
 >   Decimal-safe internal arithmetic where a calculation was actually present; Advance and
 >   Conveyance remain untouched per Step 3K's findings.
+
+> **Implementation note (Step 3M, 2026-06-22):**
+> - **Final dry-run sweep — no code changed, no schema conversion.** Reviewed the remaining six
+>   Finance read routes not yet inspected in Steps 3I–3L for any isolated JS-level money
+>   calculation suitable for `src/lib/money.ts` adoption. Result: **none qualified** — every
+>   route is either a pure pass-through, formats a single direct DB field/`_sum` aggregate with
+>   no JS-level addition/subtraction, or performs a non-additive numeric transform that the
+>   helper isn't designed for. No file was modified this step.
+> - **Classification**:
+>   - `GET /api/finance/accounts` — **Pure pass-through.** `openingBalance`/`currentBalance`
+>     are formatted directly via the route's existing `fmtMoney()` with no JS-level combination
+>     of values. Not a candidate.
+>   - `GET /api/finance/vouchers` — **Only direct DB `_sum` value.** `totalVoucherAmount =
+>     fmtMoney(r2(totalAmountAgg._sum.amountLakhs ?? 0))` rounds a single aggregate; there is no
+>     second value being added or subtracted in JS. Not a candidate — left as-is, consistent with
+>     how Step 3L left `cashBalance`/`bankBalance`/`totalCashIn`/etc. untouched for the same
+>     reason. (Noted for transparency: Step 3K did convert one single-value case,
+>     `gstInputAmount` in the Expense route, to `addMoney(singleValue)` for consistency with its
+>     sibling fields in that block — this step takes the more conservative reading for a
+>     standalone single-value field with no sibling addition nearby, per this step's own explicit
+>     "Only direct DB `_sum` value" classification bucket.)
+>   - `GET /api/finance/vouchers/[id]` — **Not suitable for this dry run.** The only money-shaped
+>     transform is `amountInWords()` — a unit conversion (₹ Lakhs → ₹ Rupees via `r2(lakhs *
+>     100_000)`) followed by whole/paise decomposition for text-to-words formatting
+>     (`numberToWords`). This is a display-text generator, not an addition/subtraction of two
+>     monetary values, and `src/lib/money.ts` has no decompose-into-words helper — forcing one in
+>     would be a new helper, not adoption of an existing one. `amount: fmtMoney(voucher.amountLakhs)`
+>     itself is a direct single-field format. Not a candidate.
+>   - `GET /api/finance/voucher-sequences` — **Pure pass-through.** No money fields at all —
+>     `lastNumber`/`nextNumber` are voucher-numbering counters (integers), not currency. Not a
+>     candidate.
+>   - `GET /api/finance/advances` — **Only direct DB `_sum` value** (reconfirmed from Step 3K).
+>     Every summary figure is a single Prisma `_sum` formatted via `fmt()`; no JS-level addition.
+>     Not a candidate.
+>   - `GET /api/finance/conveyance` — **Pure pass-through** (reconfirmed from Step 3K). Raw
+>     `TravelClaim` field list with zero calculation logic. Not a candidate.
+> - **No live verification or equivalence check was needed** — no calculation logic changed, so
+>   there is nothing to compare old-vs-new. This was a no-op review by design.
+> - **Validation run anyway, per this step's own instruction:** `npx prisma validate` ✅, `npx
+>   tsc --noEmit` ✅ (no errors), `npm run build` ✅ (all routes including the 6 reviewed ones
+>   compiled, unchanged), `npm run lint` → 589 problems (414 errors / 175 warnings) — **identical
+>   to the Step 3L baseline**, as expected with zero file changes.
+> - **Dry-run sweep complete.** Across Steps 3I–3M, every Finance read route has now been
+>   inspected. Bank Book (3I), Cash Book (3J), Expense list+detail (3K), and Dashboard (3L) had
+>   genuine isolated JS-level money calculations and were wired to `src/lib/money.ts`. Accounts,
+>   Vouchers, Voucher Detail, Voucher Sequences, Advances, and Conveyance (3M) do not, and remain
+>   on their original `fmtMoney()`/`r2()` formatting. **No Prisma schema field was converted, no
+>   migration was generated, and no Finance write API was created at any point in this sweep.**

@@ -21,6 +21,48 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Final money-helper dry-run sweep across remaining Finance read routes (Step 3M)
+Step 3M completed: final money-helper dry-run sweep completed across remaining Finance read
+routes — no Decimal field migration yet. This was a review-only step; **zero files were
+changed.** Inspected the 6 Finance read routes not yet covered by Steps 3I–3L
+(`GET /api/finance/bank-book`, `GET /api/finance/cash-book`, `GET /api/finance/expenses` (+
+`[id]`), and `GET /api/finance/dashboard`) and classified each:
+
+- **`GET /api/finance/accounts`** — Pure pass-through. `openingBalance`/`currentBalance` are
+  formatted directly via the route's existing `fmtMoney()` with no JS-level combination of
+  values. Not a candidate.
+- **`GET /api/finance/vouchers`** — Only direct DB `_sum` value. `totalVoucherAmount =
+  fmtMoney(r2(totalAmountAgg._sum.amountLakhs ?? 0))` rounds a single Prisma aggregate; there is
+  no second value being added or subtracted in JS. Not a candidate — consistent with how Step
+  3L left `cashBalance`/`bankBalance`/`totalCashIn`/etc. untouched for the identical reason.
+- **`GET /api/finance/vouchers/[id]`** — Not suitable for this dry run. Its only money-shaped
+  logic is `amountInWords()` — a unit conversion (₹ Lakhs → ₹ Rupees) followed by whole/paise
+  decomposition for amount-in-words text generation, not an addition/subtraction of two monetary
+  values; `src/lib/money.ts` has no decompose-into-words helper, so wiring it here would mean
+  inventing a new helper rather than adopting an existing one. Not a candidate.
+- **`GET /api/finance/voucher-sequences`** — Pure pass-through. No money fields at all — only
+  integer voucher-numbering counters (`lastNumber`/`nextNumber`). Not a candidate.
+- **`GET /api/finance/advances`** — Only direct DB `_sum` value (reconfirmed from Step 3K). Every
+  summary figure is a single Prisma `_sum` formatted via `fmt()`; no JS-level addition. Not a
+  candidate.
+- **`GET /api/finance/conveyance`** — Pure pass-through (reconfirmed from Step 3K). Raw
+  `TravelClaim` field list with zero calculation logic. Not a candidate.
+
+No live HTTP verification or equivalence check was needed this step, since no calculation logic
+was changed — there is nothing to compare old-vs-new against. Validation was still run per this
+step's own instruction: `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅ (all
+routes including the 6 reviewed ones compiled, unchanged), `npm run lint` → 589 problems,
+identical to the Step 3L baseline (expected, given zero file changes).
+
+**The money-helper dry-run sweep is now complete across every Finance read route.** Bank Book
+(3I), Cash Book (3J), Expense list+detail (3K), and Dashboard (3L) had genuine isolated
+JS-level money calculations and were wired to `src/lib/money.ts`. Accounts, Vouchers, Voucher
+Detail, Voucher Sequences, Advances, and Conveyance (3M) were reviewed and correctly have
+nothing to wire — they remain on their original `fmtMoney()`/`r2()` formatting. No Prisma schema
+field was converted, no migration was generated, and no Finance write API was created at any
+point across Steps 3H–3M. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3M row) for the tracker
+entry.
+
 ### 2026-06-22 — Money helper dry-run integration extended to Finance Dashboard totals (Step 3L)
 Step 3L completed: money helper dry-run integration extended to Finance Dashboard totals. Bank
 Book, Cash Book, Expense, and Dashboard now use Decimal-safe internal arithmetic where selected
