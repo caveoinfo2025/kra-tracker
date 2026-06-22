@@ -797,3 +797,19 @@ This document is **planning only**. As of this step:
 >   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
 >   and no database row was written or altered.** `npx prisma validate`, `npx tsc --noEmit`, and
 >   `npm run build` all pass (reconfirmations, no app code changed).
+
+> **Step 3U-1 completed (2026-06-22):**
+> - Combined Release 2 scope sign-off finalized —
+>   `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md`. Locks the exact field list
+>   (Payment, Collection, `CrmLead.expectedValue`, `CrmOpportunity.value/dealValueExTax/
+>   netProfitLakhs`, `SalesFunnel.dealValueLakhs/billingValueLakhs`, REVENUE-only
+>   `KRATemplateItem` targets, confirmed-money `KRA.target` entries), the metric classification
+>   rule (transform money-denominated fields only; never percentages/counts/ratios/scores), the
+>   16-step implementation sequence for Step 3U, before/after verification requirements, and the
+>   Release 2 permission ledger.
+> - **Release 2 implementation permission remains Blocked** pending the new file's §9 open
+>   decisions (live-DB scan of `KRAMetric`/`KRA.target`/`targetJson` content, named business
+>   sign-off on the one-atomic-release requirement) — not yet a green light to implement.
+> - **No Prisma schema field was converted, no migration was generated, no API route or UI
+>   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
+>   and no database row was written or altered.**

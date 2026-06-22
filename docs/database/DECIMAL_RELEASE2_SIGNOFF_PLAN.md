@@ -502,3 +502,19 @@ sequencing decision is locked should a Step 3U implementation prompt be created.
 implement Release 2 — in any form, including Payment/Collection alone — until the scope
 inventory confirms whether Payment/Collection conversion can ship independently of the Sales/
 KRA target migration** (see the new scope plan's §6 sequencing recommendation).
+
+---
+
+> **Step 3U-1 completed (2026-06-22):**
+> - Option A locked as the final combined Release 2 scope sign-off.
+> - Combined Release 2 scope (fields, metric classification rule, sequencing, before/after
+>   verification plan, open decisions, permission ledger) moved to
+>   `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` — that file is now the
+>   authoritative Release 2 scope document; this plan's §15–§19 remain the historical decision
+>   record for how Option A was selected.
+> - Release 2 implementation permission remains **Blocked** — pending the open decisions closed
+>   in the new combined scope sign-off file's §9 (live-DB `KRAMetric`/`KRA.target`/`targetJson`
+>   scans, named business sign-off on the atomic-release requirement).
+> - No Prisma schema field was converted, no migration was generated, no API route or UI
+>   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
+>   and no database row was written or altered.

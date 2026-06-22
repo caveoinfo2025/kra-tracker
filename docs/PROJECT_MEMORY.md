@@ -21,6 +21,45 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3U-1: Combined Release 2 scope sign-off locked (Payment/Collection/Sales-KRA-target/Lead-Funnel-Opportunity)
+Step 3U-1 completed: a final sign-off / implementation-scope-lock step only — no Prisma schema
+change, no migration, no API/UI code change, no database data altered, `src/lib/kra-engine.ts`/
+`src/lib/payments.ts` not touched, no value converted, Release 2 not implemented.
+
+Created `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` — now the authoritative
+combined-scope document for Release 2, locking the exact field set across five domains:
+**Payment** (`amountLakhs`), **Collection** (`invoiceValueLakhs`/`amountWithoutGstLakhs`/
+`amountReceivedLakhs`), **Lead** (`CrmLead.expectedValue`), **Opportunity** (`CrmOpportunity.value`/
+`dealValueExTax`/`netProfitLakhs`), **Sales Funnel** (`SalesFunnel.dealValueLakhs`/
+`billingValueLakhs`), **KRA Template** (`KRATemplateItem.expectedTarget`/`stretchTarget`/
+`minimumTarget`, REVENUE-metric rows only), **legacy KRA** (`KRA.target` string, confirmed-money
+entries only), and **EmployeeTarget/TeamTarget** (`targetJson`, review-only).
+
+**Metric classification rule locked:** only money-denominated metrics transform Lakhs→INR — never
+percentages, counts, activity counts, ratios, or scores. `KRATemplateItem` fields convert only for
+rows whose `KRAMetric.metricType = "REVENUE"` (confirmed against `prisma/seed-performance-defaults.ts`:
+`REVENUE_TARGET`/`PIPELINE_VALUE` are the only REVENUE codes; `NEW_CUSTOMER`/`ACTIVITY_CALLS` are
+ACTIVITY, `PROPOSAL_CONVERSION` is QUALITY, `COLLECTION_EFFICIENCY`/`KRA_COMPLIANCE` are
+COMPLIANCE — none are money). Ambiguous cases are blocked for manual review, never guessed.
+
+Documented a 16-step atomic Step 3U implementation sequence, a before/after KRA-score
+verification table template (zero-drift pass criterion), an open-decisions table (9 items — most
+Pending: live-DB scans of `KRAMetric`/`KRA.target`/`targetJson` content, named business sign-off
+on the one-atomic-release requirement), and a Release 2 Permission Ledger (Option A Approved,
+Option B Rejected, Payment/Collection Approved, Sales/KRA targets and Lead/Funnel/Opportunity
+Pending final field/metric verification, overall implementation permission Pending).
+
+**Flagged finding outside the original field list:** `OrderAdvance.amountLakhs` feeds `Payment`
+via `applyAdvance()` in `src/lib/payments.ts` — if `Payment.amountLakhs` converts without it, that
+conversion path breaks. Added to the open-decisions table, not silently added to locked scope.
+
+**Release 2 implementation permission remains Pending/Blocked** — this step is a sign-off lock,
+not a green light to implement. Cross-referenced (Step 3U-1 progress notes appended) in
+`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`, `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`,
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step
+3U-1 row) for the tracker entry. `npx prisma validate`, `npx tsc --noEmit`, and `npm run build`
+all pass (reconfirmations, no app code changed).
+
 ### 2026-06-22 — Step 3U-0: Option A locked; Sales/KRA INR migration scope defined
 Step 3U-0 completed: a decision-lock and scope-definition step only — no Prisma schema change,
 no migration, no API/UI code change, no database data altered, `src/lib/kra-engine.ts` not

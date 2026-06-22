@@ -218,3 +218,16 @@ planned** for Release 2, and that scope expansion is the primary finding of this
 this scope plan's Section 7 open decisions — in particular, the metric-by-metric confirmation of
 which `KRATemplateItem` rows are genuinely money-denominated, and the combined-vs-phased
 sequencing choice — before a Step 3U implementation prompt is created.
+
+---
+
+> **Step 3U-1 completed (2026-06-22):**
+> - Combined Release 2 scope sign-off file created —
+>   `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md`.
+> - Release 2 must combine Payment/Collection and Sales/KRA target INR migration into one atomic
+>   release — confirmed as a technical conclusion; named business sign-off on that requirement
+>   and the remaining open decisions (live-DB `KRAMetric`/`KRA.target`/`targetJson` scans) are
+>   still pending — see the new file's §9/§10.
+> - No Prisma schema field was converted, no migration was generated, no API route or UI
+>   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
+>   and no database row was written or altered.

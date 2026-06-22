@@ -62,6 +62,18 @@
 > Lead/Opportunity/KRA target values are untouched by Release 1 but are now in scope for a
 > future actual-INR migration (Option A, locked Step 3U-0) — see
 > `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` for the full migration scope, not exempt.
+>
+> **Combined Release 2 scope locked (Step 3U-1, 2026-06-22) — sign-off only, nothing implemented.**
+> `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` is now the authoritative Release 2
+> field list: `Payment.amountLakhs`; `Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/
+> `amountReceivedLakhs`; `CrmLead.expectedValue`; `CrmOpportunity.value`/`dealValueExTax`/
+> `netProfitLakhs`; `SalesFunnel.dealValueLakhs`/`billingValueLakhs`;
+> `KRATemplateItem.expectedTarget`/`stretchTarget`/`minimumTarget` (REVENUE-metric rows only);
+> legacy `KRA.target` (confirmed-money entries only); `EmployeeTarget`/`TeamTarget.targetJson`
+> (review-only). All five domains must ship as **one atomic release** — Payment/Collection cannot
+> convert independently of the Sales/KRA target migration without an explicitly-approved Option B
+> emergency bridge. **Release 2 implementation permission remains Pending/Blocked** pending the
+> open decisions in that file's §9 (live-DB classification scans, named business sign-off).
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
