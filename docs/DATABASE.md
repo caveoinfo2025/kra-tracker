@@ -30,7 +30,13 @@
 > the readiness check's §12 sign-off table for the full decision ledger. **As of Step 3O, schema
 > conversion remains BLOCKED**: Release 1 (`Expense`/`EmployeeAdvance`/`TravelClaim`) is "Approved
 > with notes" pending a tested transformation script; Release 2 (`Payment`/`Collection`) is
-> explicitly Blocked pending the KRA-engine sign-off.
+> explicitly Blocked pending the KRA-engine sign-off. **Step 3P** (2026-06-22) created the
+> dedicated Release 1 sign-off and implementation plan —
+> `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` — locking the 9-field scope, the
+> No-Half-Converted-State Rule, a 12-step atomic Step 3Q implementation sequence, a smoke-test
+> data plan for `Expense`/`TravelClaim` (both still 0 rows in dev), and API/UI update tables.
+> **Decimal schema conversion permission remains Pending explicit final approval for Step 3Q** —
+> still no schema, migration, API, UI, or data change has been made.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

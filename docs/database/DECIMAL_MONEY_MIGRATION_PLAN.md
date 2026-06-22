@@ -635,3 +635,19 @@ This document is **planning only**. As of this step:
 >   changed). Full sign-off ledger: readiness check §12 — **Decimal schema conversion remains
 >   BLOCKED**; Release 1 is "Approved with notes" (pending a tested transformation script),
 >   Release 2 is explicitly "Blocked" (KRA-engine decision recommended but not yet signed off).
+
+> **Step 3P completed (2026-06-22):**
+> - Release 1 implementation plan created — `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md`,
+>   covering the 9-field scope (`Expense.amountLakhs/gstAmountLakhs`,
+>   `EmployeeAdvance.amountLakhs/disbursedAmountLakhs/settledAmountLakhs/balanceLakhs`,
+>   `TravelClaim.amountLakhs/amountRupees/ratePerKm`), the No-Half-Converted-State rule, the
+>   atomic Step 3Q implementation sequence (12 steps), a smoke-test data plan for `Expense`/
+>   `TravelClaim` (both still 0 rows in dev), API-boundary and UI-converter update tables for
+>   `/api/finance/expenses`, `/api/finance/expenses/[id]`, `/api/finance/advances`,
+>   `/api/finance/conveyance`, a before/after verification template, and a rollback/safety plan.
+> - Payment/Collection remain deferred to Release 2, explicitly excluded from this plan's scope
+>   per the unresolved KRA-engine sign-off.
+> - **No schema/runtime behavior changed.** No Prisma field converted, no migration generated, no
+>   API/UI code touched, no database row written or altered. `npx prisma validate`,
+>   `npx tsc --noEmit`, and `npm run build` all pass. Decimal schema conversion permission for
+>   Release 1 remains "Pending explicit final approval for Step 3Q" per the new plan's §11 ledger.

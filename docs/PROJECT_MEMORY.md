@@ -21,6 +21,58 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3P: Release 1 Decimal sign-off and implementation plan (Expense/EmployeeAdvance/TravelClaim)
+Step 3P completed: a sign-off and implementation-planning step only — no Prisma schema change,
+no migration, no API/UI code change, no database data altered, no Lakhs value converted to INR
+yet, no Decimal field conversion yet.
+
+Created `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md`, the dedicated Release 1 artifact
+building on Step 3O's transformation design. Locks the **9-field Release 1 scope** —
+`Expense.amountLakhs`/`gstAmountLakhs`,
+`EmployeeAdvance.amountLakhs`/`disbursedAmountLakhs`/`settledAmountLakhs`/`balanceLakhs`,
+`TravelClaim.amountLakhs`/`amountRupees`/`ratePerKm` — with a per-field status: `EmployeeAdvance`
+is **Approved** (1 clean live dev row); `Expense`/`TravelClaim` are **Approved with notes**
+because both tables have 0 rows in dev today (nothing to transform/verify against yet). A
+companion exclusions table covers `Payment`, `Collection`, `Voucher`/`Ledger`, CRM Lead/
+Opportunity values, KRA targets, and policy-threshold fields, each with its reason and future
+release.
+
+Documents the **No-Half-Converted-State Rule**: for any Release 1 model, DB stored values,
+Prisma schema type, API boundary serialization, UI labels/converters, documentation, and smoke
+tests must all change together in the same release — a model must never store INR while its UI
+still multiplies by 100,000, nor store Lakhs while an API label calls it INR. Lays out the
+12-step **atomic Step 3Q implementation sequence** (smoke-test data → pre-migration snapshot →
+schema type change → reviewed migration SQL → value-transformation SQL → dev-only apply → Prisma
+client regen → API boundary update → UI converter update → before/after comparison → validation →
+documentation) and a dev-only **rollback/safety plan** (no `db push`, no production run, manual
+migration-SQL review, backup before apply).
+
+Specifies exact **smoke-test data** to be inserted in Step 3Q (not this step) for the two empty
+tables — two `Expense` rows (₹0.1L/₹10,000 and ₹10.555L/₹1,055,500 incl. matching GST) and one
+`TravelClaim` row (₹0.025L amountLakhs / ₹2,500 amountRupees / ₹12.50 ratePerKm) — plus the
+existing `EmployeeAdvance` row's expected ₹50,000 post-transformation value. Tabulates the
+**API boundary plan**: `/api/finance/expenses` and `/api/finance/expenses/[id]` already use
+`src/lib/money.ts` (Steps 3K) and need no new wiring beyond the underlying type change;
+`/api/finance/advances` is flagged as **not yet wired to `money.ts`** and must be in Step 3Q;
+`/api/finance/conveyance` needs only a `serializeMoney`/`moneyToNumberForDisplay` pass-through
+since `TravelClaim.amountRupees`/`ratePerKm` are already real INR. Tabulates the **UI update
+plan**: `ExpenseRegisterClient.tsx`, `ClaimsClient.tsx` (the Expense-claims UI, distinct from
+`TravelClaim`), `AdvancesClient.tsx` (including its "Amount (₹ Lakhs)" form label, which must
+become "Amount (₹)"), and `FinanceApprovalsClient.tsx`'s shared per-record-type approval-context
+renderer (must branch by source model — stop multiplying for Release 1 records, keep
+multiplying for Release 2). Confirmed the `conveyance` UI module is still 100% mock data, not
+yet wired to the real `TravelClaim` field, so it needs no Release 1 change.
+
+Final **§11 sign-off ledger**: every decision is Approved or Approved-with-notes except
+"Decimal schema conversion permission," explicitly left **Pending explicit final approval for
+Step 3Q**. Payment/Collection remain excluded and Blocked, gated on the unresolved KRA-engine
+sign-off (carried over from Step 3O). Cross-referenced (progress notes appended) in
+`docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` and
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`. **No Prisma schema field was converted, no
+migration was generated or applied, no API route or UI component was modified, no Lakhs value
+was multiplied into INR, and no database row was written or altered.** `npx prisma validate`,
+`npx tsc --noEmit`, and `npm run build` all pass (reconfirmations, no app code changed).
+
 ### 2026-06-22 — Step 3O: live dev data profile + Lakhs-to-INR transformation design + KRA-engine impact + sign-off ledger
 Step 3O completed: a read-only profiling, design, and sign-off step only — no Prisma schema
 change, no migration, no API/UI code change, no database data altered, no Lakhs value converted

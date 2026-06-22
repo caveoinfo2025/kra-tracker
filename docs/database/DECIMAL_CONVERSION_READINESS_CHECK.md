@@ -730,3 +730,37 @@ marked Approved. Nothing in this table authorizes any schema, data, API, or UI c
   UI component was modified, no Lakhs value was multiplied into INR, and no database row was
   written or altered.** The only database interaction was read-only `SELECT`-equivalent
   aggregation via Prisma, immediately followed by deletion of the temporary script.
+
+---
+
+## Implementation Note (Step 3P, 2026-06-22)
+
+- **Release 1 sign-off plan created** —
+  `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md`. Restates and locks the 9-field Release 1
+  scope (`Expense.amountLakhs/gstAmountLakhs`,
+  `EmployeeAdvance.amountLakhs/disbursedAmountLakhs/settledAmountLakhs/balanceLakhs`,
+  `TravelClaim.amountLakhs/amountRupees/ratePerKm`) with per-field status (Approved /
+  Approved with notes), and the Release 1 exclusions table (Payment, Collection, Voucher/
+  Ledger, CRM Lead/Opportunity, KRA targets, policy thresholds) with reasons and future
+  release placement.
+- **Atomic Lakhs-to-INR migration sequence documented** — a 12-step Step 3Q implementation
+  order (smoke data → snapshot → schema type change → reviewed migration SQL → value
+  transformation SQL → dev-only apply → client regen → API boundary update → UI converter
+  update → before/after comparison → validation → documentation), explicitly required to land
+  as one atomic release per the No-Half-Converted-State Rule.
+- **Smoke-test data requirement documented** — `Expense` and `TravelClaim` have 0 rows in dev
+  (confirmed again in Step 3O's live profile); the sign-off plan specifies exact planned sample
+  values (two `Expense` rows, one `TravelClaim` row) and their expected post-transformation INR
+  values, to be inserted (dev-only) in Step 3Q, not this step.
+- **API boundary and UI update plans documented** for `/api/finance/expenses`,
+  `/api/finance/expenses/[id]`, `/api/finance/advances` (not yet wired to `src/lib/money.ts` —
+  flagged as required in Step 3Q), `/api/finance/conveyance`, and the corresponding UI files
+  (`ExpenseRegisterClient.tsx`, `ClaimsClient.tsx`, `AdvancesClient.tsx`,
+  `FinanceApprovalsClient.tsx`'s shared approval-context renderer, and confirmation that the
+  mock-data `conveyance` UI doesn't touch the real `TravelClaim` field yet).
+- **Payment/Collection remains deferred** — explicitly excluded from Release 1 scope per §3 of
+  the new plan; Release 2 stays gated on the KRA-engine sign-off recorded in this document's
+  §"Collection / KRA Engine Impact" and §12.
+- **No Prisma schema field was converted, no migration was generated or applied, no API route or
+  UI component was modified, no Lakhs value was multiplied into INR, and no database row was
+  written or altered.** This was a documentation/planning step only.
