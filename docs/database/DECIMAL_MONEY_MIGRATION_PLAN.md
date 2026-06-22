@@ -813,3 +813,26 @@ This document is **planning only**. As of this step:
 > - **No Prisma schema field was converted, no migration was generated, no API route or UI
 >   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
 >   and no database row was written or altered.**
+
+> **Step 3U-2 completed (2026-06-22):** Section 9 open decisions reviewed and closed via a
+> read-only live-DB scan against `u686730471_caveodev` (`docs/database/DECIMAL_RELEASE2_
+> COMBINED_SCOPE_SIGNOFF.md` §12). Key correction: the live `KRAMetric.metricType` enum is
+> `AMOUNT`/`PERCENTAGE`/`COUNT`, not the `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE` values
+> `prisma/seed-performance-defaults.ts` defines — that seed file's rows are not present in the
+> live dev DB at all. Money metrics are confirmed as the `AMOUNT`-typed ones (`BOOKING`,
+> `BILLING`, unused `FUNNEL_VALUE`); one `KRATemplateItem` row (#16) has a `targetType`/metric
+> `metricType` mismatch with money-scale values and is flagged Blocked/Manual Review rather than
+> guessed. All 34 legacy `KRA.target` rows and all 34 `EmployeeTarget.targetJson` rows parsed
+> cleanly with 6 confirmed money KPI labels (and `EmployeeTarget.targetJson` confirmed to store
+> the same free-text format as `KRA.target`, not structured JSON, despite the field name).
+> `TeamTarget` has 0 rows — deferred. Lead/Opportunity/Funnel fields confirmed Lakhs-scaled with
+> zero negatives across 38/21/100 live rows respectively. `OrderAdvance` has 0 rows and 0
+> advance-sourced `Payment` rows — included in locked scope anyway (zero migration risk, removes
+> a future lockstep-unit-mismatch risk). Named business sign-off recorded (product owner
+> instruction in project chat: actual INR for Lead/Funnel/Opportunity, Lakhs for Sales
+> dashboard/KRA/Report display). **Release 2 implementation permission status: Blocked,
+> narrowly, on the single `KRATemplateItem` #16 ambiguity only** — every other open decision is
+> now closed. **No Prisma schema field was converted, no migration was generated, no API route
+> or UI component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not
+> touched, and no database row was inserted, updated, or deleted** (read-only scan only; the
+> one-off scan script and its raw output were deleted after use).

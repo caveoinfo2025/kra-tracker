@@ -21,6 +21,54 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3U-2: Section 9 open decisions closed via read-only live-DB scan; one ambiguous KRATemplateItem found and blocked
+Step 3U-2 completed: a verification, live-read profiling, and sign-off documentation step only —
+no Prisma schema change, no migration, no API/UI code change, no database data altered/inserted/
+updated/deleted, `src/lib/kra-engine.ts`/`src/lib/payments.ts` not touched, no value converted,
+Release 2 not implemented.
+
+Confirmed `DATABASE_URL` → `u686730471_caveodev` before running a read-only scan
+(`prisma/scan-release2-scope.mjs`, DB-name-guarded, modeled on the existing `prisma/apply-*.mjs`
+pattern; deleted along with its raw output after the findings were captured).
+
+**Major correction found:** the live `kra_metric` table does not contain `prisma/seed-
+performance-defaults.ts`'s rows — its `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE` codes don't
+exist in the dev DB at all. The live `metricType` enum is `AMOUNT`/`PERCENTAGE`/`COUNT`. Money
+metrics are the `AMOUNT`-typed ones (`BOOKING`, `BILLING`, and an unused zero-row
+`FUNNEL_VALUE`). **One ambiguity found and blocked, not guessed:** `KRATemplateItem` row #16
+(linked to the `PERCENTAGE`-typed `PIPELINE_RATIO` metric) has `targetType = "AMOUNT"` with
+money-scale values (1500/1800/2200) matching a legacy KRA's `"total team pipeline coverage (₹
+lakhs)"` target exactly — flagged Blocked/Manual Review.
+
+All 34 live `KRA.target` rows parse cleanly; exactly 6 KPI labels across 4 KRA titles are
+confirmed money (`total sales revenue - booking/billing`, `total funnel/pipeline value created
+(₹ lakhs)`, `total team booking target achievement (₹ lakhs)`, `total team billing achievement`,
+`total team pipeline coverage (₹ lakhs)`); every other label — including "Focus area revenue
+achievement"'s mix-ratio percentages, which mention "revenue" but aren't absolute money — is
+non-money. `EmployeeTarget.targetJson` (34 rows) confirmed to store the **same free-text format
+as `KRA.target`, not structured JSON** despite the field name; same money-label set applies.
+`TeamTarget` has 0 rows — deferred. `CrmLead.expectedValue` (38 rows), `CrmOpportunity.value/
+dealValueExTax/netProfitLakhs` (21 rows), `SalesFunnel.dealValueLakhs/billingValueLakhs` (100
+rows) all confirmed Lakhs-scaled with zero negatives. `OrderAdvance` (0 rows) and
+`Payment.fromAdvanceId` (0 rows set) confirmed `applyAdvance()` has never produced a live
+`Payment` — included in locked scope anyway (zero risk, removes a future lockstep-mismatch
+risk permanently).
+
+**Named business sign-off recorded:** product owner instruction in project chat — *"All leads,
+funnel and opportunity input value should be actual INR. Dashboards, KRA and Reports should
+display in Lakhs for the Sales module."* This closes the "one atomic release" and "Lakhs
+display desired" open decisions.
+
+Updated `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md`: added §12 "Live DB Scan
+Findings" with full per-task tables; closed every Section 9 row; updated the Section 10
+Permission Ledger; added `OrderAdvance.amountLakhs` to Section 3's locked scope. **Release 2
+implementation permission: Blocked, narrowly, on the single `KRATemplateItem` #16 ambiguity
+only — every other open decision is now closed.** Cross-referenced (Step 3U-2 progress notes
+appended) in `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`,
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step
+3U-2 row) for the tracker entry. `npx prisma validate`, `npx tsc --noEmit`, and `npm run build`
+all pass (reconfirmations, no app code changed).
+
 ### 2026-06-22 — Step 3U-1: Combined Release 2 scope sign-off locked (Payment/Collection/Sales-KRA-target/Lead-Funnel-Opportunity)
 Step 3U-1 completed: a final sign-off / implementation-scope-lock step only — no Prisma schema
 change, no migration, no API/UI code change, no database data altered, `src/lib/kra-engine.ts`/

@@ -231,3 +231,39 @@ sequencing choice — before a Step 3U implementation prompt is created.
 > - No Prisma schema field was converted, no migration was generated, no API route or UI
 >   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
 >   and no database row was written or altered.
+
+---
+
+> **Step 3U-2 completed (2026-06-22) — live-DB scan closes all Section 7 open decisions.**
+> Confirmed `DATABASE_URL` → `u686730471_caveodev` before running a read-only scan (deleted
+> after use, no scratch files left). Key findings, all detailed in
+> `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §12:
+> - **`KRAMetric`/`KRATemplateItem`:** the live dev DB does not contain `seed-performance-
+>   defaults.ts`'s rows at all — its `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE` codes don't
+>   exist live. The live `metricType` enum is `AMOUNT`/`PERCENTAGE`/`COUNT`; money metrics are
+>   the `AMOUNT`-typed ones (`BOOKING`, `BILLING`, and the unused zero-row `FUNNEL_VALUE`). One
+>   `KRATemplateItem` row (#16) has `targetType = AMOUNT` on a `PERCENTAGE`-typed metric
+>   (`PIPELINE_RATIO`) with money-scale values matching a legacy money KPI exactly — flagged
+>   Blocked/Manual Review, not converted, not guessed either direction.
+> - **Legacy `KRA.target`:** all 34 live rows parse cleanly; exactly 6 KPI labels across 4 KRA
+>   titles are confirmed money (`total sales revenue - booking/billing`, `total funnel/pipeline
+>   value created (₹ lakhs)`, `total team booking target achievement (₹ lakhs)`, `total team
+>   billing achievement`, `total team pipeline coverage (₹ lakhs)`); every other label —
+>   including the "Focus area revenue achievement" mix-ratio percentages, which mention
+>   "revenue" in the title but are not absolute money — is confirmed non-money.
+> - **`EmployeeTarget`/`TeamTarget.targetJson`:** despite the field name, `targetJson` stores
+>   the same free-text format as `KRA.target`, not structured JSON; the same 6-label money set
+>   applies to `EmployeeTarget`'s 34 rows. `TeamTarget` has 0 rows — deferred, not converted.
+> - **Lead/Opportunity/Funnel:** confirmed Lakhs-scaled live (`CrmLead.expectedValue` 38 rows
+>   ₹0–59.12L; `CrmOpportunity.value/dealValueExTax/netProfitLakhs` 21 rows; `SalesFunnel.
+>   dealValueLakhs/billingValueLakhs` 100 rows), zero negatives across all fields.
+> - **`OrderAdvance`:** 0 live rows, 0 `Payment` rows created via `applyAdvance()` — zero
+>   data-migration risk, but included in locked scope anyway to eliminate the lockstep-risk
+>   permanently.
+> - **Named business sign-off recorded:** product owner instruction in project chat — actual
+>   INR for Lead/Funnel/Opportunity input/storage, Lakhs for Sales dashboard/KRA/Report display.
+> - **Release 2 implementation permission: Blocked, narrowly, on the single `KRATemplateItem`
+>   #16 ambiguity only** — every other open decision is now closed.
+> - No Prisma schema field was converted, no migration was generated, no API route or UI
+>   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
+>   and no database row was inserted, updated, or deleted (read-only scan only).

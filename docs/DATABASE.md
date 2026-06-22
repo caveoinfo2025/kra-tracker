@@ -72,8 +72,23 @@
 > legacy `KRA.target` (confirmed-money entries only); `EmployeeTarget`/`TeamTarget.targetJson`
 > (review-only). All five domains must ship as **one atomic release** — Payment/Collection cannot
 > convert independently of the Sales/KRA target migration without an explicitly-approved Option B
-> emergency bridge. **Release 2 implementation permission remains Pending/Blocked** pending the
-> open decisions in that file's §9 (live-DB classification scans, named business sign-off).
+> emergency bridge.
+>
+> **Section 9 open decisions closed via live-DB scan (Step 3U-2, 2026-06-22) — sign-off only,
+> nothing implemented.** `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §12 records a
+> read-only scan against `u686730471_caveodev`. **Correction:** the live `KRAMetric.metricType`
+> enum is `AMOUNT`/`PERCENTAGE`/`COUNT` — `prisma/seed-performance-defaults.ts`'s `REVENUE`-typed
+> rows don't exist in the dev DB. Money metrics are confirmed as the `AMOUNT`-typed ones
+> (`BOOKING`/`BILLING`, plus an unused `FUNNEL_VALUE`). **One `KRATemplateItem` row (#16) is
+> Blocked/Manual Review** — a `targetType`/metric-`metricType` mismatch with money-scale values.
+> All 34 `KRA.target` rows and 34 `EmployeeTarget.targetJson` rows parsed cleanly (6 confirmed
+> money KPI labels; `targetJson` confirmed to store the same free-text format as `KRA.target`,
+> not real JSON); `TeamTarget` has 0 rows. Lead/Opportunity/Funnel fields confirmed Lakhs-scaled,
+> zero negatives, across 38/21/100 live rows. `OrderAdvance` (0 rows) is included in locked scope
+> anyway to remove a future lockstep-unit-mismatch risk. Named business sign-off recorded (actual
+> INR for Lead/Funnel/Opportunity input/storage; Lakhs for Sales dashboard/KRA/Report display).
+> **Release 2 implementation permission: Blocked, narrowly, on the single `KRATemplateItem` #16
+> ambiguity only** — every other Section 9 decision is now closed.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
