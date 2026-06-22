@@ -2,13 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewFinanceDashboard } from "@/lib/finance/access";
-import { addMoney, subtractMoney, moneyToNumberForDisplay } from "@/lib/money";
+import { addMoney, subtractMoney, moneyToNumberForDisplay, serializeMoney, type MoneyInput } from "@/lib/money";
 
 // ── Money helpers (consistent with existing Finance APIs) ─────────────────────
 
-/** Serialize a Float (₹ Lakhs, DOUBLE) as a 2-decimal string. */
-function fmtMoney(v: number): string {
-  return (Math.round(v * 100) / 100).toFixed(2);
+/**
+ * Serialize a money value as a 2-decimal string.
+ * Step 3Q (Release 1): `advOutstanding` (EmployeeAdvance.balanceLakhs) and
+ * `claimsPending` (TravelClaim.amountLakhs) are now `Decimal` ₹ INR. `cashBalance`/
+ * `bankBalance` (FinAccount) and the cash/bank flow figures (Ledger) are NOT part of
+ * Release 1 and remain Float ₹ Lakhs — accepts MoneyInput so both kinds pass through
+ * the same boundary without leaking a raw Decimal object.
+ */
+function fmtMoney(v: MoneyInput): string {
+  return serializeMoney(v);
 }
 
 /** Round to 2 decimal places for safe intermediate arithmetic. */
@@ -52,8 +59,14 @@ function periodLabel(from: Date, to: Date): string {
  * GET /api/finance/dashboard
  *
  * Read-only Finance Dashboard aggregations.
- * All monetary values returned as 2-decimal strings in ₹ Lakhs (same unit as DB).
- * UI layer converts to ₹ rupees (× 100,000) for display.
+ * Monetary values returned as 2-decimal strings. As of Step 3Q (Release 1):
+ *   - `employeeClaimsPending` (TravelClaim) and `advancesOutstanding` (EmployeeAdvance),
+ *     plus every Expense-sourced figure (`todayExpense`, `monthlyExpense`,
+ *     `customerExpenses`, `expenseBreakdown`, `monthlyExpenseTrend`,
+ *     `topExpenseCategories`) are now actual ₹ INR — the UI must NOT multiply these by
+ *     100,000.
+ *   - `cashBalance`/`bankBalance` (FinAccount) and `cashFlow`/`bankFlow` (Ledger) are
+ *     Release 2/untouched and remain ₹ Lakhs — the UI still multiplies these by 100,000.
  *
  * Query params:
  *   dateFrom       — YYYY-MM-DD (inclusive). Defaults to 1st of current month.

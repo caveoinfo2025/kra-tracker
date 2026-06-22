@@ -651,3 +651,22 @@ This document is **planning only**. As of this step:
 >   API/UI code touched, no database row written or altered. `npx prisma validate`,
 >   `npx tsc --noEmit`, and `npm run build` all pass. Decimal schema conversion permission for
 >   Release 1 remains "Pending explicit final approval for Step 3Q" per the new plan's §11 ledger.
+
+> **Step 3Q completed (2026-06-22):**
+> - Release 1 converted to actual INR Decimal on dev DB. All 9 fields across `Expense`,
+>   `EmployeeAdvance`, `TravelClaim` migrated atomically: Lakhs-denominated values multiplied by
+>   100,000, then every column altered from `Float` to `Decimal` (`Decimal(18,2)`/`Decimal(10,4)`
+>   for `ratePerKm`). Applied only to `u686730471_caveodev` via a guarded one-off script (refused
+>   to run against any other database), `prisma migrate resolve --applied`, then
+>   `prisma generate`. 11/11 before/after checks pass — see
+>   `docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md`.
+> - API boundaries (`/api/finance/expenses`, `/api/finance/expenses/[id]`,
+>   `/api/finance/advances`, `/api/finance/conveyance`, `/api/finance/dashboard`) and UI
+>   converters (`ExpenseRegisterClient.tsx`, `ClaimsClient.tsx`, `AdvancesClient.tsx`,
+>   `FinanceApprovalsClient.tsx`, `FinanceDashboardClient.tsx`) updated in the same release —
+>   no half-converted state. One collateral write-path fix: the legacy mobile `/api/expenses`
+>   route's auto-approve threshold, previously Lakhs-denominated, corrected to its INR
+>   equivalent.
+> - **Release 2 remains blocked.** `Payment`/`Collection`/`Voucher`/`Ledger`/CRM Lead-Opportunity/
+>   KRA targets were not touched — confirmed via `git diff --stat` and a migration-SQL safety
+>   review. `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass.

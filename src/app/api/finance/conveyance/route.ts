@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewAllConveyance } from "@/lib/finance/access";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 /**
  * GET /api/finance/conveyance
  *
  * Read-only list of TravelClaim rows (local conveyance trips), scoped:
+ * Step 3Q (Release 1): ratePerKm/amountRupees are Decimal ₹/real-INR (unchanged in
+ * value, only the column type changed); response shape stays a plain number.
  *   - Employees see only their own claims.
  *   - Finance/Expense/VIEW (closest catalogue fit — no dedicated Conveyance
  *     resource exists), with a temporary canManageFinance() fallback
@@ -53,8 +56,11 @@ export async function GET(_req: NextRequest) {
         toLng: c.toLng,
         distanceKm: c.distanceKm,
         mode: c.mode,
-        ratePerKm: c.ratePerKm,
-        amountRupees: c.amountRupees,
+        // Step 3Q (Release 1): ratePerKm/amountRupees are now Decimal — convert to a
+        // plain number for display rather than leaking a raw Decimal object. No value
+        // transformation needed; both fields already store actual INR/real ₹-per-km.
+        ratePerKm: moneyToNumberForDisplay(c.ratePerKm),
+        amountRupees: moneyToNumberForDisplay(c.amountRupees),
         purpose: c.purpose,
         status: c.status,
         approvedByName: c.approvedBy?.name ?? null,

@@ -313,7 +313,7 @@ Also verify, for every Release 1 row, after Step 3Q's transformation runs:
 | Release 1 smoke data requirement | Insert dev-only smoke rows for `Expense`/`TravelClaim` per §6 before transformation verification | Approved |
 | Release 2 Payment/Collection status | Excluded from Release 1; deferred pending KRA/Collection unit decision | Blocked |
 | KRA/Collection status | Recommendation documented (Collection → INR, KRA targets stay Lakhs, `kra-engine.ts` boundary conversion at `totalCollectionsWithoutGst()`) but not yet explicitly approved | Approved with notes |
-| Decimal schema conversion permission | Permission to execute Step 3Q's schema + transformation against the **dev** database for the 9 Release 1 fields | Pending explicit final approval for Step 3Q |
+| Decimal schema conversion permission | Permission to execute Step 3Q's schema + transformation against the **dev** database for the 9 Release 1 fields | **Approved for dev Release 1 implementation only** (2026-06-22) — production remains out of scope pending a separate production-migration plan |
 
 ---
 
@@ -343,3 +343,54 @@ UI update tables for `/api/finance/expenses`, `/api/finance/expenses/[id]`,
 `/api/finance/advances`, `/api/finance/conveyance`, and the before/after verification
 template. No schema, migration, API, UI, or database change was made. Decimal schema
 conversion remains gated on explicit sign-off of the §11 ledger before Step 3Q begins.
+
+---
+
+## Implementation Note (Step 3Q, 2026-06-22)
+
+**Step 3Q completed: Release 1 schema/data/API/UI migration implemented on the dev
+database (`u686730471_caveodev`).**
+
+- §11's "Decimal schema conversion permission" was updated to **Approved for dev Release
+  1 implementation only** before any change was made.
+- Smoke-test data created for `Expense` (2 rows) and `TravelClaim` (1 row), each clearly
+  marked `[SMOKE TEST — Step 3Q Release 1]` in a text field; `EmployeeAdvance`'s 1 existing
+  row was used as-is.
+- Pre-migration values snapshotted, then all 9 fields transformed in one migration
+  (`prisma/migrations/20260622120000_decimal_release1_lakhs_to_inr/`): Lakhs-denominated
+  fields multiplied by 100,000 (while still `Float`/`DOUBLE`, for precision), then all 9
+  columns altered to `Decimal` (`Decimal(18,2)` for money fields, `Decimal(10,4)` for
+  `TravelClaim.ratePerKm`). `TravelClaim.amountRupees`/`ratePerKm` received no value
+  transformation — only the type changed.
+- Applied via a guarded one-off script that refused to run against any database other
+  than `u686730471_caveodev`; resolved with `prisma migrate resolve --applied` and
+  regenerated the Prisma client. Full before/after verification (11/11 fields pass) is in
+  `docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md`.
+- API boundaries updated for `/api/finance/expenses`, `/api/finance/expenses/[id]`,
+  `/api/finance/advances` (now wired to `src/lib/money.ts`, closing the gap flagged in §7),
+  `/api/finance/conveyance`, and `/api/finance/dashboard` — all now serialize `Decimal`
+  values through `src/lib/money.ts` rather than leaking raw Decimal objects or breaking on
+  the new column type. The legacy mobile `/api/expenses` write route (an existing,
+  pre-Step-3Q endpoint that also writes `Expense.amountLakhs`/`gstAmountLakhs`, not
+  discovered until this step) had its `AUTO_APPROVE_LIMIT_L = 0.10` (₹ Lakhs) threshold
+  corrected to `AUTO_APPROVE_LIMIT_INR = 10000` (₹ INR) to avoid silently breaking its
+  auto-approval logic — the only collateral write-path fix required to avoid a
+  half-converted state for the `Expense` model.
+- UI updated for `ExpenseRegisterClient.tsx`/`expenses/data.ts`, `ClaimsClient.tsx`,
+  `AdvancesClient.tsx` (incl. the "Amount (₹ Lakhs)" label → "Amount (₹)"),
+  `FinanceApprovalsClient.tsx` (now branches by `entityType` so `ADVANCE` amounts are no
+  longer re-multiplied while any future Lakhs-denominated entity type still would be), and
+  `FinanceDashboardClient.tsx` (split into two formatters — `fmtRupees`/`lakhsToRupees` kept
+  for still-Lakhs `FinAccount`/`Ledger` fields; a new `fmtINRDirect` added for the
+  now-actual-INR Expense/EmployeeAdvance/TravelClaim KPI cards; chart values converted via
+  `inrToLakhsEquivalent` before feeding the existing Lakhs-calibrated `fmt`/`fmtShort`
+  Cr/L/K chart formatters, so the dashboard's visual scale logic keeps working unchanged).
+  Conveyance UI confirmed still 100% mock data — no change needed.
+- **Payment, Collection, Voucher, Ledger, FinAccount, OrderAdvance, Notification, CRM
+  Lead/Opportunity/SalesFunnel, and KRA target values were not touched** — confirmed via
+  `git diff --stat` (13 files changed, all within the planned Release 1 scope) and the
+  migration SQL safety review (only `UPDATE`/`ALTER TABLE MODIFY COLUMN` for `Expense`/
+  `EmployeeAdvance`/`TravelClaim`, no `DROP`, no destructive statements, no out-of-scope
+  models).
+- `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass.
+- Release 2 (`Payment`/`Collection`) remains explicitly Blocked, unaffected by this step.

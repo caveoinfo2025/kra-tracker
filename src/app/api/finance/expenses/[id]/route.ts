@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewAllFinanceExpenses } from "@/lib/finance/access";
-import { addMoney, moneyToNumberForDisplay } from "@/lib/money";
+import { addMoney, moneyToNumberForDisplay, serializeMoney, type MoneyInput } from "@/lib/money";
 
-/** Serialize a Float (₹ Lakhs, DOUBLE) as a 2-decimal string. */
-function fmtMoney(v: number): string {
-  return (Math.round(v * 100) / 100).toFixed(2);
+/**
+ * Serialize a money value as a 2-decimal string.
+ * Step 3Q (Release 1): `amountLakhs`/`gstAmountLakhs` are now `Decimal` ₹ INR.
+ */
+function fmtMoney(v: MoneyInput): string {
+  return serializeMoney(v);
 }
 
 function mapApprovalStatus(status: string): string {
@@ -46,7 +49,8 @@ function parseAttachments(json: string): { fileName: string; fileUrl: string }[]
  *   Finance/Expense/VIEW (temporary canManageFinance() fallback) → any expense
  *   Regular employee → own expense only (403 otherwise)
  *
- * Money: returned as 2-decimal strings in ₹ Lakhs.
+ * Money: returned as 2-decimal strings in actual ₹ INR (Step 3Q Release 1 — converted
+ * from ₹ Lakhs; field names still say "Lakhs", rename deferred).
  */
 export async function GET(
   _req: NextRequest,

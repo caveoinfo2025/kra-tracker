@@ -764,3 +764,18 @@ marked Approved. Nothing in this table authorizes any schema, data, API, or UI c
 - **No Prisma schema field was converted, no migration was generated or applied, no API route or
   UI component was modified, no Lakhs value was multiplied into INR, and no database row was
   written or altered.** This was a documentation/planning step only.
+
+---
+
+## Implementation Note (Step 3Q, 2026-06-22)
+
+**Step 3Q completed for Release 1.** All 9 Release 1 fields (`Expense.amountLakhs/
+gstAmountLakhs`, `EmployeeAdvance.amountLakhs/disbursedAmountLakhs/settledAmountLakhs/
+balanceLakhs`, `TravelClaim.amountLakhs/amountRupees/ratePerKm`) are now `Decimal` and store
+actual ₹ INR on the dev database (`u686730471_caveodev`) — confirmed via an 11/11-pass
+before/after verification in `docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md`. API
+boundaries and UI converters for `Expense`/`EmployeeAdvance`/`TravelClaim` were updated in the
+same release per the No-Half-Converted-State Rule. `Payment`/`Collection`/`Voucher`/`Ledger`/
+CRM Lead-Opportunity/KRA targets remain untouched — Release 2 stays Blocked. Full detail:
+`docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` (Implementation Note, Step 3Q) and
+`docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md`.

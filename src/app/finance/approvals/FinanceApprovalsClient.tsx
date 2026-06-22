@@ -82,9 +82,18 @@ function mapFinanceRequest(
   const slaDeadline = new Date(submitted.getTime() + slaHours * 3_600_000);
   const breachedSLA = req.status === "PENDING" && Date.now() > slaDeadline.getTime();
 
+  // Step 3Q (Release 1): ADVANCE's contextJson.amountLakhs is now actual ₹ INR (no
+  // ×100,000) since EmployeeAdvance converted; any other entity type that still
+  // produces a Lakhs-denominated amountLakhs context value (none currently do) would
+  // need the ×100,000 conversion preserved — branch explicitly by entity type rather
+  // than assuming every amountLakhs context value shares one unit.
   const amount =
     typeof ctx.amount      === "number" ? (ctx.amount as number) :
-    typeof ctx.amountLakhs === "number" ? Math.round((ctx.amountLakhs as number) * 100_000) :
+    typeof ctx.amountLakhs === "number" ? (
+      req.entityType === "ADVANCE"
+        ? (ctx.amountLakhs as number)                          // already ₹ INR (Release 1)
+        : Math.round((ctx.amountLakhs as number) * 100_000)    // still ₹ Lakhs
+    ) :
     undefined;
 
   const details =

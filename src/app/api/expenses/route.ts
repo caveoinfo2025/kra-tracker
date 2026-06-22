@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { startApproval, getWorkflowByCode } from "@/lib/workflow-engine";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
-// Auto-approve threshold: ≤ ₹0.10 L (₹10,000) needs no approval flow
-const AUTO_APPROVE_LIMIT_L = 0.10;
+// Auto-approve threshold: ≤ ₹10,000 needs no approval flow.
+// Step 3Q (Release 1): Expense.amountLakhs is now Decimal ₹ INR (not ₹ Lakhs) — this
+// threshold was previously 0.10 (₹0.10 L); updated to the equivalent ₹10,000 INR value.
+const AUTO_APPROVE_LIMIT_INR = 10000;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
   // ── Approval trigger on submit ─────────────────────────────────────────────
   let approvalRequestId: number | null = null;
 
-  if (body.submit && body.amountLakhs > AUTO_APPROVE_LIMIT_L) {
+  if (body.submit && body.amountLakhs > AUTO_APPROVE_LIMIT_INR) {
     const wf = await getWorkflowByCode("EXPENSE_APPROVAL");
     if (wf) {
       const req = await startApproval({
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
         requestedBy: empId,
         contextJson: JSON.stringify({
           category:    expense.category,
-          amountLakhs: expense.amountLakhs,
+          amountLakhs: moneyToNumberForDisplay(expense.amountLakhs),
           narration:   expense.narration,
         }),
       });

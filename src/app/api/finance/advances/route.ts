@@ -3,16 +3,18 @@ import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewAllFinanceAdvances } from "@/lib/finance/access";
 import { startApproval, getWorkflowByCode } from "@/lib/workflow-engine";
+import { serializeMoney, moneyToNumberForDisplay, type MoneyInput } from "@/lib/money";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
-function r2(v: number): number {
-  return Math.round(v * 100) / 100;
-}
-
-function fmt(v: number): string {
-  return r2(v).toFixed(2);
+/**
+ * Serialize a money value as a 2-decimal string.
+ * Step 3Q (Release 1): every EmployeeAdvance money field is now `Decimal` ₹ INR (not
+ * Float ₹ Lakhs) — wired to src/lib/money.ts per the Release 1 API boundary plan.
+ */
+function fmt(v: MoneyInput): string {
+  return serializeMoney(v);
 }
 
 /**
@@ -239,7 +241,7 @@ export async function POST(req: NextRequest) {
         advanceNo,
         category:    advance.category,
         purpose:     advance.purpose,
-        amountLakhs: advance.amountLakhs,
+        amountLakhs: moneyToNumberForDisplay(advance.amountLakhs),
       }),
     });
     approvalRequestId = ar?.id ?? null;

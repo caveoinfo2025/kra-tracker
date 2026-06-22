@@ -16,6 +16,8 @@ import {
 
 // ─── Money helpers ─────────────────────────────────────────────────────────────
 
+// cashBalance/bankBalance (FinAccount) and cashFlow/bankFlow (Ledger) are NOT part of
+// Release 1 — they remain ₹ Lakhs, so these two helpers keep the ×100,000 conversion.
 function lakhsToRupees(s: string): number {
   return Math.round(Number(s) * 100000 * 100) / 100;
 }
@@ -26,6 +28,25 @@ function fmtRupees(s: string): string {
     style: "currency", currency: "INR",
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(r);
+}
+
+// Step 3Q (Release 1): todayExpense/monthlyExpense/employeeClaimsPending/
+// advancesOutstanding/customerExpenses are now actual ₹ INR — parse directly, no
+// ×100,000 multiplication (unlike fmtRupees above, which is for still-Lakhs fields).
+function fmtINRDirect(s: string): string {
+  const r = Math.round(Number(s) * 100) / 100;
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency", currency: "INR",
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(r);
+}
+
+// Expense-sourced chart values (trend/category breakdown/top categories) are now
+// actual ₹ INR from the API; fmt()/fmtShort() below assume a Lakhs-scale input for
+// their Cr/L/K compact-display thresholds — convert back to a Lakhs-equivalent number
+// before feeding them in, so the existing chart formatting logic keeps working.
+function inrToLakhsEquivalent(inr: number): number {
+  return inr / 100000;
 }
 
 function fmtShort(lakhs: number): string {
@@ -355,20 +376,23 @@ export default function FinanceDashboardClient({ employeeName }: { employeeName:
   const bf = data?.bankFlow;
   const pi = data?.pendingItems;
 
+  // Expense-sourced — API now returns actual ₹ INR (Step 3Q Release 1); convert to a
+  // Lakhs-equivalent number so the existing fmt()/fmtShort() Cr/L/K chart formatters
+  // (calibrated for Lakhs-scale input) keep displaying correctly.
   const trendBars = (data?.monthlyExpenseTrend ?? []).map((t) => ({
     label: monthLabel(t.month),
-    value: Number(t.amount),
+    value: inrToLakhsEquivalent(Number(t.amount)),
     color: "var(--caveo-red)" as string,
   }));
 
   const catSlices = (data?.expenseBreakdown ?? []).map((c, i) => ({
-    value: Number(c.amount),
+    value: inrToLakhsEquivalent(Number(c.amount)),
     color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
     name: c.category,
   }));
 
   const topCats = data?.topExpenseCategories ?? [];
-  const catMax = topCats.reduce((mx, c) => Math.max(mx, Number(c.amount)), 0.001);
+  const catMax = topCats.reduce((mx, c) => Math.max(mx, inrToLakhsEquivalent(Number(c.amount))), 0.001);
 
   const netCashSign: FlowSign = cf
     ? (Number(cf.netCashFlow) > 0 ? "positive" : Number(cf.netCashFlow) < 0 ? "negative" : "neutral")
@@ -475,12 +499,12 @@ export default function FinanceDashboardClient({ employeeName }: { employeeName:
         />
         <KpiTile
           label="Today's Expense"
-          value={sc ? fmtRupees(sc.todayExpense) : "—"}
+          value={sc ? fmtINRDirect(sc.todayExpense) : "—"}
           icon={CalendarDays}
         />
         <KpiTile
           label="Monthly Expense"
-          value={sc ? fmtRupees(sc.monthlyExpense) : "—"}
+          value={sc ? fmtINRDirect(sc.monthlyExpense) : "—"}
           icon={Receipt}
           href="/finance/expenses"
         />
@@ -492,19 +516,19 @@ export default function FinanceDashboardClient({ employeeName }: { employeeName:
         />
         <KpiTile
           label="Claims Pending"
-          value={sc ? fmtRupees(sc.employeeClaimsPending) : "—"}
+          value={sc ? fmtINRDirect(sc.employeeClaimsPending) : "—"}
           icon={Layers}
           href="/finance/claims"
         />
         <KpiTile
           label="Advances Outstanding"
-          value={sc ? fmtRupees(sc.advancesOutstanding) : "—"}
+          value={sc ? fmtINRDirect(sc.advancesOutstanding) : "—"}
           icon={Wallet}
           href="/finance/advances"
         />
         <KpiTile
           label="Customer Expenses"
-          value={sc ? fmtRupees(sc.customerExpenses) : "—"}
+          value={sc ? fmtINRDirect(sc.customerExpenses) : "—"}
           icon={Users}
           href="/finance/expenses"
         />
@@ -589,7 +613,7 @@ export default function FinanceDashboardClient({ employeeName }: { employeeName:
                     <ValueBar
                       key={c.category}
                       label={c.category}
-                      value={Number(c.amount)}
+                      value={inrToLakhsEquivalent(Number(c.amount))}
                       max={catMax}
                       color={CATEGORY_COLORS[i % CATEGORY_COLORS.length]}
                     />

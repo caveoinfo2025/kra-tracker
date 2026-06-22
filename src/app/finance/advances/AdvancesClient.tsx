@@ -80,8 +80,9 @@ interface ApiResponse {
 
 // ── Money helpers ─────────────────────────────────────────────────────────────
 
+// Step 3Q (Release 1): the EmployeeAdvance API now returns actual ₹ INR — no more ×100,000.
 function lakhsToRupees(s: string): number {
-  return Math.round(Number(s) * 100000 * 100) / 100;
+  return Math.round(Number(s) * 100) / 100;
 }
 
 function fmtINR(n: number): string {
@@ -801,18 +802,18 @@ export default function AdvancesClient({ caps }: { caps: AdvanceCaps }) {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)", marginBottom: 6, display: "block" }}>
-                  Amount (₹ Lakhs) <span style={{ color: "var(--caveo-red)" }}>*</span>
+                  Amount (₹) <span style={{ color: "var(--caveo-red)" }}>*</span>
                 </label>
                 <input
-                  type="number" className="input-cav" min="0.01" step="0.01"
-                  placeholder="e.g. 0.50 for ₹50,000"
+                  type="number" className="input-cav" min="1" step="1"
+                  placeholder="e.g. 50000"
                   value={form.amountLakhs}
                   onChange={(e) => setForm((f) => ({ ...f, amountLakhs: e.target.value }))}
                   style={{ width: "100%", fontSize: 13 }}
                 />
                 {form.amountLakhs && Number(form.amountLakhs) > 0 && (
                   <div style={{ fontSize: 11, color: "var(--fg-3)", marginTop: 4 }}>
-                    = {fmtLakhs(Number(form.amountLakhs).toFixed(2))}
+                    = {fmtINR(Number(form.amountLakhs))}
                   </div>
                 )}
               </div>

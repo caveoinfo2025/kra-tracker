@@ -21,6 +21,53 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3Q: Release 1 Decimal + INR migration implemented on dev DB (Expense/EmployeeAdvance/TravelClaim)
+Step 3Q completed: implemented the Release 1 Decimal + Lakhs-to-INR migration atomically on the
+dev database (`u686730471_caveodev`) only — no production change, no Payment/Collection/
+Voucher/Ledger/CRM/KRA-target change.
+
+**Approval check**: confirmed `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` §11 and updated
+its "Decimal schema conversion permission" row from Pending to **Approved for dev Release 1
+implementation only** before making any change.
+
+**Smoke data + snapshot**: `Expense`/`TravelClaim` had 0 dev rows, so created 2 `Expense` rows
+and 1 `TravelClaim` row, each clearly marked `[SMOKE TEST — Step 3Q Release 1]`; snapshotted all
+Release 1 rows' pre-migration values.
+
+**Schema + migration**: updated `prisma/schema.prisma` for exactly the 9 Release 1 fields
+(`Expense.amountLakhs`/`gstAmountLakhs`, `EmployeeAdvance.amountLakhs`/`disbursedAmountLakhs`/
+`settledAmountLakhs`/`balanceLakhs`, `TravelClaim.amountLakhs`/`amountRupees`/`ratePerKm`) to
+`Decimal(18,2)`/`Decimal(10,4)`. Hand-wrote
+`prisma/migrations/20260622120000_decimal_release1_lakhs_to_inr/migration.sql` (Hostinger has no
+shadow DB) — value-transformation `UPDATE`s (×100,000 for genuine Lakhs fields, while still
+`Float` for precision) followed by `ALTER TABLE MODIFY COLUMN` to `Decimal`; `amountRupees`/
+`ratePerKm` received no multiplication. Safety-reviewed (no `DROP`, no destructive deletes, no
+out-of-scope models) before applying via a guarded script that refused any non-dev database;
+`prisma migrate resolve --applied` + `prisma generate` followed.
+
+**Verification**: 11/11 fields pass exactly (e.g. `EmployeeAdvance.amountLakhs` 0.5→50000.00,
+smoke `Expense.amountLakhs` 10.555→1055500.00, `TravelClaim.ratePerKm` 12.5→12.5000 unchanged) —
+full table in `docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md`.
+
+**API/UI updates**: wired `/api/finance/expenses`, `/api/finance/expenses/[id]`,
+`/api/finance/advances` (closing the not-yet-wired-to-`money.ts` gap flagged in Step 3P),
+`/api/finance/conveyance`, and `/api/finance/dashboard` to serialize `Decimal` via
+`src/lib/money.ts`. Discovered and fixed one **collateral write-path**: the legacy mobile
+`/api/expenses` route also writes `Expense.amountLakhs`/`gstAmountLakhs` and had a
+Lakhs-denominated `AUTO_APPROVE_LIMIT_L = 0.10` threshold — corrected to
+`AUTO_APPROVE_LIMIT_INR = 10000`. Updated UI: `expenses/data.ts`/`ExpenseRegisterClient.tsx`,
+`ClaimsClient.tsx`, `AdvancesClient.tsx` (incl. "Amount (₹ Lakhs)" → "Amount (₹)"),
+`FinanceApprovalsClient.tsx` (branches by `entityType` now), and `FinanceDashboardClient.tsx`
+(split into a Lakhs-still formatter for `FinAccount`/`Ledger` and a new INR-direct formatter for
+Release 1 KPI cards, plus an `inrToLakhsEquivalent()` conversion so the existing Cr/L/K chart
+formatters keep working). Conveyance UI confirmed still mock-only — untouched.
+
+**Confirmed untouched**: `Payment`, `Collection`, `Voucher`, `Ledger`, `FinAccount`,
+`OrderAdvance`, `Notification`, CRM Lead/Opportunity/SalesFunnel, and KRA target values — via
+`git diff --stat` (13 files, all in Release 1 scope) and the migration-SQL safety review.
+Release 2 remains explicitly Blocked. `npx prisma validate`, `npx tsc --noEmit`, and
+`npm run build` all pass.
+
 ### 2026-06-22 — Step 3P: Release 1 Decimal sign-off and implementation plan (Expense/EmployeeAdvance/TravelClaim)
 Step 3P completed: a sign-off and implementation-planning step only — no Prisma schema change,
 no migration, no API/UI code change, no database data altered, no Lakhs value converted to INR

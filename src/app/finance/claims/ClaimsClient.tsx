@@ -97,8 +97,9 @@ interface ApiDetail {
 
 // ── Money helpers ─────────────────────────────────────────────────────────────
 
+// Step 3Q (Release 1): the Expense API now returns actual ₹ INR — no more ×100,000.
 function lakhsToRupees(s: string): number {
-  return Math.round(Number(s) * 100_000 * 100) / 100;
+  return Math.round(Number(s) * 100) / 100;
 }
 
 function fmtINR(n: number): string {

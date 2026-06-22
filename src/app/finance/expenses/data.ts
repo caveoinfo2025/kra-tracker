@@ -258,7 +258,12 @@ export interface ApiExpenseDetail {
   auditHistory: { action: string; performedBy: string; at: string; changes: unknown; notes: string | null }[];
 }
 
-/** Convert a ₹-Lakhs API string to ₹ rupees (number) for UI display. */
+/**
+ * Parse a ₹ INR API string to a rupees (number) for UI display.
+ * Step 3Q (Release 1): the Expense API now returns actual ₹ INR for
+ * baseAmount/gstAmount/totalAmount — no more ×100,000 (was ₹ Lakhs pre-migration).
+ * Name retained to avoid touching every call site; the body no longer multiplies.
+ */
 export function lakhsToRupees(s: string): number {
-  return Math.round(Number(s) * 100000 * 100) / 100;
+  return Math.round(Number(s) * 100) / 100;
 }

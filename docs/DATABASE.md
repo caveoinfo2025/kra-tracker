@@ -5,38 +5,36 @@
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
 **60+ models, 10 migrations.** Dev DB fully migrated (2026-06-05, session 4).
 
-> **Planned: Decimal money migration.** Before Finance write APIs are built, every money-like
-> `Float`/`Float?` field (`Collection`, `Payment`, `Expense`, `Voucher`, `Ledger`,
-> `EmployeeAdvance`, `TravelClaim`, `FinAccount`, etc.) should migrate to `Decimal(18,2)` to
-> avoid float-rounding errors in accounting totals. See
-> `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` (Step 3G) for the full field inventory and
-> phased plan — not yet implemented; schema is still `Float` everywhere as of this note. The
-> central Decimal-safe parsing/serialization/arithmetic helper this plan calls for is already
-> built — `src/lib/money.ts` (Step 3H) — and has been wired internally into the Bank Book, Cash
-> Book, Expense, and Finance Dashboard read routes' calculations (Steps 3I–3L); the remaining
-> Finance read routes were reviewed and found to have nothing to wire (Step 3M). **Money unit
-> policy locked (2026-06-22, before Step 3O): only CRM Lead/Opportunity/pipeline-estimate fields
-> may use Lakhs — every Finance/Accounting field must store actual INR.** Verification found
-> every existing Finance `*Lakhs` field genuinely stores ₹ Lakhs today (e.g.
-> `EmployeeAdvance.amountLakhs: 0.5` = ₹50,000), so adopting this policy requires a coordinated
-> value transformation (×100,000 per row), not just a naming fix — see
-> `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0. **Step 3O** (2026-06-22) completed
-> the live dev data profile (clean, no blockers — `u686730471_caveodev`), designed the
-> Lakhs-to-INR transformation field-by-field, inventoried every UI converter/API comment that
-> assumes Lakhs, and analyzed the cross-cutting risk that `Collection.invoiceValueLakhs`/
-> `amountWithoutGstLakhs` feed `src/lib/kra-engine.ts`'s KRA scoring (`KRATemplateItem` targets
-> are genuinely Lakhs-based — confirmed via `prisma/seed-performance-defaults.ts` — so
-> `Collection`'s conversion needs an explicit `/100000` at the KRA-engine scoring boundary). See
-> the readiness check's §12 sign-off table for the full decision ledger. **As of Step 3O, schema
-> conversion remains BLOCKED**: Release 1 (`Expense`/`EmployeeAdvance`/`TravelClaim`) is "Approved
-> with notes" pending a tested transformation script; Release 2 (`Payment`/`Collection`) is
-> explicitly Blocked pending the KRA-engine sign-off. **Step 3P** (2026-06-22) created the
-> dedicated Release 1 sign-off and implementation plan —
-> `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` — locking the 9-field scope, the
-> No-Half-Converted-State Rule, a 12-step atomic Step 3Q implementation sequence, a smoke-test
-> data plan for `Expense`/`TravelClaim` (both still 0 rows in dev), and API/UI update tables.
-> **Decimal schema conversion permission remains Pending explicit final approval for Step 3Q** —
-> still no schema, migration, API, UI, or data change has been made.
+> **Decimal money migration — Release 1 implemented (Step 3Q, 2026-06-22).** Every money-like
+> `Float`/`Float?` field across Finance (`Collection`, `Payment`, `Expense`, `Voucher`, `Ledger`,
+> `EmployeeAdvance`, `TravelClaim`, `FinAccount`, etc.) was inventoried in
+> `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` (Step 3G). The central Decimal-safe
+> parsing/serialization/arithmetic helper — `src/lib/money.ts` (Step 3H) — is wired into every
+> Finance read route. **Money unit policy locked (2026-06-22): only CRM Lead/Opportunity/
+> pipeline-estimate fields may use Lakhs — every Finance/Accounting field must store actual
+> INR.** See `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 for the full field-by-field
+> verification.
+>
+> **Release 1 — `Expense`, `EmployeeAdvance`, `TravelClaim` (9 fields) — is DONE on the dev DB
+> (`u686730471_caveodev`) as of Step 3Q.** `amountLakhs`/`gstAmountLakhs`/
+> `disbursedAmountLakhs`/`settledAmountLakhs`/`balanceLakhs` are now `Decimal(18,2)` storing
+> actual ₹ INR (converted via `× 100,000` on every existing row); `TravelClaim.amountRupees`/
+> `ratePerKm` are now `Decimal(18,2)`/`Decimal(10,4)` with no value change (already real
+> INR/real ₹-per-km). Field names still say "Lakhs" — the rename is deferred. Migration:
+> `prisma/migrations/20260622120000_decimal_release1_lakhs_to_inr/`. API boundaries
+> (`/api/finance/expenses`, `/api/finance/expenses/[id]`, `/api/finance/advances`,
+> `/api/finance/conveyance`, `/api/finance/dashboard`) and UI converters
+> (`ExpenseRegisterClient.tsx`, `ClaimsClient.tsx`, `AdvancesClient.tsx`,
+> `FinanceApprovalsClient.tsx`, `FinanceDashboardClient.tsx`) were updated in the same release.
+> Full results: `docs/database/DECIMAL_RELEASE1_MIGRATION_RESULTS.md` (11/11 verification checks
+> pass). **Production has NOT been migrated** — this applies to dev only.
+>
+> **Release 2 — `Payment`/`Collection` (4 fields) — remains explicitly BLOCKED**, pending
+> sign-off on the `src/lib/kra-engine.ts` scoring-boundary conversion (`Collection` feeds KRA
+> billing targets, which stay Lakhs-based by design). See the readiness check's §12 sign-off
+> table and `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` §11 for the full decision ledger.
+> `Voucher`/`Ledger`/`FinAccount`/CRM Lead-Opportunity/KRA target values are untouched by
+> Release 1 and remain ₹ Lakhs.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

@@ -645,9 +645,11 @@ model Expense {
   employee        Employee  @relation("ExpenseEmployee", fields: [employeeId], references: [id])
   employeeId      Int
   expenseDate     DateTime  @default(now())
-  amountLakhs     Float
+  // Decimal Release 1 (Step 3Q, 2026-06-22): converted from Float ₹ Lakhs to actual ₹ INR.
+  // Field name still says "Lakhs" (rename deferred) — see docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md.
+  amountLakhs     Decimal   @db.Decimal(18, 2)
   gstRate         Float     @default(0)
-  gstAmountLakhs  Float     @default(0)
+  gstAmountLakhs  Decimal   @default(0) @db.Decimal(18, 2)
   narration       String    @default("") @db.Text
   vendorInvoiceNo String    @default("")
   attachmentsJson String    @default("[]") @db.Text // JSON array of { fileName, fileUrl }
@@ -719,7 +721,9 @@ model EmployeeAdvance {
   employeeId           Int
   category             String    @default("Other") // Customer Project|Travel|Office Supplies|Training|Medical|Other
   purpose              String    @default("") @db.Text
-  amountLakhs          Float
+  // Decimal Release 1 (Step 3Q, 2026-06-22): converted from Float ₹ Lakhs to actual ₹ INR.
+  // Field names still say "Lakhs" (rename deferred) — see docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md.
+  amountLakhs          Decimal   @db.Decimal(18, 2)
   requestDate          DateTime  @default(now())
   requiredByDate       DateTime?
   status               String    @default("pending") // pending|approved|disbursed|settled|rejected
@@ -727,12 +731,12 @@ model EmployeeAdvance {
   approvedById         Int?
   approvedAt           DateTime?
   disbursedDate        DateTime?
-  disbursedAmountLakhs Float?
+  disbursedAmountLakhs Decimal?  @db.Decimal(18, 2)
   disbursedFromType    String    @default("") // "cash" | "bank"
   disbursedFromId      Int? // soft ref to FinAccount.id
   settledDate          DateTime?
-  settledAmountLakhs   Float?
-  balanceLakhs         Float     @default(0) // CACHED: disbursed âˆ’ settled
+  settledAmountLakhs   Decimal?  @db.Decimal(18, 2)
+  balanceLakhs         Decimal   @default(0) @db.Decimal(18, 2) // CACHED: disbursed âˆ’ settled
   voucher              Voucher?  @relation(fields: [voucherId], references: [id])
   voucherId            Int?
   remarks              String    @default("") @db.Text
@@ -764,9 +768,13 @@ model TravelClaim {
   toLng        Float?
   distanceKm   Float     @default(0)
   mode         String    @default("bike") // bike|car|auto|public
-  ratePerKm    Float     @default(0) // â‚¹ per km (snapshot from HR policy)
-  amountRupees Float     @default(0)
-  amountLakhs  Float     @default(0)
+  // Decimal Release 1 (Step 3Q, 2026-06-22): ratePerKm/amountRupees were already actual INR
+  // (no value transformation); amountLakhs converted from Float ₹ Lakhs to actual ₹ INR
+  // (field name still says "Lakhs", rename deferred) — see
+  // docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md.
+  ratePerKm    Decimal   @default(0) @db.Decimal(10, 4) // â‚¹ per km (snapshot from HR policy)
+  amountRupees Decimal   @default(0) @db.Decimal(18, 2)
+  amountLakhs  Decimal   @default(0) @db.Decimal(18, 2)
   purpose      String    @default("") @db.Text
   status       String    @default("draft") // draft|submitted|approved|rejected|paid
   approvedBy   Employee? @relation("TravelClaimApprovedBy", fields: [approvedById], references: [id])

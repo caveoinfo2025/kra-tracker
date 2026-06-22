@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewAllFinanceExpenses } from "@/lib/finance/access";
-import { addMoney, moneyToNumberForDisplay } from "@/lib/money";
+import { addMoney, moneyToNumberForDisplay, serializeMoney, type MoneyInput } from "@/lib/money";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
-/** Serialize a Float (₹ Lakhs, DOUBLE) as a 2-decimal string. */
-function fmtMoney(v: number): string {
-  return (Math.round(v * 100) / 100).toFixed(2);
+/**
+ * Serialize a money value as a 2-decimal string.
+ * Step 3Q (Release 1): `amountLakhs`/`gstAmountLakhs` are now `Decimal` ₹ INR (not
+ * Float ₹ Lakhs) — accepts MoneyInput so both the raw Decimal column values and the
+ * already-`number` aggregate results from below pass through the same boundary.
+ */
+function fmtMoney(v: MoneyInput): string {
+  return serializeMoney(v);
 }
 
 function mapApprovalStatus(status: string): string {
@@ -59,8 +64,9 @@ function parseAttachments(json: string): { fileName: string; fileUrl: string }[]
  *   Finance/Expense/VIEW (temporary canManageFinance() fallback) → all expenses
  *   Regular employee → own expenses only (same RBAC as /api/expenses)
  *
- * Money: returned as 2-decimal strings in ₹ Lakhs (same unit as DB).
- * UI layer converts to ₹ rupees (× 100,000) for display.
+ * Money: returned as 2-decimal strings in actual ₹ INR (Step 3Q Release 1 — DB columns
+ * converted from ₹ Lakhs to ₹ INR; field names still say "Lakhs", rename deferred).
+ * UI layer no longer multiplies by 100,000 for these fields.
  */
 export async function GET(req: NextRequest) {
   const session = await getSession();
