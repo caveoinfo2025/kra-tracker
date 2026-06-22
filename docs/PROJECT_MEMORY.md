@@ -21,6 +21,75 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3S: Release 2 Payment/Collection/KRA boundary sign-off plan
+Step 3S completed: a planning and decision-lock step only — no Prisma schema change, no
+migration, no API/UI code change, no database data altered, no Payment/Collection value
+converted, no KRA calculation touched.
+
+Created `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`, the dedicated Release 2 sign-off
+artifact. Locks the **4-field Release 2 candidate scope** — `Payment.amountLakhs`,
+`Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/`amountReceivedLakhs` — all
+`value * 100000` → `Decimal(18,2)`, with Collection's three fields explicitly marked Blocked
+until the KRA boundary decision is signed off (Payment marked Candidate/Pending, since it has
+no scoring dependency but must convert in the same atomic release as Collection per
+`syncCollectionTotals()`'s unit-matched comparison).
+
+Re-confirmed the Step 3O live data profile by reading the existing documentation (no DB
+re-query, per this step's read-only constraint): `Payment` 1 row ~₹1.61L; `Collection` 94 rows
+₹0.003L–₹77.88L, no negatives, no suspicious values, >2dp scale-exceeds explained by GST
+back-calculation.
+
+Read `src/lib/kra-engine.ts` in full (762 lines) and confirmed the exact KRA risk surface:
+`totalCollectionsWithoutGst()` and `teamBilling()` are the only Collection consumers that
+compute an absolute total compared directly against a Lakhs-scaled KRA target with zero
+conversion factor — the single highest-risk pattern for Release 2. `onTimeCollectionRate()` and
+`teamCollectionsEfficiency()` are unit-agnostic ratios (numerator and denominator share the same
+unit, so it cancels out) — confirmed safe regardless of Collection's storage unit. Confirmed
+`/api/kra-sync`'s `computeKRAProgress()` call is the **sole boundary** through which
+`kra-engine.ts` reads Collection data — no dashboard or report page imports `kra-engine.ts`
+directly, simplifying where the future unit-conversion fix needs to live.
+
+Documented **3 KRA boundary options**: **Option A** (recommended default) — convert Collection
+storage to actual INR, keep KRA targets Lakhs-based by convention (treating them as
+sales/performance config analogous to CRM pipeline data), and add one explicit, documented
+INR→Lakhs conversion inside `kra-engine.ts` at the scoring boundary only. **Option B** — convert
+KRA targets to actual INR too, the stricter reading of "only Leads/Opportunities use Lakhs"
+since KRA targets aren't literally Lead/Opportunity records, but at materially higher risk
+(touches every `KRATemplateItem` seed row and every per-employee free-text `KRA.target` string).
+**Option C** — leave Collection in Lakhs; rejected, as it violates the locked Money Unit Policy.
+**This decision (A vs. B) is the single open item blocking Step 3T** and requires explicit
+business/product sign-off before implementation.
+
+Read `src/lib/payments.ts` in full (239 lines) and tabulated its **retirement plan**: the
+`round2()` float-rounding workaround and the `received + 0.001 >= invoice` epsilon comparison in
+`syncCollectionTotals()` both become unnecessary once Payment/Collection are exact `Decimal`;
+`recordPayment()`'s notification text (`"Payment received: ₹${amount.toFixed(2)}L"`) and its
+`Notification.amountLakhs` field bake in the Lakhs assumption; `paymentsToday()`'s response
+field is literally named `totalLakhs`, consumed by the web + mobile dashboards and the Accounts
+daily summary per that route's own doc comment — all flagged as required renames/rewrites for
+Step 3T, none touched this step.
+
+Reviewed `src/app/api/collections/route.ts`, `[id]/route.ts`, `src/app/api/payments/route.ts`,
+and `today/route.ts` — confirmed Collection already has a **live write API**
+(`prisma.collection.create()`/`update()` accepting raw `Number()` Lakhs values directly), unlike
+Release 1's mostly-read-only routes, making this conversion materially riskier than Release 1's.
+Grepped `CollectionsClient.tsx` and confirmed its pervasive Lakhs assumptions: hardcoded
+`"Total Billed (₹L)"`/`"Collected (₹L)"`-style table headers and `toFixed(2)}L` summary-card
+templates — all tabulated in the new plan's UI Boundary Plan section, none modified.
+
+Documented the KRA before/after verification plan (zero-tolerance for any 100,000× score
+corruption under either boundary option), the pre-existing migration-history gap from Step 3R
+(carried forward, still not fixed, out of scope), the Release 2 atomic-implementation rule (all
+7 pieces — schema, data, API, UI, KRA boundary, `payments.ts` retirement, verification — must
+ship together), and a 9-row Decision Ledger, every row Pending explicit approval.
+
+**No Prisma schema field was converted, no migration was generated, no API route or UI component
+was modified, no Payment/Collection value was multiplied into INR, no KRA calculation was
+touched, and no database row was written or altered.** Cross-referenced (Step 3S progress notes
+appended) in `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`. `npx prisma validate`,
+`npx tsc --noEmit`, and `npm run build` all pass (reconfirmations, no app code changed). See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3S row) for the tracker entry.
+
 ### 2026-06-22 — Step 3R: post-migration audit of Release 1 Decimal/INR behavior (DB, APIs, UI)
 Step 3R completed: a read-only audit step only — no schema, migration, API, UI, or data change.
 Independently re-verified Step 3Q's Release 1 implementation rather than re-reading its own

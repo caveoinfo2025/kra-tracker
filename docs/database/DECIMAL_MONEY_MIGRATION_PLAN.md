@@ -684,3 +684,21 @@ This document is **planning only**. As of this step:
 >   confirmed zero diff across the entire Step 3O→3Q range.
 > - One pre-existing, unrelated migration-history gap was found and documented (not fixed). No
 >   blockers or functional bugs found in the Release 1 implementation.
+
+> **Step 3S completed (2026-06-22):**
+> - Created `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` — the Release 2 Payment/
+>   Collection/KRA boundary sign-off plan. Planning/decision-lock step only; no schema,
+>   migration, API, UI, or data changes made.
+> - Documented 3 KRA boundary options: keep KRA targets Lakhs and convert Collection→Lakhs only
+>   at the `kra-engine.ts` scoring boundary (Option A, recommended default), convert KRA targets
+>   to INR too (Option B, stricter policy reading, higher migration risk), or leave Collection in
+>   Lakhs (Option C, rejected — violates the Money Unit Policy).
+> - Flagged the single open decision blocking Step 3T: whether KRA targets are sales/performance
+>   config (may stay Lakhs) or Finance-adjacent figures (must convert to INR) — requires explicit
+>   business sign-off before implementation.
+> - Documented the `src/lib/payments.ts` retirement plan (round2/epsilon-comparison removal,
+>   `amountLakhs`/`totalLakhs` field renames), the API/UI boundary plan for both Collection
+>   routes/UI and the Payment routes, and the KRA before/after verification plan (zero score
+>   corruption tolerance).
+> - **Release 2 remains unconverted and blocked** pending the KRA target unit policy decision.
+>   `npx prisma validate` passes; no schema/code/data touched.
