@@ -12,7 +12,14 @@
 > `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` (Step 3G) for the full field inventory and
 > phased plan — not yet implemented; schema is still `Float` everywhere as of this note. The
 > central Decimal-safe parsing/serialization/arithmetic helper this plan calls for is already
-> built — `src/lib/money.ts` (Step 3H) — but not yet wired into any route.
+> built — `src/lib/money.ts` (Step 3H) — and has been wired internally into the Bank Book, Cash
+> Book, Expense, and Finance Dashboard read routes' calculations (Steps 3I–3L); the remaining
+> Finance read routes were reviewed and found to have nothing to wire (Step 3M). **Before any
+> schema field actually converts**, see `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md`
+> (Step 3N) for the candidate-field inventory, data-quality profile (currently blocked — dev DB
+> not reachable from the reviewing environment), API/UI impact review, and first-batch
+> recommendation for the 5 critical models (`Expense`/`EmployeeAdvance`/`TravelClaim`/`Payment`/
+> `Collection`). As of Step 3N, schema conversion is still blocked, not approved.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

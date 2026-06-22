@@ -573,3 +573,25 @@ This document is **planning only**. As of this step:
 >   Vouchers, Voucher Detail, Voucher Sequences, Advances, and Conveyance (3M) do not, and remain
 >   on their original `fmtMoney()`/`r2()` formatting. **No Prisma schema field was converted, no
 >   migration was generated, and no Finance write API was created at any point in this sweep.**
+
+> **Implementation note (Step 3N, 2026-06-22):**
+> - Critical Finance Decimal readiness check completed for the 5 critical models named in this
+>   step's scope: `Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`, `Collection`. Full
+>   report: `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md`.
+> - Candidate fields (13 money/rate fields across the 5 models, exact `prisma/schema.prisma`
+>   field names) and the live dev data profile were documented — the data profile itself could
+>   not be executed in this environment (dev-DB access denied from this sandbox's egress IP; see
+>   the readiness check's §4 for the attempted methodology and the access-denial detail) and is
+>   recorded as a blocking gap, not silently skipped.
+> - API response impact (11 routes) and UI impact (8 areas) reviewed and documented; `GET
+>   /api/finance/conveyance` and the Collections routes/UI were flagged as the highest-risk
+>   surfaces for this future conversion (raw unformatted numbers today, no Decimal-safe boundary).
+> - First-conversion-batch recommendation recorded: the conservative option (`Expense`/
+>   `EmployeeAdvance`/`TravelClaim` only), deferring `Payment`/`Collection` to a second batch
+>   because their conversion is inherently bundled with retiring the `round2()`/epsilon-comparison
+>   workaround in `src/lib/payments.ts`.
+> - **No schema/runtime behavior changed.** `prisma/schema.prisma` untouched, no migration
+>   generated or applied, no API route or UI component modified, and no database row was read,
+>   written, or altered (the only DB interaction attempted was rejected at the connection-auth
+>   stage before any query executed). `npx prisma validate`, `npx tsc --noEmit`, and `npm run
+>   build` all pass (no code changed, so these are reconfirmations, not new test surface).

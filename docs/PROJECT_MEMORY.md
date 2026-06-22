@@ -21,6 +21,67 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Decimal conversion readiness check for critical Finance money fields (Step 3N)
+Step 3N completed: a data-audit and decision-lock step only — no Prisma schema change, no
+migration, no API/UI code change, no database data altered. Created
+`docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md`, assessing the 5 critical Finance models
+named for the first conversion batch: `Expense`, `EmployeeAdvance`, `TravelClaim`, `Payment`,
+`Collection`. `Voucher`/`Ledger` were explicitly excluded, per their separate void/reversal-only
+accounting lifecycle already documented in `docs/database/SOFT_DELETE_DECISION_LOG.md`.
+
+Inventoried **13 candidate money/rate fields** with exact `prisma/schema.prisma` names:
+`Expense.amountLakhs`/`gstAmountLakhs`; `EmployeeAdvance.amountLakhs`/`disbursedAmountLakhs`/
+`settledAmountLakhs`/`balanceLakhs`; `TravelClaim.ratePerKm`/`amountRupees`/`amountLakhs`;
+`Payment.amountLakhs`; `Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/
+`amountReceivedLakhs` — each mapped to its recommended `Decimal(18,2)` or, for `ratePerKm`,
+`Decimal(10,4)` type. A separate exclusion table documents why `gstRate`, `distanceKm`, GPS
+fields, CRM pipeline-estimate fields, Voucher/Ledger fields, and policy-threshold fields are out
+of scope for this batch.
+
+**Live dev data profiling could not be completed in this environment.** A read-only profiling
+script was written (Prisma `findMany` per candidate field, with in-JS row-count/null-count/min/
+max/negative-count/scale-exceed-count computation — the scale-exceed check approximates "more
+than N decimal places" via `ROUND(v * 10^scale) / 10^scale !== v`, documented as an approximation
+since `Float`/`DOUBLE` already carries inherent binary-rounding noise). `DATABASE_URL` was
+confirmed to point at the dev database (`u686730471_caveodev`), not production, before any query
+was attempted. Every connection attempt — both a direct `mariadb` driver connection and the app's
+own `src/lib/prisma.ts` client — was rejected with `Access denied for user
+'u686730471_devuser'@'<this-sandbox's-IP>'`, repeated to rule out a transient blip. This matches
+the standing `CLAUDE.md` note that the dev DB requires the connecting IP to be allow-listed in
+hPanel → Remote MySQL; this sandboxed environment's egress IP is evidently not on that allowlist.
+**No query reached the database — no row was read, written, or altered.** The temporary profiling
+script was deleted immediately after; `git status` confirms no scratch files remain. The
+methodology and an empty results table are documented in the readiness check's §4 so the profile
+can be filled in directly once run from a DB-accessible machine.
+
+Reviewed **API response impact across 11 routes** and **UI impact across 8 areas**. Flagged
+`GET /api/finance/conveyance` and the Collections routes/UI (`GET/PUT/DELETE
+/api/collections[/[id]]`, `CollectionsClient.tsx`) as the highest-risk surfaces — both return raw,
+unformatted numbers today with zero Decimal-safe serialization boundary, unlike Expense/Dashboard/
+Bank Book/Cash Book which already format through `fmtMoney()` (and, for Expense/Dashboard, through
+`src/lib/money.ts` internally per Steps 3K/3L). `GET /api/finance/advances` was flagged Medium —
+its `fmt()` formatter is not yet wired to `money.ts`, consistent with Step 3K's finding that the
+route has no JS-level addition to wire. Documented the MySQL `ALTER COLUMN` migration-SQL risk
+plan: no shadow-DB privilege on Hostinger (same `P3014` limitation as every prior schema step),
+manual diff/apply-script/resolve pattern required, backup-before-apply mandatory, no destructive
+statements permitted in the generated diff.
+
+**Recommendation: conservative first batch (Option A)** — convert only `Expense`/
+`EmployeeAdvance`/`TravelClaim` money/rate fields (9 of the 13 candidates) first, deferring
+`Payment`/`Collection` (4 fields) to a second batch. Reasoning: `Payment`/`Collection` are
+already live and actively written (verified live create/update/soft-delete flows from Steps
+3D/3E), and their conversion is inherently bundled with retiring `src/lib/payments.ts`'s
+`round2()`/epsilon-comparison workaround — a write-path code change, not a schema-only change like
+the other three models can mostly be. This also matches the original Step 3G migration plan's own
+§9 sequencing recommendation.
+
+**Final determination: schema conversion is BLOCKED — not ready to proceed**, pending the live
+data profile (§4's gap). The named next step is **Step 3O — re-run the live dev data profile from
+a DB-accessible environment and obtain sign-off on the open decisions (§10)** before any
+`prisma/schema.prisma` edit is made. `npx prisma validate`, `npx tsc --noEmit`, and `npm run
+build` all pass — reconfirmations only, since no code was changed this step. See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3N row) for the tracker entry.
+
 ### 2026-06-22 — Final money-helper dry-run sweep across remaining Finance read routes (Step 3M)
 Step 3M completed: final money-helper dry-run sweep completed across remaining Finance read
 routes — no Decimal field migration yet. This was a review-only step; **zero files were
