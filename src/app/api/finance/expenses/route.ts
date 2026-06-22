@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewAllFinanceExpenses } from "@/lib/finance/access";
+import { addMoney, moneyToNumberForDisplay } from "@/lib/money";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -9,10 +10,6 @@ const MAX_PAGE_SIZE = 100;
 /** Serialize a Float (₹ Lakhs, DOUBLE) as a 2-decimal string. */
 function fmtMoney(v: number): string {
   return (Math.round(v * 100) / 100).toFixed(2);
-}
-
-function r2(v: number): number {
-  return Math.round(v * 100) / 100;
 }
 
 function mapApprovalStatus(status: string): string {
@@ -190,17 +187,20 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const totalExpenses         = r2((sumTotal._sum.amountLakhs    ?? 0) + (sumTotal._sum.gstAmountLakhs    ?? 0));
-  const todayExpenses         = r2((sumToday._sum.amountLakhs    ?? 0) + (sumToday._sum.gstAmountLakhs    ?? 0));
-  const pendingApprovalAmount = r2((sumPending._sum.amountLakhs  ?? 0) + (sumPending._sum.gstAmountLakhs  ?? 0));
-  const approvedExpenses      = r2((sumApproved._sum.amountLakhs ?? 0) + (sumApproved._sum.gstAmountLakhs ?? 0));
-  const customerExpenses      = r2((sumCustomer._sum.amountLakhs ?? 0) + (sumCustomer._sum.gstAmountLakhs ?? 0));
-  const gstInputAmount        = r2(sumGst._sum.gstAmountLakhs ?? 0);
+  // Use money helper internally; preserve number response shape until Decimal API migration.
+  const totalExpenses         = moneyToNumberForDisplay(addMoney(sumTotal._sum.amountLakhs    ?? 0, sumTotal._sum.gstAmountLakhs    ?? 0));
+  const todayExpenses         = moneyToNumberForDisplay(addMoney(sumToday._sum.amountLakhs    ?? 0, sumToday._sum.gstAmountLakhs    ?? 0));
+  const pendingApprovalAmount = moneyToNumberForDisplay(addMoney(sumPending._sum.amountLakhs  ?? 0, sumPending._sum.gstAmountLakhs  ?? 0));
+  const approvedExpenses      = moneyToNumberForDisplay(addMoney(sumApproved._sum.amountLakhs ?? 0, sumApproved._sum.gstAmountLakhs ?? 0));
+  const customerExpenses      = moneyToNumberForDisplay(addMoney(sumCustomer._sum.amountLakhs ?? 0, sumCustomer._sum.gstAmountLakhs ?? 0));
+  const gstInputAmount        = moneyToNumberForDisplay(addMoney(sumGst._sum.gstAmountLakhs ?? 0));
   // employeeClaimsPending: draft + submitted (best-effort — no expenseType field in schema)
-  const employeeClaimsPending = r2(
-    pendingApprovalAmount +
-    (sumDraft._sum.amountLakhs ?? 0) +
-    (sumDraft._sum.gstAmountLakhs ?? 0),
+  const employeeClaimsPending = moneyToNumberForDisplay(
+    addMoney(
+      pendingApprovalAmount,
+      sumDraft._sum.amountLakhs ?? 0,
+      sumDraft._sum.gstAmountLakhs ?? 0,
+    ),
   );
 
   // ── List query ────────────────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ export async function GET(req: NextRequest) {
     accountName:    null,          // finAccountId field not yet in schema
     baseAmount:     fmtMoney(e.amountLakhs),
     gstAmount:      fmtMoney(e.gstAmountLakhs),
-    totalAmount:    fmtMoney(r2(e.amountLakhs + e.gstAmountLakhs)),
+    totalAmount:    fmtMoney(moneyToNumberForDisplay(addMoney(e.amountLakhs, e.gstAmountLakhs))),
     voucherNumber:  e.voucher?.voucherNo ?? null,
     approvalStatus: mapApprovalStatus(e.status),
     paymentStatus:  e.status === "paid" ? "PAID" : "UNPAID",

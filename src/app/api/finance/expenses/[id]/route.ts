@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewAllFinanceExpenses } from "@/lib/finance/access";
+import { addMoney, moneyToNumberForDisplay } from "@/lib/money";
 
 /** Serialize a Float (₹ Lakhs, DOUBLE) as a 2-decimal string. */
 function fmtMoney(v: number): string {
   return (Math.round(v * 100) / 100).toFixed(2);
-}
-
-function r2(v: number): number {
-  return Math.round(v * 100) / 100;
 }
 
 function mapApprovalStatus(status: string): string {
@@ -154,7 +151,8 @@ export async function GET(
     baseAmount:      fmtMoney(expense.amountLakhs),
     gstRate:         expense.gstRate,
     gstAmount:       fmtMoney(expense.gstAmountLakhs),
-    totalAmount:     fmtMoney(r2(expense.amountLakhs + expense.gstAmountLakhs)),
+    // Use money helper internally; preserve number response shape until Decimal API migration.
+    totalAmount:     fmtMoney(moneyToNumberForDisplay(addMoney(expense.amountLakhs, expense.gstAmountLakhs))),
     vendorInvoiceNo: expense.vendorInvoiceNo || null,
     voucherNumber:   expense.voucher?.voucherNo ?? null,
     approvalStatus:  mapApprovalStatus(expense.status),

@@ -432,3 +432,46 @@ This document is **planning only**. As of this step:
 >   generated, no Finance write API created, no response field renamed/retyped, no UI component
 >   touched. Bank Book (Step 3I) and Cash Book (this step) are now the only two routes using the
 >   Decimal-safe internal running-balance pattern; every other Finance route is unchanged.
+
+> **Implementation note (Step 3K, 2026-06-22):**
+> - **Third dry-run adoption — no schema conversion.** `src/lib/money.ts` adopted in the
+>   isolated read-only "base + GST = total" addition calculations in `GET /api/finance/expenses`
+>   and `GET /api/finance/expenses/[id]` (`src/app/api/finance/expenses/route.ts` and
+>   `src/app/api/finance/expenses/[id]/route.ts`).
+> - **Expense list route**: the 6 summary aggregates that combine `amountLakhs +
+>   gstAmountLakhs` in JS (`totalExpenses`, `todayExpenses`, `pendingApprovalAmount`,
+>   `approvedExpenses`, `customerExpenses`, `employeeClaimsPending`) and the per-row
+>   `totalAmount` field now use `addMoney(...)` on a `Decimal`, converted back to `number` via
+>   `moneyToNumberForDisplay` immediately before the route's existing `fmtMoney()` formatting —
+>   the same boundary pattern as Steps 3I/3J. The now-unused local `r2()` helper (its only
+>   call sites were these replaced lines) was removed to avoid a dead-code/unused-var lint
+>   issue; `fmtMoney()` is untouched and still produces every response string.
+> - **Expense detail route**: the single `totalAmount` field (`amountLakhs + gstAmountLakhs`)
+>   converted the same way; `r2()` removed there too for the same reason.
+> - **`EmployeeAdvance` (`GET /api/finance/advances`) and `TravelClaim`
+>   (`GET /api/finance/conveyance`) routes were inspected and left untouched.** Neither contains
+>   a JS-level addition/sum combining multiple values — every summary figure in `advances` is a
+>   single Prisma `_sum` aggregate formatted directly via `fmt()`, and `conveyance` has no
+>   calculation at all (a pure pass-through list). Per this step's own instruction ("if one
+>   route has no calculation... leave it untouched and document"), no change was made to either
+>   file.
+> - **No other line in either changed route was touched.** Authorization
+>   (`canViewAllFinanceExpenses`), the `deletedAt: null` filter, date/status/category/vendor/
+>   search filters, pagination, and response status codes are all unchanged. Field names, types,
+>   and JSON shape are byte-for-byte the same.
+> - **Verified equivalent**: a standalone Node check (run via `node -e`, not committed) compared
+>   the old `r2(base + gst)` logic against the new `moneyToNumberForDisplay(addMoney(base, gst))`
+>   logic across 5 representative sample pairs (including `0.1 + 0.2`, `10.555 + 1.895`, and a
+>   3-way `employeeClaimsPending`-style addition) — every value matched once passed through the
+>   route's existing `fmtMoney()` boundary.
+> - **Live HTTP verification was not practical this step** (both routes require an authenticated
+>   session against the remote Hostinger dev MySQL database) — same documented limitation as
+>   Steps 3I/3J; the static equivalence check plus the full validation suite was used instead.
+> - **Validation:** `npx prisma validate` ✅, `npx tsc --noEmit` ✅ (no errors), `npm run build`
+>   ✅ (all routes including `/api/finance/expenses` and `/finance/expenses` compiled),
+>   `npm run lint` → 589 problems (414 errors / 175 warnings) — **identical to the Step 3J
+>   baseline**, confirming no new lint issues (including no new unused-var warnings from the
+>   `r2()` removal).
+> - **No schema/migration/API-contract change.** `prisma/schema.prisma` untouched, no migration
+>   generated, no Finance write API created, no response field renamed/retyped, no UI component
+>   touched, no broad refactor of Advance/Conveyance/other Finance calculations performed.

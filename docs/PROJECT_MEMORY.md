@@ -21,6 +21,42 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Money helper dry-run integration extended to Expense / Advance / Conveyance totals (Step 3K)
+Step 3K completed: money helper dry-run integration extended to Expense / Advance / Conveyance
+totals — no Decimal field migration yet. Wired `src/lib/money.ts` into the isolated read-only
+"base + GST = total" addition calculations in `GET /api/finance/expenses`
+(`src/app/api/finance/expenses/route.ts`) and `GET /api/finance/expenses/[id]`
+(`src/app/api/finance/expenses/[id]/route.ts`): the 6 summary aggregates that combine
+`amountLakhs + gstAmountLakhs` in JS (`totalExpenses`, `todayExpenses`,
+`pendingApprovalAmount`, `approvedExpenses`, `customerExpenses`, `employeeClaimsPending`) and
+the per-row `totalAmount` field (both routes) now use `addMoney(...)` on a `Decimal`, converted
+back to a plain `number` via `moneyToNumberForDisplay` immediately before the routes' existing
+`fmtMoney()` formatting — the same boundary pattern used for Bank Book (Step 3I) and Cash Book
+(Step 3J). The now-unused local `r2()` helper was removed from both files (its only call sites
+were the replaced lines) to avoid leaving dead code/an unused-var lint warning; `fmtMoney()` is
+unchanged and still produces every response string.
+
+**`GET /api/finance/advances` and `GET /api/finance/conveyance` were reviewed and intentionally
+left unchanged this step.** Neither contains a JS-level addition/sum combining multiple values:
+every summary figure in `advances` is a single Prisma `_sum` aggregate formatted directly via
+`fmt()` (no in-JS combination to wire the helper into), and `conveyance` is a pure read-only
+pass-through list with no calculation logic at all. Per the step's own "if a route has no
+calculation, leave it untouched and document" instruction, nothing was changed in either file.
+
+No other line in either edited route changed: authorization (`canViewAllFinanceExpenses`), the
+`deletedAt: null` filter, date/status/category/vendor/search filters, pagination, and response
+status codes are all unchanged — response field names, types, and JSON shape are byte-for-byte
+the same. Verified equivalent via a standalone Node check comparing the old `r2(base + gst)`
+logic against the new `moneyToNumberForDisplay(addMoney(base, gst))` logic across 5
+representative sample pairs (including `0.1 + 0.2`, `10.555 + 1.895`, and a 3-way addition
+mirroring `employeeClaimsPending`) — every value matched once passed through the routes'
+existing `fmtMoney()` boundary. Live HTTP verification was not practical this step (both routes
+require an authenticated session against the remote Hostinger dev MySQL DB), same limitation as
+Steps 3I/3J — static equivalence check used instead. `npx prisma validate`, `npx tsc --noEmit`,
+`npm run build`, and `npm run lint` (589 problems, identical to the Step 3J baseline — confirmed
+no new issues, including no new unused-var warnings from the `r2()` removal) all pass. See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3K row) for the tracker entry.
+
 ### 2026-06-22 — Money helper dry-run integration extended to Cash Book (Step 3J)
 Step 3J completed: applied the exact Step 3I pattern to the second isolated read-only path — the
 running-balance accumulation loop in `GET /api/finance/cash-book`
