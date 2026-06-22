@@ -367,3 +367,34 @@ This document is **planning only**. As of this step:
 >   documentation. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` (159 pages), and
 >   `npm run lint` (589 problems, identical to the Step 3F/3G baseline — confirmed no new issues)
 >   all pass.
+
+> **Implementation note (Step 3I, 2026-06-22):**
+> - **Dry-run adoption only — no schema conversion.** `src/lib/money.ts` (Step 3H) was wired into
+>   exactly one low-risk, read-only calculation path: the running-balance accumulation loop in
+>   `GET /api/finance/bank-book` (`src/app/api/finance/bank-book/route.ts`).
+> - The loop that previously accumulated the running balance with
+>   `running = r2(running ± entry.amountLakhs)` (rounding to 2dp after every single addition) now
+>   accumulates with `addMoney`/`subtractMoney` on a `Decimal` (`toMoneyDecimal(periodOpeningBalance)`
+>   as the seed), converting back to a plain `number` only at the loop boundary via
+>   `moneyToNumberForDisplay` — matching §6's "round only at the final posting/export/display step"
+>   rule instead of rounding at every intermediate step.
+> - **No other line in the route changed.** `fmtMoney`/`r2` (the route's existing formatters) are
+>   still used everywhere else and still produce the final response strings — the route's JSON
+>   shape, field names, and string types are byte-for-byte unchanged.
+> - **Verified equivalent**, not just "builds": a standalone Node check (run via `node -e`, not
+>   committed) fed the same opening balance + 5 mixed credit/debit entries (including
+>   `0.1 + 0.2`-style float-noise values) through both the old `r2`-per-step loop and the new
+>   `addMoney`/`subtractMoney` loop. Raw per-step values can differ in the last digit (deferred
+>   vs. per-step rounding), but every value is identical once passed through the route's existing
+>   `fmtMoney()` boundary call — confirming the API response is unaffected.
+> - **Live HTTP verification was not practical this step** (the bank-book route requires an
+>   authenticated session against the remote Hostinger dev MySQL database) — static verification
+>   (equivalence check above) plus `npx tsc --noEmit` / `npm run build` / `npm run lint` was used
+>   instead. This is the documented limitation per this step's own instructions.
+> - **Validation:** `npx prisma validate` ✅ (no-op, schema untouched), `npx tsc --noEmit` ✅ (no
+>   errors), `npm run build` ✅ (all routes including `/finance/bank-book` and
+>   `/api/finance/*` compiled), `npm run lint` → 589 problems (414 errors / 175 warnings) —
+>   **identical to the Step 3H baseline**, confirming no new lint issues introduced.
+> - **No schema/migration/API-contract change.** `prisma/schema.prisma` untouched, no migration
+>   generated, no Finance write API created, no response field renamed/retyped, no UI component
+>   touched.

@@ -21,6 +21,29 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Money helper dry-run integration into one read-only path (Step 3I)
+Step 3I completed: wired `src/lib/money.ts` (Step 3H) into exactly one low-risk, read-only
+calculation path — the running-balance accumulation loop in `GET /api/finance/bank-book`
+(`src/app/api/finance/bank-book/route.ts`) — as a controlled dry run ahead of any Decimal schema
+conversion, per `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`. The loop that previously
+accumulated the running balance with `running = r2(running ± entry.amountLakhs)` (rounding after
+every single addition) now accumulates with `addMoney`/`subtractMoney` on a `Decimal` seeded via
+`toMoneyDecimal(periodOpeningBalance)`, converting back to a plain `number` only at the loop
+boundary via `moneyToNumberForDisplay` — matching the plan's §6 rule to round only at the final
+display/posting step. No other line in the route changed; the route's existing `fmtMoney()`/`r2()`
+formatters still produce every response value, so the JSON shape, field names, and string types at
+the API boundary are unchanged. Verified equivalent (not just "it builds") via a standalone Node
+check comparing the old per-step-rounded loop against the new Decimal loop on the same opening
+balance + 5 mixed credit/debit entries (including `0.1 + 0.2`-style float-noise inputs) — every
+value is identical once passed through the route's existing `fmtMoney()` call. Live HTTP
+verification against the route was not practical this step (requires an authenticated session
+against the remote Hostinger dev MySQL DB); documented as a limitation, with the static equivalence
+check used instead. **No Prisma schema field was converted, no migration was generated, no Finance
+write API was created, and no other Finance route or UI component was touched.** `npx prisma
+validate`, `npx tsc --noEmit`, `npm run build`, and `npm run lint` (589 problems, identical to the
+Step 3H baseline — confirmed no new issues) all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §4
+(Step 3I row) for the tracker entry.
+
 ### 2026-06-21 — Central money helper added before Decimal schema conversion (Step 3H)
 Step 3H completed: created `src/lib/money.ts`, the central money helper called for in
 `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` §5/§9 — built **before** any Prisma schema field
