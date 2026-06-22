@@ -759,3 +759,41 @@ This document is **planning only**. As of this step:
 >   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
 >   and no database row was written or altered.** `npx prisma validate`, `npx tsc --noEmit`, and
 >   `npm run build` all pass (reconfirmations, no app code changed).
+
+> **Step 3U-0 completed (2026-06-22):**
+> - **Option A — Full INR Canonical Model — selected and locked.** All persisted business money
+>   values (Finance, Payment, Collection, Lead, Funnel, Opportunity, KRA targets, Sales targets,
+>   report source data) must use actual INR as canonical input/storage; Lakhs is allowed only as
+>   a display/reporting unit, converted at the presentation boundary.
+> - **Temporary KRA Lakhs bridge (the Step 3T interim design) rejected as normal
+>   implementation.** It is demoted to Option B and may be used only as an emergency
+>   compatibility bridge, with separate, explicit written approval obtained at the time it would
+>   actually be invoked — never a default fallback.
+> - **Sales/KRA INR scope plan created** — `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`.
+>   Confirmed by direct source inspection (not assumption): `CrmLead.expectedValue`,
+>   `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/
+>   `billingValueLakhs` are all genuinely Lakhs-scaled in their live UI/API code (e.g.
+>   `OpportunitiesClient.tsx`'s `"Value (₹L)"` header, `LeadsClient.tsx`'s `"Expected Value
+>   (₹L)"` form label, `SalesFunnelClient.tsx`'s `"Deal Value (₹L)"`/`"Billing Value (₹L)"`
+>   labels). `KRATemplateItem.expectedTarget`/`stretchTarget`/`minimumTarget` are Lakhs-scaled
+>   only for `metricType: "REVENUE"` rows (confirmed against `seed-performance-defaults.ts` seed
+>   values 50/100/200/300/600) — not for percentage/count metric types, requiring a
+>   metric-by-metric migration filter, not a blanket column conversion. The legacy `KRA.target`
+>   free-text string (parsed by `parseTargets()` in `kra-engine.ts`) is Lakhs-scaled by
+>   convention but is not a typed money column at all — its migration means rewriting embedded
+>   numeric values inside existing strings, a materially different and riskier operation than a
+>   typed-field `ALTER COLUMN`.
+> - **Sequencing finding:** combining Release 2A (Payment/Collection) and Release 2B (Sales/KRA
+>   target migration) into one atomic release is **required**, not optional, under Option A — if
+>   Collection converts to INR before KRA targets do, `kra-engine.ts`'s scoring boundary would
+>   compare INR against still-Lakhs targets with zero conversion factor (Option A's design has no
+>   conversion factor by definition), reproducing the exact 100,000× corruption risk this entire
+>   program exists to prevent. Shipping Release 2A alone requires the separately-approved Option
+>   B emergency bridge, not a default path.
+> - **Release 2 implementation permission remains Blocked** — the Option A vs. B design choice
+>   is now resolved (Option A), but full scope inventory and sign-off on the new scope plan's
+>   open decisions (§7) are still required before any implementation.
+> - **No Prisma schema field was converted, no migration was generated, no API route or UI
+>   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
+>   and no database row was written or altered.** `npx prisma validate`, `npx tsc --noEmit`, and
+>   `npm run build` all pass (reconfirmations, no app code changed).

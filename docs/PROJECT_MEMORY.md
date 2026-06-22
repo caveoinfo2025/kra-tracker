@@ -21,6 +21,88 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3U-0: Option A locked; Sales/KRA INR migration scope defined
+Step 3U-0 completed: a decision-lock and scope-definition step only — no Prisma schema change,
+no migration, no API/UI code change, no database data altered, `src/lib/kra-engine.ts` not
+touched, no Payment/Collection/Lead/Funnel/Opportunity/KRA target value converted, Release 2 not
+implemented.
+
+**Final business decision: Option A — Full INR Canonical Model — is selected and locked.** All
+persisted business money values must use actual INR as the canonical input/storage unit:
+Finance, Payment, Collection, Lead, Funnel, Opportunity, KRA targets, Sales targets, and report
+source data. Lakhs is allowed only as a display/reporting unit, converted at the presentation
+boundary.
+
+**Important correction applied:** the old Step 3T design — Collection stored INR, KRA targets
+stayed Lakhs, `kra-engine.ts` converted Collection INR to Lakhs for comparison — is **not** the
+long-term target. It is rejected as the normal-implementation design (demoted to "Option B,"
+usable only as an emergency compatibility bridge with separate written approval if ever
+invoked). The corrected target: Collection stored INR; KRA targets stored INR; Lead/Funnel/
+Opportunity values stored INR; `kra-engine.ts` compares INR to INR directly; dashboards/reports
+display Lakhs if required.
+
+**Static source inspection performed this step** (read-only — `prisma/schema.prisma`, live API
+routes, and live UI components, not assumption):
+- Confirmed `CrmLead.expectedValue`, `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`,
+  and `SalesFunnel.dealValueLakhs`/`billingValueLakhs` are all genuinely Lakhs-scaled in their
+  live code — `LeadsClient.tsx`'s `"Expected Value (₹L)"` form label and CSV columns,
+  `OpportunitiesClient.tsx`'s `"Value (₹L)"` table header and a `LARGE_DEAL_THRESHOLD_L = 50`
+  approval-trigger constant compared directly against the raw stored value,
+  `SalesFunnelClient.tsx`'s `"Deal Value (₹L)"`/`"Billing Value (₹L)"` form labels and table
+  headers — none of these fields have any conversion factor in their current read/write paths.
+- Confirmed `KRATemplateItem.expectedTarget`/`stretchTarget`/`minimumTarget` are Lakhs-scaled
+  **only for `metricType: "REVENUE"` rows** (seed values 50/100/200/300/600 in
+  `prisma/seed-performance-defaults.ts`'s `REVENUE_TARGET`/`PIPELINE_VALUE` metrics) — not for
+  percentage/count metric types (`NEW_CUSTOMER`, `ACTIVITY_CALLS`, `PROPOSAL_CONVERSION`,
+  `COLLECTION_EFFICIENCY`, `KRA_COMPLIANCE`). Any future migration must filter by metric type,
+  not convert the whole table.
+- Confirmed the legacy `KRA.target` field is a free-text `String @db.Text` column, **not a
+  typed money field at all** — parsed at runtime by `parseTargets()` in `kra-engine.ts`. Its
+  values are Lakhs-scaled by convention, but migrating it means rewriting embedded numeric
+  values inside existing strings, not a type-level `ALTER COLUMN` — a materially different and
+  riskier operation than every other field reviewed.
+- Confirmed an architectural split: the legacy `KRA`/`KRA.target` system `kra-engine.ts` actually
+  scores against, and the newer `EmployeeTarget`/`KRATemplateItem`/`KRAAchievement` system
+  `KrasClient.tsx`'s primary UI renders, are **two separate target-storage mechanisms** that do
+  not automatically stay in sync with each other — both must be accounted for in any future
+  migration.
+- Confirmed `ApprovalRule`/`ExpenseLimitRule`/`CustomerCreditPolicy`/`AdvancePolicy` money fields
+  are Finance-policy thresholds, not Sales/KRA values — explicitly excluded from this scope.
+- Found no dedicated `/api/reports/*` or `/app/reports/*` module in the codebase — reportable
+  figures currently render inline on the Dashboard/Pipeline/Sales-Funnel/KRA pages already
+  covered above, not via a separate reports surface.
+
+**Created `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`** — the new Step 3U-0 scope plan,
+with: §2 a schema-verified candidate-fields table (with an explicit exclusion table for
+Finance-policy fields); §3 an input/UI areas table covering Lead/Opportunity/Funnel forms, KRA
+target setup, the Sales dashboard, and the KRA dashboard; §4 the `kra-engine.ts` target design
+(INR-to-INR comparison, no scoring calculation may mix units); §5 the presentation-boundary rule
+(convert INR→Lakhs only at display time, mirroring the `inrToLakhsEquivalent()` pattern already
+proven for Release 1 Finance dashboards); §6 a migration sequencing recommendation; §7 open
+decisions needing sign-off; §8 a final recommendation.
+
+**Sequencing finding (§6/§8 of the new scope plan): combining Release 2A (Payment/Collection)
+and Release 2B (Sales/KRA target migration) into one atomic release is required, not optional**,
+under Option A's no-conversion-factor design. Shipping Collection-to-INR before KRA targets
+convert would reproduce the exact 100,000× corruption risk this entire planning program exists
+to prevent. Release 2A cannot ship alone without the separately-approved Option B emergency
+bridge — not a default path.
+
+Updated `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`: §16's option headers now explicitly
+state Option A Approved, Option B Rejected for normal implementation (emergency-bridge-only),
+Option C Rejected; §12 Decision Ledger's "KRA target unit policy" and "KRA engine boundary
+conversion" rows moved from Superseded to **Approved** (Option A is now the resolved design);
+"Release 2 permission to implement" changed from "Blocked pending Option A vs. B decision" to
+**"Blocked until the full Option A scope inventory is completed"** — the design choice is
+resolved, the scope is not yet fully inventoried/signed-off. New §19 Final Recommendation added
+(§18 marked superseded in place, per this project's append-only documentation convention).
+
+**No Prisma schema field was converted, no migration was generated, no API route or UI component
+was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched, and no
+database row was written or altered.** `npx prisma validate`, `npx tsc --noEmit`, and
+`npm run build` all pass (reconfirmations, no app code changed). See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3U-0 row) for the tracker entry.
+
 ### 2026-06-22 — Step 3T-1: Money unit policy corrected (Leads/Funnel/Opportunities/KRA targets now actual INR)
 Step 3T-1 completed: a documentation and decision-correction step only — no Prisma schema
 change, no migration, no API/UI code change, no database data altered, no

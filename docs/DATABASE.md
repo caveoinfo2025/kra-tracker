@@ -5,6 +5,14 @@
 (`provider="mysql"`) · **Client output:** `src/generated/prisma` ·
 **60+ models, 10 migrations.** Dev DB fully migrated (2026-06-05, session 4).
 
+> **Canonical money unit policy (locked, Step 3U-0, 2026-06-22): canonical storage/input is
+> actual INR. Lakhs is a display/reporting unit only** — applies to every business model
+> (Finance, Payment, Collection, Lead, Funnel, Opportunity, KRA targets, Sales targets, report
+> source data). Dashboards/KRA views/reports may convert INR to Lakhs at the presentation
+> boundary only, never the reverse. See `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §16/§19
+> and `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` for the full locked decision and its
+> migration scope.
+>
 > **Decimal money migration — Release 1 implemented (Step 3Q, 2026-06-22).** Every money-like
 > `Float`/`Float?` field across Finance (`Collection`, `Payment`, `Expense`, `Voucher`, `Ledger`,
 > `EmployeeAdvance`, `TravelClaim`, `FinAccount`, etc.) was inventoried in
@@ -17,9 +25,10 @@
 > above is superseded — all persisted business money values (Leads, Funnel, Opportunities, KRA
 > targets, Finance, Payment, Collection) must now be actual INR; Lakhs is allowed only as a
 > sales dashboard/KRA/report display unit.** See
-> `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §15–§18 for the corrected policy and its
-> Release 2 impact, and `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 for the
-> superseded field-by-field verification plus its Step 3T-1 correction note.
+> `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §15–§19 for the corrected policy (now locked
+> to Option A as of Step 3U-0) and its Release 2 impact, and
+> `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 for the superseded field-by-field
+> verification plus its Step 3T-1 correction note.
 >
 > **Release 1 — `Expense`, `EmployeeAdvance`, `TravelClaim` (9 fields) — is DONE on the dev DB
 > (`u686730471_caveodev`) as of Step 3Q.** `amountLakhs`/`gstAmountLakhs`/
@@ -48,10 +57,11 @@
 > should also move to actual INR via a separate Sales/KRA target migration, not stay Lakhs
 > permanently**). See the readiness check's §12 sign-off table,
 > `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` §11, and
-> `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §15–§18 for the full corrected decision
+> `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §15–§19 for the full corrected decision
 > ledger. `Voucher`/`Ledger`/`FinAccount` are untouched by Release 1/2 and remain ₹ Lakhs; CRM
 > Lead/Opportunity/KRA target values are untouched by Release 1 but are now in scope for a
-> future actual-INR migration per the Step 3T-1 correction, not exempt.
+> future actual-INR migration (Option A, locked Step 3U-0) — see
+> `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` for the full migration scope, not exempt.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

@@ -1,7 +1,7 @@
 # Decimal Release 2 Sign-Off Plan — Payment / Collection / KRA Boundary
 
-**Step:** 3S (created) / 3T (KRA boundary decision locked) / **3T-1 (money unit policy corrected)**
-**Status:** Planning / decision-lock only. **Step 3T's Option A lock is now superseded by Step 3T-1's corrected money unit policy.** Release 2 implementation is **Blocked pending the Sales/KRA target unit migration decision**. No schema, migration, API, UI, or data changes made in this step or any prior Release 2 planning step.
+**Step:** 3S (created) / 3T (KRA boundary decision locked) / 3T-1 (money unit policy corrected) / **3U-0 (Option A locked, scope inventory underway)**
+**Status:** Planning / decision-lock only. **Option A — Full INR Canonical Model — is now Approved as the locked target design.** Option B is Rejected for normal implementation (emergency-bridge-only, requires separate written approval). Release 2 implementation is **Blocked until the full Option A scope inventory is completed** — see `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` (Step 3U-0). No schema, migration, API, UI, or data changes made in this step or any prior Release 2 planning step.
 **Depends on:** Release 1 (Step 3Q, implemented) + Release 1 audit (Step 3R, zero bugs found).
 
 > **Step 3T update (2026-06-22):** The KRA boundary decision is now **locked** by explicit
@@ -258,21 +258,28 @@ exists to prevent.
 
 ## 12. Decision Ledger
 
-> **Step 3T-1 correction:** the "KRA target unit policy" and "Release 2 permission to implement"
-> rows below are now superseded — see the strikethrough and the new status in each row. All
-> other rows remain Approved and unaffected by the money-unit-policy correction.
+> **Step 3U-0 lock (current):** Option A is now Approved as the target design; Option B is
+> Rejected for normal implementation (emergency-bridge-only, requires separate written approval
+> if ever invoked); Option C remains Rejected. The "KRA target unit policy" row below is now
+> resolved (not merely superseded) — Option A. "Release 2 permission to implement" is Blocked
+> until the full Option A scope inventory (`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`) is
+> completed. All other rows remain Approved and unaffected.
+>
+> *(Prior Step 3T-1 correction, superseded by the above: the "KRA target unit policy" and
+> "Release 2 permission to implement" rows were marked Superseded/Blocked pending a fresh
+> Option A vs. B decision — that decision has now been made, in favor of Option A.)*
 
 | Decision | Recommended Value | Status |
 |---|---|---|
-| KRA target unit policy | ~~Keep KRA targets in Lakhs for now~~ **Corrected:** KRA target inputs/storage should move to actual INR via a separate Sales/KRA target migration; Lakhs remains a KRA-view/report display unit only | **Superseded (Step 3T-1)** — was Approved under Step 3T's Option A; now requires a fresh decision between Option A (full INR canonical, long-term) and Option B (temporary Lakhs bridge) below |
-| KRA engine boundary conversion | Convert Collection INR to Lakhs inside `kra-engine.ts` only for KRA scoring | **Conditionally Approved** — only valid as a temporary bridge (new Option B) pending the Sales/KRA target migration; not valid as a permanent design |
+| KRA target unit policy | KRA target inputs/storage move to actual INR via a separate Sales/KRA target migration (Option A); Lakhs remains a KRA-view/report display unit only | **Approved (Step 3U-0)** — Option A locked as the target design |
+| KRA engine boundary conversion | `kra-engine.ts` compares INR to INR directly once both Collection and KRA targets are canonical INR (Option A) — no permanent Collection-INR-to-Lakhs conversion factor | **Approved (Step 3U-0)** — supersedes the Step 3T interim design; the old INR→Lakhs comparison boundary is rejected as a normal-path design and may be used only as an emergency bridge with separate written approval |
 | Collection storage unit | Convert Collection fields to actual INR in Release 2 | **Approved** — unaffected by this correction |
 | Payment storage unit | Convert `Payment.amountLakhs` to actual INR in Release 2 | **Approved** — unaffected by this correction |
 | `src/lib/payments.ts` retirement | Replace `round2`/epsilon logic with `src/lib/money.ts` in Release 2 | **Approved** — unaffected by this correction |
 | API response policy | Preserve current response shape where practical; do not leak Decimal objects | **Approved** — unaffected by this correction |
 | UI label policy | Remove Lakhs labels from Payment/Collection finance UI after conversion | **Approved** — unaffected by this correction |
 | Production migration-history gap review | Review/resolve the two untracked migrations (Section 10) before production migration planning | Pending — not blocking this step |
-| Release 2 permission to implement | ~~Approved for dev implementation only~~ | **Blocked (Step 3T-1)** — pending the Sales/KRA target unit migration decision (full INR migration now, vs. a temporary Lakhs bridge) |
+| Release 2 permission to implement | ~~Approved for dev implementation only~~ ~~Blocked pending Option A vs. B decision (Step 3T-1)~~ Option A vs. B decision is now made (Option A) — implementation remains gated on completing the scope inventory | **Blocked (Step 3U-0)** — until the full Option A scope inventory (`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`) is completed, since Option A includes more than Payment/Collection |
 
 ---
 
@@ -360,23 +367,37 @@ Lakhs is a presentation/reporting unit only. This has direct consequences for Re
 
 ---
 
-## 16. Updated Decision Options (Step 3T-1)
+> **Step 3U-0 update (2026-06-22) — the options below are now LOCKED, not just proposed.**
+> **Option A — Full INR Canonical Model: Approved.** **Option B — Temporary Compatibility
+> Bridge: Rejected for normal implementation** — it may be used only as an emergency
+> compatibility bridge, and only with separate, explicit written approval at the time it would
+> be invoked; it is not a default fallback. **Option C: Rejected** (unchanged). **Release 2
+> implementation permission is Blocked until the full Option A scope inventory is completed** —
+> see `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` (Step 3U-0). Reason: Option A includes
+> more than Payment/Collection — it also requires the Sales/KRA target and pipeline value
+> migration documented in that new scope plan.
+
+## 16. Updated Decision Options (Step 3T-1) — Locked Step 3U-0
 
 These options supersede the Step 3T Option A/B/C labels in Section 4, which addressed only the
 Collection-vs-KRA-target comparison boundary in isolation. The options below address the full
 corrected-policy scope (Collection, Payment, and KRA targets together).
 
-### Option A — Full INR Canonical Model
+### Option A — Full INR Canonical Model — ✅ **Approved (Step 3U-0)**
 
 - Payment and Collection storage move to INR (unchanged from the existing Release 2 scope).
 - KRA target storage/input also moves to INR (`KRATemplateItem.expectedTarget`/`stretchTarget`,
   the per-employee `KRA.target` string field) — a new, separate Sales/KRA target migration.
+- Lead/Funnel/Opportunity value inputs/storage also move to INR (`CrmLead.expectedValue`,
+  `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/
+  `billingValueLakhs`).
 - `kra-engine.ts` compares INR to INR directly — no conversion factor anywhere in the scoring
   path.
 - Dashboards/KRA views/Reports display Lakhs by dividing by 100,000 at render time only.
-- **Recommended long-term option.**
+- **This is the selected long-term target design** — locked by explicit business decision,
+  Step 3U-0. See `docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` for the full migration scope.
 
-### Option B — Temporary Compatibility Bridge
+### Option B — Temporary Compatibility Bridge — ❌ **Rejected for normal implementation (Step 3U-0)**
 
 - Payment and Collection storage move to INR (unchanged from the existing Release 2 scope).
 - KRA targets remain Lakhs **temporarily** — this is the Step 3T Option A design, demoted from
@@ -384,23 +405,28 @@ corrected-policy scope (Collection, Payment, and KRA targets together).
 - `kra-engine.ts` converts Collection INR to Lakhs only for comparison, at the same one explicit
   boundary point already documented in Section 5 — unchanged mechanically, but **must be marked
   temporary** in code comments and in this document, not presented as final.
-- **Requires a committed future KRA target migration** — Option B is not a standalone resting
-  state; it exists only to unblock Release 2 if the Sales/KRA target migration cannot ship in
-  the same release.
+- **Do not use the old temporary bridge design as the target design.** Option B is **rejected
+  as the long-term target** and rejected for normal Release 2 implementation. It **may be used
+  only as an emergency compatibility bridge, and only with separate, explicit written approval**
+  obtained at the time it would actually be invoked — it is not a default fallback to reach for
+  whenever the full migration feels inconvenient.
 
-### Option C — Keep Collection or KRA canonical storage in Lakhs
+### Option C — Keep Collection or KRA canonical storage in Lakhs — ❌ **Rejected**
 
-- **Rejected.** This violates the corrected policy outright — Collection, Payment, and (in the
-  long term) KRA targets must all use actual INR as canonical storage. Lakhs is never a
+- **Rejected.** This violates the corrected policy outright — Collection, Payment, Lead, Funnel,
+  Opportunity, and KRA targets must all use actual INR as canonical storage. Lakhs is never a
   permitted storage unit for any business model under the corrected policy.
 
-**Recommendation: Option A, long-term.** Option B exists only as a fallback if the KRA target
-migration genuinely cannot be scoped into the same release as Collection/Payment conversion.
+**Final decision (Step 3U-0): Option A is selected as the target design.** The correct target is:
+Collection stored INR; KRA targets stored INR; Lead/Funnel/Opportunity values stored INR;
+`kra-engine.ts` compares INR to INR; dashboards/reports display Lakhs if required. Option B is
+not an acceptable normal-path substitute for this — it is rejected as the long-term design and
+may only be invoked as an emergency bridge with separate written approval at that time.
 
-**Step 3U should not proceed until this is decided: will Release 2 include Option A in full
-(Collection + Payment + KRA targets all converting to INR together), or will it use Option B
-temporarily (Collection + Payment convert now, KRA targets stay Lakhs with an explicitly-marked
-temporary bridge, and a committed follow-up migration)?**
+**Release 2 implementation permission: Blocked until the full Option A scope inventory is
+completed.** Reason: Option A includes more than Payment/Collection — it also requires the
+Sales/KRA target and pipeline value review documented in
+`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` (Step 3U-0).
 
 ---
 
@@ -429,7 +455,7 @@ migration is not implemented now** — it is a documented candidate scope for a 
 
 ---
 
-## 18. Final Recommendation (Step 3T-1, current)
+## 18. Final Recommendation (Step 3T-1, superseded — see §19)
 
 **The money unit policy has been corrected, superseding Step 3T's Option A lock as a permanent
 design.** Collection and Payment must still move to INR in Release 2 — that part of the scope is
@@ -446,3 +472,33 @@ is for the business/product owner to choose between Option A and Option B in Sec
 after that choice is made should a Step 3U implementation prompt be created, scoped accordingly
 (full INR migration including KRA targets, or Collection/Payment conversion plus an
 explicitly-temporary KRA bridge with a committed follow-up migration plan).
+
+> **This section is superseded by the Step 3U-0 lock below (§19).** The Option A vs. Option B
+> choice has now been made — Option A is Approved. Read §19 for the current Final
+> Recommendation.
+
+---
+
+## 19. Final Recommendation (Step 3U-0, current)
+
+**Option A — Full INR Canonical Model is Approved as the locked target design.** Option B —
+Temporary Compatibility Bridge is Rejected for normal implementation; it survives only as an
+emergency-only fallback requiring separate, explicit written approval if it is ever invoked.
+Option C remains Rejected.
+
+**Release 2 implementation permission remains Blocked** — not because the design choice is
+unresolved (it is now resolved, in favor of Option A), but because **Option A's full scope has
+not yet been inventoried.** Option A is materially larger than the original Payment/Collection
+Release 2 scope: it also requires migrating `CrmLead.expectedValue`, `CrmOpportunity.value`/
+`dealValueExTax`/`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/`billingValueLakhs`,
+`KRATemplateItem.expectedTarget`/`stretchTarget`, and the per-employee `KRA.target` string
+field to actual INR, plus every API/UI surface that reads or writes those fields.
+
+**Next step:** complete the full Option A scope inventory now begun in
+`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md` (Step 3U-0) — confirm every candidate field,
+API, and UI surface, decide the migration sequencing (one combined release vs. Release 2A/2B
+split), and obtain sign-off on that plan's open decisions. Only after that inventory and
+sequencing decision is locked should a Step 3U implementation prompt be created. **Do not
+implement Release 2 — in any form, including Payment/Collection alone — until the scope
+inventory confirms whether Payment/Collection conversion can ship independently of the Sales/
+KRA target migration** (see the new scope plan's §6 sequencing recommendation).
