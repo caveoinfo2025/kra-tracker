@@ -1,7 +1,7 @@
 # Decimal Release 2 Sign-Off Plan — Payment / Collection / KRA Boundary
 
-**Step:** 3S (created) / **3T (KRA boundary decision locked)**
-**Status:** Planning / decision-lock only. KRA boundary decision (Option A) is **Approved/Locked**. No schema, migration, API, UI, or data changes made in this step or Step 3T.
+**Step:** 3S (created) / 3T (KRA boundary decision locked) / **3T-1 (money unit policy corrected)**
+**Status:** Planning / decision-lock only. **Step 3T's Option A lock is now superseded by Step 3T-1's corrected money unit policy.** Release 2 implementation is **Blocked pending the Sales/KRA target unit migration decision**. No schema, migration, API, UI, or data changes made in this step or any prior Release 2 planning step.
 **Depends on:** Release 1 (Step 3Q, implemented) + Release 1 audit (Step 3R, zero bugs found).
 
 > **Step 3T update (2026-06-22):** The KRA boundary decision is now **locked** by explicit
@@ -11,6 +11,17 @@
 > default — see the updated Section 4/5/12 below. No code, schema, or data has been changed as a
 > result of this decision; it is recorded here so Step 3U (the actual implementation) has an
 > unambiguous, signed-off starting point.
+
+> **Step 3T-1 correction (2026-06-22) — SUPERSEDES the Step 3T lock above.** The underlying money
+> unit policy has been corrected: **all persisted business money values — Leads, Funnel,
+> Opportunities, Collections, Payments, Finance, KRA target inputs, Sales targets, and Reports
+> source data — must be actual INR.** Lakhs is now a display/reporting unit only. Under this
+> corrected policy, **Step 3T's Option A is no longer final-approved as a permanent design** —
+> it remains usable only as an explicitly-temporary compatibility bridge (see the new "Updated
+> Decision Options" section below). Release 2 implementation permission is now **Blocked pending
+> a Sales/KRA target unit migration decision** — see "Corrected Sales/KRA Unit Policy Impact"
+> and the updated Section 12 Decision Ledger. No code, schema, or data has changed as a result of
+> this correction.
 
 ---
 
@@ -70,7 +81,13 @@ Release 1, which explicitly excluded these models).
 
 ---
 
-## 4. KRA Boundary Options
+## 4. KRA Boundary Options (Step 3T — superseded in part by §16, Step 3T-1)
+
+> **Step 3T-1 correction:** the table below decided only the Collection-vs-KRA-target comparison
+> boundary, and treated Option A as a final design. Under the corrected money unit policy, this
+> table's Option A is **no longer final-approved as a permanent design** — see Section 16 for
+> the updated options, which also address KRA target storage itself, not just the comparison
+> boundary. The table below is preserved for historical record.
 
 | Option | Description | Pros | Cons | Recommendation | **Decision Status (Step 3T)** |
 |---|---|---|---|---|---|
@@ -87,9 +104,10 @@ at that one explicit point.
 
 ---
 
-## 5. Recommended KRA Boundary Decision
+## 5. Recommended KRA Boundary Decision (Step 3T — superseded by §15/§16/§18, Step 3T-1)
 
-**Decision: Option A. Status: Approved (locked, Step 3T).**
+**Decision: Option A. Status: Approved (locked, Step 3T) — now superseded as a permanent design
+by the Step 3T-1 money unit policy correction; see Section 15/16/18.**
 
 - Collection storage (`invoiceValueLakhs`, `amountWithoutGstLakhs`, `amountReceivedLakhs`) moves
   to actual INR `Decimal(18,2)`, consistent with the Money Unit Policy for Finance/Accounting
@@ -240,17 +258,21 @@ exists to prevent.
 
 ## 12. Decision Ledger
 
+> **Step 3T-1 correction:** the "KRA target unit policy" and "Release 2 permission to implement"
+> rows below are now superseded — see the strikethrough and the new status in each row. All
+> other rows remain Approved and unaffected by the money-unit-policy correction.
+
 | Decision | Recommended Value | Status |
 |---|---|---|
-| KRA target unit policy | Keep KRA targets in Lakhs for now | **Approved** |
-| KRA engine boundary conversion | Convert Collection INR to Lakhs inside `kra-engine.ts` only for KRA scoring | **Approved** |
-| Collection storage unit | Convert Collection fields to actual INR in Release 2 | **Approved** |
-| Payment storage unit | Convert `Payment.amountLakhs` to actual INR in Release 2 | **Approved** |
-| `src/lib/payments.ts` retirement | Replace `round2`/epsilon logic with `src/lib/money.ts` in Release 2 | **Approved** |
-| API response policy | Preserve current response shape where practical; do not leak Decimal objects | **Approved** |
-| UI label policy | Remove Lakhs labels from Payment/Collection finance UI after conversion | **Approved** |
+| KRA target unit policy | ~~Keep KRA targets in Lakhs for now~~ **Corrected:** KRA target inputs/storage should move to actual INR via a separate Sales/KRA target migration; Lakhs remains a KRA-view/report display unit only | **Superseded (Step 3T-1)** — was Approved under Step 3T's Option A; now requires a fresh decision between Option A (full INR canonical, long-term) and Option B (temporary Lakhs bridge) below |
+| KRA engine boundary conversion | Convert Collection INR to Lakhs inside `kra-engine.ts` only for KRA scoring | **Conditionally Approved** — only valid as a temporary bridge (new Option B) pending the Sales/KRA target migration; not valid as a permanent design |
+| Collection storage unit | Convert Collection fields to actual INR in Release 2 | **Approved** — unaffected by this correction |
+| Payment storage unit | Convert `Payment.amountLakhs` to actual INR in Release 2 | **Approved** — unaffected by this correction |
+| `src/lib/payments.ts` retirement | Replace `round2`/epsilon logic with `src/lib/money.ts` in Release 2 | **Approved** — unaffected by this correction |
+| API response policy | Preserve current response shape where practical; do not leak Decimal objects | **Approved** — unaffected by this correction |
+| UI label policy | Remove Lakhs labels from Payment/Collection finance UI after conversion | **Approved** — unaffected by this correction |
 | Production migration-history gap review | Review/resolve the two untracked migrations (Section 10) before production migration planning | Pending — not blocking this step |
-| Release 2 permission to implement | Approved for dev implementation only | **Approved** |
+| Release 2 permission to implement | ~~Approved for dev implementation only~~ | **Blocked (Step 3T-1)** — pending the Sales/KRA target unit migration decision (full INR migration now, vs. a temporary Lakhs bridge) |
 
 ---
 
@@ -273,9 +295,11 @@ Release 2 implementation) may begin, the following preconditions apply:
    Section 8 UI boundary plan (`CollectionsClient.tsx`, `CollectionsScreen.tsx`, the Payment
    recording UI, and any other surface found in Step 3U's sweep) ships together with the schema
    change — never a release where storage is INR but the UI still shows Lakhs (or vice versa).
-6. **No CRM Lead/Opportunity/KRA target migration in Release 2.** Per the locked Option A
-   decision, KRA targets remain Lakhs-based; CRM Lead/Opportunity/SalesFunnel fields are
-   out of scope entirely. Any KRA target migration to INR is a separate future project.
+6. **No CRM Lead/Opportunity/SalesFunnel migration in Release 2** — those remain out of scope
+   regardless of which option (Section 16) is chosen for KRA targets. **(Superseded in part,
+   Step 3T-1):** whether KRA targets migrate to INR *within* Release 2 now depends on the
+   Section 16 Option A vs. Option B decision — Option A folds the KRA target migration into
+   Release 2; Option B keeps it as a separate future project, same as originally stated here.
 7. **No Voucher/Ledger migration in Release 2.** Both remain on their existing
    void/reversal-only lifecycle per the Step 3B-0 decision log; neither is touched by Release 2.
 8. **Before/after Collection KRA score comparison required.** Per Section 9's verification plan,
@@ -287,7 +311,7 @@ Release 2 implementation) may begin, the following preconditions apply:
 
 ---
 
-## 14. Final Recommendation
+## 14. Final Recommendation (Step 3T, superseded — see §18)
 
 **The KRA boundary decision is now locked (Step 3T): Option A is Approved.** Collection storage
 moves to actual INR in Release 2; KRA targets remain Lakhs-based for now; `kra-engine.ts`
@@ -300,3 +324,125 @@ planning-only — no schema, migration, API, UI, or data change has been made as
 this decision. The next step is to create a **Step 3U implementation prompt**, following the
 same atomic-implementation discipline used for Release 1 (Step 3Q) and against the same 9
 preconditions in Section 13, then audited the same way afterward (as in Step 3R).
+
+> **This section is superseded by the Step 3T-1 correction below (§15–§18).** The Option A lock
+> described here is no longer final-approved as a permanent design under the corrected money
+> unit policy — it survives only as an explicitly-temporary bridge option. Read §18 for the
+> current Final Recommendation.
+
+---
+
+## 15. Corrected Sales/KRA Unit Policy Impact (Step 3T-1)
+
+The global money unit policy has been corrected (see `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`'s
+Step 3T-1 note and `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md`'s §0 correction). The
+earlier policy — "only CRM Leads and Opportunities may remain Lakhs-based" — is **superseded**.
+The corrected policy is: **all persisted business money values must be stored as actual INR**;
+Lakhs is a presentation/reporting unit only. This has direct consequences for Release 2:
+
+- **Collection and Payment still must move to INR.** Nothing about this correction changes the
+  core Release 2 scope (Section 2) — Collection and Payment storage conversion to actual INR
+  remains required and unaffected.
+- **KRA targets should also move to INR, in a separate Sales/KRA target migration.** The Step 3T
+  decision to keep `KRATemplateItem.expectedTarget`/`stretchTarget` and the per-employee
+  `KRA.target` string field Lakhs-based "for now" is no longer consistent with the corrected
+  policy — KRA target inputs/storage are explicitly named in the corrected policy's scope.
+- **Sales dashboard/KRA/report display may convert INR to Lakhs for readability.** This is the
+  one place Lakhs remains legitimate: display-only, computed at render time from canonical INR
+  storage, never the other way around.
+- **`kra-engine.ts` should eventually compare INR to INR**, once both Collection and KRA targets
+  are canonical INR — at that point reports may present the resulting figures in Lakhs for
+  readability, but the comparison itself happens in the same unit on both sides.
+- **A temporary INR-to-Lakhs comparison boundary (the Step 3T Option A design) is acceptable
+  only as an interim compatibility bridge, and must be explicitly marked temporary** — both in
+  code comments and in this document — never presented as the final architecture. See Option B
+  below.
+
+---
+
+## 16. Updated Decision Options (Step 3T-1)
+
+These options supersede the Step 3T Option A/B/C labels in Section 4, which addressed only the
+Collection-vs-KRA-target comparison boundary in isolation. The options below address the full
+corrected-policy scope (Collection, Payment, and KRA targets together).
+
+### Option A — Full INR Canonical Model
+
+- Payment and Collection storage move to INR (unchanged from the existing Release 2 scope).
+- KRA target storage/input also moves to INR (`KRATemplateItem.expectedTarget`/`stretchTarget`,
+  the per-employee `KRA.target` string field) — a new, separate Sales/KRA target migration.
+- `kra-engine.ts` compares INR to INR directly — no conversion factor anywhere in the scoring
+  path.
+- Dashboards/KRA views/Reports display Lakhs by dividing by 100,000 at render time only.
+- **Recommended long-term option.**
+
+### Option B — Temporary Compatibility Bridge
+
+- Payment and Collection storage move to INR (unchanged from the existing Release 2 scope).
+- KRA targets remain Lakhs **temporarily** — this is the Step 3T Option A design, demoted from
+  "permanent decision" to "interim bridge."
+- `kra-engine.ts` converts Collection INR to Lakhs only for comparison, at the same one explicit
+  boundary point already documented in Section 5 — unchanged mechanically, but **must be marked
+  temporary** in code comments and in this document, not presented as final.
+- **Requires a committed future KRA target migration** — Option B is not a standalone resting
+  state; it exists only to unblock Release 2 if the Sales/KRA target migration cannot ship in
+  the same release.
+
+### Option C — Keep Collection or KRA canonical storage in Lakhs
+
+- **Rejected.** This violates the corrected policy outright — Collection, Payment, and (in the
+  long term) KRA targets must all use actual INR as canonical storage. Lakhs is never a
+  permitted storage unit for any business model under the corrected policy.
+
+**Recommendation: Option A, long-term.** Option B exists only as a fallback if the KRA target
+migration genuinely cannot be scoped into the same release as Collection/Payment conversion.
+
+**Step 3U should not proceed until this is decided: will Release 2 include Option A in full
+(Collection + Payment + KRA targets all converting to INR together), or will it use Option B
+temporarily (Collection + Payment convert now, KRA targets stay Lakhs with an explicitly-marked
+temporary bridge, and a committed follow-up migration)?**
+
+---
+
+## 17. Sales/KRA Actual-INR Migration Needed
+
+This is a forward-looking inventory only — **none of the areas below are migrated in this
+step.** Candidate areas to review when the Sales/KRA target migration is scoped:
+
+- Lead value inputs — `CrmLead.expectedValue`.
+- Opportunity value inputs — `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`.
+- Sales funnel value inputs — `SalesFunnel.dealValueLakhs`/`billingValueLakhs`.
+- KRA target inputs — the per-employee `KRA.target` free-text string field parsed by
+  `parseTargets()` in `kra-engine.ts`.
+- KRA target seed data — `KRATemplateItem.minimumTarget`/`expectedTarget`/`stretchTarget` in
+  `prisma/seed-performance-defaults.ts`.
+- Employee target tables — `EmployeeTarget`/`TeamTarget` (currently store a generic
+  `targetJson` free-text field, not a typed money column — must be reviewed for embedded money
+  values before any type-level migration).
+- Sales dashboards — any page rendering Lead/Opportunity/Funnel figures.
+- KRA dashboards — any page rendering KRA progress/target figures.
+- Sales reports — any report aggregating Lead/Opportunity/Funnel/KRA figures.
+
+**Rule for this future migration:** inputs and storage should be actual INR; dashboards/KRA
+views/reports may display Lakhs, computed at render time from canonical INR values. **This
+migration is not implemented now** — it is a documented candidate scope for a future step.
+
+---
+
+## 18. Final Recommendation (Step 3T-1, current)
+
+**The money unit policy has been corrected, superseding Step 3T's Option A lock as a permanent
+design.** Collection and Payment must still move to INR in Release 2 — that part of the scope is
+unchanged. But the KRA boundary question is no longer a simple "Option A vs. Option B" choice
+about where one conversion factor lives — it is now a choice between migrating KRA targets to
+INR **in the same effort** (Option A, full INR canonical model, recommended long-term) or
+shipping Release 2 with an explicitly-temporary Lakhs bridge for KRA targets only (Option B),
+with a committed follow-up migration.
+
+**Release 2 implementation permission is now Blocked.** It was briefly Approved under Step 3T's
+now-superseded lock; it is Blocked again under Step 3T-1 pending an explicit decision on Section
+16's Option A vs. Option B. **Do not implement Release 2 until this is resolved.** The next step
+is for the business/product owner to choose between Option A and Option B in Section 16; only
+after that choice is made should a Step 3U implementation prompt be created, scoped accordingly
+(full INR migration including KRA targets, or Collection/Payment conversion plus an
+explicitly-temporary KRA bridge with a committed follow-up migration plan).

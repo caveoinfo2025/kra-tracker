@@ -596,11 +596,12 @@ This document is **planning only**. As of this step:
 >   stage before any query executed). `npx prisma validate`, `npx tsc --noEmit`, and `npm run
 >   build` all pass (no code changed, so these are reconfirmations, not new test surface).
 
-> **Money Unit Policy (locked, 2026-06-22, before Step 3O):** Only CRM Leads and Opportunities
-> (and Sales pipeline/forecast fields) should use Lakhs-based values. Finance and Accounting
-> values must use actual INR amounts without Lakhs conversion. This applies to every model
-> previously discussed in this plan as "money-like" — `Collection`, `Payment`, `Expense`,
-> `Voucher`, `Ledger`, `EmployeeAdvance`, `TravelClaim`, `FinAccount` — none of which are exempt.
+> **Money Unit Policy (locked, 2026-06-22, before Step 3O) — SUPERSEDED, see the Step 3T-1 note
+> near the end of this document.** ~~Only CRM Leads and Opportunities (and Sales pipeline/
+> forecast fields) should use Lakhs-based values. Finance and Accounting values must use actual
+> INR amounts without Lakhs conversion.~~ This applied to every model previously discussed in
+> this plan as "money-like" — `Collection`, `Payment`, `Expense`, `Voucher`, `Ledger`,
+> `EmployeeAdvance`, `TravelClaim`, `FinAccount` — none of which were exempt.
 > Verification in `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 confirms every
 > Finance `*Lakhs` field genuinely stores ₹ Lakhs today (not a misleading name — an accurate one,
 > for a unit the business has now decided Finance must stop using), so adopting this policy
@@ -610,6 +611,12 @@ This document is **planning only**. As of this step:
 > this plan; see the readiness check's §0/§8/§10/§11 for the full revised analysis. No schema or
 > code change has been made as a result of this policy yet — it is a locked decision pending
 > Step 3O's design work.
+>
+> **Corrected policy (Step 3T-1, 2026-06-22):** the CRM Leads/Opportunities exception above is
+> superseded. All business money inputs and storage, including Leads, Funnel, Opportunities, KRA
+> targets, Finance, Payment, and Collection, must be actual INR. Lakhs is allowed only as a
+> dashboard/reporting display unit. See the Step 3T-1 implementation note near the end of this
+> document for the full correction.
 
 > **Step 3O completed (2026-06-22):**
 > - Live profile completed — run from a DB-accessible environment after confirming
@@ -719,3 +726,36 @@ This document is **planning only**. As of this step:
 >   `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass (reconfirmations, no
 >   app code changed). Release 2 implementation remains not started — the next step is a Step 3U
 >   implementation prompt.
+
+> **Step 3T-1 completed (2026-06-22) — corrects the §"Money Unit Policy" note above and
+> supersedes Step 3T's Option A lock as a permanent design:**
+> - **Corrected policy: all business money inputs and storage — including Leads, Funnel,
+>   Opportunities, KRA targets, Finance, Payment, and Collection — must be actual INR. Lakhs is
+>   allowed only as a dashboard/reporting display unit** (sales dashboards, KRA views, sales
+>   reports, management summary cards/charts).
+> - The earlier "only CRM Leads and Opportunities may remain Lakhs-based" exception (locked
+>   before Step 3O) is **superseded** — Leads, Funnel, and Opportunities must now use actual INR
+>   for input and storage, the same as every Finance/Accounting model; only their dashboards/
+>   KRA views/reports may display Lakhs.
+> - **Release 2 impact:** Collection and Payment still must move to INR (unchanged). KRA target
+>   inputs/storage should also move to INR, but only via a separate Sales/KRA target migration.
+>   Until that migration ships, Release 2 must not blindly compare INR Collection values against
+>   Lakhs KRA targets — it must either (1) include the KRA target unit migration to INR, or (2)
+>   explicitly defer Collection/KRA scoring conversion until that migration is ready.
+> - Updated `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`: added §15 ("Corrected Sales/KRA
+>   Unit Policy Impact"), §16 ("Updated Decision Options" — Option A Full INR Canonical Model
+>   recommended long-term, Option B Temporary Compatibility Bridge requiring a committed
+>   follow-up migration, Option C keep Lakhs storage rejected), §17 ("Sales/KRA Actual-INR
+>   Migration Needed" — a forward-looking inventory, not implemented), and §18 (current Final
+>   Recommendation). Section 12's Decision Ledger updated: "KRA target unit policy" and "Release
+>   2 permission to implement" rows marked Superseded/Blocked; all other rows (Collection/Payment
+>   storage unit, `payments.ts` retirement, API/UI label policy) remain Approved, unaffected.
+> - Updated `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md`'s §0 with a correction notice
+>   and a new Step 3T-1 implementation note marking the Lead/Opportunity Lakhs exception
+>   superseded.
+> - **Release 2 implementation permission is now Blocked** (was briefly Approved under Step 3T),
+>   pending an explicit choice between Option A and Option B in the updated sign-off plan.
+> - **No Prisma schema field was converted, no migration was generated, no API route or UI
+>   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
+>   and no database row was written or altered.** `npx prisma validate`, `npx tsc --noEmit`, and
+>   `npm run build` all pass (reconfirmations, no app code changed).

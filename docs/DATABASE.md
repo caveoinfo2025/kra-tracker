@@ -12,8 +12,14 @@
 > parsing/serialization/arithmetic helper — `src/lib/money.ts` (Step 3H) — is wired into every
 > Finance read route. **Money unit policy locked (2026-06-22): only CRM Lead/Opportunity/
 > pipeline-estimate fields may use Lakhs — every Finance/Accounting field must store actual
-> INR.** See `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 for the full field-by-field
-> verification.
+> INR.** ~~See `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 for the full field-by-field
+> verification.~~ **CORRECTED (Step 3T-1, 2026-06-22): the CRM Lead/Opportunity Lakhs exception
+> above is superseded — all persisted business money values (Leads, Funnel, Opportunities, KRA
+> targets, Finance, Payment, Collection) must now be actual INR; Lakhs is allowed only as a
+> sales dashboard/KRA/report display unit.** See
+> `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §15–§18 for the corrected policy and its
+> Release 2 impact, and `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0 for the
+> superseded field-by-field verification plus its Step 3T-1 correction note.
 >
 > **Release 1 — `Expense`, `EmployeeAdvance`, `TravelClaim` (9 fields) — is DONE on the dev DB
 > (`u686730471_caveodev`) as of Step 3Q.** `amountLakhs`/`gstAmountLakhs`/
@@ -38,10 +44,14 @@
 >
 > **Release 2 — `Payment`/`Collection` (4 fields) — remains explicitly BLOCKED**, pending
 > sign-off on the `src/lib/kra-engine.ts` scoring-boundary conversion (`Collection` feeds KRA
-> billing targets, which stay Lakhs-based by design). See the readiness check's §12 sign-off
-> table and `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` §11 for the full decision ledger.
-> `Voucher`/`Ledger`/`FinAccount`/CRM Lead-Opportunity/KRA target values are untouched by
-> Release 1 and remain ₹ Lakhs.
+> billing targets, ~~which stay Lakhs-based by design~~ **— Step 3T-1 correction: KRA targets
+> should also move to actual INR via a separate Sales/KRA target migration, not stay Lakhs
+> permanently**). See the readiness check's §12 sign-off table,
+> `docs/database/DECIMAL_RELEASE1_SIGNOFF_PLAN.md` §11, and
+> `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §15–§18 for the full corrected decision
+> ledger. `Voucher`/`Ledger`/`FinAccount` are untouched by Release 1/2 and remain ₹ Lakhs; CRM
+> Lead/Opportunity/KRA target values are untouched by Release 1 but are now in scope for a
+> future actual-INR migration per the Step 3T-1 correction, not exempt.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

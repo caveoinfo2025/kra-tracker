@@ -11,6 +11,17 @@
 > Accounting values must use actual INR amounts. See **§0 Money Unit Policy Decision** below,
 > added before this readiness check's conversion-batch recommendation is finalized. §2/§8/§10/§11
 > are superseded where they conflict with §0 — §0 governs.
+>
+> **CORRECTION (2026-06-22, Step 3T-1) — the §0 Lead/Opportunity Lakhs exception below is now
+> SUPERSEDED.** The corrected canonical Money Storage Policy is: **all persisted business money
+> values — including `CrmLead.expectedValue`, `CrmOpportunity.value`/`dealValueExTax`/
+> `netProfitLakhs`, and `SalesFunnel.dealValueLakhs`/`billingValueLakhs` — must be stored and
+> input as actual INR.** Lakhs is now a **display/reporting unit only** (sales dashboards, KRA
+> views, sales reports, management summary cards/charts) — never a storage or input unit for any
+> business model. See `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`'s "Corrected Sales/KRA
+> Unit Policy Impact" section for the full corrected policy and its Release 2 impact. The §0 text
+> immediately below is preserved unmodified for historical record — read it as **superseded**,
+> not current.
 
 ---
 
@@ -18,10 +29,17 @@
 
 **Final decision** (locked, business-rule update, 2026-06-22):
 
-- CRM `Lead` and CRM `Opportunity` values (and Sales pipeline/forecast fields) **may remain
+> ⚠️ **SUPERSEDED (Step 3T-1, 2026-06-22) — the bullet immediately below is no longer correct.**
+> Leads, Funnel, and Opportunities must also use actual INR for input and storage. Only their
+> dashboards, KRA views, and reports should display in Lakhs. See the correction note at the top
+> of this file and `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`'s "Corrected Sales/KRA Unit
+> Policy Impact" section.
+
+- ~~CRM `Lead` and CRM `Opportunity` values (and Sales pipeline/forecast fields) **may remain
   Lakhs-based.** This applies to: `CrmLead.expectedValue`, `CrmOpportunity.value`/
   `dealValueExTax`/`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/`billingValueLakhs`. These are
-  intentionally designed pipeline-estimation values, not posted accounting transactions.
+  intentionally designed pipeline-estimation values, not posted accounting transactions.~~
+  **(Superseded — see Step 3T-1 correction above.)**
 - **All Finance and Accounting values must be actual INR values.** This applies, without
   exception, to: `Expense`, `EmployeeAdvance`, `TravelClaim`/Conveyance, `Payment`, `Collection`,
   `Voucher`, `Ledger`, Bank Book, Cash Book, `FinAccount` balances, Reports, Tally export,
@@ -639,7 +657,7 @@ marked Approved. Nothing in this table authorizes any schema, data, API, or UI c
 
 | Decision | Final Value | Status |
 |---|---|---|
-| Money unit policy | Lakhs restricted to CRM Lead/Opportunity/pipeline-estimate fields; all Finance/Accounting fields must use actual INR (§0) | **Approved** — locked by explicit business-rule instruction prior to this step |
+| Money unit policy | ~~Lakhs restricted to CRM Lead/Opportunity/pipeline-estimate fields; all Finance/Accounting fields must use actual INR (§0)~~ **SUPERSEDED (Step 3T-1):** all persisted business money values — including CRM Lead/Opportunity/SalesFunnel and KRA target inputs — must be actual INR; Lakhs is a display/reporting unit only | **Approved** — locked by explicit business-rule instruction prior to this step; **corrected and re-locked Step 3T-1**, see `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`'s Corrected Sales/KRA Unit Policy Impact section |
 | Live data profile | Completed in Step 3O (§4) — `Expense`/`TravelClaim`: 0 rows; `EmployeeAdvance`: 1 clean row; `Payment`: 1 clean row; `Collection`: 94 rows, clean (no negatives, no suspicious-large, >2dp counts fully explained by GST formula) | **Approved** — data quality confirmed acceptable for every populated field |
 | Release 1 scope | `Expense.amountLakhs`/`gstAmountLakhs`, `EmployeeAdvance.amountLakhs`/`disbursedAmountLakhs`/`settledAmountLakhs`/`balanceLakhs`, `TravelClaim.ratePerKm`/`amountRupees`/`amountLakhs` (9 fields, 3 models) | **Approved with notes** — grouping recommended and data-clean, but the value-transformation script itself is not yet written/tested (no existing `Expense`/`TravelClaim` rows to test against), so implementation cannot start until that gap closes |
 | Payment/Collection (Release 2) status | Deferred — bundled with `src/lib/payments.ts` `round2()`/epsilon-comparison retirement; `Collection` additionally gated on the KRA-engine boundary decision below | **Blocked** — KRA/Collection decision is recommended but not signed off (per this step's own rule: "if KRA/Collection decision is unresolved, mark Payment/Collection blocked") |
@@ -689,6 +707,26 @@ marked Approved. Nothing in this table authorizes any schema, data, API, or UI c
   Lakhs→INR value transformation, synchronized UI/API updates, and the Collection/KRA-engine
   decision. Step 3O's scope was expanded accordingly (still no implementation).
 - **No schema/runtime behavior changed by this update.** Documentation only.
+
+## Implementation Note (Step 3T-1, Money Unit Policy correction, 2026-06-22)
+
+- **The §0 Lead/Opportunity Lakhs exception above is now superseded.** Corrected policy: all
+  persisted business money values — Leads, Funnel, Opportunities, Collections, Payments,
+  Finance, KRA target inputs, Sales targets, and Reports source data — must be stored and input
+  as actual INR. Lakhs is now a display/reporting unit only (sales dashboards, KRA views, sales
+  reports, management summary cards/charts), never canonical storage for any model.
+- This directly affects `CrmLead.expectedValue`, `CrmOpportunity.value`/`dealValueExTax`/
+  `netProfitLakhs`, and `SalesFunnel.dealValueLakhs`/`billingValueLakhs` — all previously
+  exempted under the §0 policy, now in scope for a future actual-INR migration (not implemented
+  this step). It also affects KRA target inputs/storage (`KRATemplateItem.minimumTarget`/
+  `expectedTarget`/`stretchTarget`, the per-employee `KRA.target` string field) — previously
+  assumed exempt by convention, now explicitly in scope for a future Sales/KRA target migration.
+- See `docs/database/DECIMAL_RELEASE2_SIGNOFF_PLAN.md`'s "Corrected Sales/KRA Unit Policy
+  Impact" and "Sales/KRA Actual-INR Migration Needed" sections for the full corrected policy,
+  its Release 2 impact, and the candidate areas for the future Sales/KRA migration.
+- **No Prisma schema field was converted, no migration was generated, no API route or UI
+  component was modified, and no database row was written or altered.** This is a documentation
+  and decision-correction step only.
 
 ## Implementation Note (Step 3O, 2026-06-22)
 
