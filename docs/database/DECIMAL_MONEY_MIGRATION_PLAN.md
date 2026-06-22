@@ -398,3 +398,37 @@ This document is **planning only**. As of this step:
 > - **No schema/migration/API-contract change.** `prisma/schema.prisma` untouched, no migration
 >   generated, no Finance write API created, no response field renamed/retyped, no UI component
 >   touched.
+
+> **Implementation note (Step 3J, 2026-06-22):**
+> - **Second dry-run adoption — no schema conversion.** `src/lib/money.ts` adopted in
+>   `GET /api/finance/cash-book`'s running-balance accumulation loop
+>   (`src/app/api/finance/cash-book/route.ts`), the exact same pattern applied to Bank Book in
+>   Step 3I.
+> - The loop previously accumulated with `running = r2(running ± entry.amountLakhs)` (Cash In
+>   credit → adds, Cash Out debit → subtracts, per the route's existing cash-register
+>   convention). It now accumulates with `addMoney`/`subtractMoney` on a `Decimal` seeded via
+>   `toMoneyDecimal(periodOpeningBalance)`, converting to a plain `number` only at the loop
+>   boundary via `moneyToNumberForDisplay` — rounding deferred to the route's existing final
+>   `fmtMoney()` call rather than rounded at every intermediate step.
+> - **No other line in the route changed.** All filters (date range, account, employee, type,
+>   expense category, status, search), pagination, the `mapTxnType` mapping, and authorization
+>   (`canViewFinanceCashBook`) are untouched. Response field names, types, and JSON shape are
+>   byte-for-byte unchanged.
+> - **Verified equivalent**: a standalone Node check (run via `node -e`, not committed) fed the
+>   same opening balance + 6 mixed credit/debit entries (including `0.1 + 0.2`-style float-noise
+>   values) through both the old `r2`-per-step loop and the new `addMoney`/`subtractMoney` loop.
+>   Raw per-step Decimal values can differ from the old float values in trailing digits (deferred
+>   vs. per-step rounding), but every value is identical once passed through the route's existing
+>   `fmtMoney()` boundary — confirming the API response is unaffected.
+> - **Live HTTP verification was not practical this step** (the cash-book route requires an
+>   authenticated session against the remote Hostinger dev MySQL database) — static verification
+>   (the equivalence check above) plus `npx tsc --noEmit` / `npm run build` / `npm run lint` was
+>   used instead, same limitation as Step 3I.
+> - **Validation:** `npx prisma validate` ✅ (no-op, schema untouched), `npx tsc --noEmit` ✅ (no
+>   errors), `npm run build` ✅ (all routes including `/finance/cash-book` and `/api/finance/*`
+>   compiled), `npm run lint` → 589 problems (414 errors / 175 warnings) — **identical to the
+>   Step 3I baseline**, confirming no new lint issues introduced.
+> - **No schema/migration/API-contract change.** `prisma/schema.prisma` untouched, no migration
+>   generated, no Finance write API created, no response field renamed/retyped, no UI component
+>   touched. Bank Book (Step 3I) and Cash Book (this step) are now the only two routes using the
+>   Decimal-safe internal running-balance pattern; every other Finance route is unchanged.

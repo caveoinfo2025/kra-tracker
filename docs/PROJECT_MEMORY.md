@@ -21,6 +21,30 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Money helper dry-run integration extended to Cash Book (Step 3J)
+Step 3J completed: applied the exact Step 3I pattern to the second isolated read-only path — the
+running-balance accumulation loop in `GET /api/finance/cash-book`
+(`src/app/api/finance/cash-book/route.ts`). The loop previously accumulated with
+`running = r2(running ± entry.amountLakhs)` (Cash In/credit → adds, Cash Out/debit → subtracts,
+per the route's existing cash-register display convention); it now accumulates with
+`addMoney`/`subtractMoney` on a `Decimal` seeded via `toMoneyDecimal(periodOpeningBalance)`,
+converting back to a plain `number` only at the loop boundary via `moneyToNumberForDisplay` —
+rounding deferred to the route's existing final `fmtMoney()` call rather than rounded at every
+intermediate step. No other line in the route changed: date/account/employee/type/expense-category/
+status/search filters, pagination, the `mapTxnType` mapping, and `canViewFinanceCashBook`
+authorization are all untouched — response field names, types, and JSON shape are unchanged.
+Verified equivalent via a standalone Node check (old `r2`-per-step loop vs. new
+`addMoney`/`subtractMoney` loop, same opening balance + 6 mixed credit/debit entries including
+`0.1 + 0.2`-style float-noise inputs) — every value is identical once passed through the route's
+existing `fmtMoney()` call. Live HTTP verification was not practical this step (requires an
+authenticated session against the remote Hostinger dev MySQL DB), same limitation as Step 3I —
+static equivalence check used instead. **Bank Book (Step 3I) and Cash Book (this step) are now the
+only two Finance routes using the Decimal-safe internal running-balance pattern; no other route or
+UI component was touched, and no Prisma schema field was converted.** `npx prisma validate`, `npx
+tsc --noEmit`, `npm run build`, and `npm run lint` (589 problems, identical to the Step 3I
+baseline — confirmed no new issues) all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3J
+row) for the tracker entry.
+
 ### 2026-06-22 — Money helper dry-run integration into one read-only path (Step 3I)
 Step 3I completed: wired `src/lib/money.ts` (Step 3H) into exactly one low-risk, read-only
 calculation path — the running-balance accumulation loop in `GET /api/finance/bank-book`

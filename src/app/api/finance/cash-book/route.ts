@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewFinanceCashBook } from "@/lib/finance/access";
+import { toMoneyDecimal, addMoney, subtractMoney, moneyToNumberForDisplay } from "@/lib/money";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE     = 100;
@@ -272,15 +273,16 @@ export async function GET(req: NextRequest) {
   });
 
   // Build id → runningBalance map (Cash In adds, Cash Out subtracts).
-  let running = periodOpeningBalance;
+  // Use money helper internally; preserve number response shape until Decimal API migration.
+  let runningDecimal = toMoneyDecimal(periodOpeningBalance);
   const runningBalanceMap = new Map<number, number>();
   for (const entry of allEntries) {
     // direction = "credit" → cash in → balance increases
     // direction = "debit"  → cash out → balance decreases
-    running = entry.direction === "credit"
-      ? r2(running + entry.amountLakhs)
-      : r2(running - entry.amountLakhs);
-    runningBalanceMap.set(entry.id, running);
+    runningDecimal = entry.direction === "credit"
+      ? addMoney(runningDecimal, entry.amountLakhs)
+      : subtractMoney(runningDecimal, entry.amountLakhs);
+    runningBalanceMap.set(entry.id, moneyToNumberForDisplay(runningDecimal));
   }
 
   // ── Apply in-memory filters (type / status / expenseCategory / search) ────────
