@@ -475,3 +475,53 @@ This document is **planning only**. As of this step:
 > - **No schema/migration/API-contract change.** `prisma/schema.prisma` untouched, no migration
 >   generated, no Finance write API created, no response field renamed/retyped, no UI component
 >   touched, no broad refactor of Advance/Conveyance/other Finance calculations performed.
+
+> **Implementation note (Step 3L, 2026-06-22):**
+> - **Fourth dry-run adoption — no schema conversion.** `src/lib/money.ts` adopted in
+>   `GET /api/finance/dashboard` (`src/app/api/finance/dashboard/route.ts`) across every
+>   JS-level total calculation that combines multiple values — base+GST additions, a running
+>   monthly accumulation, and the two net cash/bank-flow subtractions.
+> - **Base + GST additions** converted to `moneyToNumberForDisplay(addMoney(base, gst))`:
+>   `todayExp`, `monthlyExp`, `customerExp` summary scalars; the per-category `expenseBreakdown`
+>   `amount` field; and the per-category `topExpenseCategories` `amt` (feeding both its
+>   `amount` and `percentage` fields).
+> - **Net flow subtractions** converted to `moneyToNumberForDisplay(subtractMoney(a, b))`:
+>   `netCashFlow` (`totalCashIn − totalCashOut`) and `netBankFlow` (`totalCredits − totalDebits`).
+> - **Monthly expense trend accumulation** (`monthMap[mo] = r2((monthMap[mo] ?? 0) +
+>   e.amountLakhs + e.gstAmountLakhs)`, a 3-way running sum across all trend rows) converted to
+>   `monthMap[mo] = moneyToNumberForDisplay(addMoney(monthMap[mo] ?? 0, e.amountLakhs,
+>   e.gstAmountLakhs))` — the same "round only at the final boundary" pattern as the Bank
+>   Book/Cash Book running-balance loops (Steps 3I/3J), now applied to a per-month bucket instead
+>   of a single chronological running total.
+> - **Deliberately left unchanged**: `cashBalance`, `bankBalance`, `advOutstanding`,
+>   `claimsPending`, `totalCashIn`, `totalCashOut`, `totalCredits`, `totalDebits` — each is a
+>   single Prisma `_sum` aggregate with only a `?? 0` fallback, never combined with another value
+>   in JS, so there is no addition/subtraction to wire the helper into (per this step's own "if
+>   directly returned from a `_sum` and not combined in JS, leave it unchanged" instruction). The
+>   `percentage` field's `(amt / totalForPct) * 100` calculation was also left on the existing
+>   `r2()` helper — it is a ratio, not a money addition, so it is out of scope for this dry run;
+>   `r2()` itself was therefore **not** removed from this file (still has a live call site),
+>   unlike the Step 3K `r2()` removal in the Expense routes where every call site was replaced.
+> - **No other line in the route changed.** Authorization (`canViewFinanceDashboard`), period
+>   resolution (`dateFrom`/`dateTo`/`financialYear`), `branchId`/`accountId` filters, and every
+>   `deletedAt: null`-scoped query are untouched — response field names, types, and JSON shape
+>   are byte-for-byte the same.
+> - **Verified equivalent**: a standalone Node check (run via `node -e`, not committed) compared
+>   old-vs-new logic across three calculation shapes used in this route — base+GST addition (4
+>   pairs incl. `0.1+0.2`, `10.555+1.895`, and an all-zero/null-coalesced pair), net-flow
+>   subtraction (4 pairs incl. `0.3−0.1`), and the 3-way monthly running accumulation (3 chained
+>   entries) — every value matched once passed through the route's existing `fmtMoney()`
+>   boundary.
+> - **Live HTTP verification was not practical this step** (the dashboard route requires an
+>   authenticated session against the remote Hostinger dev MySQL database) — same documented
+>   limitation as Steps 3I–3K; the static equivalence check plus the full validation suite was
+>   used instead.
+> - **Validation:** `npx prisma validate` ✅, `npx tsc --noEmit` ✅ (no errors), `npm run build`
+>   ✅ (all routes including `/api/finance/dashboard` compiled), `npm run lint` → 589 problems
+>   (414 errors / 175 warnings) — **identical to the Step 3K baseline**, confirming no new lint
+>   issues.
+> - **No schema/migration/API-contract change.** `prisma/schema.prisma` untouched, no migration
+>   generated, no Finance write API created, no response field renamed/retyped, no UI component
+>   touched. Bank Book, Cash Book, Expense, and Dashboard are now the four routes using
+>   Decimal-safe internal arithmetic where a calculation was actually present; Advance and
+>   Conveyance remain untouched per Step 3K's findings.

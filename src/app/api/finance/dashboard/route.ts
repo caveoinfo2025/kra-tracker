@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canViewFinanceDashboard } from "@/lib/finance/access";
+import { addMoney, subtractMoney, moneyToNumberForDisplay } from "@/lib/money";
 
 // ── Money helpers (consistent with existing Finance APIs) ─────────────────────
 
@@ -289,25 +290,26 @@ export async function GET(req: NextRequest) {
 
   // ── Compute scalar values ─────────────────────────────────────────────────────
 
+  // Use money helper internally; preserve number response shape until Decimal API migration.
   const cashBalance    = cashBalAgg._sum.currentBalance ?? 0;
   const bankBalance    = bankBalAgg._sum.currentBalance ?? 0;
-  const todayExp       = r2((todayExpAgg._sum.amountLakhs   ?? 0) + (todayExpAgg._sum.gstAmountLakhs   ?? 0));
-  const monthlyExp     = r2((monthExpAgg._sum.amountLakhs   ?? 0) + (monthExpAgg._sum.gstAmountLakhs   ?? 0));
-  const customerExp    = r2((customerExpAgg._sum.amountLakhs ?? 0) + (customerExpAgg._sum.gstAmountLakhs ?? 0));
+  const todayExp       = moneyToNumberForDisplay(addMoney(todayExpAgg._sum.amountLakhs   ?? 0, todayExpAgg._sum.gstAmountLakhs   ?? 0));
+  const monthlyExp     = moneyToNumberForDisplay(addMoney(monthExpAgg._sum.amountLakhs   ?? 0, monthExpAgg._sum.gstAmountLakhs   ?? 0));
+  const customerExp    = moneyToNumberForDisplay(addMoney(customerExpAgg._sum.amountLakhs ?? 0, customerExpAgg._sum.gstAmountLakhs ?? 0));
   const advOutstanding = advancesAgg._sum.balanceLakhs ?? 0;
   const claimsPending  = claimsAgg._sum.amountLakhs    ?? 0;
 
   const totalCashIn  = cashInAgg._sum.amountLakhs    ?? 0;
   const totalCashOut = cashOutAgg._sum.amountLakhs   ?? 0;
-  const netCashFlow  = r2(totalCashIn  - totalCashOut);
+  const netCashFlow  = moneyToNumberForDisplay(subtractMoney(totalCashIn, totalCashOut));
   const totalCredits = bankCreditAgg._sum.amountLakhs ?? 0;
   const totalDebits  = bankDebitAgg._sum.amountLakhs  ?? 0;
-  const netBankFlow  = r2(totalCredits - totalDebits);
+  const netBankFlow  = moneyToNumberForDisplay(subtractMoney(totalCredits, totalDebits));
 
   // ── Expense breakdown by category ─────────────────────────────────────────────
   const expenseBreakdown = catBreakdown.map((c) => ({
     category: c.category || "Uncategorized",
-    amount:   fmtMoney(r2((c._sum.amountLakhs ?? 0) + (c._sum.gstAmountLakhs ?? 0))),
+    amount:   fmtMoney(moneyToNumberForDisplay(addMoney(c._sum.amountLakhs ?? 0, c._sum.gstAmountLakhs ?? 0))),
     count:    c._count.id,
   }));
 
@@ -315,7 +317,7 @@ export async function GET(req: NextRequest) {
   const monthMap: Record<string, number> = {};
   for (const e of trendExpenses) {
     const mo = e.expenseDate.toISOString().slice(0, 7); // "2026-06"
-    monthMap[mo] = r2((monthMap[mo] ?? 0) + e.amountLakhs + e.gstAmountLakhs);
+    monthMap[mo] = moneyToNumberForDisplay(addMoney(monthMap[mo] ?? 0, e.amountLakhs, e.gstAmountLakhs));
   }
   const monthlyExpenseTrend = Object.entries(monthMap)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -326,10 +328,11 @@ export async function GET(req: NextRequest) {
   // Percentage computed read-only for display; no mutation of money fields.
   const totalForPct = monthlyExp > 0 ? monthlyExp : 1; // guard against divide-by-zero
   const topExpenseCategories = catBreakdown.slice(0, 5).map((c) => {
-    const amt = r2((c._sum.amountLakhs ?? 0) + (c._sum.gstAmountLakhs ?? 0));
+    const amt = moneyToNumberForDisplay(addMoney(c._sum.amountLakhs ?? 0, c._sum.gstAmountLakhs ?? 0));
     return {
       category:   c.category || "Uncategorized",
       amount:     fmtMoney(amt),
+      // percentage is a ratio, not a money addition — r2() retained for this rounding only
       percentage: fmtMoney(r2((amt / totalForPct) * 100)),
     };
   });

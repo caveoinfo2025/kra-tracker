@@ -21,6 +21,43 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Money helper dry-run integration extended to Finance Dashboard totals (Step 3L)
+Step 3L completed: money helper dry-run integration extended to Finance Dashboard totals. Bank
+Book, Cash Book, Expense, and Dashboard now use Decimal-safe internal arithmetic where selected
+— no Decimal field migration yet. Wired `src/lib/money.ts` into every JS-level total calculation
+in `GET /api/finance/dashboard` (`src/app/api/finance/dashboard/route.ts`) that combines multiple
+values: the base+GST additions feeding `todayExp`, `monthlyExp`, `customerExp`, the per-category
+`expenseBreakdown.amount`, and `topExpenseCategories`'s `amt`; the two net-flow subtractions
+(`netCashFlow` = cashIn − cashOut, `netBankFlow` = credits − debits); and the 3-way running
+`monthMap` accumulation feeding `monthlyExpenseTrend`. Each replaced `r2(...)` call site now uses
+`moneyToNumberForDisplay(addMoney(...))`/`moneyToNumberForDisplay(subtractMoney(...))` immediately
+before the route's existing `fmtMoney()` formatting — the same boundary pattern used for Bank Book
+(Step 3I), Cash Book (Step 3J), and Expense (Step 3K).
+
+**Deliberately left unchanged**: `cashBalance`, `bankBalance`, `advOutstanding`, `claimsPending`,
+`totalCashIn`, `totalCashOut`, `totalCredits`, `totalDebits` — each is a single Prisma `_sum`
+aggregate with only a `?? 0` fallback, never combined with another value in JS, so there is no
+addition/subtraction to wire the helper into (per this step's own "if directly returned from a
+`_sum` and not combined in JS, leave it unchanged" instruction). The `percentage` field's
+`(amt / totalForPct) * 100` calculation was also left on the existing `r2()` helper — it is a
+ratio, not a money addition, so it's out of scope for this dry run; `r2()` itself was therefore
+**not** removed from this file (it still has a live call site), unlike the Step 3K `r2()` removal
+in the Expense routes where every call site was replaced.
+
+No other line in the route changed: authorization (`canViewFinanceDashboard`), period resolution
+(`dateFrom`/`dateTo`/`financialYear`), `branchId`/`accountId` filters, and every `deletedAt: null`
+query are untouched — response field names, types, and JSON shape are byte-for-byte the same.
+Verified equivalent via a standalone Node check covering three calculation shapes used in this
+route: base+GST addition (4 pairs including `0.1 + 0.2`, `10.555 + 1.895`, and an all-zero/
+null-coalesced pair), net-flow subtraction (4 pairs including `0.3 − 0.1`), and the 3-way monthly
+running accumulation (3 chained entries) — every value matched once passed through the route's
+existing `fmtMoney()` boundary. Live HTTP verification was not practical this step (requires an
+authenticated session against the remote Hostinger dev MySQL DB), same limitation as Steps
+3I–3K — static equivalence check used instead. `npx prisma validate`, `npx tsc --noEmit`,
+`npm run build`, and `npm run lint` (589 problems, identical to the Step 3K baseline — confirmed
+no new issues) all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3L row) for the tracker
+entry.
+
 ### 2026-06-22 — Money helper dry-run integration extended to Expense / Advance / Conveyance totals (Step 3K)
 Step 3K completed: money helper dry-run integration extended to Expense / Advance / Conveyance
 totals — no Decimal field migration yet. Wired `src/lib/money.ts` into the isolated read-only
