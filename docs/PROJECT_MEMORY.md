@@ -21,6 +21,76 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3O: live dev data profile + Lakhs-to-INR transformation design + KRA-engine impact + sign-off ledger
+Step 3O completed: a read-only profiling, design, and sign-off step only — no Prisma schema
+change, no migration, no API/UI code change, no database data altered, no Lakhs value converted
+to INR yet, no Decimal field conversion yet.
+
+**Live dev data profile completed** (the blocker carried over from Step 3N). Confirmed
+`DATABASE_URL` pointed at `u686730471_caveodev` before running a read-only Prisma
+`findMany`-plus-in-JS-aggregation script across all 13 candidate fields; deleted immediately
+after capturing results (no scratch files left, confirmed via `git status`). Result:
+`Expense`/`TravelClaim` have **0 rows** in this dev DB today — nothing to profile, but also
+nothing to block on. `EmployeeAdvance` (1 row, ₹0.5L matching the seed exactly), `Payment`
+(1 row, ₹1.61L), and `Collection` (94 real legacy rows, ₹0.003L–₹77.88L) are all **clean** — zero
+negative values, zero suspiciously large values, and the only >2dp scale-exceed counts
+(2/94 on `invoiceValueLakhs`, 60/94 on `amountWithoutGstLakhs`) are fully explained by the
+GST-back-calculation formula (`base = invoice / 1.18`), not by data-entry errors.
+
+**Finance Lakhs-to-INR Transformation Design documented** in
+`docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` — a field-by-field table giving the exact
+transformation for each of the 13 candidate fields: `value * 100000` for every genuine
+Lakhs-denominated field, and explicitly **no transformation** for `TravelClaim.ratePerKm`/
+`amountRupees`, which are already real INR/real ₹-per-km. Each field's target `Decimal` type and
+Release 1/Release 2 placement is specified.
+
+**Code converter/UI-label/API-comment inventory completed** — catalogued every place in the
+codebase that currently assumes Finance fields are Lakhs: the `lakhsToRupees()` functions in
+`FinanceDashboardClient.tsx`, `VouchersClient.tsx`, `expenses/data.ts`, `ClaimsClient.tsx`,
+`AdvancesClient.tsx`, and `bank-book/data.ts` (plus that file's `fmtINRfromLakhs()`); the inline
+`* 100_000` conversions in `ApprovalInboxPage.tsx`/`FinanceApprovalsClient.tsx`;
+`vouchers/[id]/route.ts`'s `amountInWords()` helper; the Collections UI's literal `"L"`-suffix
+labels (`CollectionsClient.tsx`, both the summary cards and the live create/edit form);
+`src/lib/kra-engine.ts`'s direct unconverted reads of `Collection.invoiceValueLakhs`/
+`amountWithoutGstLakhs`; `src/lib/payments.ts`'s `round2()`/epsilon-comparison workaround; and the
+"returned... in ₹ Lakhs" doc comments on the Dashboard/Expense/Bank Book/Cash Book API routes.
+Nothing in this inventory was modified — it documents what must change, and in which release,
+once each source model converts.
+
+**Collection / KRA Engine Impact analysed** — confirmed via direct code reading that
+`kra-engine.ts`'s `onTimeCollectionRate()` is a unit-agnostic ratio (both numerator and
+denominator are `Collection.invoiceValueLakhs`, so the unit cancels out — no risk), but
+`totalCollectionsWithoutGst()` returns an absolute total that feeds `computeKRAProgress()`,
+where it is divided directly against a human-entered KRA target (`billingTarget`) with **zero
+conversion factor today**. Confirmed via `prisma/seed-performance-defaults.ts` that KRA targets
+(`KRATemplateItem.expectedTarget`/`minimumTarget`/`stretchTarget`, e.g. `REVENUE_TARGET:
+expectedTarget: 50`) are genuinely Lakhs-based by convention — a real-INR target would be entered
+as "5,000,000," not "50." **Recommendation**: move `Collection` storage to actual INR per the
+locked policy, keep KRA targets Lakhs-based (don't force a separate UX migration onto KRA
+template configuration), and have `kra-engine.ts` explicitly divide by 100,000 at the
+`totalCollectionsWithoutGst()` scoring boundary in the same release `Collection` converts. This is
+a recommendation requiring explicit sign-off — not yet approved.
+
+**No-Half-Converted-State Rule added**: for any model in a release, the data transformation,
+schema type change, API boundary behavior, UI converters, and documentation must all change
+together. A model must never store actual INR while its UI still multiplies by 100,000, and must
+never store Lakhs while its API documentation claims INR.
+
+**Sign-off ledger (§12 of the readiness check) added.** Result: **Decimal schema conversion
+remains BLOCKED.** Release 1 (`Expense`/`EmployeeAdvance`/`TravelClaim`, 9 fields) is marked
+"Approved with notes" — the grouping and data quality are sound, but the value-transformation
+script itself has not been written or tested (no existing `Expense`/`TravelClaim` rows in dev to
+validate it against). Release 2 (`Payment`/`Collection`, 4 fields) is marked explicitly
+**Blocked**, per this step's own instruction to block Payment/Collection whenever the KRA/
+Collection decision is unresolved — it is recommended here, but not yet signed off by a named
+approver.
+
+**No schema, migration, API route, UI component, or database row was changed.** The only
+database interaction performed was read-only aggregation via Prisma, via a temporary script
+deleted immediately after use. `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all
+pass (reconfirmations, since no application code was changed). See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3O row) for the tracker entry.
+
 ### 2026-06-22 — Money unit policy locked: Lakhs restricted to Leads/Opportunities, Finance must use actual INR (before Step 3O)
 **Money unit policy locked: only Leads and Opportunities use Lakhs. Finance and Accounting
 modules must use actual INR values without Lakhs conversion.** This is a business-rule decision,

@@ -610,3 +610,28 @@ This document is **planning only**. As of this step:
 > this plan; see the readiness check's §0/§8/§10/§11 for the full revised analysis. No schema or
 > code change has been made as a result of this policy yet — it is a locked decision pending
 > Step 3O's design work.
+
+> **Step 3O completed (2026-06-22):**
+> - Live profile completed — run from a DB-accessible environment after confirming
+>   `DATABASE_URL` pointed at the dev DB `u686730471_caveodev`. Result: clean for every
+>   populated field (`EmployeeAdvance`, `Payment`, `Collection`); `Expense`/`TravelClaim` have 0
+>   rows in dev today, so there's nothing to profile yet but also nothing to block on.
+> - Lakhs-to-INR transformation design documented in
+>   `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` — a field-by-field table specifying the
+>   exact `value * 100000` transformation (or, for `TravelClaim.ratePerKm`/`amountRupees`, no
+>   transformation at all since they're already real INR), the target `Decimal` type, and
+>   Release 1/Release 2 placement.
+> - Collection/KRA impact documented — `kra-engine.ts`'s `totalCollectionsWithoutGst()` is the
+>   risk surface (an absolute total compared directly against Lakhs-scaled human-entered KRA
+>   targets with zero conversion today); recommended fix is an explicit `/ 100000` at that
+>   boundary once `Collection` converts, keeping KRA targets Lakhs-based by convention.
+> - First conversion release scope recommended: **Release 1** = `Expense`/`EmployeeAdvance`/
+>   `TravelClaim` (9 fields); **Release 2** = `Payment`/`Collection` (4 fields), additionally
+>   gated on the KRA-engine sign-off.
+> - **No schema/runtime behavior changed.** No Prisma field converted, no migration generated, no
+>   API/UI code touched, no database row written or altered — the only DB interaction was
+>   read-only aggregation via a temporary script, deleted immediately after use. `npx prisma
+>   validate`, `npx tsc --noEmit`, and `npm run build` all pass (reconfirmations, no code
+>   changed). Full sign-off ledger: readiness check §12 — **Decimal schema conversion remains
+>   BLOCKED**; Release 1 is "Approved with notes" (pending a tested transformation script),
+>   Release 2 is explicitly "Blocked" (KRA-engine decision recommended but not yet signed off).

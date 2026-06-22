@@ -14,12 +14,23 @@
 > central Decimal-safe parsing/serialization/arithmetic helper this plan calls for is already
 > built — `src/lib/money.ts` (Step 3H) — and has been wired internally into the Bank Book, Cash
 > Book, Expense, and Finance Dashboard read routes' calculations (Steps 3I–3L); the remaining
-> Finance read routes were reviewed and found to have nothing to wire (Step 3M). **Before any
-> schema field actually converts**, see `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md`
-> (Step 3N) for the candidate-field inventory, data-quality profile (currently blocked — dev DB
-> not reachable from the reviewing environment), API/UI impact review, and first-batch
-> recommendation for the 5 critical models (`Expense`/`EmployeeAdvance`/`TravelClaim`/`Payment`/
-> `Collection`). As of Step 3N, schema conversion is still blocked, not approved.
+> Finance read routes were reviewed and found to have nothing to wire (Step 3M). **Money unit
+> policy locked (2026-06-22, before Step 3O): only CRM Lead/Opportunity/pipeline-estimate fields
+> may use Lakhs — every Finance/Accounting field must store actual INR.** Verification found
+> every existing Finance `*Lakhs` field genuinely stores ₹ Lakhs today (e.g.
+> `EmployeeAdvance.amountLakhs: 0.5` = ₹50,000), so adopting this policy requires a coordinated
+> value transformation (×100,000 per row), not just a naming fix — see
+> `docs/database/DECIMAL_CONVERSION_READINESS_CHECK.md` §0. **Step 3O** (2026-06-22) completed
+> the live dev data profile (clean, no blockers — `u686730471_caveodev`), designed the
+> Lakhs-to-INR transformation field-by-field, inventoried every UI converter/API comment that
+> assumes Lakhs, and analyzed the cross-cutting risk that `Collection.invoiceValueLakhs`/
+> `amountWithoutGstLakhs` feed `src/lib/kra-engine.ts`'s KRA scoring (`KRATemplateItem` targets
+> are genuinely Lakhs-based — confirmed via `prisma/seed-performance-defaults.ts` — so
+> `Collection`'s conversion needs an explicit `/100000` at the KRA-engine scoring boundary). See
+> the readiness check's §12 sign-off table for the full decision ledger. **As of Step 3O, schema
+> conversion remains BLOCKED**: Release 1 (`Expense`/`EmployeeAdvance`/`TravelClaim`) is "Approved
+> with notes" pending a tested transformation script; Release 2 (`Payment`/`Collection`) is
+> explicitly Blocked pending the KRA-engine sign-off.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
