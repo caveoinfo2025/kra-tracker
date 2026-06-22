@@ -21,6 +21,36 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Reusable AuditLog helper created; soft-delete routes refactored to use it (Step 3F)
+Step 3F completed: created `src/lib/audit-log.ts`, exporting `logAuditEvent` (the core writer —
+accepts `entityType`, `entityId`, `action`, `performedById`, `notes`, `changes`, and an optional
+`tx` for either the default `prisma` client or a `Prisma.TransactionClient`), `logSoftDelete` (a
+convenience wrapper fixing `action` to `AUDIT_ACTIONS.SOFT_DELETE` and `changes` to the pre-delete
+row snapshot), and `AUDIT_ACTIONS` (future-safe action-name constants: `SOFT_DELETE`, `RESTORE`,
+`DELETE_BLOCKED_REFERENCE_EXISTS`, `VOUCHER_VOID`, `LEDGER_REVERSAL`, `PAYMENT_POSTED`,
+`EXPENSE_APPROVED`, `ADVANCE_SETTLED`). Refactored all 4 existing Customer/Collection soft-delete
+`AuditLog` writes (the only ones touched in Steps 3D/3E) to call the helper instead of inline
+`prisma.auditLog.create()`: `DELETE /api/customers/master/[id]`, `POST
+/api/customers/master/deduplicate` (merge — helper calls inside the existing
+`prisma.$transaction([...])` array), `DELETE /api/collections/[id]`, `DELETE /api/collections`
+(bulk — helper calls inside the existing `updateMany()` + per-record-audit transaction array).
+Every refactored call site preserves the exact same `action`/`entityType`/`notes`/`changes`
+payload, the same transaction grouping, the same API response shape, and the same permission
+guards — this is a pure internal refactor, not a behavior change. The pipeline lead hard-delete
+(`DELETE /api/pipeline/leads/[id]`) was intentionally left alone — it uses `action: "delete"` (not
+`"SOFT_DELETE"`) and `entityType: "lead"` (lowercase, no special casing), a genuinely different
+delete semantic (hard delete vs soft delete), not an unrefactored oversight; documented as a
+future candidate only if its own semantics are revisited. **Live-verified** in the dev DB using
+disposable test rows (created and cleaned up within this step): Customer single delete, Customer
+merge-delete, Collection single delete, and Collection bulk delete (2 rows) were each exercised
+through the real running API (`fetch()` calls against the dev server, same code path the UI uses)
+and the resulting `AuditLog` rows were confirmed byte-for-byte identical in shape to the
+pre-refactor rows — including the bulk case still writing one `AuditLog` row per affected
+`Collection` inside the same `$transaction`. `npx prisma validate`, `npx tsc --noEmit`, `npm run
+build` (159 pages), and `npm run lint` (589 problems — identical to the Step 3E baseline,
+confirmed no new issues) all pass. See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3F row) and
+`docs/database/SOFT_DELETE_DECISION_LOG.md`/`SOFT_DELETE_MIGRATION_PLAN.md` for full detail.
+
 ### 2026-06-21 — Customer and Collection delete UI flows now require a delete reason (Step 3E)
 Step 3E completed: Customer and Collection delete UI flows now require delete reason. Closed the
 "reason-body limitation" Step 3D documented above — `CustomerMasterClient.tsx`'s new

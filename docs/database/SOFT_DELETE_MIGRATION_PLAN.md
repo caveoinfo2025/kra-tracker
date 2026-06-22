@@ -444,6 +444,18 @@ Phase C, Finance half.
 > disposable dev-only test rows. See `docs/database/SOFT_DELETE_DECISION_LOG.md`'s Step 3E note
 > for full detail.
 
+> **Implementation progress note (2026-06-21, audit utility step — distinct from this plan's own
+> "Step 3F" Finance-delete-route-conversion step in §12 above, which remains not started).**
+> Tracked as **Step 3F** in `docs/RBAC_MIGRATION_TRACKER.md` §4 and `docs/PROJECT_MEMORY.md`:
+> audit logging utility created before Finance write API work. A reusable `src/lib/audit-log.ts`
+> helper (`logAuditEvent`/`logSoftDelete`/`AUDIT_ACTIONS`) now backs the 4 existing Customer/
+> Collection soft-delete `AuditLog` writes — `DELETE /api/customers/master/[id]`, `POST
+> /api/customers/master/deduplicate`, `DELETE /api/collections/[id]`, `DELETE /api/collections`
+> (bulk) — so the §9 audit-logging mandate has one consistent call site instead of 4 duplicated
+> inline `prisma.auditLog.create()` blocks, ahead of the Finance write APIs in §12's Step 3F
+> needing the same pattern. No schema, migration, API response shape, or authorization logic
+> changed. See `docs/database/SOFT_DELETE_DECISION_LOG.md`'s Step 3F note for full detail.
+
 ---
 
 ## 13. Risks And Decisions Needed

@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
+import { logSoftDelete } from "@/lib/audit-log";
 
 export async function PATCH(
   req: Request,
@@ -71,22 +72,19 @@ export async function DELETE(
     data: { deletedAt: new Date(), deletedById: empId, deleteReason },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      entityType:    "customer",
-      entityId:      numId,
-      action:        "SOFT_DELETE",
-      performedById: empId,
-      notes:         deleteReason,
-      changes: JSON.stringify({
-        name:       customer.name,
-        address:    customer.address,
-        district:   customer.district,
-        state:      customer.state,
-        gstNo:      customer.gstNo,
-        officeType: customer.officeType,
-        parentId:   customer.parentId,
-      }),
+  await logSoftDelete({
+    entityType: "customer",
+    entityId: numId,
+    performedById: empId,
+    reason: deleteReason,
+    oldValues: {
+      name:       customer.name,
+      address:    customer.address,
+      district:   customer.district,
+      state:      customer.state,
+      gstNo:      customer.gstNo,
+      officeType: customer.officeType,
+      parentId:   customer.parentId,
     },
   });
 

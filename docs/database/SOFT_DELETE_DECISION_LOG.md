@@ -55,6 +55,23 @@
 > changed. Live-verified against disposable dev-only test rows (created and removed within this
 > step). See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3E row) for full detail.
 
+> **Implementation note (Step 3F, 2026-06-21):**
+> - Reusable AuditLog helper created (`src/lib/audit-log.ts` — `logAuditEvent`/`logSoftDelete`/
+>   `AUDIT_ACTIONS`).
+> - Customer and Collection soft-delete routes refactored to use the helper: `DELETE
+>   /api/customers/master/[id]`, `POST /api/customers/master/deduplicate`, `DELETE
+>   /api/collections/[id]`, `DELETE /api/collections` (bulk).
+> - Future Finance write/delete APIs should use the helper instead of inline
+>   `prisma.auditLog.create()` calls, per §11's audit-logging mandate.
+>
+> The pipeline lead hard-delete (`DELETE /api/pipeline/leads/[id]`) was deliberately left
+> unrefactored — it uses a different `action` value (`"delete"`, not `"SOFT_DELETE"`) and a
+> different `entityType` casing convention (`"lead"`), reflecting a genuinely different delete
+> semantic (hard delete, not soft delete), not an oversight. No schema, migration, API response
+> shape, permission guard, or business behavior changed. AuditLog rows produced by the helper are
+> byte-for-byte identical in shape to the rows the inline calls produced before this step
+> (live-verified against disposable dev-only test rows, created and removed within this step).
+
 ---
 
 ## 1. Decision Summary

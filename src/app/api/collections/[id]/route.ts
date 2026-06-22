@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { logSoftDelete } from "@/lib/audit-log";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -62,21 +63,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     data: { deletedAt: new Date(), deletedById: empId, deleteReason },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      entityType:    "collection",
-      entityId:      numId,
-      action:        "SOFT_DELETE",
-      performedById: empId,
-      notes:         deleteReason,
-      changes: JSON.stringify({
-        invoiceNo:         existing.invoiceNo,
-        customerName:      existing.customerName,
-        invoiceValueLakhs: existing.invoiceValueLakhs,
-        dueDate:           existing.dueDate,
-        collectionStatus:  existing.collectionStatus,
-        employeeId:        existing.employeeId,
-      }),
+  await logSoftDelete({
+    entityType: "collection",
+    entityId: numId,
+    performedById: empId,
+    reason: deleteReason,
+    oldValues: {
+      invoiceNo:         existing.invoiceNo,
+      customerName:      existing.customerName,
+      invoiceValueLakhs: existing.invoiceValueLakhs,
+      dueDate:           existing.dueDate,
+      collectionStatus:  existing.collectionStatus,
+      employeeId:        existing.employeeId,
     },
   });
 

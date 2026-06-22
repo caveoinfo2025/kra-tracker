@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
+import { logSoftDelete } from "@/lib/audit-log";
 
 const LEGAL_SUFFIXES = /\b(private|pvt|limited|ltd|llp|inc|corp|corporation|co|and|&)\b\.?/gi;
 
@@ -86,23 +87,20 @@ export async function POST(req: Request) {
 
   await prisma.$transaction(
     duplicates.map((c) =>
-      prisma.auditLog.create({
-        data: {
-          entityType:    "customer",
-          entityId:      c.id,
-          action:        "SOFT_DELETE",
-          performedById: empId,
-          notes:         deleteReason,
-          changes: JSON.stringify({
-            name:       c.name,
-            address:    c.address,
-            district:   c.district,
-            state:      c.state,
-            gstNo:      c.gstNo,
-            officeType: c.officeType,
-            parentId:   c.parentId,
-            mergedIntoId: keepId,
-          }),
+      logSoftDelete({
+        entityType: "customer",
+        entityId: c.id,
+        performedById: empId,
+        reason: deleteReason,
+        oldValues: {
+          name:       c.name,
+          address:    c.address,
+          district:   c.district,
+          state:      c.state,
+          gstNo:      c.gstNo,
+          officeType: c.officeType,
+          parentId:   c.parentId,
+          mergedIntoId: keepId,
         },
       }),
     ),
