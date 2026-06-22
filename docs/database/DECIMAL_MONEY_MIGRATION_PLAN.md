@@ -337,3 +337,33 @@ This document is **planning only**. As of this step:
   confirmation, not a meaningful check of anything new (consistent with how
   `docs/database/SOFT_DELETE_DECISION_LOG.md`'s own Step 3B-0 documentation step described its
   identical no-op validation).
+
+---
+
+> **Implementation note (Step 3H, 2026-06-21):**
+> - `src/lib/money.ts` created — the central money helper proposed in §5/§9 (Step 3H) of this
+>   plan.
+> - Decimal-safe parsing (`toMoneyDecimal`, `parseMoneyInput`, `safeMoneyDecimal`), serialization
+>   (`moneyToString`, `serializeMoney`, `moneyToNumberForDisplay`), rounding/formatting
+>   (`roundMoney`, `formatMoney`), arithmetic (`addMoney`, `subtractMoney`, `multiplyMoney`,
+>   `divideMoney`), and comparison (`isZeroMoney`, `isPositiveMoney`, `isNegativeMoney`) helpers
+>   were added, all built on Prisma's own `Decimal` (imported from
+>   `@prisma/client/runtime/client`, not the generated client — keeps the module side-effect-free
+>   and avoids pulling in `PrismaClient`'s Node bootstrap code just for the `Decimal` class). No
+>   new npm dependency was added.
+> - The §4 serialization policy (string for persisted/posting APIs, `moneyToNumberForDisplay`
+>   only for display, no bare `Number(decimal)`/`parseFloat` for money, round only at the final
+>   step) is documented directly in the file's header comment and in each export's JSDoc.
+> - Confirmed via a temporary self-check script (run and then deleted, per this step's own
+>   instruction not to introduce a new test framework) that all 23 checks pass: `addMoney("0.1",
+>   "0.2")` → `"0.30"`, `roundMoney("10.555")` → `"10.56"`, `moneyToString(100)` → `"100.00"`,
+>   `divideMoney` rejects division by zero, `toMoneyDecimal`/`parseMoneyInput` reject
+>   `null`/`"abc"`/`NaN`/`Infinity`/objects/booleans, and `isPositiveMoney(0)` correctly returns
+>   `false` (deliberately stricter than decimal.js's own `isPositive()`, which treats `0` as
+>   positive).
+> - **Existing schema/API behavior is unchanged.** No Prisma field converted, no migration
+>   generated, no `src/app/api/finance/*` route (or any other route) wired to this helper yet —
+>   confirmed via `git status`/diff showing only the new `src/lib/money.ts` file plus
+>   documentation. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` (159 pages), and
+>   `npm run lint` (589 problems, identical to the Step 3F/3G baseline — confirmed no new issues)
+>   all pass.

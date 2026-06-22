@@ -21,6 +21,39 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-21 — Central money helper added before Decimal schema conversion (Step 3H)
+Step 3H completed: created `src/lib/money.ts`, the central money helper called for in
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` §5/§9 — built **before** any Prisma schema field
+converts from `Float` to `Decimal`; every money field in `prisma/schema.prisma` is still
+`Float`/`Float?` as of this step. Uses Prisma's own `Decimal` class, imported directly from
+`@prisma/client/runtime/client` rather than the generated client (`@/generated/prisma/client`) so
+the module stays side-effect-free and doesn't pull in `PrismaClient`'s Node bootstrap code
+(`node:process`/`node:path`/`globalThis` assignment) just to get the `Decimal` type — no new npm
+dependency was added. Exports three tiers: strict parsing (`toMoneyDecimal`, `parseMoneyInput`,
+both throwing `InvalidMoneyInputError` on null/undefined/empty-string/non-numeric/non-finite
+input), an explicit lenient escape hatch (`safeMoneyDecimal`, the only place "null becomes zero"
+happens without being asked for), and display/serialization helpers built on that lenient path
+(`moneyToString`, `serializeMoney`, `moneyToNumberForDisplay`, `formatMoney`) — plus strict
+arithmetic (`addMoney`, `subtractMoney`, `multiplyMoney`, `divideMoney` — the last rejecting
+division by zero) and comparisons (`isZeroMoney`, `isPositiveMoney`, `isNegativeMoney` —
+deliberately stricter than decimal.js's own `isPositive()`, which treats `0` as positive). The
+serialization policy (string for persisted/posting APIs, `moneyToNumberForDisplay` only for
+display, never a bare `Number(decimal)`/`parseFloat`, round only at the final step via
+`roundMoney`) is documented in the file's header comment and per-export JSDoc. Verified via a
+temporary self-check script (23 checks — `addMoney("0.1","0.2")` → `"0.30"`,
+`roundMoney("10.555")` → `"10.56"`, `moneyToString(100)` → `"100.00"`, invalid-input rejection for
+`null`/`"abc"`/`NaN`/`Infinity`/objects/booleans, division-by-zero rejection — all passing), then
+deleted per the step's own instruction not to introduce a new test framework. **No Prisma schema
+field was converted, no migration was generated, no API response shape changed, no UI changed,
+and no existing route** (`src/app/api/finance/*`, which today duplicates the exact
+`Math.round(v*100)/100` pattern this helper exists to replace, confirmed via search across
+`accounts`/`advances`/`bank-book`/`cash-book`/`dashboard`/`expenses`/`vouchers` routes — nor
+`src/lib/payments.ts`'s `round2()`/epsilon-comparison workaround) **was wired to the new helper
+yet** — that wiring is explicitly deferred to a later implementation step, not done here.
+`npx prisma validate`, `npx tsc --noEmit`, `npm run build` (159 pages), and `npm run lint` (589
+problems — identical to the Step 3G baseline, confirmed no new issues) all pass. See
+`docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3H row) for the tracker entry.
+
 ### 2026-06-21 — Decimal money migration plan created (Step 3G)
 Step 3G completed: created `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` — a planning/
 documentation step only, ahead of Finance write APIs being built. Inventoried every money-like

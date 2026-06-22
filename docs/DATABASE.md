@@ -10,7 +10,9 @@
 > `EmployeeAdvance`, `TravelClaim`, `FinAccount`, etc.) should migrate to `Decimal(18,2)` to
 > avoid float-rounding errors in accounting totals. See
 > `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md` (Step 3G) for the full field inventory and
-> phased plan — not yet implemented; schema is still `Float` everywhere as of this note.
+> phased plan — not yet implemented; schema is still `Float` everywhere as of this note. The
+> central Decimal-safe parsing/serialization/arithmetic helper this plan calls for is already
+> built — `src/lib/money.ts` (Step 3H) — but not yet wired into any route.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
