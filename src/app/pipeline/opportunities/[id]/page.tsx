@@ -43,6 +43,7 @@ export default async function OppDetailPage({ params }: { params: Promise<{ id: 
           value: moneyToNumberForDisplay(opp.value),
           dealValueExTax: moneyToNumberForDisplay(opp.dealValueExTax),
           netProfitLakhs: moneyToNumberForDisplay(opp.netProfitLakhs),
+          lead: { ...opp.lead, expectedValue: moneyToNumberForDisplay(opp.lead.expectedValue) },
         }))}
         isManager={!!session.user.isManager}
         currentEmployeeId={session.user.employeeId}

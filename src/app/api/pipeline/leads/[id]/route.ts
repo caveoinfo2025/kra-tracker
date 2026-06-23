@@ -4,11 +4,21 @@ import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
 import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
 
-function leadForResponse<T extends { expectedValue: unknown; opportunity?: { value: unknown } | null }>(l: T) {
+function leadForResponse<T extends {
+  expectedValue: unknown;
+  opportunity?: { value: unknown; dealValueExTax: unknown; netProfitLakhs: unknown } | null;
+}>(l: T) {
   return {
     ...l,
     expectedValue: moneyToNumberForDisplay(l.expectedValue as never),
-    ...(l.opportunity ? { opportunity: { ...l.opportunity, value: moneyToNumberForDisplay(l.opportunity.value as never) } } : {}),
+    ...(l.opportunity ? {
+      opportunity: {
+        ...l.opportunity,
+        value: moneyToNumberForDisplay(l.opportunity.value as never),
+        dealValueExTax: moneyToNumberForDisplay(l.opportunity.dealValueExTax as never),
+        netProfitLakhs: moneyToNumberForDisplay(l.opportunity.netProfitLakhs as never),
+      },
+    } : {}),
   };
 }
 

@@ -118,6 +118,7 @@ export default async function OpportunitiesPage({
     value: moneyToNumberForDisplay(o.value),
     dealValueExTax: moneyToNumberForDisplay(o.dealValueExTax),
     netProfitLakhs: moneyToNumberForDisplay(o.netProfitLakhs),
+    lead: { ...o.lead, expectedValue: moneyToNumberForDisplay(o.lead.expectedValue) },
   }));
   const allOpps = [...JSON.parse(JSON.stringify(rawOppsSer)), ...legacyOpps];
 

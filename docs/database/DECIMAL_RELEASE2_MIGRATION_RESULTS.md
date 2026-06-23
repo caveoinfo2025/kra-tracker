@@ -215,9 +215,34 @@ engine's comparisons are genuinely INR-to-INR consistent post-migration, not coi
 No production database was touched at any point. No `db push` was used. No Voucher/Ledger/Finance
 write API was implemented or modified.
 
-### 2.4 Known limitations / naming debt
+### 2.4 Field count correction (Step 3V audit finding)
 
-- All 10 migrated fields still carry their legacy `*Lakhs` field names (`amountLakhs`,
+The implementation summary previously stated "10 fields". **This was an off-by-one documentation
+error**, caught during the Step 3V post-migration audit. The actual, correct count — re-derived
+directly from `prisma/schema.prisma` and the migration SQL — is **11 fields across 6 models**:
+
+1. `Payment.amountLakhs`
+2. `Collection.invoiceValueLakhs`
+3. `Collection.amountWithoutGstLakhs`
+4. `Collection.amountReceivedLakhs`
+5. `OrderAdvance.amountLakhs`
+6. `CrmLead.expectedValue`
+7. `CrmOpportunity.value`
+8. `CrmOpportunity.dealValueExTax`
+9. `CrmOpportunity.netProfitLakhs`
+10. `SalesFunnel.dealValueLakhs`
+11. `SalesFunnel.billingValueLakhs`
+
+The miscount came from conflating "6 models" with "10 fields" — `Collection` and
+`CrmOpportunity` each contribute 3 converted fields, not 1. **All 11 fields were correctly
+converted** in both the schema and the migration SQL — this was purely a documentation/count
+error, not a missed field or a defect in the migration. Corrected across every doc file in Step
+3V (see `DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §17 and the Step 3V entries in the other 5
+docs).
+
+### 2.5 Known limitations / naming debt
+
+- All 11 migrated fields still carry their legacy `*Lakhs` field names (`amountLakhs`,
   `dealValueLakhs`, etc.) even though they now store actual ₹ INR — renaming is deferred (same
   debt pattern already accepted for Release 1's `Expense.amountLakhs`).
 - `KRATemplateItem.expectedTarget`/`stretchTarget`/`minimumTarget` remain `Float` columns shared
@@ -231,3 +256,53 @@ write API was implemented or modified.
   preserving the original Lakhs-vs-Lakhs comparison without expanding migration scope.
 - `Notification.amountLakhs` remains `Float`, unconverted (out of scope) — `payments.ts` converts
   the now-INR payment amount to a display number via `moneyToNumberForDisplay()` before writing it.
+
+---
+
+## 3. Step 3V Post-Migration Audit (2026-06-23)
+
+Independent read-only audit performed against `u686730471_caveodev` after the Release 2
+implementation and commit (`00eec79`). Confirms the migration's actual end state — re-derived
+directly from the DB, schema, and code, not from the implementation's own self-report.
+
+### 3.1 Audit table
+
+| Area | Field/Metric | Record ID / Count | Expected Unit | Actual DB Unit | Pass | Notes |
+| ---- | ------------ | ------------------ | -------------- | --------------- | :--: | ----- |
+| Schema | `Payment.amountLakhs` | 1 row | INR, `Decimal(18,2)` | INR, `Decimal(18,2)` | ✅ | min=max=161,000.00 |
+| Schema | `Collection.invoiceValueLakhs` | 94 rows | INR | INR | ✅ | range 322.49–7,788,000 |
+| Schema | `Collection.amountWithoutGstLakhs` | 94 rows | INR | INR | ✅ | range 273.30–6,600,000 |
+| Schema | `Collection.amountReceivedLakhs` | 94 rows | INR | INR | ✅ | range 0–7,788,000 (0 = unpaid invoice, valid) |
+| Schema | `OrderAdvance.amountLakhs` | 0 rows | INR (no-op) | INR (no-op) | ✅ | 0 rows confirmed, schema/type still converted |
+| Schema | `CrmLead.expectedValue` | 38 rows | INR | INR | ✅ | range 0–5,912,440 |
+| Schema | `CrmOpportunity.value` | 21 rows | INR | INR | ✅ | range 0–5,912,440 |
+| Schema | `CrmOpportunity.dealValueExTax` | 21 rows | INR | INR | ✅ | range 0–525,000 |
+| Schema | `CrmOpportunity.netProfitLakhs` | 21 rows | INR | INR | ✅ | range 0–1,850,000 |
+| Schema | `SalesFunnel.dealValueLakhs` | 100 rows | INR | INR | ✅ | range 273.30–4,303,200.40 |
+| Schema | `SalesFunnel.billingValueLakhs` | 100 rows | INR | INR | ✅ | range 0–5,077,776.47 |
+| Data-only | `KRATemplateItem` AMOUNT rows (id 1, 2, 16) | 3 rows | INR | INR | ✅ | id1 exp=7,000,000; id2 exp=6,300,000; id16 exp=180,000,000 — all ×100000 of Section 1.5 baseline |
+| Data-only | `KRATemplateItem` non-AMOUNT rows | 14 rows | unchanged (% / count scale) | unchanged | ✅ | 0 rows >1000 (no accidental multiply) |
+| Free-text | `KRA.target` confirmed-money labels | 14 label-occurrences across 8 rows | INR (≥1000 scale) | INR | ✅ | 0 anomalies <1000 found |
+| Free-text | `EmployeeTarget.targetJson` confirmed-money labels | 14 label-occurrences across 8 rows | INR (≥1000 scale) | INR | ✅ | 0 anomalies <1000 found |
+| No-op | `TeamTarget` | 0 rows | n/a | n/a | ✅ | still 0 rows, no-op remains valid |
+| Integrity | Nulls introduced | all 11 fields | 0 | 0 | ✅ | confirmed via aggregate scan, no nulls in any of the 11 fields |
+| Integrity | Negative values introduced | all 11 fields | 0 | 0 | ✅ | confirmed via aggregate scan |
+| Integrity | Double multiplication | all 11 fields + 3 AMOUNT template rows | exact ×100000 once | exact ×100000 once | ✅ | spot-checked against Section 1's pre-migration values (§2.1) |
+| Integrity | Leftover Lakhs-scale values | all 11 fields | none | none | ✅ | min values (e.g. 322.49, 273.30) are genuinely small INR amounts, not un-migrated Lakhs (would need to be <100 to be suspect at this scale) |
+| Integrity | Percentage/count metrics accidentally multiplied | 14 non-AMOUNT `KRATemplateItem` rows | unchanged | unchanged | ✅ | 0 rows exceed 1000 |
+| Exclusion | `Voucher` | 0 rows | unchanged | unchanged | ✅ | matches Section 1.9 baseline |
+| Exclusion | `Ledger` | 0 rows | unchanged | unchanged | ✅ | matches Section 1.9 baseline |
+| Exclusion | `FinAccount` | 2 rows | unchanged | unchanged | ✅ | matches Section 1.9 baseline |
+| Exclusion | `Expense.amountLakhs` (Release 1 field) | 2 rows | unchanged INR | unchanged INR | ✅ | values 10,000 / 1,055,500 — not re-multiplied by Release 2 |
+| Exclusion | `EmployeeAdvance.amountLakhs` (Release 1 field) | 1 row | unchanged INR | unchanged INR | ✅ | value 50,000 |
+| Exclusion | `TravelClaim.amountLakhs` (Release 1 field) | 1 row | unchanged INR | unchanged INR | ✅ | value 2,500 |
+| Migration state | `_prisma_migrations` | 1 row | recorded, not rolled back | recorded, not rolled back | ✅ | `finished_at` 2026-06-23T10:32:05Z, `rolled_back_at` null |
+| Migration state | Production DB | n/a | untouched | untouched | ✅ | `DATABASE_URL` confirmed `u686730471_caveodev` before every query this session |
+| Migration state | `db push` usage | n/a | not used | not used | ✅ | only `migrate resolve --applied` + `generate` found in history |
+| Field count | Release 2 schema fields | n/a | 11 (corrected from "10") | 11 | ✅ | see §2.4 — documentation off-by-one, not a migration defect |
+
+### 3.2 Result
+
+**No defects found.** Every value, type, and exclusion check passes. The only issue identified
+across this audit is the documentation field-count error (10 → 11, corrected in §2.4) — not a
+schema, data, or code defect.

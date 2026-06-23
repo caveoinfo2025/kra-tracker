@@ -125,6 +125,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json({
     ...updatedLead,
     expectedValue: moneyToNumberForDisplay(updatedLead.expectedValue),
-    opportunity: { ...opportunity, value: moneyToNumberForDisplay(opportunity.value) },
+    opportunity: {
+      ...opportunity,
+      value: moneyToNumberForDisplay(opportunity.value),
+      dealValueExTax: moneyToNumberForDisplay(opportunity.dealValueExTax),
+      netProfitLakhs: moneyToNumberForDisplay(opportunity.netProfitLakhs),
+    },
   });
 }

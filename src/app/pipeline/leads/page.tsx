@@ -67,7 +67,12 @@ export default async function LeadsPage({
         initialLeads={JSON.parse(JSON.stringify(rawLeads.map((l) => ({
           ...l,
           expectedValue: moneyToNumberForDisplay(l.expectedValue),
-          opportunity: l.opportunity ? { ...l.opportunity, value: moneyToNumberForDisplay(l.opportunity.value) } : null,
+          opportunity: l.opportunity ? {
+            ...l.opportunity,
+            value: moneyToNumberForDisplay(l.opportunity.value),
+            dealValueExTax: moneyToNumberForDisplay(l.opportunity.dealValueExTax),
+            netProfitLakhs: moneyToNumberForDisplay(l.opportunity.netProfitLakhs),
+          } : null,
         }))))}
         employees={employees}
         isManager={isManager}

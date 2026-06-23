@@ -62,7 +62,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         lead={JSON.parse(JSON.stringify({
           ...lead,
           expectedValue: moneyToNumberForDisplay(lead.expectedValue),
-          opportunity: lead.opportunity ? { ...lead.opportunity, value: moneyToNumberForDisplay(lead.opportunity.value) } : null,
+          opportunity: lead.opportunity ? {
+            ...lead.opportunity,
+            value: moneyToNumberForDisplay(lead.opportunity.value),
+            dealValueExTax: moneyToNumberForDisplay(lead.opportunity.dealValueExTax),
+            netProfitLakhs: moneyToNumberForDisplay(lead.opportunity.netProfitLakhs),
+          } : null,
         }))}
         employees={employees}
         isManager={!!session.user.isManager}

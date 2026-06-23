@@ -3,12 +3,16 @@ import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { moneyToNumberForDisplay } from "@/lib/money";
 
-function oppForResponse<T extends { value: unknown; dealValueExTax: unknown; netProfitLakhs: unknown }>(o: T) {
+function oppForResponse<T extends {
+  value: unknown; dealValueExTax: unknown; netProfitLakhs: unknown;
+  lead?: { expectedValue: unknown } | null;
+}>(o: T) {
   return {
     ...o,
     value: moneyToNumberForDisplay(o.value as never),
     dealValueExTax: moneyToNumberForDisplay(o.dealValueExTax as never),
     netProfitLakhs: moneyToNumberForDisplay(o.netProfitLakhs as never),
+    ...(o.lead ? { lead: { ...o.lead, expectedValue: moneyToNumberForDisplay(o.lead.expectedValue as never) } } : {}),
   };
 }
 
