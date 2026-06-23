@@ -140,6 +140,15 @@
 > stability check: `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`. **Production has NOT
 > been migrated** — this applies to dev only. `Voucher`/`Ledger`/`FinAccount`/`Expense`/
 > `EmployeeAdvance`/`TravelClaim` and non-`AMOUNT` `KRATemplateItem` rows confirmed unchanged.
+>
+> **Production migration sign-off plan created (Step 3W, 2026-06-23) — planning only, nothing
+> executed.** `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` documents that
+> production's `_prisma_migrations` holds only a single baseline row from the 2026-06-02
+> SQLite→MySQL cutover (no subsequent production migrate-deploy event is documented anywhere),
+> and that `master` (production's branch) is 78 commits behind `uat`. The real production gap is
+> very likely the entire post-baseline migration history, not just the two Decimal releases.
+> Every production-state claim in that document is marked "Needs verification." Go/No-Go and
+> sign-off ledgers are both Pending — no production execution is authorized.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

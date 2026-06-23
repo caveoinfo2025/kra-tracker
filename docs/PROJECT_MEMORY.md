@@ -21,6 +21,29 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 3W: Production Decimal / INR migration sign-off plan created (planning only)
+
+Created `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` — a planning, risk-
+review, and sign-off document only. No production database was queried, no migration was run, no
+Prisma schema/API/UI code was changed, no business data was updated, no `db push` was used.
+Summarizes the now-fully-audited dev Release 1 (`Expense`/`EmployeeAdvance`/`TravelClaim`) and
+Release 2 (`Payment`/`Collection`/`OrderAdvance`/`CrmLead`/`CrmOpportunity`/`SalesFunnel`/Sales-
+KRA targets) work, both explicitly documented as **not yet migrated in production**
+(`docs/DATABASE.md`). **Key finding:** production's `_prisma_migrations` table was seeded with a
+single baseline row at the 2026-06-02 SQLite→MySQL cutover, with no subsequent production
+migrate-deploy event documented anywhere in this project's history — meaning, read literally,
+every one of the ~20 migrations since that baseline (not only the two Decimal releases named in
+this step's instructions) may still be unapplied to production. Separately confirmed `master`
+(the documented production branch) is **78 commits behind `uat`** — every Decimal-release feature
+exists only on `uat`. Every production-state claim in the new document is marked "Needs
+verification," none assumed. The plan covers production pre-checks, an expanded migration-history
+gap review (the full migration list, not just the two previously-known gap entries), backup/
+rollback, maintenance-window planning, a designed-not-executed execution sequence, a production
+verification plan, and Go/No-Go + sign-off ledgers — all rows Pending. **No production execution
+is authorized by this step.** `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass
+(reconfirmations only). Full record: `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`,
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`, `docs/RBAC_MIGRATION_TRACKER.md` (Step 3W row).
+
 ### 2026-06-23 — Step 3V-1: Release 2 audit closure (TeamTarget table-name fix, verification only)
 
 Closed the one open item from Step 3V's post-migration audit: its `TeamTarget` raw-SQL query had

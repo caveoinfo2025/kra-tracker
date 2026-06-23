@@ -919,3 +919,14 @@ This document is **planning only**. As of this step:
 > no code/schema/data changed. Full record:
 > `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md` §4,
 > `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §17.
+
+> **Production sign-off planning created after Step 3V-1 audit closure (Step 3W, 2026-06-23):**
+> created `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` — a planning/risk-
+> review document only, no production query, migration, schema, code, or data change. Flags that
+> production's `_prisma_migrations` was seeded with a single baseline row at the 2026-06-02
+> SQLite→MySQL cutover with no subsequent production migrate-deploy event documented anywhere,
+> and that the `master` branch (production) is 78 commits behind `uat` — meaning the real
+> production gap is likely the entire post-baseline migration history, not just the two Decimal
+> releases. Every production-state claim in the new document is marked "Needs verification."
+> Go/No-Go checklist and sign-off ledger both Pending — production execution is not authorized by
+> this step.

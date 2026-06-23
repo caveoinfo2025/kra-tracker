@@ -906,3 +906,25 @@ non-`AMOUNT` `KRATemplateItem` rows confirmed unmultiplied. No hidden Release 2 
 Verification-only — no schema, code, or data change; no RBAC/permission tables touched. Full
 record: `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md` §4,
 `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §17.
+
+## Step 3W — Production Decimal / INR migration planning (2026-06-23)
+
+Not an RBAC change. Created `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` —
+a planning, risk-review, and sign-off document only; no production database was queried, no
+migration was run, no schema/code/data was changed, no `db push` was used. Summarizes both
+completed and audited dev releases (Release 1: `Expense`/`EmployeeAdvance`/`TravelClaim`;
+Release 2: `Payment`/`Collection`/`OrderAdvance`/`CrmLead`/`CrmOpportunity`/`SalesFunnel`/Sales-
+KRA targets) and documents that production has explicitly NOT been migrated for either
+(`docs/DATABASE.md`). Key finding: production's `_prisma_migrations` was seeded with a single
+baseline row at the 2026-06-02 SQLite→MySQL cutover with no subsequent production migrate-deploy
+event documented anywhere — read literally, every one of the ~20 migrations since that baseline
+(not just the two Decimal releases) may still be unapplied to production. Separately, `master`
+(the documented production branch) is 78 commits behind `uat` (confirmed via `git rev-list
+--count master..uat`) — every feature in both Decimal releases exists only on `uat`. Every
+production-state claim in the new document is marked "Needs verification," not assumed. Covers
+production pre-checks, the migration-history gap review extended to the full migration list (not
+just the previously-known `add_advance_category`/`employeetarget_relations` gap), backup/rollback
+plan, maintenance-window plan, a designed-not-executed execution sequence, a production
+verification plan, and Go/No-Go + sign-off ledgers — both fully Pending. No production execution
+is authorized by this step. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅ —
+reconfirmations only, since no app code changed.
