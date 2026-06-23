@@ -2,6 +2,7 @@
 import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import SalesFunnelClient from "./SalesFunnelClient";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export default async function SalesFunnelPage() {
   const session = await getSession();
@@ -27,7 +28,11 @@ export default async function SalesFunnelPage() {
       description="Track opportunities from Lead to Closed Won. Auto-feeds Revenue, Pipeline, New Customer & PoC KPIs."
     >
       <SalesFunnelClient
-        initialRows={JSON.parse(JSON.stringify(rows))}
+        initialRows={JSON.parse(JSON.stringify(rows.map((r) => ({
+          ...r,
+          dealValueLakhs: moneyToNumberForDisplay(r.dealValueLakhs),
+          billingValueLakhs: moneyToNumberForDisplay(r.billingValueLakhs),
+        }))))}
         employees={employees}
         isManager={isManager}
         currentEmployeeId={empId}

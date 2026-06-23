@@ -1,6 +1,15 @@
 ﻿import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
+
+function funnelForResponse<T extends { dealValueLakhs: unknown; billingValueLakhs: unknown }>(r: T) {
+  return {
+    ...r,
+    dealValueLakhs: moneyToNumberForDisplay(r.dealValueLakhs as never),
+    billingValueLakhs: moneyToNumberForDisplay(r.billingValueLakhs as never),
+  };
+}
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -16,7 +25,7 @@ export async function GET(req: Request) {
     include: { employee: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json(rows);
+  return NextResponse.json(rows.map(funnelForResponse));
 }
 
 export async function POST(req: Request) {
@@ -47,8 +56,8 @@ export async function POST(req: Request) {
       solutionCategory: body.solutionCategory ?? "",
       opportunityName: body.opportunityName,
       stage: body.stage ?? "Lead",
-      dealValueLakhs: Number(body.dealValueLakhs ?? 0),
-      billingValueLakhs: Number(body.billingValueLakhs ?? 0),
+      dealValueLakhs: parseMoneyInput(body.dealValueLakhs ?? 0),
+      billingValueLakhs: parseMoneyInput(body.billingValueLakhs ?? 0),
       grossProfitPct: Number(body.grossProfitPct ?? 0),
       proposalDate: body.proposalDate ? new Date(body.proposalDate) : null,
       expectedCloseDate: body.expectedCloseDate ? new Date(body.expectedCloseDate) : null,
@@ -65,6 +74,6 @@ export async function POST(req: Request) {
     },
     include: { employee: { select: { name: true } } },
   });
-  return NextResponse.json(row, { status: 201 });
+  return NextResponse.json(funnelForResponse(row), { status: 201 });
 }
 

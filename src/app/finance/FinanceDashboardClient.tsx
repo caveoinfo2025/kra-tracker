@@ -13,6 +13,7 @@ import {
   TrendingUp, Users, Plus, FileText, Banknote, ArrowRight,
   AlertCircle, Loader2, RefreshCw,
 } from "lucide-react";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 // ─── Money helpers ─────────────────────────────────────────────────────────────
 
@@ -45,9 +46,8 @@ function fmtINRDirect(s: string): string {
 // actual ₹ INR from the API; fmt()/fmtShort() below assume a Lakhs-scale input for
 // their Cr/L/K compact-display thresholds — convert back to a Lakhs-equivalent number
 // before feeding them in, so the existing chart formatting logic keeps working.
-function inrToLakhsEquivalent(inr: number): number {
-  return inr / 100000;
-}
+// (inrToLakhsEquivalent is now the shared helper from src/lib/money.ts, promoted there
+// in Release 2 since Sales/KRA surfaces need the same conversion.)
 
 function fmtShort(lakhs: number): string {
   if (lakhs >= 100) return `${(lakhs / 100).toFixed(1)}Cr`;

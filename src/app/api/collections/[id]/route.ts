@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { logSoftDelete } from "@/lib/audit-log";
+import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -23,19 +24,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       invoiceNo: body.invoiceNo,
       customerName: body.customerName,
       customerId: body.customerId !== undefined ? (body.customerId ? Number(body.customerId) : null) : undefined,
-      invoiceValueLakhs: body.invoiceValueLakhs !== undefined ? Number(body.invoiceValueLakhs) : undefined,
-      amountWithoutGstLakhs: body.amountWithoutGstLakhs !== undefined ? Number(body.amountWithoutGstLakhs) : undefined,
+      invoiceValueLakhs: body.invoiceValueLakhs !== undefined ? parseMoneyInput(body.invoiceValueLakhs) : undefined,
+      amountWithoutGstLakhs: body.amountWithoutGstLakhs !== undefined ? parseMoneyInput(body.amountWithoutGstLakhs) : undefined,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
       paymentReceivedDate: body.paymentReceivedDate !== undefined
         ? (body.paymentReceivedDate ? new Date(body.paymentReceivedDate) : null)
         : undefined,
-      amountReceivedLakhs: body.amountReceivedLakhs !== undefined ? Number(body.amountReceivedLakhs) : undefined,
+      amountReceivedLakhs: body.amountReceivedLakhs !== undefined ? parseMoneyInput(body.amountReceivedLakhs) : undefined,
       collectionStatus: body.collectionStatus,
       remarks: body.remarks,
     },
     include: { employee: { select: { name: true } } },
   });
-  return NextResponse.json(row);
+  return NextResponse.json({
+    ...row,
+    invoiceValueLakhs: moneyToNumberForDisplay(row.invoiceValueLakhs),
+    amountWithoutGstLakhs: moneyToNumberForDisplay(row.amountWithoutGstLakhs),
+    amountReceivedLakhs: moneyToNumberForDisplay(row.amountReceivedLakhs),
+  });
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {

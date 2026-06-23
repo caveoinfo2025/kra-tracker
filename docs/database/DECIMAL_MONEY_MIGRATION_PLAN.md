@@ -898,3 +898,13 @@ This document is **planning only**. As of this step:
 >   unconverted; this step only removed the prerequisite blocker.
 > - `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass.
 > - Full record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §15.
+
+> **Step 3U implementation completed (2026-06-23):** Release 2 (Sales/CRM/KRA Lakhs→INR) is now
+> implemented on the dev DB — `Payment.amountLakhs`, `Collection.invoiceValueLakhs`/
+> `amountWithoutGstLakhs`/`amountReceivedLakhs`, `OrderAdvance.amountLakhs`,
+> `CrmLead.expectedValue`, `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`,
+> `SalesFunnel.dealValueLakhs`/`billingValueLakhs` all converted Float → Decimal(18,2) storing
+> actual ₹ INR, plus the 3 AMOUNT-typed `KRATemplateItem` rows' data and the 8 confirmed-money
+> `KRA.target`/`EmployeeTarget.targetJson` entries multiplied by 100000 in place. `money.ts`'s
+> helpers are now wired into `payments.ts`, `kra-engine.ts`, and ~15 API routes. Full results:
+> `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`.

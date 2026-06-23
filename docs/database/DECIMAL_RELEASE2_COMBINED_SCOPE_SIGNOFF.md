@@ -666,3 +666,51 @@ money-value row (Payment, Collection, Lead, Opportunity, Funnel, the other `AMOU
 3U implementation following Section 7's sequence.
 
 No production database or schema was touched at any point in this step.
+
+---
+
+## 16. Release 2 Implementation Complete (Step 3U, 2026-06-23)
+
+Following Section 7's sequence and Section 13's `KRATemplateItem` #16 resolution, the combined
+Release 2 INR migration was implemented and applied to the dev DB (`u686730471_caveodev` only).
+Full results in `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`.
+
+**Schema:** 10 fields converted `Float` → `Decimal @db.Decimal(18,2)` — `Payment.amountLakhs`,
+`Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/`amountReceivedLakhs`,
+`OrderAdvance.amountLakhs`, `CrmLead.expectedValue`, `CrmOpportunity.value`/`dealValueExTax`/
+`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/`billingValueLakhs`. Field names unchanged (legacy
+"Lakhs" naming debt, same pattern as Release 1). `KRATemplateItem.expectedTarget`/`stretchTarget`/
+`minimumTarget` columns left `Float` (shared across metric types) — only the 3 `AMOUNT`-typed
+rows' data was multiplied via a JOIN-filtered `UPDATE`.
+
+**Migration:** `prisma/migrations/20260623060000_decimal_release2_combined_inr_canonical/
+migration.sql` — two-phase (value transform while column is still old type, then `ALTER TABLE`),
+applied via a guarded one-off script, then `prisma migrate resolve --applied` + `prisma generate`.
+
+**Free-text transform:** `KRA.target` and `EmployeeTarget.targetJson` — only the 8 confirmed-money
+labelled entries per table (from Section 12's live-DB scan) were multiplied by 100000 in place,
+via a guarded Node script that re-implemented `parseTargets()`'s exact parsing logic to guarantee
+every other label stays byte-identical.
+
+**Code:** `src/lib/money.ts` gained `inrToLakhsEquivalent()` (display-only ₹→₹L conversion,
+promoted from a local helper in `FinanceDashboardClient.tsx`). `src/lib/payments.ts` rewritten to
+use `money.ts` helpers throughout (reconciliation tolerance re-expressed as ₹100, same real-world
+meaning). `src/lib/kra-engine.ts` updated so every aggregate reads Decimal fields via
+`moneyToNumberForDisplay()` before arithmetic, and every user-facing notes string converts back to
+₹L via `inrToLakhsEquivalent()` before `.toFixed()` — comparisons stay INR-to-INR throughout, only
+display changes. ~15 API routes updated to parse money inputs via `parseMoneyInput()` and guard
+GET responses with `moneyToNumberForDisplay()`/`inrToLakhsEquivalent()` (Decimal serializes as a
+quoted string via `toJSON()`, which would otherwise silently turn `number` API contracts into
+`string`). UI forms/labels for Sales/CRM operational pages relabelled `"...(₹L)"` → `"...(₹)"`
+(real INR input/display); dashboards, KRA views, reports, and mobile screens keep Lakhs display by
+inserting `inrToLakhsEquivalent()` before existing formatting, per the recorded business sign-off
+in Section 12.6.
+
+**Verification:** Section 2 of the migration results doc confirms every field's ×100000 transform,
+re-derives the Section 1.8 KRA-scoring baseline against post-migration data (matches within
+floating-point noise), and re-confirms every excluded model (Voucher/Ledger/FinAccount/Expense/
+EmployeeAdvance/TravelClaim/non-AMOUNT KRATemplateItem/TeamTarget) unchanged. `npx prisma
+validate`, `npx tsc --noEmit` clean.
+
+No production database was touched. No `db push` was used. Voucher/Ledger/Finance write APIs were
+not implemented or modified.

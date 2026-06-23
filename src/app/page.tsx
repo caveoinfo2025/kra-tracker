@@ -6,6 +6,7 @@ import Badge from "@/components/Badge";
 import ProgressBar from "@/components/ProgressBar";
 import TeamSummaryClient from "./TeamSummaryClient";
 import { hasManagerReach } from "@/lib/roles";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -62,8 +63,11 @@ export default async function DashboardPage() {
   const billingMap: Record<number, { billed: number; withoutGst: number }> = {};
   for (const c of allCollections) {
     if (!billingMap[c.employeeId]) billingMap[c.employeeId] = { billed: 0, withoutGst: 0 };
-    billingMap[c.employeeId].billed     += c.invoiceValueLakhs ?? 0;
-    billingMap[c.employeeId].withoutGst += c.amountWithoutGstLakhs ?? 0;
+    // Dashboard display only — convert actual ₹ INR back to ₹-Lakhs-equivalent immediately at
+    // the read boundary, since every downstream consumer of these maps (this page's cards,
+    // TeamSummaryClient) is calibrated for Lakhs-scale numbers.
+    billingMap[c.employeeId].billed     += inrToLakhsEquivalent(c.invoiceValueLakhs ?? 0);
+    billingMap[c.employeeId].withoutGst += inrToLakhsEquivalent(c.amountWithoutGstLakhs ?? 0);
   }
 
   const totalOverdue    = Object.values(overdueMap).reduce((s, v) => s + v, 0);
@@ -80,11 +84,12 @@ export default async function DashboardPage() {
   const bookingMap: Record<number, number>    = {};
   const categoryTotals: Record<string, number> = {};
   for (const d of closedWonDeals) {
-    bookingMap[d.employeeId] = (bookingMap[d.employeeId] ?? 0) + d.dealValueLakhs;
+    const valueLakhs = inrToLakhsEquivalent(d.dealValueLakhs);
+    bookingMap[d.employeeId] = (bookingMap[d.employeeId] ?? 0) + valueLakhs;
     const cat = d.solutionCategory?.trim() || "Other";
-    categoryTotals[cat] = (categoryTotals[cat] ?? 0) + d.dealValueLakhs;
+    categoryTotals[cat] = (categoryTotals[cat] ?? 0) + valueLakhs;
   }
-  const totalBooking     = closedWonDeals.reduce((s, d) => s + d.dealValueLakhs, 0);
+  const totalBooking     = closedWonDeals.reduce((s, d) => s + inrToLakhsEquivalent(d.dealValueLakhs), 0);
   const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
 
   // Active pipeline per employee
@@ -92,8 +97,9 @@ export default async function DashboardPage() {
   const pipelineMap: Record<number, number> = {};
   const stageMap: Record<string, number>    = {};
   for (const d of activeFunnel) {
-    pipelineMap[d.employeeId] = (pipelineMap[d.employeeId] ?? 0) + d.dealValueLakhs;
-    stageMap[d.stage]         = (stageMap[d.stage]         ?? 0) + d.dealValueLakhs;
+    const valueLakhs = inrToLakhsEquivalent(d.dealValueLakhs);
+    pipelineMap[d.employeeId] = (pipelineMap[d.employeeId] ?? 0) + valueLakhs;
+    stageMap[d.stage]         = (stageMap[d.stage]         ?? 0) + valueLakhs;
   }
   const totalPipeline = Object.values(pipelineMap).reduce((s, v) => s + v, 0);
 

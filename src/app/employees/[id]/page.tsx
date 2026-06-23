@@ -7,6 +7,7 @@ import ProgressBar from "@/components/ProgressBar";
 import KRASection from "./KRASection";
 import ReviewSection from "./ReviewSection";
 import type { EmployeeSerialized } from "@/lib/types";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 function getWeekNumber(date: Date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -123,11 +124,19 @@ export default async function EmployeeDetailPage({
   // Serialize for client rendering
   const upcomingAppointmentsSer = JSON.parse(JSON.stringify(upcomingAppointments));
   const staleLeadsSer = JSON.parse(JSON.stringify(staleLeads));
-  const overdueCollectionsSer = JSON.parse(JSON.stringify(overdueCollections));
-  const upcomingCollectionsSer = JSON.parse(JSON.stringify(upcomingCollections));
+  // Decimal → ₹-Lakhs-equivalent display numbers before serializing (these fields render with an "L" suffix below).
+  const toLakhsDisplay = <T extends { invoiceValueLakhs: unknown; amountReceivedLakhs: unknown }>(c: T) => ({
+    ...c,
+    invoiceValueLakhs: inrToLakhsEquivalent(c.invoiceValueLakhs as never),
+    amountReceivedLakhs: inrToLakhsEquivalent(c.amountReceivedLakhs as never),
+  });
+  const overdueCollectionsSer = JSON.parse(JSON.stringify(overdueCollections.map(toLakhsDisplay)));
+  const upcomingCollectionsSer = JSON.parse(JSON.stringify(upcomingCollections.map(toLakhsDisplay)));
   const recentBlockersSer = JSON.parse(JSON.stringify(recentBlockers));
   const weeklyCommitsSer = JSON.parse(JSON.stringify(weeklyCommitsRaw));
-  const recentWinsSer = JSON.parse(JSON.stringify(recentWinsRaw));
+  const recentWinsSer = JSON.parse(JSON.stringify(
+    recentWinsRaw.map((w) => ({ ...w, dealValueLakhs: inrToLakhsEquivalent(w.dealValueLakhs) }))
+  ));
 
   const avgProgress =
     employee.kras.length > 0

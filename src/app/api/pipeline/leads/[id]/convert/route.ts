@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -121,5 +122,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     },
   });
 
-  return NextResponse.json({ ...updatedLead, opportunity });
+  return NextResponse.json({
+    ...updatedLead,
+    expectedValue: moneyToNumberForDisplay(updatedLead.expectedValue),
+    opportunity: { ...opportunity, value: moneyToNumberForDisplay(opportunity.value) },
+  });
 }

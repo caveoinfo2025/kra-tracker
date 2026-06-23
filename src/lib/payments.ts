@@ -6,12 +6,26 @@
  *   2. re-sums all payments for the invoice and updates the cached
  *      Collection.amountReceivedLakhs + collectionStatus + paymentReceivedDate
  *   3. fans out notifications to the invoice's sales rep and all managers
+ *
+ * Decimal Release 2 (Step 3U, 2026-06-23): Payment.amountLakhs and Collection.invoiceValueLakhs/
+ * amountReceivedLakhs are now Decimal(18,2) storing actual ₹ INR (field names still say "Lakhs",
+ * rename deferred — see docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md). All arithmetic
+ * below goes through src/lib/money.ts instead of the old float round2()/epsilon-in-Lakhs logic.
  */
 import prisma from "@/lib/prisma";
+import {
+  roundMoney,
+  subtractMoney,
+  moneyToNumberForDisplay,
+  formatMoney,
+  isPositiveMoney,
+  type MoneyInput,
+} from "@/lib/money";
 
-function round2(n: number) {
-  return Math.round(n * 100) / 100;
-}
+// "Fully Received"/opening-balance tolerance. Pre-migration this was 0.001 ₹L — exactly ₹100 in
+// real-world terms (0.001 × 100,000). Expressed directly in INR now so the tolerance's real-world
+// meaning is unchanged.
+const RECONCILIATION_TOLERANCE_INR = 100;
 
 /** Recompute and persist a Collection's cached totals from its payment ledger. */
 export async function syncCollectionTotals(collectionId: number) {
@@ -32,12 +46,12 @@ export async function syncCollectionTotals(collectionId: number) {
   ]);
   if (!coll) return null;
 
-  const received = round2(agg._sum.amountLakhs ?? 0);
-  const invoice = coll.invoiceValueLakhs;
+  const received = roundMoney(agg._sum.amountLakhs ?? 0);
+  const invoice = roundMoney(coll.invoiceValueLakhs);
 
   let status = "Pending";
-  if (received <= 0) status = "Pending";
-  else if (received + 0.001 >= invoice) status = "Fully Received";
+  if (!isPositiveMoney(received)) status = "Pending";
+  else if (received.plus(RECONCILIATION_TOLERANCE_INR).greaterThanOrEqualTo(invoice)) status = "Fully Received";
   else status = "Partially Received";
 
   return prisma.collection.update({
@@ -53,7 +67,7 @@ export async function syncCollectionTotals(collectionId: number) {
 
 interface RecordPaymentInput {
   collectionId: number;
-  amountLakhs: number;
+  amountLakhs: MoneyInput;
   paymentDate?: string | Date | null;
   mode?: string;
   referenceNo?: string;
@@ -81,11 +95,11 @@ async function reconcileOpeningBalance(collectionId: number, recordedById: numbe
   ]);
   if (!coll) return;
 
-  const cached = round2(coll.amountReceivedLakhs ?? 0);
-  const ledgerSum = round2(agg._sum.amountLakhs ?? 0);
-  const gap = round2(cached - ledgerSum);
+  const cached = roundMoney(coll.amountReceivedLakhs ?? 0);
+  const ledgerSum = roundMoney(agg._sum.amountLakhs ?? 0);
+  const gap = roundMoney(subtractMoney(cached, ledgerSum));
 
-  if (gap > 0.001) {
+  if (gap.greaterThan(RECONCILIATION_TOLERANCE_INR)) {
     await prisma.payment.create({
       data: {
         collectionId,
@@ -112,7 +126,7 @@ export async function recordPayment(input: RecordPaymentInput) {
   const payment = await prisma.payment.create({
     data: {
       collectionId: input.collectionId,
-      amountLakhs: round2(input.amountLakhs),
+      amountLakhs: roundMoney(input.amountLakhs),
       paymentDate: input.paymentDate ? new Date(input.paymentDate) : new Date(),
       mode: input.mode ?? "Bank Transfer",
       referenceNo: input.referenceNo ?? "",
@@ -144,10 +158,10 @@ export async function recordPayment(input: RecordPaymentInput) {
         data: [...recipients].map((rid) => ({
           recipientId: rid,
           type: "payment",
-          title: `Payment received: ₹${amount.toFixed(2)}L`,
+          title: `Payment received: ${formatMoney(amount, { currency: "INR" })}`,
           body: `${customer} · Invoice ${collection.invoiceNo || "—"}`,
           link: "/collections",
-          amountLakhs: amount,
+          amountLakhs: moneyToNumberForDisplay(amount),
         })),
       });
     }
@@ -223,11 +237,12 @@ export async function paymentsToday(employeeId?: number) {
   ]);
 
   return {
-    totalLakhs: round2(agg._sum.amountLakhs ?? 0),
+    // DISPLAY ONLY — actual ₹ INR now (field name still says "Lakhs", legacy naming debt).
+    totalLakhs: moneyToNumberForDisplay(roundMoney(agg._sum.amountLakhs ?? 0)),
     count: agg._count.id,
     payments: list.map((p) => ({
       id: p.id,
-      amountLakhs: p.amountLakhs,
+      amountLakhs: moneyToNumberForDisplay(p.amountLakhs),
       customerName: p.collection?.customerName ?? "",
       invoiceNo: p.collection?.invoiceNo ?? "",
       mode: p.mode,

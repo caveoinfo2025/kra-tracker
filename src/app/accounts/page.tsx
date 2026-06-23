@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import SheetLayout from "@/components/SheetLayout";
 import AccountsClient from "./AccountsClient";
 import { canManagePayments, canSeeAllCollections } from "@/lib/roles";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export default async function AccountsPage() {
   const session = await getSession();
@@ -33,8 +34,16 @@ export default async function AccountsPage() {
     }),
   ]);
 
-  const rows = JSON.parse(JSON.stringify(rawRows));
-  const advances = JSON.parse(JSON.stringify(rawAdvances));
+  const rows = JSON.parse(JSON.stringify(rawRows.map((r) => ({
+    ...r,
+    invoiceValueLakhs: moneyToNumberForDisplay(r.invoiceValueLakhs),
+    amountWithoutGstLakhs: moneyToNumberForDisplay(r.amountWithoutGstLakhs),
+    amountReceivedLakhs: moneyToNumberForDisplay(r.amountReceivedLakhs),
+  }))));
+  const advances = JSON.parse(JSON.stringify(rawAdvances.map((a) => ({
+    ...a,
+    amountLakhs: moneyToNumberForDisplay(a.amountLakhs),
+  }))));
 
   return (
     <SheetLayout

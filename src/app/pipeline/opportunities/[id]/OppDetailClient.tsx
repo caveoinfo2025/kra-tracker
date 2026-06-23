@@ -97,25 +97,25 @@ function CloseModal({
             <>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Deal Value (ex-tax) ₹L *
+                  Deal Value (ex-tax) ₹ *
                 </label>
                 <input
                   type="number" step="0.01" required min={0.01}
                   value={form.dealValueExTax}
                   onChange={(e) => f("dealValueExTax", e.target.value)}
-                  placeholder="e.g. 12.5"
+                  placeholder="e.g. 1250000"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Net Profit (₹L)
+                  Net Profit (₹)
                 </label>
                 <input
                   type="number" step="0.01" min={0}
                   value={form.netProfitLakhs}
                   onChange={(e) => f("netProfitLakhs", e.target.value)}
-                  placeholder="e.g. 2.5"
+                  placeholder="e.g. 250000"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
@@ -315,10 +315,10 @@ export default function OppDetailClient({
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-[#CC2229]">₹{opp.value.toFixed(1)}L</p>
+                <p className="text-2xl font-bold text-[#CC2229]">₹{opp.value.toFixed(2)}</p>
                 {opp.stage === "WON" && opp.dealValueExTax > 0 && (
                   <p className="text-xs text-green-700 font-medium mt-0.5">
-                    ₹{opp.dealValueExTax.toFixed(2)}L ex-tax · ₹{opp.netProfitLakhs.toFixed(2)}L profit
+                    ₹{opp.dealValueExTax.toFixed(2)} ex-tax · ₹{opp.netProfitLakhs.toFixed(2)} profit
                   </p>
                 )}
               </div>
@@ -341,8 +341,8 @@ export default function OppDetailClient({
               {opp.stage === "WON" ? (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   {[
-                    ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? `₹${opp.dealValueExTax.toFixed(2)}L` : "—"],
-                    ["Net Profit",          opp.netProfitLakhs > 0 ? `₹${opp.netProfitLakhs.toFixed(2)}L` : "—"],
+                    ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? `₹${opp.dealValueExTax.toFixed(2)}` : "—"],
+                    ["Net Profit",          opp.netProfitLakhs > 0 ? `₹${opp.netProfitLakhs.toFixed(2)}` : "—"],
                     ["PO Number",           opp.poNumber || "—"],
                     ["PO Date",             opp.poDate?.slice(0, 10) ?? "—"],
                   ].map(([k, v]) => (
@@ -399,9 +399,9 @@ export default function OppDetailClient({
 
                 {/* Deal Value */}
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Deal Value (₹L)</label>
+                  <label className="block text-xs text-gray-500 mb-1">Deal Value (₹)</label>
                   <input
-                    type="number" step="0.1" min={0}
+                    type="number" step="0.01" min={0}
                     value={form.value}
                     onChange={(e) => f("value", e.target.value)}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
@@ -545,7 +545,7 @@ export default function OppDetailClient({
             <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Deal Summary</p>
             {([
               ["Stage",       <OppStageBadge key="s" stage={opp.stage} />],
-              ["Value",       `₹${opp.value.toFixed(1)}L`],
+              ["Value",       `₹${opp.value.toFixed(2)}`],
               ["Probability", `${opp.probability}%`],
               ["Close Date",  opp.expectedClosureDate?.slice(0, 10) ?? "—"],
               ...(opp.discountPct > 0 ? [["Discount", `${opp.discountPct}%`]] : []),
@@ -562,8 +562,8 @@ export default function OppDetailClient({
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <p className="text-xs font-semibold text-green-700 uppercase mb-3">Closed Won Details</p>
               {[
-                ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? `₹${opp.dealValueExTax.toFixed(2)}L` : "—"],
-                ["Net Profit",          opp.netProfitLakhs > 0 ? `₹${opp.netProfitLakhs.toFixed(2)}L` : "—"],
+                ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? `₹${opp.dealValueExTax.toFixed(2)}` : "—"],
+                ["Net Profit",          opp.netProfitLakhs > 0 ? `₹${opp.netProfitLakhs.toFixed(2)}` : "—"],
                 ["PO Number",           opp.poNumber || "—"],
                 ["PO Date",             opp.poDate?.slice(0, 10) ?? "—"],
               ].map(([k, v]) => (

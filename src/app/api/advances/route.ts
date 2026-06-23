@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canManagePayments } from "@/lib/roles";
+import { parseMoneyInput, moneyToNumberForDisplay, isPositiveMoney } from "@/lib/money";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
       customer: { select: { id: true, name: true } },
     },
   });
-  return NextResponse.json(advances);
+  return NextResponse.json(advances.map((a) => ({ ...a, amountLakhs: moneyToNumberForDisplay(a.amountLakhs) })));
 }
 
 export async function POST(req: Request) {
@@ -37,9 +38,9 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const amountLakhs = Number(body.amountLakhs);
+  const amountLakhs = parseMoneyInput(body.amountLakhs);
   const customerName = (body.customerName ?? "").toString().trim();
-  if (!customerName || !(amountLakhs > 0)) {
+  if (!customerName || !isPositiveMoney(amountLakhs)) {
     return NextResponse.json({ error: "customerName and a positive amount are required" }, { status: 400 });
   }
 
@@ -62,5 +63,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json(advance, { status: 201 });
+  return NextResponse.json({ ...advance, amountLakhs: moneyToNumberForDisplay(advance.amountLakhs) }, { status: 201 });
 }

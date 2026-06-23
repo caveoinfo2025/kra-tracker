@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { recordPayment } from "@/lib/payments";
 import { canManagePayments } from "@/lib/roles";
+import { parseMoneyInput, moneyToNumberForDisplay, isPositiveMoney } from "@/lib/money";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -21,7 +22,8 @@ export async function GET(req: Request) {
     orderBy: { paymentDate: "desc" },
     include: { recordedBy: { select: { name: true } } },
   });
-  return NextResponse.json(payments);
+  // Decimal → plain number so the response stays a JSON number, not a quoted Decimal string.
+  return NextResponse.json(payments.map((p) => ({ ...p, amountLakhs: moneyToNumberForDisplay(p.amountLakhs) })));
 }
 
 export async function POST(req: Request) {
@@ -33,8 +35,8 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const collectionId = Number(body.collectionId);
-  const amountLakhs = Number(body.amountLakhs);
-  if (!collectionId || !(amountLakhs > 0)) {
+  const amountLakhs = parseMoneyInput(body.amountLakhs);
+  if (!collectionId || !isPositiveMoney(amountLakhs)) {
     return NextResponse.json({ error: "collectionId and a positive amount are required" }, { status: 400 });
   }
 
@@ -51,5 +53,18 @@ export async function POST(req: Request) {
     recordedById: session.user.employeeId!,
   });
 
-  return NextResponse.json(result, { status: 201 });
+  return NextResponse.json(
+    {
+      payment: { ...result.payment, amountLakhs: moneyToNumberForDisplay(result.payment.amountLakhs) },
+      collection: result.collection
+        ? {
+            ...result.collection,
+            invoiceValueLakhs: moneyToNumberForDisplay(result.collection.invoiceValueLakhs),
+            amountWithoutGstLakhs: moneyToNumberForDisplay(result.collection.amountWithoutGstLakhs),
+            amountReceivedLakhs: moneyToNumberForDisplay(result.collection.amountReceivedLakhs),
+          }
+        : null,
+    },
+    { status: 201 }
+  );
 }

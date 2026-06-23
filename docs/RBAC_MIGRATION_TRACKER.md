@@ -879,3 +879,17 @@ visual proof.
 Employee self-service (own expenses/advances/conveyance) filtering is untouched.
 
 **Validation:** `npx tsc --noEmit`, `npx prisma validate`, and `npm run build` all pass.
+
+---
+
+## Step 3U — Decimal Release 2 (Sales/CRM/KRA Lakhs → INR migration, 2026-06-23)
+
+Not an RBAC change. Implemented the combined Release 2 INR migration on the dev DB
+(`u686730471_caveodev` only): 10 Sales/CRM money fields converted Float → Decimal(18,2) storing
+actual ₹ INR (`Payment`, `Collection`×3, `OrderAdvance`, `CrmLead`, `CrmOpportunity`×3,
+`SalesFunnel`×2), plus the 3 AMOUNT-typed `KRATemplateItem` rows and 8 confirmed-money
+`KRA.target`/`EmployeeTarget.targetJson` entries multiplied by 100000 in place. `kra-engine.ts`,
+`payments.ts`, ~15 API routes, Sales/CRM UI forms, mobile screens, and dashboards updated so Lakhs
+survives only as display formatting. No RBAC/permission tables touched. Full record:
+`docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`,
+`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §16.

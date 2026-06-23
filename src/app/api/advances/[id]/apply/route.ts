@@ -9,6 +9,7 @@ import { getSession } from "@/lib/dev-session";
 import { applyAdvance } from "@/lib/payments";
 import prisma from "@/lib/prisma";
 import { canManagePayments } from "@/lib/roles";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export async function POST(
   req: Request,
@@ -32,5 +33,18 @@ export async function POST(
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
-  return NextResponse.json(result, { status: 200 });
+  return NextResponse.json(
+    {
+      payment: { ...result.payment, amountLakhs: moneyToNumberForDisplay(result.payment.amountLakhs) },
+      collection: result.collection
+        ? {
+            ...result.collection,
+            invoiceValueLakhs: moneyToNumberForDisplay(result.collection.invoiceValueLakhs),
+            amountWithoutGstLakhs: moneyToNumberForDisplay(result.collection.amountWithoutGstLakhs),
+            amountReceivedLakhs: moneyToNumberForDisplay(result.collection.amountReceivedLakhs),
+          }
+        : null,
+    },
+    { status: 200 }
+  );
 }

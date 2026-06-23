@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import MIcon from "../components/MIcon";
 import type { MobileLead } from "../types";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 type Activity = {
   id: number;
@@ -84,6 +85,8 @@ export default function DealDetailScreen({ lead, onBack, onLogCall }: Props) {
 
   const ownerName = lead.assignedTo?.name ?? "Unassigned";
   const ownerId   = lead.assignedTo?.id ?? 0;
+  // lead.expectedValue is actual ₹ INR (Decimal Release 2) — convert to ₹-Lakhs-equivalent for this Cr/L display.
+  const expectedValueLakhs = inrToLakhsEquivalent(lead.expectedValue);
 
   return (
     <div className="m-screen m-screen-enter">
@@ -112,9 +115,9 @@ export default function DealDetailScreen({ lead, onBack, onLogCall }: Props) {
             <div className="m-kpi m-kpi-accent">
               <div className="m-kpi-label">Deal Value</div>
               <div className="m-kpi-value">
-                {lead.expectedValue >= 100
-                  ? <>{(lead.expectedValue / 100).toFixed(2)}<span className="unit">Cr</span></>
-                  : <>{lead.expectedValue.toFixed(0)}<span className="unit">L</span></>
+                {expectedValueLakhs >= 100
+                  ? <>{(expectedValueLakhs / 100).toFixed(2)}<span className="unit">Cr</span></>
+                  : <>{expectedValueLakhs.toFixed(0)}<span className="unit">L</span></>
                 }
               </div>
               <div className="m-kpi-delta up">

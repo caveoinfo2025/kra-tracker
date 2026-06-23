@@ -139,8 +139,8 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Active Pipeline",   value: `₹${totalPipeline.toFixed(1)}L` },
-          { label: "Closed Won",        value: `₹${closedWon.toFixed(1)}L` },
+          { label: "Active Pipeline",   value: `₹${totalPipeline.toFixed(2)}` },
+          { label: "Closed Won",        value: `₹${closedWon.toFixed(2)}` },
           { label: "Total Opportunities", value: rows.length },
           { label: "New Customers",     value: rows.filter((r) => r.newCustomerFlag && r.stage === "Closed Won").length },
         ].map((s) => (
@@ -261,12 +261,12 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Deal Value (₹L)</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Deal Value (₹)</label>
                   <input type="number" step="0.01" value={form.dealValueLakhs} onChange={(e) => f("dealValueLakhs", e.target.value)}
                     className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Billing Value (₹L)</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Billing Value (₹)</label>
                   <input type="number" step="0.01" value={form.billingValueLakhs} onChange={(e) => f("billingValueLakhs", e.target.value)}
                     className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
@@ -340,7 +340,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {["ID", isManager ? "Employee" : null, "Customer", "Opportunity", "Solution", "Stage", "Deal (₹L)", "Gross Profit (₹L)", "Exp. Close", "Closed On", "Flags", ""].filter(Boolean).map((h) => (
+                {["ID", isManager ? "Employee" : null, "Customer", "Opportunity", "Solution", "Stage", "Deal (₹)", "Gross Profit (₹)", "Exp. Close", "Closed On", "Flags", ""].filter(Boolean).map((h) => (
                   <th key={h!} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -354,7 +354,7 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                   <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate">{r.opportunityName}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.solutionCategory}</td>
                   <td className="px-4 py-3"><Badge label={r.stage} variant={stageVariant(r.stage)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#CC2229]">{r.dealValueLakhs.toFixed(1)}</td>
+                  <td className="px-4 py-3 font-semibold text-[#CC2229]">{r.dealValueLakhs.toFixed(2)}</td>
                   <td className="px-4 py-3 text-gray-600">{(r.dealValueLakhs * r.grossProfitPct / 100).toFixed(2)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.expectedCloseDate?.slice(0, 10)}</td>
                   <td className="px-4 py-3 text-xs font-medium text-emerald-700">{r.closedDate?.slice(0, 10) ?? "—"}</td>

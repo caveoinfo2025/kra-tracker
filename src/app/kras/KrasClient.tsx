@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 interface KRAMetric {
   id: number;
@@ -263,7 +264,9 @@ function EmployeeTargetCard({
               <p className="text-sm font-medium truncate">{item.metric.name}</p>
               {achievement && (
                 <p className="text-xs text-gray-500">
-                  {achievement.actualValue.toFixed(1)} / {item.expectedTarget.toFixed(1)}
+                  {item.metric.metricType === "AMOUNT"
+                    ? `₹${inrToLakhsEquivalent(achievement.actualValue).toFixed(1)}L / ₹${inrToLakhsEquivalent(item.expectedTarget).toFixed(1)}L`
+                    : `${achievement.actualValue.toFixed(1)} / ${item.expectedTarget.toFixed(1)}`}
                 </p>
               )}
             </div>

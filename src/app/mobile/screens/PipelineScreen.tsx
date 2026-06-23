@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import MIcon from "../components/MIcon";
 import type { MobileLead } from "../types";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 // ── Leads ──────────────────────────────────────────────────────────────────────
 
@@ -63,9 +64,11 @@ const OPP_STAGE_COLORS: Record<string, string> = {
 
 const AVATAR_COLORS = ["#5B626C","#0046B0","#B05000","#1F7A3F","#2A2A55","#702D5B"];
 
+// `val` is actual ₹ INR (Decimal Release 2) — convert to ₹-Lakhs-equivalent for this Cr/L display.
 function fmtLakhs(val: number) {
-  if (val >= 100) return `₹${(val / 100).toFixed(2)} Cr`;
-  return `₹${val.toFixed(0)} L`;
+  const lakhs = inrToLakhsEquivalent(val);
+  if (lakhs >= 100) return `₹${(lakhs / 100).toFixed(2)} Cr`;
+  return `₹${lakhs.toFixed(0)} L`;
 }
 
 function initials(name: string) {

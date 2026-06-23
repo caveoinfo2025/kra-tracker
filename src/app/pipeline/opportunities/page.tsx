@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import { redirect } from "next/navigation";
 import SheetLayout from "@/components/SheetLayout";
 import OpportunitiesClient from "./OpportunitiesClient";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export default async function OpportunitiesPage({
   searchParams,
@@ -95,7 +96,7 @@ export default async function OpportunitiesPage({
       poDate: r.poDate ? r.poDate.toISOString() : null,
       closedDate: r.closedDate ? r.closedDate.toISOString() : null,
       stage: LEGACY_STAGE_MAP[r.stage] ?? "PROPOSAL_SENT",
-      value: r.dealValueLakhs,
+      value: moneyToNumberForDisplay(r.dealValueLakhs),
       probability: Math.round(r.probabilityPct),
       expectedClosureDate: r.expectedCloseDate ? r.expectedCloseDate.toISOString() : null,
       lostReason: "",
@@ -112,7 +113,13 @@ export default async function OpportunitiesPage({
       },
     }));
 
-  const allOpps = [...JSON.parse(JSON.stringify(rawOpps)), ...legacyOpps];
+  const rawOppsSer = rawOpps.map((o) => ({
+    ...o,
+    value: moneyToNumberForDisplay(o.value),
+    dealValueExTax: moneyToNumberForDisplay(o.dealValueExTax),
+    netProfitLakhs: moneyToNumberForDisplay(o.netProfitLakhs),
+  }));
+  const allOpps = [...JSON.parse(JSON.stringify(rawOppsSer)), ...legacyOpps];
 
   return (
     <SheetLayout

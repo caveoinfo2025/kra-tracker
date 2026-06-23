@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import OppDetailClient from "./OppDetailClient";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export default async function OppDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,7 +38,12 @@ export default async function OppDetailPage({ params }: { params: Promise<{ id: 
         <span className="text-gray-900 font-medium">{opp.lead.companyName}</span>
       </div>
       <OppDetailClient
-        opp={JSON.parse(JSON.stringify(opp))}
+        opp={JSON.parse(JSON.stringify({
+          ...opp,
+          value: moneyToNumberForDisplay(opp.value),
+          dealValueExTax: moneyToNumberForDisplay(opp.dealValueExTax),
+          netProfitLakhs: moneyToNumberForDisplay(opp.netProfitLakhs),
+        }))}
         isManager={!!session.user.isManager}
         currentEmployeeId={session.user.employeeId}
       />

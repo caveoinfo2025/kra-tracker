@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import MIcon from "../components/MIcon";
 import type { MobileLead } from "../types";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 type KRA = {
   id: number;
@@ -61,9 +62,11 @@ function todayLabel() {
   return new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 }
 
+// `val` is actual ₹ INR (Decimal Release 2) — convert to ₹-Lakhs-equivalent for this Cr/L display.
 function fmtLakhs(val: number) {
-  if (val >= 100) return `₹${(val / 100).toFixed(2)} Cr`;
-  return `₹${Math.abs(val).toFixed(0)} L`;
+  const lakhs = inrToLakhsEquivalent(val);
+  if (lakhs >= 100) return `₹${(lakhs / 100).toFixed(2)} Cr`;
+  return `₹${Math.abs(lakhs).toFixed(0)} L`;
 }
 
 function isToday(dateStr: string | null): boolean {
@@ -109,7 +112,7 @@ export default function TodayScreen({
     // Payments today
     fetch("/api/payments/today")
       .then(r => r.json())
-      .then(d => setPayToday({ totalLakhs: d.totalLakhs ?? 0, count: d.count ?? 0 }))
+      .then(d => setPayToday({ totalLakhs: inrToLakhsEquivalent(d.totalLakhs ?? 0), count: d.count ?? 0 }))
       .catch(() => {});
 
     // Collections stats
@@ -119,10 +122,12 @@ export default function TodayScreen({
         if (!Array.isArray(rows)) return;
         const overdue = rows.filter(r => isOverdueDate(r.dueDate, r.collectionStatus)).length;
         const openRows = rows.filter(r => r.collectionStatus !== "Fully Received");
-        const outstandingLakhs = openRows.reduce((s, r) => s + (r.invoiceValueLakhs - r.amountReceivedLakhs), 0);
-        const collectedTodayLakhs = rows
-          .filter(r => isToday(r.paymentReceivedDate))
-          .reduce((s, r) => s + r.amountReceivedLakhs, 0);
+        const outstandingLakhs = inrToLakhsEquivalent(
+          openRows.reduce((s, r) => s + (r.invoiceValueLakhs - r.amountReceivedLakhs), 0)
+        );
+        const collectedTodayLakhs = inrToLakhsEquivalent(
+          rows.filter(r => isToday(r.paymentReceivedDate)).reduce((s, r) => s + r.amountReceivedLakhs, 0)
+        );
         setCollStats({ overdue, openCount: openRows.length, outstandingLakhs, collectedTodayLakhs });
       })
       .catch(() => {});
@@ -130,8 +135,8 @@ export default function TodayScreen({
 
   const activeLeads = leads.filter(l => l.stage !== "CLOSED_WON" && l.stage !== "CLOSED_LOST");
   const wonLeads    = leads.filter(l => l.stage === "CLOSED_WON");
-  const pipelineVal = activeLeads.reduce((s, l) => s + (l.expectedValue || 0), 0);
-  const bookingsVal = wonLeads.reduce((s, l) => s + (l.expectedValue || 0), 0);
+  const pipelineVal = inrToLakhsEquivalent(activeLeads.reduce((s, l) => s + (l.expectedValue || 0), 0));
+  const bookingsVal = inrToLakhsEquivalent(wonLeads.reduce((s, l) => s + (l.expectedValue || 0), 0));
   const topFocus    = [...activeLeads].sort((a, b) => (b.expectedValue || 0) - (a.expectedValue || 0)).slice(0, 3);
 
   const displayKras = kras.slice(0, 2);

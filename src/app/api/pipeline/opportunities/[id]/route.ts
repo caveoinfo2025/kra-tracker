@@ -4,9 +4,20 @@ import { getSession } from "@/lib/dev-session";
 import { OPP_STAGES } from "@/types/pipeline";
 import { startApproval, getWorkflowByCode } from "@/lib/workflow-engine";
 import { executeAutomation } from "@/lib/crm-engine";
+import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
 
-// Thresholds (in ₹ Lakhs, matching ApprovalRule seed)
-const LARGE_DEAL_THRESHOLD_L = 50;  // > ₹50 L triggers large-deal approval
+function oppForResponse<T extends { value: unknown; dealValueExTax: unknown; netProfitLakhs: unknown }>(o: T) {
+  return {
+    ...o,
+    value: moneyToNumberForDisplay(o.value as never),
+    dealValueExTax: moneyToNumberForDisplay(o.dealValueExTax as never),
+    netProfitLakhs: moneyToNumberForDisplay(o.netProfitLakhs as never),
+  };
+}
+
+// Thresholds. CrmOpportunity.value is now Decimal(18,2) storing actual ₹ INR
+// (Decimal Release 2, Step 3U, 2026-06-23) — rescaled from the pre-migration ₹50L.
+const LARGE_DEAL_THRESHOLD_L = 5000000;  // > ₹50,00,000 triggers large-deal approval
 const DISCOUNT_THRESHOLD_PCT  = 0;  // any discount > 0% triggers discount approval
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -27,7 +38,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!session.user.isManager && opp.lead.assignedToId !== session.user.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return NextResponse.json(opp);
+  return NextResponse.json(oppForResponse(opp));
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -75,13 +86,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     where: { id: Number(id) },
     data: {
       stage:               body.stage               ?? undefined,
-      value:               body.value !== undefined  ? Number(body.value) : undefined,
+      value:               body.value !== undefined  ? parseMoneyInput(body.value) : undefined,
       discountPct:         body.discountPct !== undefined ? Number(body.discountPct) : undefined,
       expectedClosureDate: body.expectedClosureDate ? new Date(body.expectedClosureDate) : undefined,
       probability:         body.probability !== undefined ? Number(body.probability) : undefined,
       lostReason:          body.lostReason          ?? undefined,
-      dealValueExTax:      body.dealValueExTax !== undefined ? Number(body.dealValueExTax) : undefined,
-      netProfitLakhs:      body.netProfitLakhs !== undefined ? Number(body.netProfitLakhs) : undefined,
+      dealValueExTax:      body.dealValueExTax !== undefined ? parseMoneyInput(body.dealValueExTax) : undefined,
+      netProfitLakhs:      body.netProfitLakhs !== undefined ? parseMoneyInput(body.netProfitLakhs) : undefined,
       poNumber:            body.poNumber             ?? undefined,
       poDate:              body.poDate ? new Date(body.poDate) : undefined,
       status:              body.status              ?? undefined,
@@ -122,8 +133,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const approvalResults: Record<string, number | null> = {};
 
   // 1. Large-deal approval: value newly crosses the threshold
-  const newValue       = updated.value;
-  const prevValue      = opp.value;
+  const newValue       = moneyToNumberForDisplay(updated.value);
+  const prevValue      = moneyToNumberForDisplay(opp.value);
   const valueCrossed   = newValue > LARGE_DEAL_THRESHOLD_L && prevValue <= LARGE_DEAL_THRESHOLD_L;
   const valueSet       = body.value !== undefined && newValue > LARGE_DEAL_THRESHOLD_L && prevValue === 0;
   if (valueCrossed || valueSet) {
@@ -157,5 +168,5 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
   }
 
-  return NextResponse.json({ ...updated, approvalResults });
+  return NextResponse.json({ ...oppForResponse(updated), approvalResults });
 }

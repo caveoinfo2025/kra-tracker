@@ -5,6 +5,20 @@ import prisma from "@/lib/prisma";
 import { isOperationsHead } from "@/lib/roles";
 import DashboardClient from "./DashboardClient";
 import type { DashboardProps } from "./DashboardClient";
+import { inrToLakhsEquivalent } from "@/lib/money";
+
+// Dashboard display only — converts an actual-₹-INR Collection row's money fields to their
+// ₹-Lakhs-equivalent plain numbers, since DashboardClient.tsx's `Collection` type and every
+// `outstanding`/fmtShort() display site downstream is calibrated for Lakhs-scale numbers.
+function collectionToLakhsDisplay<T extends { invoiceValueLakhs: unknown; amountReceivedLakhs: unknown }>(
+  c: T
+): Omit<T, "invoiceValueLakhs" | "amountReceivedLakhs"> & { invoiceValueLakhs: number; amountReceivedLakhs: number } {
+  return {
+    ...c,
+    invoiceValueLakhs: inrToLakhsEquivalent(c.invoiceValueLakhs as never),
+    amountReceivedLakhs: inrToLakhsEquivalent(c.amountReceivedLakhs as never),
+  };
+}
 
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -179,9 +193,9 @@ export default async function DashboardPage({
       const entry = teamPipelineMap[lead.assignedToId];
       if (!entry || !lead.opportunity) continue;
       if (!["WON", "LOST"].includes(lead.opportunity.stage)) {
-        entry.pipeline += lead.opportunity.value ?? 0;
+        entry.pipeline += inrToLakhsEquivalent(lead.opportunity.value ?? 0);
       } else if (lead.opportunity.stage === "WON") {
-        entry.won += lead.opportunity.value ?? 0;
+        entry.won += inrToLakhsEquivalent(lead.opportunity.value ?? 0);
       }
     }
     const teamPipeline = employees.map((emp) => ({
@@ -213,10 +227,10 @@ export default async function DashboardPage({
       const d = new Date(o.updatedAt);
       return d >= periodStart && d < periodEnd;
     });
-    const pipelineValue = activeOpps.reduce((s, o) => s + (o.value ?? 0), 0);
+    const pipelineValue = activeOpps.reduce((s, o) => s + inrToLakhsEquivalent(o.value ?? 0), 0);
     const wonValue =
-      wonOpps.reduce((s, o) => s + (o.value ?? 0), 0) +
-      (legacyWonAgg._sum.dealValueLakhs ?? 0);
+      wonOpps.reduce((s, o) => s + inrToLakhsEquivalent(o.value ?? 0), 0) +
+      inrToLakhsEquivalent(legacyWonAgg._sum.dealValueLakhs ?? 0);
 
     // ── Lead stage counts ─────────────────────────────────────────────────
     const leadStageCounts: Record<string, number> = {};
@@ -244,8 +258,8 @@ export default async function DashboardPage({
       upcomingTasks: [],
       myKras: [],
       weeklyCommits: [],
-      overdueCollections: JSON.parse(JSON.stringify(overdueColls)),
-      upcomingCollections: JSON.parse(JSON.stringify(upcomingColls)),
+      overdueCollections: JSON.parse(JSON.stringify(overdueColls.map(collectionToLakhsDisplay))),
+      upcomingCollections: JSON.parse(JSON.stringify(upcomingColls.map(collectionToLakhsDisplay))),
       leadStageCounts,
       pipelineValue,
       wonValue,
@@ -358,17 +372,18 @@ export default async function DashboardPage({
     leadStageCounts[lead.stage] = (leadStageCounts[lead.stage] ?? 0) + 1;
     if (lead.opportunity) {
       if (!["WON", "LOST"].includes(lead.opportunity.stage)) {
-        pipelineValue += lead.opportunity.value ?? 0;
+        pipelineValue += inrToLakhsEquivalent(lead.opportunity.value ?? 0);
       }
       if (lead.opportunity.stage === "WON") {
-        wonValueCrm += lead.opportunity.value ?? 0;
-        wonOppsForDisplay.push({ companyName: lead.companyName, value: lead.opportunity.value ?? 0 });
+        const valueLakhs = inrToLakhsEquivalent(lead.opportunity.value ?? 0);
+        wonValueCrm += valueLakhs;
+        wonOppsForDisplay.push({ companyName: lead.companyName, value: valueLakhs });
       }
     }
   }
 
   const wonValue =
-    wonValueCrm + legacyWins.reduce((s, w) => s + w.dealValueLakhs, 0);
+    wonValueCrm + legacyWins.reduce((s, w) => s + inrToLakhsEquivalent(w.dealValueLakhs), 0);
 
   const myKras = (empData?.kras ?? []).map((k) => ({
     id: k.id,
@@ -384,7 +399,7 @@ export default async function DashboardPage({
   }));
   const legacyWinsData = legacyWins.slice(0, 3).map((w) => ({
     companyName: w.customerName,
-    value: w.dealValueLakhs,
+    value: inrToLakhsEquivalent(w.dealValueLakhs),
     opportunityName: w.opportunityName,
     isLegacy: true,
   }));
@@ -402,8 +417,8 @@ export default async function DashboardPage({
     upcomingTasks: JSON.parse(JSON.stringify(upcomingTasks)),
     myKras,
     weeklyCommits: JSON.parse(JSON.stringify(weeklyCommits)),
-    overdueCollections: JSON.parse(JSON.stringify(overdueColls)),
-    upcomingCollections: JSON.parse(JSON.stringify(upcomingColls)),
+    overdueCollections: JSON.parse(JSON.stringify(overdueColls.map(collectionToLakhsDisplay))),
+    upcomingCollections: JSON.parse(JSON.stringify(upcomingColls.map(collectionToLakhsDisplay))),
     leadStageCounts,
     pipelineValue,
     wonValue,

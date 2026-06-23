@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -48,9 +49,10 @@ export async function GET(req: Request) {
   const lostOpps  = allOpps.filter((o) => o.stage === "LOST");
   const activeOpps = allOpps.filter((o) => !["WON", "LOST"].includes(o.stage));
 
-  const totalPipelineValue   = activeOpps.reduce((s, o) => s + o.value, 0);
-  const weightedForecast     = activeOpps.reduce((s, o) => s + o.value * (o.probability / 100), 0);
-  const wonValue             = wonOpps.reduce((s, o) => s + o.value, 0);
+  // DISPLAY ONLY — fed straight into AnalyticsClient's "₹X.XL" formatters.
+  const totalPipelineValue   = activeOpps.reduce((s, o) => s + inrToLakhsEquivalent(o.value), 0);
+  const weightedForecast     = activeOpps.reduce((s, o) => s + inrToLakhsEquivalent(o.value) * (o.probability / 100), 0);
+  const wonValue             = wonOpps.reduce((s, o) => s + inrToLakhsEquivalent(o.value), 0);
   const proposalToWinRatio   = allOpps.length > 0 ? wonOpps.length / allOpps.length : 0;
 
   // ── Task metrics ──────────────────────────────────────────────────────────
@@ -77,7 +79,7 @@ export async function GET(req: Request) {
   const oppFunnel = ["PROPOSAL_SENT", "FOLLOW_UP", "NEGOTIATION", "WON", "LOST", "ON_HOLD"].map((s) => ({
     stage: s,
     count: allOpps.filter((o) => o.stage === s).length,
-    value: allOpps.filter((o) => o.stage === s).reduce((sum, o) => sum + o.value, 0),
+    value: allOpps.filter((o) => o.stage === s).reduce((sum, o) => sum + inrToLakhsEquivalent(o.value), 0),
   }));
 
   return NextResponse.json({
@@ -140,7 +142,7 @@ async function buildEmployeeMetrics() {
         totalLeads:    leads,
         totalOpps:     opps,
         wonDeals:      won,
-        wonValue:      wonVal._sum.value ?? 0,
+        wonValue:      inrToLakhsEquivalent(wonVal._sum.value ?? 0),
         totalTasks:    tasks,
         conversionPct: opps > 0 ? Math.round((won / opps) * 100) : 0,
       };

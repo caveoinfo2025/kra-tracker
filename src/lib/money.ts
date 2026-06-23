@@ -275,6 +275,18 @@ export function divideMoney(value: MoneyInput, divisor: MoneyInput, scale?: numb
   return scale === undefined ? result : result.toDecimalPlaces(scale, Decimal.ROUND_HALF_UP);
 }
 
+/**
+ * DISPLAY ONLY. Converts an actual-₹-INR amount to its ₹-Lakhs-equivalent number (÷ 100,000), for
+ * feeding into chart/dashboard formatters that are calibrated for Lakhs-scale input (e.g. the
+ * Sales dashboard's `₹X.XXL` cards, KRA view notes, mobile pipeline screens). Proven pattern from
+ * Release 1 (`FinanceDashboardClient.tsx`'s local `inrToLakhsEquivalent()`); promoted here in
+ * Release 2 since Sales/KRA surfaces need the same conversion. Never use this for a value that
+ * flows back into a calculation or a persisted/posted amount — INR is the only canonical unit.
+ */
+export function inrToLakhsEquivalent(inr: MoneyInput): number {
+  return moneyToNumberForDisplay(inr) / 100000;
+}
+
 // ── Comparisons ─────────────────────────────────────────────────────────────────────────────────
 
 /** True if the value is exactly zero. Throws on null/undefined/invalid input. */

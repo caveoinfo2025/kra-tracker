@@ -156,8 +156,10 @@ model SalesFunnel {
   solutionCategory  String    @default("")
   opportunityName   String
   stage             String    @default("Lead")
-  dealValueLakhs    Float     @default(0)
-  billingValueLakhs Float     @default(0)
+  // Decimal Release 2 (Step 3U, 2026-06-23): converted from Float ₹ Lakhs to actual ₹ INR.
+  // Field names still say "Lakhs" (rename deferred) — see docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md.
+  dealValueLakhs    Decimal   @default(0) @db.Decimal(18, 2)
+  billingValueLakhs Decimal   @default(0) @db.Decimal(18, 2)
   grossProfitPct    Float     @default(0)
   proposalDate      DateTime?
   expectedCloseDate DateTime?
@@ -185,11 +187,13 @@ model Collection {
   customerName          String
   customer              Customer? @relation("CollectionCustomer", fields: [customerId], references: [id], onDelete: SetNull)
   customerId            Int?
-  invoiceValueLakhs     Float
-  amountWithoutGstLakhs Float     @default(0)
+  // Decimal Release 2 (Step 3U, 2026-06-23): converted from Float ₹ Lakhs to actual ₹ INR.
+  // Field names still say "Lakhs" (rename deferred) — see docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md.
+  invoiceValueLakhs     Decimal   @db.Decimal(18, 2)
+  amountWithoutGstLakhs Decimal   @default(0) @db.Decimal(18, 2)
   dueDate               DateTime
   paymentReceivedDate   DateTime?
-  amountReceivedLakhs   Float     @default(0)
+  amountReceivedLakhs   Decimal   @default(0) @db.Decimal(18, 2)
   collectionStatus      String    @default("Pending")
   remarks               String    @default("") @db.Text
   createdAt             DateTime  @default(now())
@@ -210,7 +214,9 @@ model Payment {
   id            Int        @id @default(autoincrement())
   collection    Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   collectionId  Int
-  amountLakhs   Float
+  // Decimal Release 2 (Step 3U, 2026-06-23): converted from Float ₹ Lakhs to actual ₹ INR.
+  // Field name still says "Lakhs" (rename deferred) — see docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md.
+  amountLakhs   Decimal    @db.Decimal(18, 2)
   paymentDate   DateTime   @default(now())
   mode          String     @default("Bank Transfer")
   referenceNo   String     @default("")
@@ -235,7 +241,9 @@ model OrderAdvance {
   customerName          String
   customer              Customer? @relation("OrderAdvanceCustomer", fields: [customerId], references: [id], onDelete: SetNull)
   customerId            Int?
-  amountLakhs           Float
+  // Decimal Release 2 (Step 3U, 2026-06-23): converted from Float ₹ Lakhs to actual ₹ INR.
+  // Field name still says "Lakhs" (rename deferred) — see docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md.
+  amountLakhs           Decimal   @db.Decimal(18, 2)
   receivedDate          DateTime  @default(now())
   mode                  String    @default("Bank Transfer")
   referenceNo           String    @default("")
@@ -341,7 +349,9 @@ model CrmLead {
   customerRefId Int?
   customerRef   Customer? @relation("CrmLeadCustomer", fields: [customerRefId], references: [id], onDelete: SetNull)
   stage         String   @default("NEW_LEAD")
-  expectedValue Float    @default(0)
+  // Decimal Release 2 (Step 3U, 2026-06-23): converted from Float ₹ Lakhs to actual ₹ INR —
+  // see docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md.
+  expectedValue Decimal  @default(0) @db.Decimal(18, 2)
   remarks       String   @default("") @db.Text
   assignedTo    Employee @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
   assignedToId  Int
@@ -367,14 +377,16 @@ model CrmOpportunity {
   lead                CrmLead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId              Int       @unique
   stage               String    @default("PROPOSAL_SENT")
-  value               Float     @default(0)
+  // Decimal Release 2 (Step 3U, 2026-06-23): converted from Float ₹ Lakhs to actual ₹ INR —
+  // see docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md.
+  value               Decimal   @default(0) @db.Decimal(18, 2)
   expectedClosureDate DateTime?
   probability         Int       @default(50)
   discountPct         Float     @default(0)   // discount % requested (0-100); triggers approval when > 0
   lostReason          String    @default("") @db.Text
   // Closed Won fields — required when stage → WON
-  dealValueExTax      Float     @default(0)   // deal value excluding tax (₹L)
-  netProfitLakhs      Float     @default(0)   // net profit (absolute, ₹L)
+  dealValueExTax      Decimal   @default(0) @db.Decimal(18, 2)   // deal value excluding tax, actual ₹ INR
+  netProfitLakhs      Decimal   @default(0) @db.Decimal(18, 2)   // net profit (absolute, actual ₹ INR)
   poNumber            String    @default("")  // purchase order number
   poDate              DateTime?               // PO date
   status              String    @default("active")

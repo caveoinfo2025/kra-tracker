@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import MIcon from "../components/MIcon";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 type CollectionRow = {
   id: number;
@@ -35,9 +36,11 @@ function isOverdue(row: CollectionRow): boolean {
   return new Date(row.dueDate) < new Date();
 }
 
+// `val` is actual ₹ INR (Decimal Release 2) — convert to ₹-Lakhs-equivalent for this Cr/L display.
 function fmtLakhs(val: number) {
-  if (val >= 100) return `₹${(val / 100).toFixed(2)} Cr`;
-  return `₹${Math.abs(val).toFixed(0)} L`;
+  const lakhs = inrToLakhsEquivalent(val);
+  if (lakhs >= 100) return `₹${(lakhs / 100).toFixed(2)} Cr`;
+  return `₹${Math.abs(lakhs).toFixed(0)} L`;
 }
 
 function fmtDate(s: string) {
@@ -59,8 +62,9 @@ export default function CollectionsScreen({ isManager, onBack }: Props) {
       .catch(() => setLoading(false));
   }, []);
 
-  const totalBilled = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
-  const totalCollected = rows.reduce((s, r) => s + r.amountReceivedLakhs, 0);
+  // Display-only — converted from actual ₹ INR to ₹-Lakhs-equivalent for the Cr/L KPI cards below.
+  const totalBilled = inrToLakhsEquivalent(rows.reduce((s, r) => s + r.invoiceValueLakhs, 0));
+  const totalCollected = inrToLakhsEquivalent(rows.reduce((s, r) => s + r.amountReceivedLakhs, 0));
   const totalOutstanding = totalBilled - totalCollected;
   const overdueRows = rows.filter(r => isOverdue(r));
   const openRows = rows.filter(r => r.collectionStatus !== "Fully Received");
@@ -243,7 +247,7 @@ export default function CollectionsScreen({ isManager, onBack }: Props) {
 
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 7 }}>
                         <span className={`m-pill ${pillClass}`}>{statusLabel}</span>
-                        {outstanding > 0.01 && (
+                        {outstanding > 1000 && (
                           <span style={{ fontSize: 11, color: overdue ? "var(--caveo-red)" : "var(--fg-3)", fontWeight: 600 }}>
                             -{fmtLakhs(outstanding)} pending
                           </span>

@@ -356,7 +356,7 @@ function LeadFormModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Expected Value (₹L)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Expected Value (₹)</label>
               <input type="number" step="0.1" value={form.expectedValue} onChange={(e) => f("expectedValue", e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
             </div>
@@ -433,7 +433,7 @@ const LEAD_IMPORT_FIELDS: Record<string, { label: string; required?: boolean; al
   email:          { label: "Email",                                aliases: ["email","email address","e-mail","mail"] },
   phone:          { label: "Phone",                                aliases: ["phone","phone number","mobile","contact number","tel","telephone","mobile number"] },
   source:         { label: "Source",                               aliases: ["source","lead source","origin","channel"] },
-  expectedValue:  { label: "Expected Value (₹L)",                 aliases: ["expected value","value","deal value","opportunity value","expected value (₹l)","value (₹l)","amount","est. value"] },
+  expectedValue:  { label: "Expected Value (₹)",                 aliases: ["expected value","value","deal value","opportunity value","expected value (₹l)","value (₹l)","expected value (₹)","amount","est. value"] },
   remarks:        { label: "Remarks",                              aliases: ["remarks","notes","comment","comments","description"] },
   assignedTo:     { label: "Assigned To",                         aliases: ["assigned to","salesperson","owner","employee","sales rep","representative"] },
 };
@@ -507,7 +507,7 @@ function BulkImportModal({
   // Sample CSV download
   function downloadTemplate() {
     const ws  = XLSX.utils.aoa_to_sheet([
-      ["Lead Title","Company Name","Contact Person","Email","Phone","Source","Expected Value (₹L)","Remarks","Assigned To"],
+      ["Lead Title","Company Name","Contact Person","Email","Phone","Source","Expected Value (₹)","Remarks","Assigned To"],
       ["NGFW Replacement","Acme Corp","John Smith","john@acme.com","9876543210","Referral","5","Demo scheduled","Vijesh"],
     ]);
     const wb = XLSX.utils.book_new();
@@ -1111,7 +1111,7 @@ export default function LeadsClient({
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-semibold text-[#CC2229]">
-                          {(m.expectedValue ?? 0) > 0 ? `₹${(m.expectedValue ?? 0).toFixed(1)}L` : "—"}
+                          {(m.expectedValue ?? 0) > 0 ? `₹${(m.expectedValue ?? 0).toFixed(2)}` : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">{m.source}</td>

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import LeadDetailClient from "./LeadDetailClient";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -58,7 +59,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <LeadDetailClient
-        lead={JSON.parse(JSON.stringify(lead))}
+        lead={JSON.parse(JSON.stringify({
+          ...lead,
+          expectedValue: moneyToNumberForDisplay(lead.expectedValue),
+          opportunity: lead.opportunity ? { ...lead.opportunity, value: moneyToNumberForDisplay(lead.opportunity.value) } : null,
+        }))}
         employees={employees}
         isManager={!!session.user.isManager}
         currentEmployeeId={session.user.employeeId}

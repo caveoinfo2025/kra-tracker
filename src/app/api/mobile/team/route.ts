@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { inrToLakhsEquivalent } from "@/lib/money";
 
 export async function GET() {
   const session = await getSession();
@@ -46,8 +47,9 @@ export async function GET() {
     }),
   ]);
 
+  // DISPLAY ONLY — pipeline/won are fed straight into mobile fmtLakhs() formatters.
   const legacyWonMap = new Map<number, number>();
-  legacyWon.forEach((r) => legacyWonMap.set(r.employeeId, r._sum.dealValueLakhs ?? 0));
+  legacyWon.forEach((r) => legacyWonMap.set(r.employeeId, inrToLakhsEquivalent(r._sum.dealValueLakhs ?? 0)));
 
   const team = employees.map((emp) => {
     const myLeads = leads.filter((l) => l.assignedToId === emp.id);
@@ -56,7 +58,7 @@ export async function GET() {
     let openLeads = 0;
     for (const l of myLeads) {
       const oppStage = l.opportunity?.stage;
-      const oppVal = l.opportunity?.value ?? 0;
+      const oppVal = inrToLakhsEquivalent(l.opportunity?.value ?? 0);
       if (oppStage === "WON") wonCrm += oppVal;
       else if (oppStage && oppStage !== "LOST") pipeline += oppVal;
       if (l.stage !== "CLOSED_WON" && l.stage !== "CLOSED_LOST") openLeads++;

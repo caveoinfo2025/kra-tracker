@@ -185,8 +185,8 @@ function RecordPaymentModal({
           {row.customerName} — Invoice {row.invoiceNo || "#" + row.id}
         </p>
         <p className="text-xs text-gray-400 mb-4">
-          ₹{row.invoiceValueLakhs.toFixed(2)}L invoiced · ₹{row.amountReceivedLakhs.toFixed(2)}L received ·
-          <span className={balance > 0 ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}> ₹{balance.toFixed(2)}L balance</span>
+          ₹{row.invoiceValueLakhs.toFixed(2)} invoiced · ₹{row.amountReceivedLakhs.toFixed(2)} received ·
+          <span className={balance > 0 ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}> ₹{balance.toFixed(2)} balance</span>
         </p>
 
         {error && (
@@ -202,7 +202,7 @@ function RecordPaymentModal({
             {custAdvances.map((a) => (
               <div key={a.id} className="flex items-center justify-between text-sm py-1">
                 <span className="text-gray-700">
-                  ₹{a.amountLakhs.toFixed(2)}L · {a.mode}{a.referenceNo ? ` · ${a.referenceNo}` : ""}
+                  ₹{a.amountLakhs.toFixed(2)} · {a.mode}{a.referenceNo ? ` · ${a.referenceNo}` : ""}
                 </span>
                 <button
                   type="button"
@@ -220,7 +220,7 @@ function RecordPaymentModal({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Amount (₹L)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Amount (₹)</label>
               <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
             </div>
@@ -277,7 +277,7 @@ function RecordPaymentModal({
               {ledger.map((p) => (
                 <div key={p.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
                   <div>
-                    <span className="font-semibold text-green-700">₹{p.amountLakhs.toFixed(2)}L</span>
+                    <span className="font-semibold text-green-700">₹{p.amountLakhs.toFixed(2)}</span>
                     <span className="text-gray-400 ml-2">{p.paymentDate.slice(0, 10)} · {p.mode}</span>
                     {p.referenceNo && <span className="text-gray-400 ml-1">· {p.referenceNo}</span>}
                   </div>
@@ -362,7 +362,7 @@ function RecordAdvanceModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Amount (₹L)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Amount (₹)</label>
               <input type="number" step="0.01" value={amountLakhs} onChange={(e) => setAmountLakhs(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC2229]" />
             </div>
@@ -509,7 +509,7 @@ export default function AccountsClient({
           <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2">
             <span className="text-xs text-green-700 font-medium uppercase tracking-wide">Received Today</span>
             <div className="text-lg font-bold text-green-800">
-              ₹{(today?.totalLakhs ?? 0).toFixed(2)}L
+              ₹{(today?.totalLakhs ?? 0).toFixed(2)}
               <span className="text-xs font-normal text-green-600 ml-2">
                 {today?.count ?? 0} payment{(today?.count ?? 0) !== 1 ? "s" : ""}
               </span>
@@ -529,9 +529,9 @@ export default function AccountsClient({
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Invoiced",    value: `₹${totalInvoiced.toFixed(2)}L` },
-          { label: "Total Received",    value: `₹${totalReceived.toFixed(2)}L`,   color: "text-green-700" },
-          { label: "Outstanding",       value: `₹${outstanding.toFixed(2)}L`,     color: outstanding > 0 ? "text-red-600" : "text-green-600" },
+          { label: "Total Invoiced",    value: `₹${totalInvoiced.toFixed(2)}` },
+          { label: "Total Received",    value: `₹${totalReceived.toFixed(2)}`,   color: "text-green-700" },
+          { label: "Outstanding",       value: `₹${outstanding.toFixed(2)}`,     color: outstanding > 0 ? "text-red-600" : "text-green-600" },
           { label: "Collection Rate",   value: `${collRate}%` },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
@@ -545,13 +545,13 @@ export default function AccountsClient({
       {unappliedAdvances.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="text-sm font-semibold text-blue-900 mb-2">
-            Unapplied Advances ({unappliedAdvances.length}) · ₹{unappliedAdvances.reduce((s, a) => s + a.amountLakhs, 0).toFixed(2)}L held
+            Unapplied Advances ({unappliedAdvances.length}) · ₹{unappliedAdvances.reduce((s, a) => s + a.amountLakhs, 0).toFixed(2)} held
           </div>
           <div className="flex flex-wrap gap-2">
             {unappliedAdvances.map((a) => (
               <div key={a.id} className="bg-white border border-blue-200 rounded-lg px-3 py-1.5 text-xs">
                 <span className="font-semibold text-gray-800">{a.customerName}</span>
-                <span className="text-blue-700 font-semibold ml-2">₹{a.amountLakhs.toFixed(2)}L</span>
+                <span className="text-blue-700 font-semibold ml-2">₹{a.amountLakhs.toFixed(2)}</span>
                 <span className="text-gray-400 ml-2">{a.mode}</span>
               </div>
             ))}
@@ -675,9 +675,9 @@ export default function AccountsClient({
                   "Salesperson",
                   "Customer",
                   "Invoice No",
-                  "Invoice (₹L)",
-                  "Received (₹L)",
-                  "Balance (₹L)",
+                  "Invoice (₹)",
+                  "Received (₹)",
+                  "Balance (₹)",
                   "Due Date",
                   "Paid On",
                   "Days Late",

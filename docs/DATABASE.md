@@ -121,6 +121,25 @@
 > fields and every sibling row unchanged (verified). **Release 2 implementation permission:
 > Approved for dev implementation only** — no Release 2 migration was implemented; see
 > `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §15.
+>
+> **Release 2 IMPLEMENTED on the dev DB (Step 3U, 2026-06-23).** All 10 fields now `Decimal(18,2)`
+> storing actual ₹ INR: `Payment.amountLakhs`; `Collection.invoiceValueLakhs`/
+> `amountWithoutGstLakhs`/`amountReceivedLakhs`; `OrderAdvance.amountLakhs`;
+> `CrmLead.expectedValue`; `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`;
+> `SalesFunnel.dealValueLakhs`/`billingValueLakhs`. Field names still say "Lakhs" (rename
+> deferred). `KRATemplateItem.expectedTarget`/`stretchTarget`/`minimumTarget` stayed `Float`
+> (shared across `AMOUNT`/`PERCENTAGE`/`COUNT` rows) — only the 3 `AMOUNT`-typed rows' *data* was
+> multiplied by 100000. The 8 confirmed-money `KRA.target`/`EmployeeTarget.targetJson` entries
+> were also multiplied in place; every other label byte-identical. Migration:
+> `prisma/migrations/20260623060000_decimal_release2_combined_inr_canonical/`. `kra-engine.ts`/
+> `payments.ts` rewritten on top of `money.ts`; ~15 API routes updated to parse via
+> `parseMoneyInput()` and guard responses via `moneyToNumberForDisplay()`/
+> `inrToLakhsEquivalent()`; Sales/CRM UI forms relabelled `"...(₹L)"` → `"...(₹)"` (real INR);
+> dashboards/KRA views/reports/mobile screens keep Lakhs display via `inrToLakhsEquivalent()`,
+> per the recorded business sign-off. Full results, before/after verification, and KRA-scoring
+> stability check: `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`. **Production has NOT
+> been migrated** — this applies to dev only. `Voucher`/`Ledger`/`FinAccount`/`Expense`/
+> `EmployeeAdvance`/`TravelClaim` and non-`AMOUNT` `KRATemplateItem` rows confirmed unchanged.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

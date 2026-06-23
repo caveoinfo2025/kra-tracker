@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import SheetLayout from "@/components/SheetLayout";
 import CollectionsClient from "./CollectionsClient";
 import { canSeeAllCollections } from "@/lib/roles";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export default async function CollectionsPage({
   searchParams,
@@ -38,7 +39,12 @@ export default async function CollectionsPage({
       description="Track invoices, billing revenue, and payment collections. Switch to Revenue Summary to see per-salesperson billing breakdown."
     >
       <CollectionsClient
-        initialRows={JSON.parse(JSON.stringify(rows))}
+        initialRows={JSON.parse(JSON.stringify(rows.map((r) => ({
+          ...r,
+          invoiceValueLakhs: moneyToNumberForDisplay(r.invoiceValueLakhs),
+          amountWithoutGstLakhs: moneyToNumberForDisplay(r.amountWithoutGstLakhs),
+          amountReceivedLakhs: moneyToNumberForDisplay(r.amountReceivedLakhs),
+        }))))}
         employees={employees}
         /* Finance roles (Accounts / Operations Head) get the full all-employee
            view & filters, same as managers. */

@@ -256,7 +256,7 @@ export default function ScanCardScreen({ onBack, onCreated }: Props) {
                   <input className="m-input" type="tel" value={fields.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91…" />
                 </div>
                 <div className="m-field">
-                  <label className="m-field-label">Est. Deal Value (₹L)</label>
+                  <label className="m-field-label">Est. Deal Value (₹)</label>
                   <input className="m-input" type="number" inputMode="decimal" value={expectedValue} onChange={(e) => setExpectedValue(e.target.value)} placeholder="0" />
                 </div>
               </div>

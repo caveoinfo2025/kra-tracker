@@ -90,7 +90,7 @@ function OppCard({ opp, onPromote, promoting }: { opp: OppWithLead; onPromote?: 
 
       <div className="flex items-center justify-between mb-2">
         <OppStageBadge stage={opp.stage} />
-        <span className="text-sm font-bold text-[#CC2229]">₹{opp.value.toFixed(1)}L</span>
+        <span className="text-sm font-bold text-[#CC2229]">₹{opp.value.toFixed(2)}</span>
       </div>
 
       <div className="flex items-center justify-between text-xs text-gray-500">
@@ -253,9 +253,9 @@ export default function OpportunitiesClient({
       {/* ── Pipeline stats ── */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Active Pipeline",   value: `₹${totalValue.toFixed(1)}L`, color: "text-[#CC2229]" },
-          { label: "Weighted Forecast", value: `₹${weighted.toFixed(1)}L`,   color: "text-blue-700" },
-          { label: "Won Value",         value: `₹${wonValue.toFixed(1)}L`,   color: "text-green-700" },
+          { label: "Active Pipeline",   value: `₹${totalValue.toFixed(2)}`, color: "text-[#CC2229]" },
+          { label: "Weighted Forecast", value: `₹${weighted.toFixed(2)}`,   color: "text-blue-700" },
+          { label: "Won Value",         value: `₹${wonValue.toFixed(2)}`,   color: "text-green-700" },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
             <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
@@ -339,7 +339,7 @@ export default function OpportunitiesClient({
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Company / Opportunity", "Stage", "Value (₹L)", "Prob %", "Close Date", "PO Date", "Owner", ""].map((h) => (
+                  {["Company / Opportunity", "Stage", "Value (₹)", "Prob %", "Close Date", "PO Date", "Owner", ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -361,7 +361,7 @@ export default function OpportunitiesClient({
                         <p className="text-xs text-gray-400 truncate max-w-[200px]">{o.lead.title}</p>
                       </td>
                       <td className="px-4 py-3"><OppStageBadge stage={o.stage} /></td>
-                      <td className="px-4 py-3 font-bold text-[#CC2229]">₹{o.value.toFixed(1)}L</td>
+                      <td className="px-4 py-3 font-bold text-[#CC2229]">₹{o.value.toFixed(2)}</td>
                       <td className="px-4 py-3 text-gray-600">{o.probability}%</td>
                       <td className="px-4 py-3">
                         {o.expectedClosureDate ? (

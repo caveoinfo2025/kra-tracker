@@ -344,9 +344,9 @@ export default function CollectionsClient({
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Invoiced (filtered)",        value: `₹${totalInvoiced.toFixed(2)}L` },
-          { label: "Total (Without GST)",        value: `₹${totalWithoutGst.toFixed(2)}L` },
-          { label: "Collected (filtered)",       value: `₹${totalReceived.toFixed(2)}L` },
+          { label: "Invoiced (filtered)",        value: `₹${totalInvoiced.toFixed(2)}` },
+          { label: "Total (Without GST)",        value: `₹${totalWithoutGst.toFixed(2)}` },
+          { label: "Collected (filtered)",       value: `₹${totalReceived.toFixed(2)}` },
           { label: "Collection Rate",            value: `${collRate}%` },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
@@ -392,7 +392,7 @@ export default function CollectionsClient({
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    {["Salesperson", "Invoices", "Total Billed (₹L)", "Total (Without GST) (₹L)", "GST Amount (₹L)", "Collected (₹L)", "Outstanding (₹L)", "Collection %"].map((h) => (
+                    {["Salesperson", "Invoices", "Total Billed (₹)", "Total (Without GST) (₹)", "GST Amount (₹)", "Collected (₹)", "Outstanding (₹)", "Collection %"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -561,20 +561,20 @@ export default function CollectionsClient({
                   {/* Invoice Value + Without GST side by side */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Value (₹L) *</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Value (₹) *</label>
                       <input required type="number" step="0.01" value={form.invoiceValueLakhs}
                         onChange={(e) => handleInvoiceValueChange(e.target.value)}
                         className="w-full border rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Total (Without GST) (₹L)
+                        Total (Without GST) (₹)
                         <button type="button" onClick={calcWithoutGst}
                           className="ml-2 text-[10px] text-[#CC2229] underline hover:text-[#A81B21]">
                           Auto (18%)
                         </button>
                       </label>
-                      <input type="number" step="0.0001" value={form.amountWithoutGstLakhs}
+                      <input type="number" step="0.01" value={form.amountWithoutGstLakhs}
                         onChange={(e) => f("amountWithoutGstLakhs", e.target.value)}
                         className="w-full border rounded-lg px-3 py-2 text-sm" />
                     </div>
@@ -583,7 +583,7 @@ export default function CollectionsClient({
                   {/* GST helper display */}
                   {Number(form.invoiceValueLakhs) > 0 && Number(form.amountWithoutGstLakhs) > 0 && (
                     <p className="text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded">
-                      GST component: <strong>₹{(Number(form.invoiceValueLakhs) - Number(form.amountWithoutGstLakhs)).toFixed(4)}L</strong>
+                      GST component: <strong>₹{(Number(form.invoiceValueLakhs) - Number(form.amountWithoutGstLakhs)).toFixed(2)}</strong>
                       {" "}({((( Number(form.invoiceValueLakhs) - Number(form.amountWithoutGstLakhs)) / Number(form.invoiceValueLakhs)) * 100).toFixed(1)}%)
                     </p>
                   )}
@@ -595,7 +595,7 @@ export default function CollectionsClient({
                         className="w-full border rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Amount Received (₹L)</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Amount Received (₹)</label>
                       <input type="number" step="0.01" value={form.amountReceivedLakhs} onChange={(e) => f("amountReceivedLakhs", e.target.value)}
                         className="w-full border rounded-lg px-3 py-2 text-sm" />
                     </div>
@@ -668,9 +668,9 @@ export default function CollectionsClient({
                       isManager ? "Employee" : null,
                       "Customer",
                       "Invoice Date",
-                      "Invoice (₹L)",
-                      "Total (Without GST) (₹L)",
-                      "Received (₹L)",
+                      "Invoice (₹)",
+                      "Total (Without GST) (₹)",
+                      "Received (₹)",
                       "Balance",
                       "Due Date",
                       "Paid On",

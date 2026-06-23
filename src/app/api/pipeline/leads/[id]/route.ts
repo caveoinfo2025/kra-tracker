@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
+import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
+
+function leadForResponse<T extends { expectedValue: unknown; opportunity?: { value: unknown } | null }>(l: T) {
+  return {
+    ...l,
+    expectedValue: moneyToNumberForDisplay(l.expectedValue as never),
+    ...(l.opportunity ? { opportunity: { ...l.opportunity, value: moneyToNumberForDisplay(l.opportunity.value as never) } } : {}),
+  };
+}
 
 const LEAD_INCLUDE = {
   assignedTo:  { select: { id: true, name: true } },
@@ -26,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!session?.user?.isManager && lead.assignedToId !== session?.user?.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return NextResponse.json(lead);
+  return NextResponse.json(leadForResponse(lead));
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -62,7 +71,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       customerId:     body.customerId    !== undefined ? body.customerId  : undefined,
       customerName:   body.customerName  ?? undefined,
       customerRefId:  body.customerRefId !== undefined ? (body.customerRefId ? Number(body.customerRefId) : null) : undefined,
-      expectedValue:  body.expectedValue !== undefined ? Number(body.expectedValue) : undefined,
+      expectedValue:  body.expectedValue !== undefined ? parseMoneyInput(body.expectedValue) : undefined,
       remarks:        body.remarks       ?? undefined,
       // Only managers can reassign
       ...(session?.user?.isManager && body.assignedToId
@@ -86,7 +95,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     });
   }
 
-  return NextResponse.json(updated);
+  return NextResponse.json(leadForResponse(updated));
 }
 
 /** PATCH /api/pipeline/leads/[id] — lightweight stage update (used by mobile) */
@@ -122,7 +131,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
   }
 
-  return NextResponse.json(updated);
+  return NextResponse.json(leadForResponse(updated));
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {

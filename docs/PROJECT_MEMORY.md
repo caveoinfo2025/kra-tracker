@@ -21,6 +21,56 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 3U: Combined Release 2 INR migration IMPLEMENTED on the dev DB
+
+With the Step 3U-5 configuration blocker resolved, the full Release 2 migration (locked in Step
+3U-1, scoped in Step 3U-2) was implemented end-to-end on `u686730471_caveodev` only.
+
+**Schema (10 fields, Float → `Decimal(18,2)`):** `Payment.amountLakhs`;
+`Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/`amountReceivedLakhs`;
+`OrderAdvance.amountLakhs`; `CrmLead.expectedValue`; `CrmOpportunity.value`/`dealValueExTax`/
+`netProfitLakhs`; `SalesFunnel.dealValueLakhs`/`billingValueLakhs`. Field names unchanged (legacy
+"Lakhs" naming debt, same as Release 1). `KRATemplateItem.expectedTarget`/`stretchTarget`/
+`minimumTarget` columns deliberately left `Float` (shared across `AMOUNT`/`PERCENTAGE`/`COUNT`
+metric rows) — only the 3 `AMOUNT`-typed rows' *data* was multiplied by 100000, via a
+JOIN-filtered `UPDATE` against `KRAMetric.metricType`.
+
+**Migration:** `prisma/migrations/20260623060000_decimal_release2_combined_inr_canonical/
+migration.sql` — same two-phase shape as Release 1 (value transform while columns are still the
+old type, then `ALTER TABLE ... MODIFY ... DECIMAL(18,2)`). Applied via a guarded one-off script
+(refuses any DB but `u686730471_caveodev`), then `npx prisma migrate resolve --applied` + `npx
+prisma generate`.
+
+**Free-text transform:** `KRA.target` and `EmployeeTarget.targetJson` — only the 8 confirmed-money
+labelled entries per table (from Step 3U-2's live-DB scan) were multiplied by 100000 in place via
+a guarded Node script that re-implemented `parseTargets()`'s exact parsing logic; every other
+label (percentage/count/ratio) byte-identical.
+
+**Code:** `src/lib/money.ts` gained `inrToLakhsEquivalent()` (display-only ₹→₹L, promoted from a
+local helper in `FinanceDashboardClient.tsx`). `src/lib/payments.ts` rewritten on `money.ts`
+helpers throughout. `src/lib/kra-engine.ts` updated so every aggregate reads Decimal fields via
+`moneyToNumberForDisplay()` before arithmetic, and every notes string converts back to ₹L via
+`inrToLakhsEquivalent()` before `.toFixed()` — KRA score comparisons stay INR-to-INR, only display
+changes. ~15 API routes (Payment/Collection/Advance/Lead/Opportunity/SalesFunnel/Import) updated
+to parse writes via `parseMoneyInput()` and guard GET responses via `moneyToNumberForDisplay()`/
+`inrToLakhsEquivalent()` — Prisma's `Decimal.toJSON()` returns a string, so without this every
+affected API response would have silently turned a `number` field into a `string`. Sales/CRM UI
+forms (`CollectionsClient`, `AccountsClient`, `LeadsClient`, `LeadDetailClient`,
+`OppDetailClient`, `SalesFunnelClient`, `ImportClient`) relabelled `"...(₹L)"` → `"...(₹)"` (real
+INR input/display, per the recorded business sign-off); dashboards/KRA views/reports/mobile
+screens keep Lakhs display by inserting `inrToLakhsEquivalent()` before existing formatting.
+
+**Verification:** every field's ×100000 transform spot-checked; the Step 3U's pre-migration KRA
+scoring baseline (team + 5 sample employees) re-derived from post-migration data and matched
+within floating-point noise, confirming the engine's comparisons are genuinely unit-consistent;
+every excluded model (`Voucher`/`Ledger`/`FinAccount`/`Expense`/`EmployeeAdvance`/`TravelClaim`/
+non-`AMOUNT` `KRATemplateItem`/`TeamTarget`) reconfirmed unchanged. `npx prisma validate`, `npx tsc
+--noEmit` clean. **Production was NOT touched. No `db push` used. No Voucher/Ledger/Finance write
+API implemented or modified.**
+
+Full results: `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`. Implementation note:
+`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §16.
+
 ### 2026-06-23 — Step 3U-5: KRA AMOUNT metric admin setup fixed; KRATemplateItem #16 re-linked; Release 2 configuration blocker resolved for dev
 Step 3U-5 completed: an admin UI/API fix (additive, no schema change) plus a dev-DB config
 correction performed through the app's own service-layer functions. `src/lib/kra-engine.ts`/

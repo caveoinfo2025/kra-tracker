@@ -343,3 +343,12 @@ sequencing choice — before a Step 3U implementation prompt is created.
 >   migration. `kra-engine.ts`, `payments.ts`, the schema, and every money-value row remain
 >   unconverted.
 > - Full record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §15.
+
+> **Step 3U implementation completed (2026-06-23):** The combined Release 2 INR migration
+> described throughout this plan is now implemented on the dev DB. All 10 schema fields converted
+> Float → Decimal(18,2), the 3 AMOUNT-typed `KRATemplateItem` rows and the 8 confirmed-money
+> `KRA.target`/`EmployeeTarget.targetJson` entries multiplied by 100000, `kra-engine.ts`/
+> `payments.ts`/~15 API routes/Sales UI/mobile screens/dashboards all updated for INR-canonical
+> storage with Lakhs surviving only as display formatting. Full results:
+> `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`. Implementation note:
+> `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §16.

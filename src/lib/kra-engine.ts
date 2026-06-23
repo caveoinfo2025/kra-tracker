@@ -1,8 +1,24 @@
 /**
  * KRA Engine — computes live KRA progress from activity sheets.
  * Maps KRA titles → aggregation queries on LeadGeneration, SalesFunnel, Collection.
+ *
+ * Decimal Release 2 (Step 3U, 2026-06-23): SalesFunnel.dealValueLakhs/billingValueLakhs and
+ * Collection.invoiceValueLakhs/amountWithoutGstLakhs are now Decimal(18,2) storing actual ₹ INR
+ * (field names still say "Lakhs", rename deferred — see
+ * docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md). KRA.target/EmployeeTarget.targetJson
+ * confirmed-money entries were transformed the same way, so every aggregate below now compares
+ * INR to INR with no conversion factor — the design Option A always intended. The only place
+ * Lakhs still appears is in the `notes` display strings, via `inrToLakhsEquivalent()` from
+ * src/lib/money.ts (display-only — never used in a comparison or stored value).
+ *
+ * Exception: `WeeklyCommit.commitText` is a free-text field outside this migration's locked
+ * scope (never confirmed as a reliably money-shaped value — see Section "Known limitations" in
+ * DECIMAL_RELEASE2_MIGRATION_RESULTS.md) and was deliberately left untouched. `forecastAccuracy()`
+ * converts the now-INR achieved deal value back to its Lakhs-equivalent before comparing against
+ * `commitText`, preserving the exact Lakhs-vs-Lakhs comparison this function has always done.
  */
 import prisma from "@/lib/prisma";
+import { moneyToNumberForDisplay, inrToLakhsEquivalent } from "@/lib/money";
 
 export type KRAProgress = {
   kraId: number;
@@ -62,13 +78,17 @@ function getWeekDates(week: number, year: number): { start: Date; end: Date } {
 }
 
 // ── Per-employee helpers ──────────────────────────────────────────────────────
+// Every aggregate below returns a plain JS number in actual ₹ INR — Decimal fields are
+// converted via moneyToNumberForDisplay() immediately at the read boundary so the rest of
+// this file's ratio/percentage arithmetic is ordinary number math (these are scoring ratios,
+// not money postings, so display-precision is the correct trade-off here).
 
 async function closedWonBooking(employeeId: number) {
   const rows = await prisma.salesFunnel.findMany({
     where: { employeeId, stage: "Closed Won" },
     select: { dealValueLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
 }
 
 async function totalCollectionsWithoutGst(employeeId: number) {
@@ -76,16 +96,16 @@ async function totalCollectionsWithoutGst(employeeId: number) {
     where: { employeeId, deletedAt: null },
     select: { amountWithoutGstLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.amountWithoutGstLakhs), 0);
 }
 
-/** Total gross profit in ₹L = sum of (dealValueLakhs × grossProfitPct / 100) for Closed Won */
+/** Total gross profit in actual ₹ INR = sum of (dealValueLakhs × grossProfitPct / 100) for Closed Won */
 async function totalGrossProfit(employeeId: number) {
   const rows = await prisma.salesFunnel.findMany({
     where: { employeeId, stage: "Closed Won" },
     select: { dealValueLakhs: true, grossProfitPct: true },
   });
-  return rows.reduce((s, r) => s + (r.dealValueLakhs * r.grossProfitPct) / 100, 0);
+  return rows.reduce((s, r) => s + (moneyToNumberForDisplay(r.dealValueLakhs) * r.grossProfitPct) / 100, 0);
 }
 
 /**
@@ -98,21 +118,22 @@ async function onTimeCollectionRate(employeeId: number) {
     select: { collectionStatus: true, invoiceValueLakhs: true, dueDate: true, paymentReceivedDate: true },
   });
   if (!rows.length) return { rate: 0, onTime: 0, late: 0, total: 0 };
-  const totalValue = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
+  const totalValue = rows.reduce((s, r) => s + moneyToNumberForDisplay(r.invoiceValueLakhs), 0);
 
   let onTimeVal = 0;
   let lateVal   = 0;
   for (const r of rows) {
+    const invoiceValue = moneyToNumberForDisplay(r.invoiceValueLakhs);
     if (r.paymentReceivedDate) {
       // Use actual payment date vs due date
       if (r.paymentReceivedDate <= r.dueDate) {
-        onTimeVal += r.invoiceValueLakhs;
+        onTimeVal += invoiceValue;
       } else {
-        lateVal += r.invoiceValueLakhs;
+        lateVal += invoiceValue;
       }
     } else if (r.collectionStatus === "Fully Received") {
       // Legacy record without paymentReceivedDate — count as on-time
-      onTimeVal += r.invoiceValueLakhs;
+      onTimeVal += invoiceValue;
     }
     // Pending / Partially Received with no payment date → excluded from both buckets
   }
@@ -147,6 +168,11 @@ async function customerRetentionRate(employeeId: number) {
 /**
  * Forecast accuracy = avg(min(1, closedWon₹L for week / committed₹L for week))
  * across all weeks where the employee made a numeric commit on this Sales Ops KRA.
+ *
+ * `commitText` is free text outside this migration's scope and stays Lakhs-scale by
+ * convention (never confirmed as money-shaped, never transformed) — the achieved deal value
+ * (now INR) is converted back to its Lakhs-equivalent here so this remains the same
+ * Lakhs-vs-Lakhs comparison it has always been, not a new INR-vs-Lakhs mismatch.
  */
 async function forecastAccuracy(employeeId: number, kraId: number): Promise<number> {
   const commits = await prisma.weeklyCommit.findMany({
@@ -166,8 +192,10 @@ async function forecastAccuracy(employeeId: number, kraId: number): Promise<numb
       where: { employeeId, stage: "Closed Won", closedDate: { gte: start, lte: end } },
       select: { dealValueLakhs: true },
     });
-    const achieved = rows.reduce((s, r) => s + r.dealValueLakhs, 0);
-    total += Math.min(1, achieved / committed);
+    const achievedLakhs = inrToLakhsEquivalent(
+      rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0)
+    );
+    total += Math.min(1, achievedLakhs / committed);
     count++;
   }
 
@@ -197,7 +225,7 @@ async function crmAccuracy(employeeId: number) {
   return complete / rows.length;
 }
 
-/** Category-wise Closed Won booking from Sales Funnel */
+/** Category-wise Closed Won booking from Sales Funnel (actual ₹ INR) */
 async function bookingByCategory(employeeId: number) {
   const rows = await prisma.salesFunnel.findMany({
     where: { employeeId, stage: "Closed Won" },
@@ -206,7 +234,7 @@ async function bookingByCategory(employeeId: number) {
   const map: Record<string, number> = {};
   for (const r of rows) {
     const cat = r.solutionCategory?.trim() || "Other";
-    map[cat] = (map[cat] ?? 0) + r.dealValueLakhs;
+    map[cat] = (map[cat] ?? 0) + moneyToNumberForDisplay(r.dealValueLakhs);
   }
   return map;
 }
@@ -228,7 +256,7 @@ async function activePipelineRatio(employeeId: number, targetLakhs: number) {
     where: { employeeId, status: "Active", stage: { notIn: ["Closed Won", "Closed Lost"] } },
     select: { dealValueLakhs: true },
   });
-  const total = rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  const total = rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
   return targetLakhs > 0 ? total / targetLakhs : 0;
 }
 
@@ -237,7 +265,7 @@ async function focusAreaRevenue(employeeId: number, category: string) {
     where: { employeeId, stage: "Closed Won", solutionCategory: { contains: category } },
     select: { dealValueLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
 }
 
 async function outboundCalls(employeeId: number) {
@@ -269,7 +297,7 @@ async function totalPipelineValue(employeeId: number) {
     where: { employeeId },
     select: { dealValueLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
 }
 
 async function pipelineOpportunities(employeeId: number) {
@@ -283,7 +311,7 @@ async function teamBooking() {
     where: { stage: "Closed Won" },
     select: { dealValueLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
 }
 
 async function teamBilling() {
@@ -291,16 +319,16 @@ async function teamBilling() {
     where: { deletedAt: null },
     select: { amountWithoutGstLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.amountWithoutGstLakhs), 0);
 }
 
-/** Total team gross profit in ₹L = sum of (dealValueLakhs × grossProfitPct / 100) */
+/** Total team gross profit in actual ₹ INR = sum of (dealValueLakhs × grossProfitPct / 100) */
 async function teamTotalGrossProfit() {
   const rows = await prisma.salesFunnel.findMany({
     where: { stage: "Closed Won" },
     select: { dealValueLakhs: true, grossProfitPct: true },
   });
-  return rows.reduce((s, r) => s + (r.dealValueLakhs * r.grossProfitPct) / 100, 0);
+  return rows.reduce((s, r) => s + (moneyToNumberForDisplay(r.dealValueLakhs) * r.grossProfitPct) / 100, 0);
 }
 
 async function teamCollectionsEfficiency() {
@@ -309,9 +337,9 @@ async function teamCollectionsEfficiency() {
     select: { collectionStatus: true, invoiceValueLakhs: true },
   });
   if (!rows.length) return 0;
-  const total    = rows.reduce((s, r) => s + r.invoiceValueLakhs, 0);
+  const total    = rows.reduce((s, r) => s + moneyToNumberForDisplay(r.invoiceValueLakhs), 0);
   const received = rows.filter((r) => r.collectionStatus === "Fully Received")
-    .reduce((s, r) => s + r.invoiceValueLakhs, 0);
+    .reduce((s, r) => s + moneyToNumberForDisplay(r.invoiceValueLakhs), 0);
   return total > 0 ? received / total : 0;
 }
 
@@ -332,7 +360,7 @@ async function teamFocusAreaMix() {
     where: { stage: "Closed Won" },
     select: { solutionCategory: true, dealValueLakhs: true },
   });
-  const total = rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  const total = rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
   if (total === 0) return 0;
   const focusKeywords = ["network", "server", "mssp", "cloud"];
   const focusTotal = rows
@@ -340,7 +368,7 @@ async function teamFocusAreaMix() {
       const cat = (r.solutionCategory ?? "").toLowerCase();
       return focusKeywords.some((k) => cat.includes(k));
     })
-    .reduce((s, r) => s + r.dealValueLakhs, 0);
+    .reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
   return focusTotal / total;
 }
 
@@ -375,7 +403,7 @@ async function teamPipeline() {
     where: { status: "Active" },
     select: { dealValueLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
 }
 
 /**
@@ -420,10 +448,10 @@ export async function computeKRAProgress(
       const billingTarget = targets["total sales revenue - billing"] ?? (bookingTarget * 0.9);
       const booking       = await closedWonBooking(employeeId);
       const billing       = await totalCollectionsWithoutGst(employeeId);
-      // GP target from Excel is %; convert to absolute ₹L using booking target
+      // GP target from Excel is %; convert to absolute ₹ INR using booking target
       const gpPctTarget   = targets["average gross profit margin"] ?? 10;
-      const gpLakhTarget  = bookingTarget * gpPctTarget / 100;  // e.g. 70 × 6.5% = 4.55L
-      const gp            = await totalGrossProfit(employeeId); // absolute ₹L achieved
+      const gpLakhTarget  = bookingTarget * gpPctTarget / 100;
+      const gp            = await totalGrossProfit(employeeId); // absolute ₹ INR achieved
       const collTarget    = targets["payment collections within due dates & credit days reduction"] ?? 0.9;
       const collData      = await onTimeCollectionRate(employeeId);
       const coll          = collData.rate;
@@ -436,10 +464,10 @@ export async function computeKRAProgress(
       // Weights from Excel: booking=0.375, billing=0.375, GP=0.125, collections=0.125
       progress = clamp(Math.round(bookPct * 0.375 + billPct * 0.375 + gpPct * 0.125 + collPct * 0.125));
       notes = [
-        `Booking (Closed Won): ₹${booking.toFixed(1)}L / ₹${bookingTarget}L (${bookPct.toFixed(0)}%)`,
-        `Billing (ex-GST): ₹${billing.toFixed(1)}L / ₹${billingTarget.toFixed(1)}L (${billPct.toFixed(0)}%)`,
-        `On-time Collections: ₹${collData.onTime.toFixed(1)}L / ₹${collData.total.toFixed(1)}L (${(coll * 100).toFixed(0)}%)`,
-        `Gross Profit: ₹${gp.toFixed(2)}L / ₹${gpLakhTarget.toFixed(2)}L (${gpPct.toFixed(0)}%)`,
+        `Booking (Closed Won): ₹${inrToLakhsEquivalent(booking).toFixed(1)}L / ₹${inrToLakhsEquivalent(bookingTarget).toFixed(1)}L (${bookPct.toFixed(0)}%)`,
+        `Billing (ex-GST): ₹${inrToLakhsEquivalent(billing).toFixed(1)}L / ₹${inrToLakhsEquivalent(billingTarget).toFixed(1)}L (${billPct.toFixed(0)}%)`,
+        `On-time Collections: ₹${inrToLakhsEquivalent(collData.onTime).toFixed(1)}L / ₹${inrToLakhsEquivalent(collData.total).toFixed(1)}L (${(coll * 100).toFixed(0)}%)`,
+        `Gross Profit: ₹${inrToLakhsEquivalent(gp).toFixed(2)}L / ₹${inrToLakhsEquivalent(gpLakhTarget).toFixed(2)}L (${gpPct.toFixed(0)}%)`,
       ].join(" | ");
     }
 
@@ -524,7 +552,7 @@ export async function computeKRAProgress(
       const salesTargets  = salesKra ? parseTargets(salesKra.target) : {};
       const bookingTarget = salesTargets["total sales revenue - booking"] ?? 70;
 
-      // Targets are proportions of booking target (e.g. 0.35 = 35% × bookingTarget ₹L)
+      // Targets are proportions of booking target (e.g. 0.35 = 35% × bookingTarget actual ₹ INR)
       const nsProp    = targets["network & security"]        ?? 0;
       const ssProp    = targets["server & storage"]          ?? 0;
       const msspProp  = targets["mssp services"]             ?? 0;
@@ -547,10 +575,10 @@ export async function computeKRAProgress(
         if (target > 0) {
           const pct = clamp((achieved / target) * 100);
           catScores.push(pct);
-          catNotes.push(`${label}: ₹${achieved.toFixed(1)}L / ₹${target.toFixed(1)}L (${pct.toFixed(0)}%)`);
+          catNotes.push(`${label}: ₹${inrToLakhsEquivalent(achieved).toFixed(1)}L / ₹${inrToLakhsEquivalent(target).toFixed(1)}L (${pct.toFixed(0)}%)`);
         } else if (achieved > 0) {
           catScores.push(100);
-          catNotes.push(`${label}: ₹${achieved.toFixed(1)}L`);
+          catNotes.push(`${label}: ₹${inrToLakhsEquivalent(achieved).toFixed(1)}L`);
         }
       };
       addCat("N&S",   ns,    nsTarget);
@@ -562,7 +590,7 @@ export async function computeKRAProgress(
         ? clamp(Math.round(catScores.reduce((a, b) => a + b, 0) / catScores.length))
         : 0;
       notes = catNotes.length > 0
-        ? `(Booking target: ₹${bookingTarget}L) ` + catNotes.join(" | ")
+        ? `(Booking target: ₹${inrToLakhsEquivalent(bookingTarget).toFixed(1)}L) ` + catNotes.join(" | ")
         : "No Closed Won deals in any focus category yet.";
     }
 
@@ -649,7 +677,7 @@ export async function computeKRAProgress(
       const cntPct = clamp((cnt / cntTarget) * 100);
       // Weights from Excel: value=0.75, count=0.25
       progress = clamp(Math.round(valPct * 0.75 + cntPct * 0.25));
-      notes = `Pipeline value: ₹${val.toFixed(1)}L / ₹${valTarget}L (${valPct.toFixed(0)}%) | Opportunities: ${cnt}/${cntTarget} (${cntPct.toFixed(0)}%)`;
+      notes = `Pipeline value: ₹${inrToLakhsEquivalent(val).toFixed(1)}L / ₹${inrToLakhsEquivalent(valTarget).toFixed(1)}L (${valPct.toFixed(0)}%) | Opportunities: ${cnt}/${cntTarget} (${cntPct.toFixed(0)}%)`;
     }
 
     // ── Marketing Activities (Akshayah — manual) ─────────────────────────
@@ -665,14 +693,14 @@ export async function computeKRAProgress(
     else if (t.includes("revenue & profitability")) {
       const bookTarget = targets["total team booking target achievement (₹ lakhs)"] ?? 500;
       const billTarget = targets["total team billing achievement"] ?? 450;
-      // GP target is % of booking target → convert to absolute ₹L
+      // GP target is % of booking target → convert to absolute ₹ INR
       const gpPctTarget = targets["gross profit margin (%)"] ?? 12;
-      const gpLakhTarget = bookTarget * gpPctTarget / 100; // e.g. 500 × 12% = 60L
+      const gpLakhTarget = bookTarget * gpPctTarget / 100;
       const collTarget  = targets["collections efficiency (% within due dates)"] ?? 0.9;
 
       const booking = await teamBooking();
       const billing = await teamBilling();
-      const gp      = await teamTotalGrossProfit(); // absolute ₹L
+      const gp      = await teamTotalGrossProfit(); // absolute ₹ INR
       const coll    = await teamCollectionsEfficiency();
 
       const bookPct = clamp((booking / bookTarget)  * 100);
@@ -683,9 +711,9 @@ export async function computeKRAProgress(
       // Weights from Excel: booking=0.375, billing=0.325, GP=0.200, coll=0.100
       progress = clamp(Math.round(bookPct * 0.375 + billPct * 0.325 + gpPct * 0.2 + collPct * 0.1));
       notes = [
-        `Team booking: ₹${booking.toFixed(1)}L / ₹${bookTarget}L (${bookPct.toFixed(0)}%)`,
-        `Team billing: ₹${billing.toFixed(1)}L / ₹${billTarget}L (${billPct.toFixed(0)}%)`,
-        `Team GP: ₹${gp.toFixed(2)}L / ₹${gpLakhTarget.toFixed(2)}L (${gpPct.toFixed(0)}%)`,
+        `Team booking: ₹${inrToLakhsEquivalent(booking).toFixed(1)}L / ₹${inrToLakhsEquivalent(bookTarget).toFixed(1)}L (${bookPct.toFixed(0)}%)`,
+        `Team billing: ₹${inrToLakhsEquivalent(billing).toFixed(1)}L / ₹${inrToLakhsEquivalent(billTarget).toFixed(1)}L (${billPct.toFixed(0)}%)`,
+        `Team GP: ₹${inrToLakhsEquivalent(gp).toFixed(2)}L / ₹${inrToLakhsEquivalent(gpLakhTarget).toFixed(2)}L (${gpPct.toFixed(0)}%)`,
         `Collections efficiency: ${(coll * 100).toFixed(0)}% / ${(collTarget * 100).toFixed(0)}%`,
       ].join(" | ");
     }
@@ -742,7 +770,7 @@ export async function computeKRAProgress(
       // Weights from Excel: pipeline=0.53 (8/15), forecast=0.33 (5/15), win=0.13 (2/15)
       progress = clamp(Math.round(pipPct * 0.53 + forecastPct * 0.33 + winPct * 0.13));
       notes = [
-        `Team pipeline: ₹${pipeline.toFixed(1)}L / ₹${pipTarget}L (${pipPct.toFixed(0)}%)`,
+        `Team pipeline: ₹${inrToLakhsEquivalent(pipeline).toFixed(1)}L / ₹${inrToLakhsEquivalent(pipTarget).toFixed(1)}L (${pipPct.toFixed(0)}%)`,
         `Forecast accuracy: ${(forecast * 100).toFixed(0)}% / ${(forecastTarget * 100).toFixed(0)}%`,
         `Win rate: ${(winRate * 100).toFixed(0)}% / ${(winTarget * 100).toFixed(0)}%`,
       ].join(" | ");

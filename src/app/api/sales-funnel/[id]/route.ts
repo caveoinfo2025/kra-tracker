@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
+
+function funnelForResponse<T extends { dealValueLakhs: unknown; billingValueLakhs: unknown }>(r: T) {
+  return {
+    ...r,
+    dealValueLakhs: moneyToNumberForDisplay(r.dealValueLakhs as never),
+    billingValueLakhs: moneyToNumberForDisplay(r.billingValueLakhs as never),
+  };
+}
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -45,8 +54,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       solutionCategory: body.solutionCategory,
       opportunityName: body.opportunityName,
       stage: body.stage,
-      dealValueLakhs: body.dealValueLakhs !== undefined ? Number(body.dealValueLakhs) : undefined,
-      billingValueLakhs: body.billingValueLakhs !== undefined ? Number(body.billingValueLakhs) : undefined,
+      dealValueLakhs: body.dealValueLakhs !== undefined ? parseMoneyInput(body.dealValueLakhs) : undefined,
+      billingValueLakhs: body.billingValueLakhs !== undefined ? parseMoneyInput(body.billingValueLakhs) : undefined,
       grossProfitPct: body.grossProfitPct !== undefined ? Number(body.grossProfitPct) : undefined,
       proposalDate: body.proposalDate ? new Date(body.proposalDate) : undefined,
       expectedCloseDate: body.expectedCloseDate ? new Date(body.expectedCloseDate) : undefined,
@@ -60,7 +69,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     },
     include: { employee: { select: { name: true } } },
   });
-  return NextResponse.json(row);
+  return NextResponse.json(funnelForResponse(row));
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -3,6 +3,16 @@ import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { canSeeAllCollections } from "@/lib/roles";
 import { logSoftDelete } from "@/lib/audit-log";
+import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
+
+function collectionForResponse<T extends { invoiceValueLakhs: unknown; amountWithoutGstLakhs: unknown; amountReceivedLakhs: unknown }>(c: T) {
+  return {
+    ...c,
+    invoiceValueLakhs: moneyToNumberForDisplay(c.invoiceValueLakhs as never),
+    amountWithoutGstLakhs: moneyToNumberForDisplay(c.amountWithoutGstLakhs as never),
+    amountReceivedLakhs: moneyToNumberForDisplay(c.amountReceivedLakhs as never),
+  };
+}
 
 export async function DELETE(req: Request) {
   const session = await getSession();
@@ -73,7 +83,7 @@ export async function GET(req: Request) {
     include: { employee: { select: { name: true } } },
     orderBy: { invoiceDate: "desc" },
   });
-  return NextResponse.json(rows);
+  return NextResponse.json(rows.map(collectionForResponse));
 }
 
 export async function POST(req: Request) {
@@ -93,15 +103,15 @@ export async function POST(req: Request) {
       invoiceNo: body.invoiceNo ?? "",
       customerName: body.customerName,
       customerId: body.customerId ? Number(body.customerId) : null,
-      invoiceValueLakhs: Number(body.invoiceValueLakhs),
-      amountWithoutGstLakhs: Number(body.amountWithoutGstLakhs ?? 0),
+      invoiceValueLakhs: parseMoneyInput(body.invoiceValueLakhs),
+      amountWithoutGstLakhs: parseMoneyInput(body.amountWithoutGstLakhs ?? 0),
       dueDate: new Date(body.dueDate),
       paymentReceivedDate: body.paymentReceivedDate ? new Date(body.paymentReceivedDate) : null,
-      amountReceivedLakhs: Number(body.amountReceivedLakhs ?? 0),
+      amountReceivedLakhs: parseMoneyInput(body.amountReceivedLakhs ?? 0),
       collectionStatus: body.collectionStatus ?? "Pending",
       remarks: body.remarks ?? "",
     },
     include: { employee: { select: { name: true } } },
   });
-  return NextResponse.json(row, { status: 201 });
+  return NextResponse.json(collectionForResponse(row), { status: 201 });
 }

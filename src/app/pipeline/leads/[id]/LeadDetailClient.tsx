@@ -84,7 +84,7 @@ function EditLeadModal({
     ["categoryName", "Category"],
     ["productName", "Product"],
     ["customerName", "Customer"],
-    ["expectedValue", "Expected Value (₹L)", "number"],
+    ["expectedValue", "Expected Value (₹)", "number"],
   ];
 
   return (
@@ -667,7 +667,7 @@ export default function LeadDetailClient({
             </div>
             <div className="text-right">
               {lead.expectedValue > 0 && (
-                <p className="text-2xl font-bold text-[#CC2229]">₹{lead.expectedValue.toFixed(1)}L</p>
+                <p className="text-2xl font-bold text-[#CC2229]">₹{lead.expectedValue.toFixed(2)}</p>
               )}
               <p className="text-xs text-gray-400">{lead.source}</p>
               <div className="flex gap-2 mt-2 flex-wrap justify-end">
@@ -941,7 +941,7 @@ export default function LeadDetailClient({
         {lead.opportunity && (
           <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
             <p className="text-xs font-semibold text-amber-800 uppercase mb-2">Linked Opportunity</p>
-            <p className="text-sm font-medium text-amber-900">₹{lead.opportunity.value.toFixed(1)}L</p>
+            <p className="text-sm font-medium text-amber-900">₹{lead.opportunity.value.toFixed(2)}</p>
             <p className="text-xs text-amber-700">{lead.opportunity.stage} · {lead.opportunity.probability}%</p>
             <Link href={`/pipeline/opportunities/${lead.opportunity.id}`}
               className="block text-xs text-amber-800 hover:underline mt-2 font-medium">

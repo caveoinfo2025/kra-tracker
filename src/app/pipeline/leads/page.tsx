@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import { redirect } from "next/navigation";
 import SheetLayout from "@/components/SheetLayout";
 import LeadsClient from "./LeadsClient";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
 export default async function LeadsPage({
   searchParams,
@@ -63,7 +64,11 @@ export default async function LeadsPage({
       description="Qualify and manage leads from initial contact through proposal stage."
     >
       <LeadsClient
-        initialLeads={JSON.parse(JSON.stringify(rawLeads))}
+        initialLeads={JSON.parse(JSON.stringify(rawLeads.map((l) => ({
+          ...l,
+          expectedValue: moneyToNumberForDisplay(l.expectedValue),
+          opportunity: l.opportunity ? { ...l.opportunity, value: moneyToNumberForDisplay(l.opportunity.value) } : null,
+        }))))}
         employees={employees}
         isManager={isManager}
         currentEmployeeId={empId}

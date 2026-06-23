@@ -15,14 +15,15 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
+import { moneyToNumberForDisplay } from "@/lib/money";
 
-// Helper: compute closed won booking (₹L) for an employee
+// Helper: compute closed won booking (actual ₹ INR) for an employee
 async function closedWonBooking(employeeId: number): Promise<number> {
   const rows = await prisma.salesFunnel.findMany({
     where: { employeeId, stage: "Closed Won" },
     select: { dealValueLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.dealValueLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.dealValueLakhs), 0);
 }
 
 // Helper: count qualified leads for an employee
@@ -74,7 +75,7 @@ async function totalBilling(employeeId: number): Promise<number> {
     where: { employeeId, deletedAt: null },
     select: { amountWithoutGstLakhs: true },
   });
-  return rows.reduce((s, r) => s + r.amountWithoutGstLakhs, 0);
+  return rows.reduce((s, r) => s + moneyToNumberForDisplay(r.amountWithoutGstLakhs), 0);
 }
 
 // Helper: compute total gross profit
@@ -83,7 +84,7 @@ async function totalGrossProfit(employeeId: number): Promise<number> {
     where: { employeeId, stage: "Closed Won" },
     select: { dealValueLakhs: true, grossProfitPct: true },
   });
-  return rows.reduce((s, r) => s + (r.dealValueLakhs * r.grossProfitPct) / 100, 0);
+  return rows.reduce((s, r) => s + (moneyToNumberForDisplay(r.dealValueLakhs) * r.grossProfitPct) / 100, 0);
 }
 
 // Main computation function

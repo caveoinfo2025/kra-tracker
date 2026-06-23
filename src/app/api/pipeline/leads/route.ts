@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { executeAutomation } from "@/lib/crm-engine";
+import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
+
+function leadForResponse<T extends { expectedValue: unknown; opportunity?: { value: unknown } | null }>(l: T) {
+  return {
+    ...l,
+    expectedValue: moneyToNumberForDisplay(l.expectedValue as never),
+    ...(l.opportunity ? { opportunity: { ...l.opportunity, value: moneyToNumberForDisplay(l.opportunity.value as never) } } : {}),
+  };
+}
 
 const LEAD_INCLUDE = {
   assignedTo:  { select: { id: true, name: true } },
@@ -59,7 +68,7 @@ export async function GET(req: Request) {
     }),
   ]);
 
-  return NextResponse.json({ rows, total, page, limit });
+  return NextResponse.json({ rows: rows.map(leadForResponse), total, page, limit });
 }
 
 export async function POST(req: Request) {
@@ -87,7 +96,7 @@ export async function POST(req: Request) {
       customerName:  body.customerName  ?? "",
       customerRefId: body.customerRefId ? Number(body.customerRefId) : null,
       stage:         "NEW_LEAD",
-      expectedValue: Number(body.expectedValue ?? 0),
+      expectedValue: parseMoneyInput(body.expectedValue ?? 0),
       remarks:       body.remarks       ?? "",
       assignedToId:  empId,   // auto-assign to creator
       createdById:   empId,
@@ -128,5 +137,5 @@ export async function POST(req: Request) {
     companyName: lead.companyName,
   }).catch(() => {/* never block response */});
 
-  return NextResponse.json(lead, { status: 201 });
+  return NextResponse.json(leadForResponse(lead), { status: 201 });
 }

@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { moneyToNumberForDisplay } from "@/lib/money";
+
+function oppForResponse<T extends { value: unknown; dealValueExTax: unknown; netProfitLakhs: unknown }>(o: T) {
+  return {
+    ...o,
+    value: moneyToNumberForDisplay(o.value as never),
+    dealValueExTax: moneyToNumberForDisplay(o.dealValueExTax as never),
+    netProfitLakhs: moneyToNumberForDisplay(o.netProfitLakhs as never),
+  };
+}
 
 const OPP_INCLUDE = {
   lead: {
@@ -55,5 +65,5 @@ export async function GET(req: Request) {
     }),
   ]);
 
-  return NextResponse.json({ rows, total, page, limit });
+  return NextResponse.json({ rows: rows.map(oppForResponse), total, page, limit });
 }
