@@ -908,3 +908,14 @@ This document is **planning only**. As of this step:
 > `KRA.target`/`EmployeeTarget.targetJson` entries multiplied by 100000 in place. `money.ts`'s
 > helpers are now wired into `payments.ts`, `kra-engine.ts`, and ~15 API routes. Full results:
 > `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`.
+
+> **Step 3V-1 audit closure completed (2026-06-23):** Step 3V's post-migration audit found no
+> defects but its `TeamTarget` raw-SQL query hit `ER_NO_SUCH_TABLE` — root cause confirmed as a
+> table-name mapping issue in the verification script (`TeamTarget` model maps to physical table
+> `team_target` via `@@map`), not a migration defect. Re-ran the same closure checks through the
+> Prisma client (auto-resolves `@@map`): `TeamTarget` still 0 rows, all 34 `KRA.target` and
+> `EmployeeTarget.targetJson` rows re-scanned with 0 money-label anomalies, all 14 non-`AMOUNT`
+> `KRATemplateItem` rows confirmed unmultiplied. No hidden regression found. Verification-only —
+> no code/schema/data changed. Full record:
+> `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md` §4,
+> `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §17.

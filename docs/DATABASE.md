@@ -190,7 +190,12 @@
 > snake_case SQL table names (`workflow_definition`, `master_category`, etc.) while Prisma model
 > names are PascalCase. `@@map("snake_case")` directives were added to all 15 affected models so
 > Prisma resolves the correct table. Phases 2 & 5 used PascalCase in both SQL and model names —
-> no @@map needed there.
+> no @@map needed there. **`TeamTarget`/`KRATemplateItem`/`KRAMetric` are also `@@map`-ped**
+> (`team_target`/`kra_template_item`/`kra_metric`) — a raw-SQL verification script that queries
+> the PascalCase model name directly against these tables will fail with `ER_NO_SUCH_TABLE`
+> (hit and resolved in Step 3V-1, `docs/RBAC_MIGRATION_TRACKER.md`). Prefer the Prisma client
+> (`prisma.teamTarget.count()`) over raw SQL for ad-hoc dev-DB checks — it resolves `@@map`
+> automatically.
 
 > **Seed actor:** All Phase 5–7 seeds that reference an Employee FK (creator, performer) use
 > `{ connect: { id: N } }` relation syntax (not bare FK integer) because Prisma 7 validates

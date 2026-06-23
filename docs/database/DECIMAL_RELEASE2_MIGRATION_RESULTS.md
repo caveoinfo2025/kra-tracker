@@ -306,3 +306,41 @@ directly from the DB, schema, and code, not from the implementation's own self-r
 **No defects found.** Every value, type, and exclusion check passes. The only issue identified
 across this audit is the documentation field-count error (10 → 11, corrected in §2.4) — not a
 schema, data, or code defect.
+
+---
+
+## 4. Step 3V-1 Audit Closure (2026-06-23)
+
+**Purpose.** Section 3's `TeamTarget` query failed with `ER_NO_SUCH_TABLE` because the audit
+script used the Prisma **model** name (`TeamTarget`, PascalCase) as a raw-SQL table name. The
+`TeamTarget` model carries `@@map("team_target")` (`prisma/schema.prisma`, confirmed at the
+model's closing block) — its physical MySQL table is the lowercase, snake_case `team_target`,
+not `TeamTarget`. The aborted query was a raw-SQL naming mistake in the *verification script*,
+not a finding about the database or the migration. This step re-runs the closure checks through
+the Prisma client (`prisma.teamTarget.count()`), which resolves the `@@map` automatically, and
+confirms nothing was hidden by the earlier abort.
+
+**Dev DB confirmed:** `DATABASE_URL` resolved to `u686730471_caveodev` before any query ran — the
+guarded script refused any other database name. All queries below are read-only
+(`count`/`findMany` with `select` only) — no `INSERT`/`UPDATE`/`DELETE` was issued.
+
+### 4.1 Closure check table
+
+| Check | Result | Status | Notes |
+| ----- | ------ | ------ | ----- |
+| Field count (Release 2 schema fields) | 11 decimal(18,2) fields across 6 models | ✅ Confirmed | Re-confirms §2.4's correction; no change since Step 3V |
+| `TeamTarget` table-name clarification | Model `TeamTarget` maps to physical table `team_target` via `@@map("team_target")` | ✅ Resolved | Section 3's `ER_NO_SUCH_TABLE` was a raw-SQL PascalCase naming error in the audit script, not a DB or migration defect |
+| `TeamTarget` row count | 0 rows | ✅ Confirmed | Re-queried via `prisma.teamTarget.count()` (model-level access, mapping resolved automatically) — matches every prior count in §1.9/§3.1; still a valid no-op |
+| `KRA.target` confirmed-money entries (rows 38, 65, 68, 71 spot-checked; all 34 rows scanned) | All 6 confirmed money labels read back at INR scale (e.g. `total sales revenue - booking: 7000000`, `total team pipeline coverage (₹ lakhs): 150000000`) | ✅ Verified | 0 anomalies found scanning all 34 rows for any confirmed money label valued `< 1000` (would indicate un-migrated Lakhs-scale data) |
+| `EmployeeTarget.targetJson` confirmed-money entries (rows 1, 28, 31, 34 spot-checked; all 34 rows scanned) | Byte-identical money-label values to the matching `KRA.target` rows, all at INR scale | ✅ Verified | 0 anomalies found scanning all 34 rows, same `< 1000` check as `KRA.target` |
+| Non-`AMOUNT` `KRATemplateItem` rows not multiplied | 14 rows, 0 exceeding 1000 | ✅ Confirmed | Matches §3.1's prior finding — re-verified independently this step via `metric.metricType: { not: "AMOUNT" }` filter |
+| Hidden Release 2 regression | None found | ✅ No regression | Every value re-derived this step matches the Section 1 pre-migration baseline × 100,000 and the Section 3 audit's findings exactly |
+
+### 4.2 Result
+
+**No defects found, no hidden issue uncovered by the aborted Section 3 query.** The
+`ER_NO_SUCH_TABLE` error was conclusively a table-naming mistake in the verification tooling
+(raw SQL against a PascalCase name instead of the Prisma-mapped `team_target`), not a sign of a
+missing table, a failed migration step, or unmigrated data. `TeamTarget` remains a 0-row, no-op
+exclusion. Every other check in this closure step reconfirms Section 3's "No defects found"
+conclusion independently. No code, schema, or data was changed in this step — verification only.

@@ -21,6 +21,21 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 3V-1: Release 2 audit closure (TeamTarget table-name fix, verification only)
+
+Closed the one open item from Step 3V's post-migration audit: its `TeamTarget` raw-SQL query had
+aborted with `ER_NO_SUCH_TABLE` because the script queried the Prisma model name (`TeamTarget`)
+directly instead of its `@@map("team_target")`-mapped physical table. Re-ran the same closure
+checks via the Prisma client (mapping resolved automatically): `TeamTarget` confirmed still 0
+rows; all 34 `KRA.target` and `EmployeeTarget.targetJson` rows re-scanned for confirmed-money
+labels with 0 anomalies (none read back below the expected INR scale); all 14 non-`AMOUNT`
+`KRATemplateItem` rows confirmed unmultiplied. **No hidden Release 2 regression found — the abort
+was a verification-script naming bug, not a migration defect.** No code, schema, or data changed
+this step. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass. Full record:
+`docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md` §4,
+`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §17,
+`docs/RBAC_MIGRATION_TRACKER.md` (Step 3V-1 row).
+
 ### 2026-06-23 — Step 3U: Combined Release 2 INR migration IMPLEMENTED on the dev DB
 
 With the Step 3U-5 configuration blocker resolved, the full Release 2 migration (locked in Step

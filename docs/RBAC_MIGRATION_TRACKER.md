@@ -893,3 +893,16 @@ actual ₹ INR (`Payment`, `Collection`×3, `OrderAdvance`, `CrmLead`, `CrmOppor
 survives only as display formatting. No RBAC/permission tables touched. Full record:
 `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md`,
 `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §16.
+
+## Step 3V-1 — Release 2 Audit Closure (TeamTarget table-name fix, 2026-06-23)
+
+Not an RBAC change. Closed out the one open item from Step 3V's post-migration audit: a
+`TeamTarget` query had aborted with `ER_NO_SUCH_TABLE` because the audit script used the Prisma
+model name (`TeamTarget`) as a raw-SQL table name instead of its `@@map("team_target")`-mapped
+physical table. Re-ran the same closure checks via the Prisma client (mapping resolved
+automatically): `TeamTarget` confirmed still 0 rows; all 34 `KRA.target` and
+`EmployeeTarget.targetJson` rows re-scanned for confirmed-money labels with 0 anomalies; all 14
+non-`AMOUNT` `KRATemplateItem` rows confirmed unmultiplied. No hidden Release 2 regression found.
+Verification-only — no schema, code, or data change; no RBAC/permission tables touched. Full
+record: `docs/database/DECIMAL_RELEASE2_MIGRATION_RESULTS.md` §4,
+`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §17.

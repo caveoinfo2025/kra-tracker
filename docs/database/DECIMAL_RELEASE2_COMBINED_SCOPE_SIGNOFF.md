@@ -714,3 +714,18 @@ validate`, `npx tsc --noEmit` clean.
 
 No production database was touched. No `db push` was used. Voucher/Ledger/Finance write APIs were
 not implemented or modified.
+
+---
+
+## 17. Step 3V-1 Audit Closure (2026-06-23)
+
+Step 3V's post-migration audit (`DECIMAL_RELEASE2_MIGRATION_RESULTS.md` §3) found no defects but
+its `TeamTarget` query aborted with `ER_NO_SUCH_TABLE`. **Resolved: table-name mapping issue in
+the verification script only, not a migration defect.** `TeamTarget` carries `@@map("team_target")`
+in `prisma/schema.prisma` — the audit script queried the Prisma model name (`TeamTarget`,
+PascalCase) directly as a raw-SQL table name instead of the mapped physical table
+(`team_target`). Re-running the same checks through the Prisma client (which resolves `@@map`
+automatically) confirms `TeamTarget` is still 0 rows, and that the abort hid no other issue —
+`KRA.target`/`EmployeeTarget.targetJson` confirmed-money entries remain correctly INR-scaled, and
+no non-`AMOUNT` `KRATemplateItem` row was multiplied. Full detail in
+`DECIMAL_RELEASE2_MIGRATION_RESULTS.md` §4. No code, schema, or data was changed in this step.
