@@ -21,6 +21,41 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 3Y: Human-run production read-only pre-check pack created (no DB connection)
+
+Created a self-contained, read-only pre-check pack that a human/admin with **confirmed**
+production access can run directly, closing the gap Step 3X's automated dry run hit. **No
+production database was queried, no migration was run/resolved/deployed, no Prisma schema/API/UI
+code was changed, no `db push` was used, and no credential was printed at any point** — every
+file produced is a static artifact written from this local dev environment, not a live check.
+New folder `docs/database/production-precheck/`:
+- `README.md` — who/where/how to run it, explicit "do not paste credentials into chat" guidance,
+  sanitized-command examples with no real host/user/password.
+- `production-readonly-precheck.sql` — DB identity, `_prisma_migrations` history,
+  `INFORMATION_SCHEMA` column-type checks for every Release 1/2 field (using the real
+  `@@map`-resolved physical table names — `kra_metric`/`kra_template`/`kra_template_item`/
+  `employee_target`/`team_target` — confirmed directly from `prisma/schema.prisma`, not guessed),
+  row counts, min/max/null/negative unit sampling, and KRA/Sales target classification (including
+  the `targetType` ≠ `metricType` mismatch check that found dev's item #16). Every statement is
+  `SELECT`/`SHOW`/`INFORMATION_SCHEMA` — confirmed via `grep` for every forbidden write keyword,
+  zero matches outside comments.
+- `production-precheck-result-template.md` — clean template mirroring the sign-off plan's §3–§9
+  structure, for sanitized findings (not raw terminal output) to be transcribed into.
+- `production-precheck-safety-checklist.md` — before/during/after checklist.
+- Optional companion script `scripts/production-readonly-precheck.mjs` — refuses without
+  `CONFIRM_PRODUCTION_READONLY_PRECHECK=YES`; refuses against the known dev DB name
+  (`u686730471_caveodev`); never prints `DATABASE_URL`/username/password (masked host + DB name
+  only); re-validates every query against a forbidden-keyword regex both at startup and
+  immediately before each execution; writes output to a local timestamped Markdown file.
+
+**Production migration readiness is unchanged from Step 3X — still blocked, pending a human
+running this pack against the real production database.** This step did not convert any "Needs
+verification" finding to a fact itself; it only prepared the means for someone else to do so
+safely. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass. Full record:
+`docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` ("Human-Run Production Pre-Check
+Pack"), `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`, `docs/RBAC_MIGRATION_TRACKER.md` (Step
+3Y row).
+
 ### 2026-06-23 — Step 3X: Production pre-check dry run attempted — blocked on DB access (read-only)
 
 Attempted to convert Step 3W's "Needs verification" production findings into facts. **No

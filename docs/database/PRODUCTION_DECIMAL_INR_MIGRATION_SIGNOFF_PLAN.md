@@ -591,3 +591,48 @@ it into this transcript, or (b) run the Task 2–7 queries directly against prod
 (the exact queries are already specified in §4/§5/§6/§9 of this plan and Tasks 2–7 of the Step
 3X instructions) and report the results back for this document to be completed. Task 8's findings
 stand on their own and do not need to be re-run.
+
+---
+
+## Human-Run Production Pre-Check Pack (Step 3Y, 2026-06-23)
+
+Step 3Y created a self-contained, read-only pre-check pack for a human/admin with confirmed
+production access to run directly — closing the gap Step 3X's automated dry run hit (no
+production database credential reachable from this dev environment). **No production database
+was queried, no migration was run, no schema/code/data was changed, no `db push` was used to
+produce this pack** — every file in it is a static artifact written from this local environment.
+
+**Location:** `docs/database/production-precheck/`
+
+- [`README.md`](production-precheck/README.md) — who should run the pack, where, how to capture
+  and sanitize results, and explicit "what not to do" guidance (no pasting credentials into chat,
+  no running migrations alongside this check).
+- [`production-readonly-precheck.sql`](production-precheck/production-readonly-precheck.sql) — the
+  actual SQL: DB identity, `_prisma_migrations` history, `INFORMATION_SCHEMA` column-type checks
+  for every Release 1/2 field (using the real `@@map`-resolved physical table names —
+  `kra_metric`/`kra_template`/`kra_template_item`/`employee_target`/`team_target` — confirmed
+  directly from `prisma/schema.prisma`, not guessed), row counts, min/max/null/negative unit
+  sampling, and KRA/Sales target classification (including the `targetType` ≠ `metricType`
+  mismatch check that found dev's item #16). Every statement is `SELECT`/`SHOW`/
+  `INFORMATION_SCHEMA` — no write statement of any kind appears in the file.
+- [`production-precheck-result-template.md`](production-precheck/production-precheck-result-template.md) —
+  a clean template mirroring this plan's §3–§9 structure for the human/admin to transcribe
+  sanitized findings into (not raw terminal output) before sharing back.
+- [`production-precheck-safety-checklist.md`](production-precheck/production-precheck-safety-checklist.md) —
+  a before/during/after checklist confirming the SQL file is genuinely write-free, the connecting
+  user's permissions, and that no password ever lands in shell history or shared output.
+- [`scripts/production-readonly-precheck.mjs`](../../../scripts/production-readonly-precheck.mjs) —
+  optional companion script. Refuses to run without
+  `CONFIRM_PRODUCTION_READONLY_PRECHECK=YES`; refuses to run against the known dev database name
+  (`u686730471_caveodev`) since this script's entire purpose is a production check; never prints
+  `DATABASE_URL`, username, or password (only a masked host and the database name); scans every
+  query string against a forbidden-keyword regex (`INSERT`/`UPDATE`/`DELETE`/`ALTER`/`DROP`/
+  `TRUNCATE`/`CREATE`/`REPLACE`/`RENAME`/`GRANT`/`REVOKE`/`SET FOREIGN_KEY_CHECKS`) both at
+  startup and immediately before each execution; writes sanitized-by-construction output to a
+  local timestamped Markdown file, never auto-shared anywhere.
+
+**Production DB access is still required from a human/admin to actually run this pack — this
+step did not, and could not, run any of it.** No production query was run by this environment at
+any point during Step 3Y. The pack must be run, and its results folded into this document's §3–
+§9 "Needs verification" rows, **before any production migration SQL is drafted** — this remains
+unchanged from §13's Final Recommendation.

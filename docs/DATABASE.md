@@ -159,6 +159,13 @@
 > migration folder is missing 7 migrations including both Decimal releases, `src/lib/money.ts`
 > doesn't exist on `master`, and `master`'s schema still has every Release 1/2 field as `Float`.
 > Full record: `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`.
+>
+> **Human-run production read-only pre-check pack created (Step 3Y, 2026-06-23) — no production
+> connection used.** `docs/database/production-precheck/` now holds a self-contained pack
+> (README, a read-only SQL file using the real `@@map`-resolved physical table names, a result
+> template, a safety checklist, and an optional guarded script) for a human with confirmed
+> production access to run directly. Every SQL statement is `SELECT`/`SHOW`/`INFORMATION_SCHEMA`
+> only. Production migration readiness is unchanged — still blocked pending those results.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

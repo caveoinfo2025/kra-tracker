@@ -955,3 +955,27 @@ either provide a verified production read-only credential through a channel that
 pasting it into a transcript, or run the still-blocked queries directly. Full record:
 `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` ("Production Pre-Check Dry Run
 Results"). `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 3Y — Human-run production read-only pre-check pack (2026-06-23)
+
+Not an RBAC change. Created a self-contained, read-only pre-check pack for a human/admin with
+confirmed production access to run directly — `docs/database/production-precheck/` (`README.md`,
+`production-readonly-precheck.sql`, `production-precheck-result-template.md`,
+`production-precheck-safety-checklist.md`) plus an optional guarded companion script
+(`scripts/production-readonly-precheck.mjs`). **No production database was queried, no migration
+was run/resolved/deployed, no schema/API/UI code changed, no `db push` used, no credential
+printed** — every file is a static artifact produced from this local dev environment. The SQL
+file uses the real `@@map`-resolved physical table names (`kra_metric`/`kra_template`/
+`kra_template_item`/`employee_target`/`team_target`), confirmed directly from
+`prisma/schema.prisma`, not guessed, and contains only `SELECT`/`SHOW`/`INFORMATION_SCHEMA`
+statements — independently re-confirmed via a `grep` for every forbidden write keyword
+(`INSERT`/`UPDATE`/`DELETE`/`ALTER`/`DROP`/`TRUNCATE`/`CREATE`/`REPLACE`/`RENAME`/`GRANT`/
+`REVOKE`/`SET FOREIGN_KEY_CHECKS`), zero matches outside comments. The optional script refuses to
+run without `CONFIRM_PRODUCTION_READONLY_PRECHECK=YES`, refuses to run against the known dev DB
+name (`u686730471_caveodev`) since its whole purpose is a production check, never prints
+`DATABASE_URL`/username/password (only a masked host + DB name), and re-validates every query
+against the same forbidden-keyword guard immediately before executing it, not just at startup.
+Production migration readiness remains unchanged from Step 3X (blocked, pending a human running
+this pack against the real production database) — this step did not advance any "Needs
+verification" finding to a fact itself. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run
+build` ✅.

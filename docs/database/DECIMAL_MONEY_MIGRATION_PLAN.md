@@ -944,3 +944,16 @@ This document is **planning only**. As of this step:
 > results: `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` ("Production
 > Pre-Check Dry Run Results"). Production migration readiness remains undetermined pending
 > resolution of the credential blocker.
+
+> **Step 3Y completed (2026-06-23):** production read-only pre-check pack prepared — no
+> production connection used. Created `docs/database/production-precheck/` (README, the
+> read-only SQL file covering DB identity/`_prisma_migrations`/`INFORMATION_SCHEMA` column
+> checks/row counts/unit sampling/KRA target classification, a result template, and a safety
+> checklist) plus an optional guarded companion script
+> (`scripts/production-readonly-precheck.mjs`, refuses without
+> `CONFIRM_PRODUCTION_READONLY_PRECHECK=YES`, refuses against the known dev DB name, never prints
+> credentials, keyword-guards every query against write statements). Production migration
+> remains blocked pending human-run results from this pack — no "Needs verification" row in
+> `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` was converted to a fact by
+> this step itself; that conversion still requires a human with confirmed production access to
+> actually run the pack.
