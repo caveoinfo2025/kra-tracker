@@ -1,5 +1,14 @@
 # Production Decimal / INR Migration Sign-Off Plan
 
+> **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
+> The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
+> migration only after approval. **Production migration is paused** — it does not proceed
+> directly from this document anymore. The next active deployment target is **UAT**, planned in
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`. Production planning in this document remains
+> useful background and will resume only after UAT validation and business sign-off — nothing in
+> it is withdrawn, it is simply not the next step. Every section below (§3–§13, and the Pre-Check
+> Dry Run Results / Human-Run Pre-Check Pack sections) is otherwise unchanged from Steps 3W–3Y.
+>
 > **Step 3W (2026-06-23).** This is a **planning, risk-review, and sign-off documentation
 > artifact only**. No production database was queried, no production migration was run, no
 > Prisma schema was modified, no migration was created, no API/UI code was changed, no business
@@ -398,6 +407,12 @@ This production deployment plan does **not** include:
 ---
 
 ## 13. Final Recommendation
+
+> **Superseded by Step 3Z's deployment-strategy change (see the banner at the top of this
+> document).** Production migration is now paused pending UAT validation — the bullets below are
+> retained as the original recommendation and remain valid for whenever production planning
+> resumes, but they are not the *next* step right now. The next step is UAT execution, per
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`.
 
 - **Do not run any production migration until this sign-off plan is approved** — specifically
   until §10's Go/No-Go checklist and §11's sign-off ledger move from Pending to Approved for

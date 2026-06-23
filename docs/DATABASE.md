@@ -166,6 +166,14 @@
 > template, a safety checklist, and an optional guarded script) for a human with confirmed
 > production access to run directly. Every SQL statement is `SELECT`/`SHOW`/`INFORMATION_SCHEMA`
 > only. Production migration readiness is unchanged — still blocked pending those results.
+>
+> **Deployment strategy changed to UAT-first (Step 3Z, 2026-06-23) — production migration
+> paused.** New flow: dev (done) → UAT migration + testing → UAT sign-off → production planning
+> resumes → production migration only after approval. See
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` and `docs/database/uat-precheck/` for the
+> UAT-scoped plan and read-only pre-check pack (UAT identifiers only, never production
+> credentials). The production sign-off plan above remains valid background, not withdrawn — it
+> simply isn't the next active step.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

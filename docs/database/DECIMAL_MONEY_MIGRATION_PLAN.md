@@ -957,3 +957,15 @@ This document is **planning only**. As of this step:
 > `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` was converted to a fact by
 > this step itself; that conversion still requires a human with confirmed production access to
 > actually run the pack.
+
+> **Step 3Z (2026-06-23) — deployment strategy changed to UAT-first.** Production migration is
+> **paused** until UAT testing is completed. New flow: dev (done, audited) → UAT migration +
+> testing → UAT sign-off → production planning resumes → production migration only after
+> approval. Created `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` (UAT scope, pre-checks,
+> execution sequence — designed, not executed — test plan, sign-off checklist, and the
+> production gate this unblocks) and `docs/database/uat-precheck/` (a UAT-scoped read-only
+> pre-check pack, adapted from the production pack but using documented UAT identifiers, not
+> production credentials). `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` is
+> retained as valid background and gains a top-of-document deferral notice — nothing in it is
+> withdrawn, it is simply not the next active step. No production connection, migration, or
+> deployment occurred in this step; no UAT migration was executed either — planning only.

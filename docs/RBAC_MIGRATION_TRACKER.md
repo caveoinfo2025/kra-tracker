@@ -979,3 +979,28 @@ Production migration readiness remains unchanged from Step 3X (blocked, pending 
 this pack against the real production database) — this step did not advance any "Needs
 verification" finding to a fact itself. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run
 build` ✅.
+
+## Step 3Z — UAT-first deployment decision recorded (2026-06-23)
+
+Not an RBAC change. Business decision: production migration is **paused**; the Decimal/INR
+migration must be implemented and tested on **UAT** first. New flow: dev (complete, audited) →
+UAT migration + testing → UAT sign-off → production planning resumes → production migration only
+after approval. Created `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` (UAT scope mirroring
+Release 1 + Release 2; pre-checks; a 13-step designed-not-executed execution sequence; a Finance/
+Sales/KRA/Technical test plan; a sign-off checklist; the production gate this unblocks) and
+`docs/database/uat-precheck/` (README, `uat-readonly-precheck.sql`,
+`uat-precheck-result-template.md`, `uat-precheck-safety-checklist.md` — adapted from the
+production pre-check pack, but explicitly UAT-scoped and using only documented UAT identifiers
+from this repo's own session history, e.g. `u686730471_Caveo_UAT`/`u686730471_caveouat` per
+`docs/CHANGELOG.md`/`docs/NEXT_SESSION.md` Session 9 — never production credentials).
+**Grounding fact carried into the new plan:** per Session 9 (2026-06-19), UAT was bootstrapped
+from a full schema dump covering the first 19 of this project's 22 migrations (through
+`20260618100000_crm_lead_customer_ref`) — meaning UAT's likely outstanding migration gap, unlike
+production's much larger and still-unconfirmed gap, is probably just the 3 migrations created
+after that bootstrap: `add_soft_delete_fields_phase_a`, `decimal_release1_lakhs_to_inr`,
+`decimal_release2_combined_inr_canonical`. This is documented from existing project history, not
+independently re-verified this step — the new UAT pre-check pack exists specifically to confirm
+it before any UAT migration runs. `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`
+gains a top-of-document deferral notice; nothing in it is withdrawn. **No production or UAT
+database was connected to, no migration was run, no schema/API/UI code changed, no `db push`
+used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

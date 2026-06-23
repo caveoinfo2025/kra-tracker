@@ -21,6 +21,42 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 3Z: UAT-first deployment decision — production migration paused
+
+**User decided to implement the Decimal / INR migration in UAT first and move to production
+only after UAT testing.** New flow: dev (complete, audited) → UAT migration + testing → UAT
+sign-off → production planning resumes → production migration only after approval. Production
+migration is **paused**, not cancelled — `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`
+gains a deferral notice at the top; nothing in it is withdrawn, it simply isn't the next step.
+
+Created `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`: UAT scope mirrors dev Release 1
+(`Expense`/`EmployeeAdvance`/`TravelClaim`) + Release 2 (`Payment`/`Collection`/`OrderAdvance`/
+`CrmLead`/`CrmOpportunity`/`SalesFunnel`/Sales-KRA targets/KRA-engine INR-to-INR behavior/
+dashboard Lakhs-display-only); a pre-checks checklist; a 13-step designed-not-executed execution
+sequence; a Finance/Sales/KRA/Technical test plan; a sign-off checklist (all Pending); and the
+production gate UAT sign-off unblocks.
+
+Created `docs/database/uat-precheck/` — a UAT-scoped read-only pre-check pack adapted from the
+production pack (`README.md`, `uat-readonly-precheck.sql`, `uat-precheck-result-template.md`,
+`uat-precheck-safety-checklist.md`), using only documented UAT identifiers from this repo's own
+history (`u686730471_Caveo_UAT` database / `u686730471_caveouat` user, per `docs/CHANGELOG.md`/
+`docs/NEXT_SESSION.md` Session 9, 2026-06-19) — **never production credentials.**
+
+**Key grounding fact carried into the new plan, from existing project history (not
+independently re-verified this step):** Session 9 (2026-06-19) bootstrapped UAT from a full
+schema dump covering the first 19 of this project's 22 migrations (through
+`20260618100000_crm_lead_customer_ref`). UAT's likely outstanding gap is therefore probably just
+3 migrations — `add_soft_delete_fields_phase_a`, `decimal_release1_lakhs_to_inr`,
+`decimal_release2_combined_inr_canonical` — a much smaller, better-understood gap than
+production's. The new UAT pre-check pack exists to confirm this before any UAT migration is run.
+
+**No production or UAT database was connected to, no migration was run, no schema/API/UI code
+was changed, no `db push` was used.** This step is planning and precheck-pack creation only.
+`npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass. Full record:
+`docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`, `docs/database/uat-precheck/`,
+`docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`,
+`docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`, `docs/RBAC_MIGRATION_TRACKER.md` (Step 3Z row).
+
 ### 2026-06-23 — Step 3Y: Human-run production read-only pre-check pack created (no DB connection)
 
 Created a self-contained, read-only pre-check pack that a human/admin with **confirmed**
