@@ -95,10 +95,20 @@
 > migration** (`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §13, direct
 > confirmation in conversation, not assumed). Item #16 does **not** convert in this Release 2
 > pass; before Step 3U starts, its `metricId` must be re-linked to a genuine `AMOUNT`-typed
-> metric (e.g. the existing zero-row `FUNNEL_VALUE` metric) — an admin-config data change, not
-> code/schema. **Release 2 implementation permission remains Blocked** — no longer on a
+> metric. **Release 2 implementation permission remains Blocked** — no longer on a
 > classification ambiguity, but on this concrete, not-yet-performed config-correction
 > prerequisite. Every other Release 2 scope item is Approved.
+>
+> **Correction attempted, not performed (Step 3U-4, 2026-06-22).** Live re-inspection confirmed
+> **no existing `AMOUNT` metric matches item #16** — the previously-suggested `FUNNEL_VALUE` was
+> checked and ruled out (it's an individual rep's funnel-creation metric; item #16 is a
+> manager's team-pipeline-coverage target, a different concept, confirmed directly by the
+> business owner). A new `KRAMetric` is needed. Two creation paths were offered: the admin UI
+> (found infeasible — `KRALibrary.tsx`'s `metricType` dropdown doesn't offer `AMOUNT`, a
+> separate out-of-scope UI gap) and a guarded dev-DB script (explicitly declined by the product
+> owner). **No correction was made — Release 2 implementation permission remains Blocked** on
+> this precisely-scoped, not-yet-authorized prerequisite
+> (`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §14).
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

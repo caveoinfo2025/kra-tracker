@@ -291,3 +291,28 @@ sequencing choice — before a Step 3U implementation prompt is created.
 > inserted, updated, or deleted. A live re-verification query was attempted and blocked by a
 > transient Remote MySQL access denial (IP not currently allowlisted) — the decision relies on
 > Step 3U-2's already-captured evidence, not a fresh query.
+
+---
+
+> **Step 3U-4 completed (2026-06-22) — `KRATemplateItem` #16 correction attempt: root cause
+> confirmed, no correction performed, Release 2 remains Blocked.**
+>
+> ## KRATemplateItem #16 Correction
+>
+> | Field | Value |
+> |---|---|
+> | Old metric | `KRAMetric` #9, "Pipeline Ratio %" (`PIPELINE_RATIO`), `metricType = PERCENTAGE` |
+> | New metric | **None created.** No existing `AMOUNT`-typed metric (`BOOKING`, `BILLING`, `FUNNEL_VALUE`) matches; a new metric (proposed: "Team Pipeline Coverage (₹L)", code `TEAM_PIPELINE_COVERAGE`, `metricType = AMOUNT`) would be required and has not been created |
+> | Reason for correction | `FUNNEL_VALUE` was checked and ruled out by live re-inspection: its `calculationSource` ties to `totalPipelineValue()`, an **individual** rep's funnel-creation activity (legacy `KRA` #65), confirmed by the business owner that "Pipeline Ratio %" itself is a genuine percentage coverage multiplier (e.g. 200% of a ₹1 Cr target → ₹2 Cr required pipeline) — a different mechanic entirely from item #16's own absolute `AMOUNT` values. Item #16 belongs to `KRATemplate` #7, the **team-level** Manager template, matching `teamPipeline()`/legacy `KRA` #71, not any existing individual-level `AMOUNT` metric. |
+> | Verification result | **Not run — no correction was made.** Two creation paths (admin UI, guarded dev-DB script) were presented to the product owner. The admin UI path was found infeasible this step (`KRALibrary.tsx`'s `metricType` dropdown only offers `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE`/`CUSTOM` — not `AMOUNT`, which every live `KRAMetric` row actually uses; fixing this is a UI code change, out of scope here). The dev-DB script path was offered and explicitly declined. |
+> | Release 2 action | Item #16 still does **not** convert. Release 2 implementation permission remains **Blocked** on this same prerequisite, now precisely scoped: create a new `AMOUNT`-typed `KRAMetric` and re-link item #16 to it, via either a future UI fix or an explicitly-authorized DB script — neither has been authorized yet. |
+>
+> Full record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §14. **Follow-up
+> flagged, not actioned:** the admin KRA Metrics screen's `metricType` dropdown is out of sync
+> with the live `AMOUNT`/`PERCENTAGE`/`COUNT` taxonomy — a pre-existing UI/data-model drift,
+> independent of Release 2, candidate for a separate follow-up task.
+>
+> No Prisma schema field was converted, no migration was generated, no API route or UI component
+> was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched, and no
+> database row was inserted, updated, or deleted. Two temporary read-only inspection scripts
+> were created and deleted this step — no scratch files remain.

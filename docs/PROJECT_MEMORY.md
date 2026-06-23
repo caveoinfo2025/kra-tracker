@@ -21,6 +21,55 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3U-4: KRATemplateItem #16 correction attempted — root cause confirmed live, no correction made, Release 2 remains Blocked
+Step 3U-4 completed: a dev-only admin configuration/data correction and verification step — no
+Prisma schema change, no migration, no API/UI code change, `src/lib/kra-engine.ts`/
+`src/lib/payments.ts` not touched, no Payment/Collection/Lead/Opportunity/Funnel/KRA value
+converted, Release 2 not implemented. **Ultimately no database write was made** — the correction
+itself was not authorized this step.
+
+Confirmed `DATABASE_URL` → `u686730471_caveodev`. Live access succeeded this step (the earlier
+`ER_ACCESS_DENIED_ERROR` IP-allowlist issue from Step 3U-3 had cleared). A read-only re-inspection
+(`prisma/inspect-amount-metrics.mjs`, DB-name-guarded, deleted after use) confirmed: **no existing
+`AMOUNT`-typed `KRAMetric` matches `KRATemplateItem` #16's actual concept.** `FUNNEL_VALUE` was
+specifically checked and ruled out — its `calculationSource` ties to `totalPipelineValue()`, an
+**individual** rep's funnel-creation activity (legacy `KRA` #65, "Funnel Creation"), while item
+#16 belongs to `KRATemplate` #7 ("Pipeline Health & Strategic Execution (Manager)" — *"Team
+pipeline coverage and forecast accuracy for managers"*), a **team-level** concept matching
+`teamPipeline()`/legacy `KRA` #71. The business owner directly confirmed in conversation that
+"Pipeline Ratio %" (item #16's current, incorrect, metric) is a genuine percentage coverage
+multiplier (e.g. a 200% target on a ₹1 Cr revenue target requires ₹2 Cr of pipeline) — a
+fundamentally different mechanic from item #16's own absolute `AMOUNT` values (1500/1800/2200,
+i.e. ₹15Cr/₹18Cr/₹22Cr). This reinforces the diagnosis: a **new** dedicated `AMOUNT` metric is
+needed (proposed: "Team Pipeline Coverage (₹L)", code `TEAM_PIPELINE_COVERAGE`), not a re-link
+to any existing metric.
+
+**Two creation paths were presented; neither was authorized.** (1) The admin UI path was
+initially preferred but found infeasible on inspection: `src/app/settings/performance/
+components/KRALibrary.tsx`'s "Add Metric" form `metricType` dropdown only offers
+`REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE`/`CUSTOM` — not `AMOUNT`/`PERCENTAGE`/`COUNT`, the
+taxonomy every live `KRAMetric` row actually uses. A browser cannot submit a `<select>` value
+outside its rendered `<option>`s, so this path is unusable without a UI code change, which this
+step's constraints forbid. (2) A guarded dev-DB script (insert one new `KRAMetric` row, update
+only item #16's `metricId`, refuse any DB but the dev DB, delete itself after) was offered as the
+remaining viable path — **the product owner explicitly chose to stop and stay Blocked instead.**
+
+**No correction was made; Task 4 verification did not run** (there is nothing to verify against
+without a correction). Updated `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md`: added
+§14 "KRATemplateItem #16 Correction Attempt" with the full re-inspection table, both declined
+creation paths, and the refined blocker description; updated §11's Final Recommendation to the
+precisely-scoped remaining prerequisite. **Flagged, not actioned, a separate follow-up:** the
+admin KRA Metrics screen's `metricType` dropdown is out of sync with the live
+`AMOUNT`/`PERCENTAGE`/`COUNT` taxonomy — a pre-existing UI/data-model drift independent of
+Release 2. Cross-referenced (Step 3U-4 notes appended) in
+`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`, `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`.
+See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3U-4 row) for the tracker entry.
+
+**Release 2 implementation permission remains Blocked.** Two temporary read-only inspection
+scripts were created and deleted this step — no scratch files remain, no database row was
+inserted, updated, or deleted. `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all
+pass (reconfirmations, no app code changed).
+
 ### 2026-06-22 — Step 3U-3: KRATemplateItem #16 business decision recorded (Option B); Release 2 permission updated
 Step 3U-3 completed: a business/config classification and documentation step only — no Prisma
 schema change, no migration, no API/UI code change, no database data altered/inserted/updated/

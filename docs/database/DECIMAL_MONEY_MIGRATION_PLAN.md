@@ -856,3 +856,24 @@ This document is **planning only**. As of this step:
 > - **No code/schema/data changed.** `prisma/schema.prisma`, every migration file,
 >   `src/lib/kra-engine.ts`, `src/lib/payments.ts`, every API route, and every UI component
 >   remain untouched; no database row was inserted, updated, or deleted.
+
+> **Step 3U-4 completed (2026-06-22):**
+> - `KRATemplateItem` #16 admin configuration correction was **attempted but not performed.**
+>   Live re-inspection (DB access succeeded this step) confirmed no existing `AMOUNT`-typed
+>   `KRAMetric` matches item #16's actual concept ("team-level absolute pipeline coverage
+>   target") — `FUNNEL_VALUE` was specifically checked and ruled out as an individual-level
+>   metric, a different concept from item #16's team-level Manager template, confirmed directly
+>   by the business owner explaining "Pipeline Ratio %"'s true percentage-coverage-multiplier
+>   mechanic.
+> - **#16 does not link to an `AMOUNT` metric** — no metric of that type matches, and no new one
+>   was created. Two creation paths were presented; the admin UI path was found infeasible (its
+>   `metricType` dropdown doesn't offer `AMOUNT` — a separate, out-of-scope UI gap), and the
+>   guarded dev-DB script alternative was explicitly declined by the product owner.
+> - **Release 2 permission status: still Blocked**, on the same prerequisite as Step 3U-3
+>   identified, now precisely scoped — create a new `AMOUNT`-typed `KRAMetric` and re-link item
+>   #16 to it, via a future UI fix or an explicitly-authorized script, neither yet authorized.
+> - **No code/schema/migration changed.** `prisma/schema.prisma`, every migration file,
+>   `src/lib/kra-engine.ts`, `src/lib/payments.ts`, every API route, and every UI component
+>   remain untouched; no database row was inserted, updated, or deleted. Two temporary
+>   read-only inspection scripts were created and deleted — no scratch files remain.
+> - Full record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §14.
