@@ -6,6 +6,14 @@
 > data was updated, and `db push` was not used anywhere in this step. Every production-state
 > claim below is explicitly marked **Needs verification** unless a cited source document already
 > confirms it — nothing about production is assumed.
+>
+> **Step 3X (2026-06-23) — read-only pre-check dry run attempted.** Converted what could safely
+> be confirmed (branch/commit/migration-folder gap, via git history only) into facts; the
+> production-database-dependent checks (DB identity, `_prisma_migrations`, schema, row counts,
+> unit sampling, KRA/Sales target classification) were **blocked** — no confirmed, safely-usable
+> production database credential was available in that session. See "Production Pre-Check Dry
+> Run Results" near the end of this document for the full attempt and the specific blocker. No
+> production database was queried, no migration was run or resolved, no app code was deployed.
 
 ---
 
@@ -82,7 +90,12 @@
 ## 3. Production Migration Candidate List
 
 > **Production state is unconfirmed.** The items below are not assumed to be the only pending
-> production work — see the finding immediately after the table.
+> production work — see the finding immediately after the table. **Step 3X update (2026-06-23):**
+> the dry run attempted to confirm production's actual state and was **blocked** — no safely
+> usable production database credential was available in that session. Every "Needs
+> verification" row in this table remains exactly that; see "Production Pre-Check Dry Run
+> Results" below for the full attempt, the specific blocker, and what *could* be confirmed
+> read-only from git history alone (the `master`/`uat` branch and migration-folder gap).
 
 | Migration / Step | Purpose | Required in Production? | Risk Level | Notes |
 | ----------------- | ------- | ------------------------ | ---------- | ----- |
@@ -398,3 +411,183 @@ This production deployment plan does **not** include:
   current" is very likely larger than the two Decimal migrations named in this step's
   instructions. That larger scope should be sized and reviewed before committing to a single
   maintenance window.
+
+---
+
+## Production Pre-Check Dry Run Results (Step 3X, 2026-06-23)
+
+> **Read-only fact-finding only.** No production database was modified, no migration was run or
+> resolved, no `db push` was used, no app code was deployed, no Prisma schema was changed. This
+> section converts §4's "Needs verification" checklist items into facts **where they could safely
+> be confirmed**, and explicitly documents a hard blocker where they could not.
+
+### Blocker — Production database is not reachable from this environment
+
+**Tasks 2–7 (production DB identity, `_prisma_migrations`, schema snapshot, row counts, unit
+sampling, KRA/Sales target classification) could not be performed.** This local dev environment
+has no confirmed, safely-usable production database credential:
+
+- The active `.env` (`DATABASE_URL`, loaded by every local script and `npm run dev`/`build`) is
+  confirmed pointed at the **dev** database, `u686730471_caveodev` — not production.
+- A local `.env.hostinger` file exists and contains a populated `DATABASE_URL` value, but **no
+  document in this repository identifies it as the live production configuration** — it is not
+  referenced by `package.json`, any deploy script, or any doc reviewed in this step. Per
+  `CLAUDE.md`'s own documented deployment model, the *actual* production environment file lives
+  only on the remote Hostinger server filesystem (`…/public_html/.builds/config/.env`), not in
+  this local repository — so `.env.hostinger`'s scope and currency cannot be confirmed locally,
+  and connecting to whatever host/database it resolves to without that confirmation would risk
+  querying the wrong system, or a stale/decommissioned one, under the banner of "production."
+- No SSH credential (`HOSTINGER_SSH_PASSWORD`, used by `scripts/deploy-uat.mjs`'s connection
+  pattern) is set in this session's environment, so even an indirect, script-mediated read against
+  the server's real `.env` is not available either.
+- Per this step's own explicit instruction ("If production DB cannot be safely reached, stop and
+  document the blocker" / "Do not print full DATABASE_URL or password"), this dry run **stops
+  here for every DB-dependent task** rather than guessing at, or attempting a connection through,
+  an unconfirmed credential.
+
+**Tasks 2–7 below are recorded as still "Needs verification," with this specific reason, not
+silently skipped.**
+
+### Task 1 — Environment confirmation (completed)
+
+| Check | Result |
+| ----- | ------ |
+| Current local branch | `uat` |
+| Current commit hash | `76159d7bd87d85183948fb622aaf0c9235609117` |
+| Production branch name | `master` (per `CLAUDE.md`: *"Production: https://sales.caveoinfosystems.com"*, branch `master`) |
+| UAT branch name | `uat` (deploys to `https://uat.caveoinfosystems.com` via `scripts/deploy-uat.mjs`) |
+| `master..uat` commit gap | **79 commits** (re-confirmed this step via `git rev-list --count master..uat`; was 78 at Step 3W, now 79 after the Step 3W commit itself landed on `uat`) |
+| `uat..master` commit gap | **0** — `master` has no commit that isn't already an ancestor on `uat`; the relationship is a clean, one-directional fast-forward gap, not a diverged history |
+| Local working tree | Clean (`git status --short` empty) before this step began |
+
+No branch was checked out or merged — all comparisons used read-only `git rev-parse`/
+`git rev-list`/`git ls-tree`/`git diff --stat` against the existing local refs.
+
+### Task 2 — Production DB identity: **Needs verification — blocked**
+
+| Check | Result |
+| ----- | ------ |
+| Production DB host | Needs verification — blocked, no confirmed credential (see Blocker above) |
+| Production DB name | Needs verification — blocked |
+| Connection user | Needs verification — blocked |
+| Current database selected (`SELECT DATABASE()`) | Needs verification — blocked, no query attempted |
+| MySQL version | Needs verification — blocked |
+| Read-only test successful | **No** — connection was not attempted, by design, given the unconfirmed-credential blocker |
+
+### Task 3 — Production `_prisma_migrations`: **Needs verification — blocked**
+
+No query was run. Cannot be populated without a confirmed production DB connection.
+
+| Migration | Started At | Finished At | Rolled Back? | Status |
+| --------- | ---------- | ------------ | -------------- | ------ |
+| *(all 23 local migration folders)* | Needs verification | Needs verification | Needs verification | Needs verification — blocked |
+
+| Local Migration Folder | Present In Production? | Production Status | Notes |
+| ----------------------- | -------------------------- | -------------------- | ----- |
+| *(all 23 local migration folders, `20260601000000_init_mysql` through `20260623060000_decimal_release2_combined_inr_canonical`)* | Needs verification | Needs verification | Cannot compare against a live production `_prisma_migrations` table without a confirmed connection — `docs/DATABASE.md`'s "single baseline row" claim (Step 3W) remains **unconfirmed by direct query**, not newly verified this step |
+
+### Task 4 — Production schema snapshot: **Needs verification — blocked**
+
+No `INFORMATION_SCHEMA.COLUMNS` query was run against production. Every Release 1/2 field's
+production column type — `Expense.amountLakhs`/`gstAmountLakhs`;
+`EmployeeAdvance.amountLakhs`/`disbursedAmountLakhs`/`settledAmountLakhs`/`balanceLakhs`;
+`TravelClaim.amountLakhs`/`amountRupees`/`ratePerKm`; `Payment.amountLakhs`;
+`Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/`amountReceivedLakhs`;
+`OrderAdvance.amountLakhs`; `CrmLead.expectedValue`; `CrmOpportunity.value`/`dealValueExTax`/
+`netProfitLakhs`; `SalesFunnel.dealValueLakhs`/`billingValueLakhs`;
+`KRATemplateItem.expectedTarget`/`stretchTarget`/`minimumTarget`; `KRA.target`;
+`EmployeeTarget.targetJson`; `TeamTarget`/`team_target` — remains **Needs verification**.
+
+The one fact available **without** a production DB connection: on the `master` branch's checked-
+in `prisma/schema.prisma` (the schema that should correspond to whatever code is actually
+deployed to production, if production runs `master` unmodified), every one of these fields is
+still typed `Float`/`Float?` — confirmed via `git show master:prisma/schema.prisma | grep
+amountLakhs` in this step. **This is evidence about the application's source code on `master`,
+not a verified fact about the live production database schema** — production's actual live
+column types could differ from `master`'s schema file if any out-of-band `ALTER TABLE` was ever
+run directly against production outside the Prisma migration workflow (a scenario this plan
+cannot rule out without the blocked query).
+
+### Task 5 — Production row counts: **Needs verification — blocked**
+
+No count query was run. Production almost certainly has more rows than dev's current counts
+(`Payment` 1, `Collection` 94, `OrderAdvance` 0, `CrmLead` 38, `CrmOpportunity` 21, `SalesFunnel`
+100, `KRATemplateItem` 17, `KRA` 34, `EmployeeTarget` 34, `TeamTarget` 0, `Expense` 2,
+`EmployeeAdvance` 1, `TravelClaim` 1, `Voucher` 0, `Ledger` 0, `FinAccount` 2 — dev's actual
+counts, not a production estimate) given production is the live, multi-month-operating system the
+dev DB only approximates with smoke/sample data. No number in this row should be assumed to
+transfer from dev to production.
+
+### Task 6 — Production unit sampling: **Needs verification — blocked**
+
+No sample query was run. Whether production's money fields currently store ₹ Lakhs or already
+something else (production may have accumulated entries under a different convention than dev's
+seed/smoke data) is genuinely unknown — this step does not assume production mirrors dev's
+pre-migration Lakhs-scale profile, consistent with this task's own explicit instruction.
+
+### Task 7 — KRA / Sales target classification in production: **Needs verification — blocked**
+
+No scan was run. Specifically still unknown:
+- Whether production's `KRAMetric` rows use the `AMOUNT`/`PERCENTAGE`/`COUNT` taxonomy dev
+  discovered live (Step 3U-2), or the `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE` taxonomy from
+  `prisma/seed-performance-defaults.ts` that dev found was never actually live.
+- Whether a `KRATemplateItem` row equivalent to dev's #16 ("Team Pipeline Coverage") exists in
+  production at all, and if so, whether it has the same `targetType`/`metricType` mismatch dev
+  found and fixed in Step 3U-5 — or a different mismatch, or none.
+- Whether production's `KRA.target`/`EmployeeTarget.targetJson` free-text rows use the same
+  6-confirmed-money-label set dev classified in Step 3U-2 §12.2, or different KPI labels entirely
+  (production may have evolved its KRA template content independently of dev's seed data over
+  time).
+- Whether `TeamTarget`/`team_target` has any rows in production (dev's is 0; production's `git
+  ls-tree` evidence below confirms the model didn't even exist on `master` until later — see Task
+  8 — so this also depends on whether production's database was ever altered to add this table
+  out-of-band, since its app code doesn't reference it on `master`).
+
+### Task 8 — Branch / app gap assessment (completed — git-only, no DB access required)
+
+| Area | Finding | Risk | Recommended Action |
+| ---- | ------- | ---- | -------------------- |
+| `master` commit | `bb556a221ed0b6e92960887343ad754509bd6aab` ("Step 2H: wire Finance Dashboard UI to live read-only API") | — | Confirm this is in fact the commit currently deployed to `https://sales.caveoinfosystems.com` (not yet verified — would require server-side access this step does not have) |
+| `uat` commit | `76159d7bd87d85183948fb622aaf0c9235609117` (this session's latest) | — | — |
+| Commit gap | 79 commits ahead on `uat`, 0 commits ahead on `master` — a clean one-directional gap, not a diverged history | Low (no merge-conflict risk from divergence) but **High impact** (huge feature/schema gap) | A staged promotion (e.g. `uat` → a release branch → `master`), not a single `git merge`, is recommended given the size of the gap |
+| `master`'s checked-in migration folder | 16 entries, ending at `20260610090000_security_center` (confirmed via `git ls-tree master:prisma/migrations`) — does **not** include the `add_advance_category`/`employeetarget_relations` gap pair, `master_data_linkage`, `crm_lead_customer_ref`, `add_soft_delete_fields_phase_a`, or either Decimal release migration | High | Even a "best case" where production has cleanly applied everything in `master`'s own migration folder, it would still be missing 7 migrations relative to `uat` — confirm production's actual applied state (Tasks 2–3, currently blocked) before assuming `master`'s migration folder is itself a safe target |
+| `uat`'s checked-in migration folder | 23 entries (7 more than `master`) | — | — |
+| `src/lib/money.ts` (the Decimal-safe helper both Decimal releases depend on) | **Does not exist on `master`** (confirmed via `git cat-file -e master:src/lib/money.ts` failing) | High | Deploying the Decimal-migrated schema to production without first deploying this file (and the API/UI code built on it) would immediately break every Payment/Collection/Finance read path — this is the No-Half-Converted-State risk already documented in §4 of the Release 1/2 sign-off plans, now confirmed concretely absent from `master` |
+| `prisma/schema.prisma` on `master` vs. `uat` | 105 insertions / 26 deletions of diff (confirmed via `git diff --stat master uat -- prisma/schema.prisma`); every Release 1/2 target field on `master` is still `Float`/`Float?`, not `Decimal` (confirmed via direct `grep` against `master`'s schema file) | High | This is consistent with, but does not by itself prove, "production is still on the pre-Decimal schema" — it proves the **application's source code** matches that expectation; the live database itself remains unconfirmed (Task 4 blocker) |
+| Dependency versions (`prisma`, `@prisma/adapter-mariadb`, `next`) on `master` | Identical major/minor versions to the current branch (`^7.8.0`, `^7.8.0`, `16.2.6`) | Low | No framework-version mismatch risk was found — the gap is application code and migrations, not a tooling upgrade also needed |
+| Whether direct migration from production's `master` state to current `uat` state is safe in one pass | **Not safe as a single step**, on the evidence gathered | High | A staged plan is recommended: (1) first confirm production's actual `_prisma_migrations`/schema state (Tasks 2–7, still blocked); (2) promote and verify the pre-Decimal `uat` history (everything through `20260618100000_crm_lead_customer_ref`) to `master` first, independently; (3) only then plan the soft-delete + Decimal Release 1 + Decimal Release 2 migrations as their own later, separately-approved production change — bundling all ~7+ pending migrations and 79 commits into one maintenance window is a materially different (and larger) risk than the two-migration scope this plan started from |
+
+### Summary
+
+| Item | Status |
+| ---- | ------ |
+| DB identity (Task 2) | Needs verification — blocked (no confirmed production credential reachable from this environment) |
+| `_prisma_migrations` table (Task 3) | Needs verification — blocked |
+| Schema snapshot (Task 4) | Needs verification — blocked for the live DB; `master`'s source-code schema confirmed still pre-Decimal (`Float`, not `Decimal`) |
+| Row counts (Task 5) | Needs verification — blocked |
+| Unit sampling (Task 6) | Needs verification — blocked |
+| KRA/Sales target classification (Task 7) | Needs verification — blocked |
+| Branch/app gap (Task 8) | **Confirmed** — 79-commit gap, 7-migration gap, `money.ts` absent from `master`, schema confirmed still `Float` on `master` |
+
+### Blockers
+
+1. **No confirmed, safely-usable production database credential is available in this local
+   environment.** Resolving this requires either (a) the actual production `DATABASE_URL` being
+   explicitly provided/confirmed by someone with the authority and access to the live Hostinger
+   production environment, with the same dev-DB-name-refusal guard pattern this project already
+   uses, or (b) running the equivalent read-only queries directly on the production server (e.g.
+   via an authenticated SSH session this local environment doesn't have credentials for) and
+   reporting the results back into this document.
+2. **`.env.hostinger`'s relationship to the live production environment is undocumented.** Before
+   it is ever used for anything beyond local reference, someone with direct knowledge of this
+   project's Hostinger account should confirm in writing what environment it actually targets.
+
+### Recommended next step
+
+Do not attempt Tasks 2–7 again from this environment without first resolving Blocker 1. The
+correct next step is for a human with confirmed production access to either (a) provide a
+verified, scoped production read-only credential through a channel that doesn't require pasting
+it into this transcript, or (b) run the Task 2–7 queries directly against production themselves
+(the exact queries are already specified in §4/§5/§6/§9 of this plan and Tasks 2–7 of the Step
+3X instructions) and report the results back for this document to be completed. Task 8's findings
+stand on their own and do not need to be re-run.

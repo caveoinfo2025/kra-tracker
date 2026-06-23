@@ -928,3 +928,30 @@ plan, maintenance-window plan, a designed-not-executed execution sequence, a pro
 verification plan, and Go/No-Go + sign-off ledgers — both fully Pending. No production execution
 is authorized by this step. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅ —
 reconfirmations only, since no app code changed.
+
+## Step 3X — Production pre-check dry run (2026-06-23)
+
+Not an RBAC change. Read-only fact-finding step only — no production database was modified or
+even queried; no migration was run, resolved, or deployed; no schema/API/UI code changed; no
+`db push` used. Attempted to convert Step 3W's "Needs verification" findings into facts and was
+**blocked on production database access**: this environment has no confirmed, safely-usable
+production `DATABASE_URL` — the local `.env` points at the dev DB (`u686730471_caveodev`), and a
+local `.env.hostinger` file is not documented anywhere as the live production config (per
+`CLAUDE.md`, the real production env file lives only on the remote Hostinger server). No password
+or full connection string was printed at any point. As a result, Tasks 2–7 (DB identity,
+`_prisma_migrations`, schema snapshot, row counts, unit sampling, KRA/Sales target classification)
+remain "Needs verification," explicitly documented with the blocker reason, not guessed.
+**What was confirmed, read-only via git history alone (Task 1/8, no DB needed):** current branch
+`uat` at commit `76159d7…`; `master` (production's branch) is **79 commits behind `uat`**, with
+**0** commits unique to `master`; `master`'s checked-in `prisma/migrations/` folder has 16
+entries ending at `20260610090000_security_center` — 7 short of `uat`'s 23, missing both the
+`add_advance_category`/`employeetarget_relations` gap pair and both Decimal releases;
+`src/lib/money.ts` does not exist on `master` at all; every Release 1/2 target field
+(`Payment.amountLakhs`, etc.) is confirmed still `Float`/`Float?` in `master`'s own
+`prisma/schema.prisma`, not `Decimal`; dependency versions (`prisma`, `@prisma/adapter-mariadb`,
+`next`) are identical between branches, so the gap is application code and migrations, not a
+tooling-version mismatch. Recommended next step: a human with confirmed production access must
+either provide a verified production read-only credential through a channel that doesn't require
+pasting it into a transcript, or run the still-blocked queries directly. Full record:
+`docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` ("Production Pre-Check Dry Run
+Results"). `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

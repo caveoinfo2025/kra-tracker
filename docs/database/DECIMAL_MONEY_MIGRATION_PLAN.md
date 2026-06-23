@@ -930,3 +930,17 @@ This document is **planning only**. As of this step:
 > releases. Every production-state claim in the new document is marked "Needs verification."
 > Go/No-Go checklist and sign-off ledger both Pending — production execution is not authorized by
 > this step.
+
+> **Step 3X completed (2026-06-23):** production pre-check dry run completed (read-only attempt).
+> No production data changed — no production database was queried, no migration was run or
+> resolved, no app code was deployed. **Blocked on production database access**: no confirmed,
+> safely-usable production DB credential was available in this environment, so Tasks 2–7 of the
+> dry run (DB identity, `_prisma_migrations`, schema snapshot, row counts, unit sampling, KRA/
+> Sales target classification) remain "Needs verification." What *was* confirmed via git history
+> alone: `master` (production's branch) is 79 commits behind `uat`, `master`'s checked-in
+> migration folder stops at `20260610090000_security_center` (7 migrations short of `uat`,
+> including both Decimal releases), `src/lib/money.ts` does not exist on `master`, and every
+> Release 1/2 target field is still `Float` (not `Decimal`) in `master`'s schema source. Full
+> results: `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` ("Production
+> Pre-Check Dry Run Results"). Production migration readiness remains undetermined pending
+> resolution of the credential blocker.

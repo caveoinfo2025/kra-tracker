@@ -21,6 +21,38 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 3X: Production pre-check dry run attempted — blocked on DB access (read-only)
+
+Attempted to convert Step 3W's "Needs verification" production findings into facts. **No
+production data changed at any point** — no production database was queried, no migration was
+run/resolved/deployed, no schema/API/UI code changed, no `db push` used, no password or full
+connection string printed. **Result: blocked on production database access.** This environment
+has no confirmed, safely-usable production `DATABASE_URL` — the active local `.env` points at
+the dev DB (`u686730471_caveodev`); a local `.env.hostinger` file exists but is not documented
+anywhere as the live production config (per `CLAUDE.md`, the real production env file lives only
+on the remote Hostinger server's filesystem, not this repo); no SSH credential was available
+either. Per this step's own explicit instruction, the dry run stopped and documented the blocker
+rather than guessing at or attempting an unconfirmed connection. **Tasks 2–7 (DB identity,
+`_prisma_migrations`, schema snapshot, row counts, unit sampling, KRA/Sales target classification)
+remain "Needs verification," each with this specific reason recorded.**
+**What was confirmed, read-only via git alone (no DB needed):** current branch `uat` @
+`76159d7…`, clean working tree; `master` (production's branch) is now **79 commits behind `uat`**
+with 0 commits unique to `master`; `master`'s checked-in `prisma/migrations/` folder has 16
+entries ending at `20260610090000_security_center` — missing the `add_advance_category`/
+`employeetarget_relations` gap pair, `master_data_linkage`, `crm_lead_customer_ref`, the
+soft-delete Phase A migration, and both Decimal releases (7 migrations short of `uat`'s 23);
+`src/lib/money.ts` (the Decimal-safe helper both releases depend on) does not exist on `master`
+at all; every Release 1/2 target field is confirmed still `Float`/`Float?` in `master`'s own
+`prisma/schema.prisma`, not `Decimal`; `prisma`/`@prisma/adapter-mariadb`/`next` dependency
+versions are identical between branches (no tooling-version gap, only an application/migration
+gap). Recommended next step: a human with confirmed production access must provide a verified
+read-only production credential through a channel that doesn't require pasting it into this
+transcript, or run the still-blocked Task 2–7 queries directly and report results back. `npx
+prisma validate`, `npx tsc --noEmit`, `npm run build` all pass (reconfirmations only). Full
+record: `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` ("Production Pre-Check
+Dry Run Results"), `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`,
+`docs/RBAC_MIGRATION_TRACKER.md` (Step 3X row).
+
 ### 2026-06-23 — Step 3W: Production Decimal / INR migration sign-off plan created (planning only)
 
 Created `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md` — a planning, risk-

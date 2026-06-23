@@ -149,6 +149,16 @@
 > very likely the entire post-baseline migration history, not just the two Decimal releases.
 > Every production-state claim in that document is marked "Needs verification." Go/No-Go and
 > sign-off ledgers are both Pending — no production execution is authorized.
+>
+> **Production pre-check dry run attempted (Step 3X, 2026-06-23) — blocked on DB access, nothing
+> executed.** No confirmed, safely-usable production `DATABASE_URL` was available in that session
+> (local `.env` points at dev; `.env.hostinger` is not documented anywhere as the live production
+> config) — DB-dependent checks (identity, `_prisma_migrations`, schema, row counts, unit
+> sampling, KRA/Sales target classification) remain "Needs verification," explicitly blocked, not
+> guessed. What git history alone confirmed: `master` is 79 commits behind `uat`, `master`'s
+> migration folder is missing 7 migrations including both Decimal releases, `src/lib/money.ts`
+> doesn't exist on `master`, and `master`'s schema still has every Release 1/2 field as `Float`.
+> Full record: `docs/database/PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
