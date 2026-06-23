@@ -21,6 +21,68 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 3U-5: KRA AMOUNT metric admin setup fixed; KRATemplateItem #16 re-linked; Release 2 configuration blocker resolved for dev
+Step 3U-5 completed: an admin UI/API fix (additive, no schema change) plus a dev-DB config
+correction performed through the app's own service-layer functions. `src/lib/kra-engine.ts`/
+`src/lib/payments.ts` not touched, no Payment/Collection/Lead/Opportunity/Funnel/KRA money value
+converted, **Release 2 migration not implemented**.
+
+Confirmed `DATABASE_URL` → `u686730471_caveodev` before any change.
+
+**Root cause (confirmed from source):** `KRALibrary.tsx`'s "Add Metric" `metricType` `<select>`
+only offered `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE`/`CUSTOM` — a stale taxonomy that no live
+`KRAMetric` row actually uses (every real row uses `AMOUNT`/`PERCENTAGE`/`COUNT`); a browser form
+cannot submit a `<select>` value outside its rendered `<option>`s, so `AMOUNT` was never
+selectable. The underlying `POST /api/admin/performance/kra` API had no enum restriction of its
+own. Separately, the existing `PATCH /api/admin/performance/templates` route deletes and
+recreates every item belonging to a template — using it to re-link only item #16 would have
+changed every sibling item's `id`, violating the requirement to touch only item #16.
+
+**Fix applied:** rewrote `KRALibrary.tsx`'s dropdown to `AMOUNT`/`PERCENTAGE`/`COUNT` (default
+`AMOUNT`, with inline helper text distinguishing the three); added a new
+`updateKRATemplateItem()` function to `src/lib/performance-engine/templates.ts` (single-row
+`prisma.kRATemplateItem.update`, no sibling deletion) and a new route
+`PATCH /api/admin/performance/templates/items`, gated by the same
+`requirePermission(session, "Settings", "Performance", "EDIT")` check as every other admin
+performance route; added `(metricType)` to `KRATemplateManager.tsx`'s metric-selector option
+labels for clarity. No Prisma schema change.
+
+**Metric created** via the app's own `createKRAMetric()` function (not a raw SQL script):
+`KRAMetric` #16, name "Team Pipeline Coverage", code `TEAM_PIPELINE_COVERAGE`,
+`metricType = AMOUNT`, description "Manager/team-level pipeline coverage target measured as
+actual INR".
+
+**`KRATemplateItem` #16 re-linked** via `updateKRATemplateItem(16, { metricId: 16 })`: `metricId`
+changed 9 → 16. `targetType` (`AMOUNT`), `minimumTarget` (1500), `expectedTarget` (1800),
+`stretchTarget` (2200), `weightage`, `sortOrder`, `status`, and `templateId` all unchanged.
+Verified no other row changed: sibling item #17 in the same template (`KRATemplate` #7) is
+byte-identical to its pre-change state; total row counts unchanged (17 `KRATemplateItem`, 34
+`EmployeeTarget`, 0 `TeamTarget`).
+
+**Correction to this step's own instruction framing:** the task description that drove this step
+stated item #16 was linked to one of `BOOKING`/`BILLING`/`FUNNEL_VALUE`. A fresh live read
+(`prisma.kRATemplateItem.findUnique` with `include: { metric: true }`) confirmed that was never
+the case — it was linked to `KRAMetric` #9, "Pipeline Ratio %" (`PIPELINE_RATIO`,
+`metricType = PERCENTAGE`), exactly as Step 3U-2/3U-3/3U-4 already documented. The actual root
+cause (a percentage-typed metric linked to an amount-typed item) matches this project's own prior
+findings, not the new instruction's framing.
+
+Updated `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` (added §15 with the full
+root-cause/fix/verification record and updated §10's Permission Ledger),
+`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`, `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`
+(progress notes appended). See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3U-5 row) for the
+tracker entry.
+
+**Release 2 implementation permission: Approved for dev implementation only.** This step resolved
+only the configuration prerequisite identified in Step 3U-3/3U-4 — `kra-engine.ts`,
+`payments.ts`, the schema, and every money-value row (Payment, Collection, Lead, Opportunity,
+Funnel, the other `AMOUNT`-typed `KRATemplateItem` rows) remain unconverted. The next step is a
+separate, explicitly-scoped Step 3U implementation following the sequence in
+`DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §7. `npx prisma validate`, `npx tsc --noEmit`, and
+`npm run build` all pass; `npm run lint` was also run — its 414 errors/175 warnings are pre-existing
+repo-wide debt and none belong to the 4 files touched this step. No production database or schema
+was touched.
+
 ### 2026-06-22 — Step 3U-4: KRATemplateItem #16 correction attempted — root cause confirmed live, no correction made, Release 2 remains Blocked
 Step 3U-4 completed: a dev-only admin configuration/data correction and verification step — no
 Prisma schema change, no migration, no API/UI code change, `src/lib/kra-engine.ts`/

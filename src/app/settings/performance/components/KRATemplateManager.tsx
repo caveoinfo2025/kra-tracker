@@ -134,7 +134,7 @@ export default function KRATemplateManager({ templates, metrics }: Props) {
                     Metric
                     <select value={item.metricId} onChange={(e) => updateItem(idx, "metricId", Number(e.target.value))}
                       style={{ display: "block", width: "100%", marginTop: 2, padding: "5px 8px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12 }}>
-                      {typedMetrics.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      {typedMetrics.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.metricType})</option>)}
                     </select>
                   </label>
                   <label style={{ fontSize: 12, fontWeight: 500 }}>

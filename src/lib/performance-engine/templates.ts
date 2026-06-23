@@ -65,6 +65,29 @@ export async function createKRATemplate(input: KRATemplateWithItems) {
   });
 }
 
+export type KRATemplateItemUpdateInput = {
+  metricId?: number;
+  weightage?: number;
+  targetType?: string;
+  minimumTarget?: number;
+  expectedTarget?: number;
+  stretchTarget?: number;
+  sortOrder?: number;
+  status?: string;
+};
+
+// Updates a single template item in place (no delete/recreate of siblings).
+// Use this for re-linking one item's metric without disturbing other items
+// in the same template — unlike updateKRATemplate(), which replaces the
+// entire item set and would change every sibling item's id.
+export async function updateKRATemplateItem(id: number, input: KRATemplateItemUpdateInput) {
+  return await prisma.kRATemplateItem.update({
+    where: { id },
+    data: input,
+    include: { metric: true },
+  });
+}
+
 export async function updateKRATemplate(id: number, input: Partial<KRATemplateWithItems>) {
   const { items, ...template } = input;
 

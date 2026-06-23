@@ -20,7 +20,7 @@ export default function KRALibrary({ metrics }: Props) {
     name: "",
     code: "",
     description: "",
-    metricType: "REVENUE",
+    metricType: "AMOUNT",
     calculationSource: "MANUAL",
   });
   const [saving, setSaving] = useState(false);
@@ -49,7 +49,7 @@ export default function KRALibrary({ metrics }: Props) {
         setError(data.error ?? "Failed to create metric");
       } else {
         setShowForm(false);
-        setForm({ name: "", code: "", description: "", metricType: "REVENUE", calculationSource: "MANUAL" });
+        setForm({ name: "", code: "", description: "", metricType: "AMOUNT", calculationSource: "MANUAL" });
         window.location.reload();
       }
     } finally {
@@ -58,11 +58,15 @@ export default function KRALibrary({ metrics }: Props) {
   }
 
   const METRIC_TYPE_COLORS: Record<string, string> = {
-    REVENUE: "#6366f1",
-    ACTIVITY: "#0ea5e9",
-    QUALITY: "#22c55e",
-    COMPLIANCE: "#f59e0b",
-    CUSTOM: "#9ca3af",
+    AMOUNT: "#6366f1",
+    PERCENTAGE: "#22c55e",
+    COUNT: "#0ea5e9",
+  };
+
+  const METRIC_TYPE_HELP: Record<string, string> = {
+    AMOUNT: "Actual money target (₹ Lakhs, ₹, etc.)",
+    PERCENTAGE: "A percentage target (0-100%)",
+    COUNT: "An activity/count target (calls, deals, leads, etc.)",
   };
 
   return (
@@ -105,12 +109,11 @@ export default function KRALibrary({ metrics }: Props) {
               Metric Type
               <select value={form.metricType} onChange={(e) => setForm({ ...form, metricType: e.target.value })}
                 style={{ display: "block", width: "100%", marginTop: 4, padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13 }}>
-                <option value="REVENUE">Revenue</option>
-                <option value="ACTIVITY">Activity</option>
-                <option value="QUALITY">Quality</option>
-                <option value="COMPLIANCE">Compliance</option>
-                <option value="CUSTOM">Custom</option>
+                <option value="AMOUNT">Amount</option>
+                <option value="PERCENTAGE">Percentage</option>
+                <option value="COUNT">Count</option>
               </select>
+              <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{METRIC_TYPE_HELP[form.metricType]}</div>
             </label>
             <label style={{ fontSize: 13, fontWeight: 500 }}>
               Calculation Source

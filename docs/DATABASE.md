@@ -109,6 +109,18 @@
 > owner). **No correction was made — Release 2 implementation permission remains Blocked** on
 > this precisely-scoped, not-yet-authorized prerequisite
 > (`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §14).
+>
+> **Resolved (Step 3U-5, 2026-06-23).** `KRALibrary.tsx`'s `metricType` dropdown fixed to offer
+> `AMOUNT`/`PERCENTAGE`/`COUNT` (the taxonomy every live `KRAMetric` row actually uses, default
+> `AMOUNT`); a new single-item update path was added (`updateKRATemplateItem()` in
+> `src/lib/performance-engine/templates.ts` + `PATCH /api/admin/performance/templates/items`)
+> since the existing template-level `PATCH` route deletes/recreates every item in a template. A
+> new `KRAMetric` ("Team Pipeline Coverage", `TEAM_PIPELINE_COVERAGE`, `metricType = AMOUNT`,
+> `id = 16`) was created via `createKRAMetric()`, and `KRATemplateItem` #16's `metricId` was
+> re-linked from 9 (`PIPELINE_RATIO`, `PERCENTAGE`) to 16 — `targetType`/target values/all other
+> fields and every sibling row unchanged (verified). **Release 2 implementation permission:
+> Approved for dev implementation only** — no Release 2 migration was implemented; see
+> `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §15.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

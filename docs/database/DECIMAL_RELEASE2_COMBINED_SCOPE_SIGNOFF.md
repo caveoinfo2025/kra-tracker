@@ -275,12 +275,13 @@ every other status below.**
 | Lead/Funnel/Opportunity included in combined Release 2 | `CrmLead.expectedValue`; `CrmOpportunity.value/dealValueExTax/netProfitLakhs`; `SalesFunnel.dealValueLakhs/billingValueLakhs` | **Approved** — unit, range, and zero-negatives confirmed live (§12.4) |
 | `EmployeeTarget`/`TeamTarget` `targetJson` included | `EmployeeTarget`: same 6-label money set as `KRA.target`, confirmed it is free text, not structured JSON, despite the field name. `TeamTarget`: 0 rows, nothing to include yet. | **Approved with notes for `EmployeeTarget`; Deferred (no data) for `TeamTarget`** (§12.3) |
 | `OrderAdvance.amountLakhs` included | Related to `Payment.amountLakhs` via `applyAdvance()`; 0 live rows, 0 `Payment` rows created via an advance | **Approved for inclusion** — added to Section 3's locked scope (§12.5) |
-| `KRATemplateItem` #16 classification | Business/admin selected **Option B** (Section 13): its `targetType = "AMOUNT"`/metric-`PERCENTAGE` mismatch is a configuration error, not a confirmed money override — it must be re-linked to a genuine `AMOUNT` metric before it converts | **Blocked pending config correction** |
-| Release 2 implementation permission | Combined atomic release per Section 7's sequence | **Blocked.** The business decision on `KRATemplateItem` #16 is now made (Option B, Section 13) — this is no longer a classification ambiguity. It is now a concrete, scoped prerequisite: re-link item #16's `metricId` to a real `AMOUNT`-typed metric (a config change in the admin-managed KRA Template setup, not code/schema) before Step 3U starts. Every other scope item (Payment/Collection, Lead/Funnel/Opportunity, the other 14 `KRATemplateItem` rows, `EmployeeTarget`, `OrderAdvance`, the business sign-off) is Approved. |
+| `KRATemplateItem` #16 classification | **Resolved Step 3U-5 (Section 15):** re-linked to a new `AMOUNT`-typed metric ("Team Pipeline Coverage", `TEAM_PIPELINE_COVERAGE`, `KRAMetric` #16). `targetType`/`metricType` now agree (`AMOUNT`/`AMOUNT`). | **Resolved** |
+| Sales/KRA targets included | `KRATemplateItem.expectedTarget/stretchTarget/minimumTarget` (live `metricType = "AMOUNT"` rows only) — item #16 now included alongside `BOOKING`/`BILLING` | **Approved** |
+| Release 2 implementation permission | Combined atomic release per Section 7's sequence | **Approved for dev implementation only.** Item #16's configuration blocker is resolved (Section 15). This authorizes Step 3U's combined Payment/Collection + Sales/KRA target INR migration to proceed **against the dev database only** — production migration still requires its own separate sign-off. **No Release 2 migration has been implemented as part of this approval** — this row only removes the prerequisite blocker; `kra-engine.ts`, `payments.ts`, the schema, and all money-value rows remain unconverted until a future Step 3U implementation step. |
 
 ---
 
-## 11. Final Recommendation
+## 11. Final Recommendation (superseded for item #16 by Section 15 — Step 3U-5)
 
 - **Release 2 implementation remains Blocked, narrowly, on one diagnosed-but-not-yet-fixed
   item:** Step 3U-4 (Section 14) confirmed there is **no existing `AMOUNT`-typed `KRAMetric`**
@@ -571,3 +572,97 @@ was made; Release 2 remains Blocked** (Section 14). The inspection script was de
 **No application code was modified to produce this document at any step.** `kra-engine.ts`,
 `payments.ts`, every API route, every UI component, `prisma/schema.prisma`, and every migration
 file remain untouched; no database row was inserted, updated, or deleted.
+
+---
+
+## 15. KRA AMOUNT Metric Admin Setup Fix + KRATemplateItem #16 Correction (Step 3U-5, 2026-06-23)
+
+**Outcome: admin setup path fixed; new `AMOUNT` metric created; item #16 re-linked; Release 2
+configuration blocker resolved for dev. No Release 2 migration implemented.**
+
+**Dev DB confirmed:** `DATABASE_URL` resolved to `u686730471_caveodev` @ `srv2201.hstgr.io`
+before any change was made.
+
+### Root cause (confirmed from source, Task 2)
+
+| Area | Finding | Required Fix |
+| ---- | ------- | ------------ |
+| Metric creation form (`KRALibrary.tsx` `metricType` `<select>`) | Offered only `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE`/`CUSTOM` — a stale taxonomy from `seed-performance-defaults.ts` that was never actually written to the live DB. Every real `KRAMetric` row uses `AMOUNT`/`PERCENTAGE`/`COUNT`. A normal browser `<select>` cannot submit a value that isn't a rendered `<option>`, so `AMOUNT` was not selectable. | Replace dropdown options with `AMOUNT`/`PERCENTAGE`/`COUNT`; default the form to `AMOUNT`; add inline helper text distinguishing the three. |
+| `POST /api/admin/performance/kra` → `createKRAMetric()` | No server-side enum restriction — already accepted `metricType: "AMOUNT"` if sent directly. **Not** a blocker; confirmed by source read, not assumed. | None needed. |
+| Template item re-link path (`updateKRATemplate()` in `templates.ts`, used by `PATCH /api/admin/performance/templates`) | Accepts an `items` array but **deletes and recreates every item belonging to the template** (`deleteMany` + `createMany`). Re-linking only item #16 through this endpoint would have changed every sibling item's `id` in `KRATemplate` #7 (including item #17) — unacceptable given the constraint to touch only item #16. No item-level update endpoint existed. | Added `updateKRATemplateItem(id, input)` (single-row `prisma.kRATemplateItem.update`, no sibling deletion) and a new route `PATCH /api/admin/performance/templates/items`, gated by the same `requirePermission(session, "Settings", "Performance", "EDIT")` check as every other admin performance route. |
+| Template item metric selector (`KRATemplateManager.tsx` `<select>`) | Already lists every metric regardless of type — `AMOUNT` metrics were never filtered out here. Confirmed by source read; this was not a blocking root cause. | Added `(metricType)` to each option label so the type is visible while picking a metric — minor clarity improvement, not a functional fix. |
+
+**Correction to this document's own prior assumption:** the new instruction driving this step
+described item #16 as linked to one of `BOOKING`/`BILLING`/`FUNNEL_VALUE`. A fresh live read this
+step (`prisma.kRATemplateItem.findUnique({ where: { id: 16 }, include: { metric: true } })`)
+confirms that was never the case — item #16 was linked to `KRAMetric` #9, **"Pipeline Ratio %"**
+(`PIPELINE_RATIO`, `metricType = PERCENTAGE`), exactly as already documented in §12.1/§13/§14 of
+this file. The actual root cause (a percentage-typed metric linked to an amount-typed item)
+matches this document's own prior findings, not the new instruction's framing of the problem.
+
+### Fix applied (Task 3)
+
+- `src/app/settings/performance/components/KRALibrary.tsx` — metric-type dropdown now offers
+  `AMOUNT`/`PERCENTAGE`/`COUNT` (default `AMOUNT`), with helper text per option.
+- `src/lib/performance-engine/templates.ts` — added `updateKRATemplateItem()`.
+- `src/app/api/admin/performance/templates/items/route.ts` — new `PATCH` route for single-item
+  updates.
+- `src/app/settings/performance/components/KRATemplateManager.tsx` — metric selector options now
+  show `(metricType)` alongside the name.
+- No schema change. No change to `kra-engine.ts` or `payments.ts`.
+
+### Metric created (Task 4)
+
+| Field | Value |
+| ----- | ----- |
+| `id` | 16 |
+| `name` | Team Pipeline Coverage |
+| `code` | `TEAM_PIPELINE_COVERAGE` |
+| `metricType` | `AMOUNT` |
+| `calculationSource` | `MANUAL` |
+| `description` | Manager/team-level pipeline coverage target measured as actual INR |
+
+Created via the application's own `createKRAMetric()` service function (the same function the
+fixed admin API calls) — not a raw SQL script.
+
+### KRATemplateItem #16 re-link (Task 5)
+
+| Field | Before | After |
+| ----- | ------ | ----- |
+| `metricId` | 9 (`PIPELINE_RATIO`, `PERCENTAGE`) | 16 (`TEAM_PIPELINE_COVERAGE`, `AMOUNT`) |
+| `targetType` | `AMOUNT` (unchanged) | `AMOUNT` (unchanged) |
+| `minimumTarget` | 1500 (unchanged) | 1500 (unchanged) |
+| `expectedTarget` | 1800 (unchanged) | 1800 (unchanged) |
+| `stretchTarget` | 2200 (unchanged) | 2200 (unchanged) |
+| `weightage` / `sortOrder` / `status` / `templateId` | unchanged | unchanged |
+
+Performed via `updateKRATemplateItem(16, { metricId: 16 })` — a single-row update; no other
+`KRATemplateItem` row was touched.
+
+### Verification (Task 6)
+
+| Check | Expected | Actual | Pass |
+| ----- | -------- | ------ | ---- |
+| Item #16 `metric.metricType` | `AMOUNT` | `AMOUNT` | ✅ |
+| Item #16 `targetType` | `AMOUNT` (unchanged) | `AMOUNT` | ✅ |
+| Item #16 `minimumTarget` | 1500 (unchanged) | 1500 | ✅ |
+| Item #16 `expectedTarget` | 1800 (unchanged) | 1800 | ✅ |
+| Item #16 `stretchTarget` | 2200 (unchanged) | 2200 | ✅ |
+| Sibling item #17 (same template) unchanged | identical to pre-change row | identical (`metricId=14`, `targetType=PERCENTAGE`, 80/90/95) | ✅ |
+| Total `KRATemplateItem` row count | 17 (unchanged) | 17 | ✅ |
+| Total `EmployeeTarget` row count | 34 (unchanged) | 34 | ✅ |
+| Total `TeamTarget` row count | 0 (unchanged) | 0 | ✅ |
+| `npx prisma validate` | passes | passes | ✅ |
+| `npx tsc --noEmit` | clean | clean | ✅ |
+| `npm run build` | succeeds | succeeds | ✅ |
+
+### Release 2 permission ledger status
+
+Section 10's `KRATemplateItem` #16 row and the "Release 2 implementation permission" row are
+updated above to **Resolved** / **Approved for dev implementation only**. This step did **not**
+implement any Release 2 migration — `kra-engine.ts`, `payments.ts`, the schema, and every
+money-value row (Payment, Collection, Lead, Opportunity, Funnel, the other `AMOUNT`-typed
+`KRATemplateItem` rows) remain unconverted. The next step is a separate, explicitly-scoped Step
+3U implementation following Section 7's sequence.
+
+No production database or schema was touched at any point in this step.

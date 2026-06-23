@@ -877,3 +877,24 @@ This document is **planning only**. As of this step:
 >   remain untouched; no database row was inserted, updated, or deleted. Two temporary
 >   read-only inspection scripts were created and deleted — no scratch files remain.
 > - Full record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §14.
+
+> **Step 3U-5 completed (2026-06-23):**
+> - KRA AMOUNT metric admin setup fixed — `KRALibrary.tsx`'s `metricType` dropdown (previously
+>   `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE`/`CUSTOM`, none of which exist live) now offers
+>   `AMOUNT`/`PERCENTAGE`/`COUNT` (the taxonomy every live `KRAMetric` row actually uses), with
+>   helper text and a default of `AMOUNT`. A new single-item update path
+>   (`updateKRATemplateItem()` + `PATCH /api/admin/performance/templates/items`) was added so a
+>   template item's `metricId` can be re-linked without deleting/recreating its sibling items
+>   (the existing template-level `PATCH` route replaces the entire item set).
+> - A new `KRAMetric` was created via the app's own `createKRAMetric()` service function: `id`
+>   16, name "Team Pipeline Coverage", code `TEAM_PIPELINE_COVERAGE`, `metricType = AMOUNT`.
+> - `KRATemplateItem` #16 re-linked to it via `updateKRATemplateItem(16, { metricId: 16 })` —
+>   `targetType`/`minimumTarget`/`expectedTarget`/`stretchTarget`/`weightage`/`sortOrder`/
+>   `status`/`templateId` all unchanged; no other `KRATemplateItem`/`EmployeeTarget`/
+>   `TeamTarget` row touched (counts verified unchanged: 17/34/0).
+> - **Release 2 permission status: Approved for dev implementation only.** Item #16's
+>   configuration blocker (Step 3U-3/3U-4) is now resolved. **No Release 2 migration was
+>   implemented** — `kra-engine.ts`, `payments.ts`, the schema, and every money-value row remain
+>   unconverted; this step only removed the prerequisite blocker.
+> - `npx prisma validate`, `npx tsc --noEmit`, and `npm run build` all pass.
+> - Full record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §15.

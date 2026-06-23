@@ -316,3 +316,30 @@ sequencing choice — before a Step 3U implementation prompt is created.
 > was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched, and no
 > database row was inserted, updated, or deleted. Two temporary read-only inspection scripts
 > were created and deleted this step — no scratch files remain.
+
+---
+
+> **Step 3U-5 completed (2026-06-23) — KRA AMOUNT metric admin setup fixed; `KRATemplateItem`
+> #16 re-linked; Release 2 configuration blocker resolved.**
+>
+> - **AMOUNT metric admin setup fix:** `KRALibrary.tsx`'s `metricType` dropdown was out of sync
+>   with the live `AMOUNT`/`PERCENTAGE`/`COUNT` taxonomy (it only offered `REVENUE`/`ACTIVITY`/
+>   `QUALITY`/`COMPLIANCE`/`CUSTOM`, none of which any live `KRAMetric` row uses) — fixed to
+>   offer `AMOUNT`/`PERCENTAGE`/`COUNT` with helper text, defaulting to `AMOUNT`. Also added a
+>   new single-item re-link path (`updateKRATemplateItem()` + `PATCH
+>   /api/admin/performance/templates/items`), since the existing template-level `PATCH` route
+>   deletes and recreates every item in a template — unsafe for touching only one item.
+> - **Metric created:** `KRAMetric` #16, "Team Pipeline Coverage" (`TEAM_PIPELINE_COVERAGE`),
+>   `metricType = AMOUNT`, via the app's own `createKRAMetric()` function.
+> - **#16 re-link result:** `KRATemplateItem` #16's `metricId` changed from 9 (`PIPELINE_RATIO`,
+>   `PERCENTAGE`) to 16 (`TEAM_PIPELINE_COVERAGE`, `AMOUNT`). `targetType` (`AMOUNT`) and all
+>   target values (1500/1800/2200) unchanged. No sibling item, `EmployeeTarget`, or `TeamTarget`
+>   row touched.
+> - **Verification result:** all checks pass — see
+>   `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §15 for the full table.
+>   `npx prisma validate`/`npx tsc --noEmit`/`npm run build` all pass.
+> - **Release 2 implementation permission: Approved for dev implementation only.** This step
+>   resolved the configuration prerequisite only — it did **not** implement any Release 2
+>   migration. `kra-engine.ts`, `payments.ts`, the schema, and every money-value row remain
+>   unconverted.
+> - Full record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §15.
