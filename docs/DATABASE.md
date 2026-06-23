@@ -89,6 +89,16 @@
 > INR for Lead/Funnel/Opportunity input/storage; Lakhs for Sales dashboard/KRA/Report display).
 > **Release 2 implementation permission: Blocked, narrowly, on the single `KRATemplateItem` #16
 > ambiguity only** — every other Section 9 decision is now closed.
+>
+> **`KRATemplateItem` #16 decision recorded (Step 3U-3, 2026-06-22) — sign-off only, nothing
+> implemented.** Product owner selected **Option B — configuration error, fix before
+> migration** (`docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §13, direct
+> confirmation in conversation, not assumed). Item #16 does **not** convert in this Release 2
+> pass; before Step 3U starts, its `metricId` must be re-linked to a genuine `AMOUNT`-typed
+> metric (e.g. the existing zero-row `FUNNEL_VALUE` metric) — an admin-config data change, not
+> code/schema. **Release 2 implementation permission remains Blocked** — no longer on a
+> classification ambiguity, but on this concrete, not-yet-performed config-correction
+> prerequisite. Every other Release 2 scope item is Approved.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

@@ -21,6 +21,45 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-22 — Step 3U-3: KRATemplateItem #16 business decision recorded (Option B); Release 2 permission updated
+Step 3U-3 completed: a business/config classification and documentation step only — no Prisma
+schema change, no migration, no API/UI code change, no database data altered/inserted/updated/
+deleted, `src/lib/kra-engine.ts`/`src/lib/payments.ts` not touched, no value converted, Release 2
+not implemented.
+
+This step resolved the single remaining Release 2 blocker from Step 3U-2: `KRATemplateItem` #16
+is linked to the `PERCENTAGE`-typed `PIPELINE_RATIO` metric but has its own `targetType = AMOUNT`
+with values 1500/1800/2200, matching the legacy `KRA` #71 / `EmployeeTarget` #34 "total team
+pipeline coverage (₹ lakhs): 1500" target exactly. Three documented options (treat as money,
+treat as config error and fix first, treat as non-money) were presented to the product owner
+directly in conversation — **the decision is not assumed or guessed.**
+
+**Decision: Option B — configuration error; fix before migration.** Item #16 does not convert
+in this Release 2 pass. Before Step 3U starts, a separate config-correction step must re-link
+`KRATemplateItem` #16's `metricId` to a genuine `AMOUNT`-typed metric (the existing zero-row
+`FUNNEL_VALUE` metric, or a new dedicated "Team Pipeline Coverage" metric) — an admin-config data
+change in the KRA Template setup, **not** a code or schema change, and explicitly out of scope
+for this documentation-only step.
+
+A live re-verification query for item #16 (`prisma/inspect-item16.mjs`, DB-name-guarded) was
+attempted but rejected with `ER_ACCESS_DENIED_ERROR` — the connecting IP is not currently on
+Hostinger's Remote MySQL allowlist (a transient, intermittent limitation, also seen in Step 3N
+from a different IP). The decision relies on Step 3U-2's already-captured read-only evidence
+instead; the failed script was deleted, no scratch files remain, no database row was touched.
+
+Updated `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md`: added §13 "KRATemplateItem
+#16 Decision" with the full finding/decision/action table; updated §9's `KRATemplateItem` row
+and §10's Permission Ledger (`KRATemplateItem` #16 → Blocked pending config correction; overall
+Release 2 implementation permission → Blocked, on the concrete re-link prerequisite, not a
+classification ambiguity any longer); updated §11's Final Recommendation with the exact fix
+needed. Cross-referenced (Step 3U-3 notes appended) in
+`docs/database/SALES_KRA_INR_UNIT_SCOPE_PLAN.md`, `docs/database/DECIMAL_MONEY_MIGRATION_PLAN.md`.
+See `docs/RBAC_MIGRATION_TRACKER.md` §4 (Step 3U-3 row) for the tracker entry.
+
+**Release 2 implementation permission remains Blocked** — the classification question is now
+resolved, but the config-correction itself has not been performed. `npx prisma validate`,
+`npx tsc --noEmit`, and `npm run build` all pass (reconfirmations, no app code changed).
+
 ### 2026-06-22 — Step 3U-2: Section 9 open decisions closed via read-only live-DB scan; one ambiguous KRATemplateItem found and blocked
 Step 3U-2 completed: a verification, live-read profiling, and sign-off documentation step only —
 no Prisma schema change, no migration, no API/UI code change, no database data altered/inserted/

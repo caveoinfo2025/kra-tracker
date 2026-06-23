@@ -267,3 +267,27 @@ sequencing choice — before a Step 3U implementation prompt is created.
 > - No Prisma schema field was converted, no migration was generated, no API route or UI
 >   component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched,
 >   and no database row was inserted, updated, or deleted (read-only scan only).
+
+---
+
+> **Step 3U-3 completed (2026-06-22) — `KRATemplateItem` #16 resolved.**
+>
+> | Field | Value |
+> |---|---|
+> | Item ID | `KRATemplateItem` #16 |
+> | Linked metric | `KRAMetric` #9, "Pipeline Ratio %" (`PIPELINE_RATIO`), `metricType = PERCENTAGE` |
+> | Item's own `targetType` | `AMOUNT` |
+> | Current values | `minimumTarget = 1500`, `expectedTarget = 1800`, `stretchTarget = 2200` |
+> | Decision | **Option B — Configuration error; fix before migration** (product owner, direct confirmation) |
+> | Release 2 action | Do **not** convert item #16 in this Release 2 pass. Before Step 3U starts, re-link `KRATemplateItem` #16's `metricId` to a genuine `AMOUNT`-typed metric (the existing zero-row `FUNNEL_VALUE` metric, or a new dedicated "Team Pipeline Coverage" metric) — a config/data change in the admin KRA Template setup, not a code or schema change. Once re-linked and `metricType`/`targetType` agree, the row re-enters the normal `AMOUNT`-row conversion path (`× 100000`) alongside `BOOKING`/`BILLING`. |
+> | Config debt note | The mismatch (item `targetType = AMOUNT` vs. metric `metricType = PERCENTAGE`) is documented as configuration debt, not data corruption — item #16's values (1500/1800/2200) exactly match the legacy `KRA` #71 / `EmployeeTarget` #34 `"total team pipeline coverage (₹ lakhs): 1500"` target, strongly suggesting it was meant to be a money target linked to the wrong metric at template-authoring time, not a malicious or random value. |
+>
+> Full decision record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_SIGNOFF.md` §13.
+> **Release 2 implementation permission remains Blocked** — not on a classification ambiguity
+> any longer, but on the concrete config-correction prerequisite above, which has not yet been
+> performed (out of scope for this documentation-only step). No Prisma schema field was
+> converted, no migration was generated, no API route or UI component was modified,
+> `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not touched, and no database row was
+> inserted, updated, or deleted. A live re-verification query was attempted and blocked by a
+> transient Remote MySQL access denial (IP not currently allowlisted) — the decision relies on
+> Step 3U-2's already-captured evidence, not a fresh query.

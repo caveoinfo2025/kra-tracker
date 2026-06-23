@@ -241,7 +241,7 @@ every status below.**
 
 | Decision | Required Answer | Status |
 | -------- | ---------------- | ------ |
-| Confirm `KRATemplateItem.metricType = "REVENUE"` is the only money metric type | **Live-DB scan (§12.1) confirms the seed-file assumption was wrong about the *code names*, but right about the *principle*.** The live dev DB does not contain any `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE`-typed `KRAMetric` rows at all (`seed-performance-defaults.ts` was apparently never run against this DB, or its rows were superseded). The live `KRAMetric.metricType` enum values are `AMOUNT`/`PERCENTAGE`/`COUNT`. Money metrics are exactly the 2 populated `AMOUNT`-type metrics (`BOOKING`, `BILLING`) plus one zero-row `AMOUNT`-type metric (`FUNNEL_VALUE`). **One exception found and blocked:** `KRATemplateItem` row #16 (linked to the `PERCENTAGE`-type `PIPELINE_RATIO` metric) has `targetType = "AMOUNT"` with money-scale values (1500/1800/2200) that exactly match the legacy `KRA.target` "total team pipeline coverage (₹ lakhs)" figure — a metric/item type mismatch, not a clean money-vs-non-money split. | **Approved with notes — except item #16, which is Blocked / Manual Review** (see §12.1) |
+| Confirm `KRATemplateItem.metricType = "REVENUE"` is the only money metric type | **Live-DB scan (§12.1) confirms the seed-file assumption was wrong about the *code names*, but right about the *principle*.** The live dev DB does not contain any `REVENUE`/`ACTIVITY`/`QUALITY`/`COMPLIANCE`-typed `KRAMetric` rows at all (`seed-performance-defaults.ts` was apparently never run against this DB, or its rows were superseded). The live `KRAMetric.metricType` enum values are `AMOUNT`/`PERCENTAGE`/`COUNT`. Money metrics are exactly the 2 populated `AMOUNT`-type metrics (`BOOKING`, `BILLING`) plus one zero-row `AMOUNT`-type metric (`FUNNEL_VALUE`). **`KRATemplateItem` row #16 resolved Step 3U-3 (§13):** business/admin selected **Option B** — its `targetType = "AMOUNT"`/metric-`PERCENTAGE` mismatch must be corrected (re-link to a real `AMOUNT` metric) before this row converts; it does not convert in this Release 2 pass. | **Approved with notes — except item #16, which is Blocked pending config correction** (see §13) |
 | Confirm legacy `KRA.target` revenue entries can be parsed safely | Live-DB scan (§12.2): all 34 live `KRA.target` rows parse successfully via `parseTargets()`'s `key:value;key:value` format — zero malformed rows, zero unparseable rows. Exactly 6 KPI labels are confirmed money (Lakhs): `"total sales revenue - booking"`, `"total sales revenue - billing"`, `"total funnel / pipeline value created (₹ lakhs)"`, `"total team booking target achievement (₹ lakhs)"`, `"total team billing achievement"`, `"total team pipeline coverage (₹ lakhs)"`. Every other KPI label across all 34 rows is a percentage/ratio/count (see §12.2 for the full classification, including the "Focus area revenue achievement" labels, which contain "revenue" in the KRA title but are confirmed **mix-ratio percentages, not absolute money** — must not be converted by title-matching). | **Approved** |
 | Confirm `EmployeeTarget`/`TeamTarget.targetJson` money keys | Live-DB scan (§12.3): `EmployeeTarget.targetJson` (34 rows) is confirmed to store the **same `key:value;key:value` free-text format as legacy `KRA.target`**, not structured JSON despite the field name — the same 6-label money set applies, confirmed row-by-row. `TeamTarget.targetJson` has **0 rows** in the dev DB — nothing to classify; deferred until populated, re-run this same classification when it is. | **Approved with notes for `EmployeeTarget`; Deferred (no data) for `TeamTarget`** |
 | Confirm Lead `expectedValue` currently stored in Lakhs | Confirmed via source (`LeadsClient.tsx`'s `"Expected Value (₹L)"` label) **and** live-DB scan (§12.4): 38 rows, range ₹0–₹59.12L, zero negatives — consistent with Lakhs-scale deal sizes, not raw INR. | **Confirmed / Approved** |
@@ -252,48 +252,54 @@ every status below.**
 | Confirm production migration-history gap can remain separate from dev implementation | Unchanged from Step 3U-1 — the two untracked migrations (`add_advance_category`, `employeetarget_relations`, per `DECIMAL_RELEASE2_SIGNOFF_PLAN.md` §10) predate Release 1, are not introduced by this scope, and do not block dev implementation, but must be reviewed before production migration planning. No new information surfaced this step. | **Approved for dev; Pending for production (unchanged, not blocking)** |
 | Confirm `OrderAdvance.amountLakhs` must convert in the same release as `Payment.amountLakhs` | Live-DB scan (§12.5): `OrderAdvance` has **0 rows** in the dev DB, and **0 `Payment` rows have `fromAdvanceId` set** — `applyAdvance()` has never fired against live data. Despite zero data-migration risk, `OrderAdvance.amountLakhs` is **included in locked scope** (Section 3) at the schema/type level, to eliminate the lockstep-unit-mismatch risk for any future advance rather than deferring it. | **Approved for inclusion** |
 
-All statuses above reflect this step's live-DB scan and the recorded business sign-off (Section
-12). The one remaining blocker is narrow and explicit: `KRATemplateItem` row #16's metric/item
-type mismatch (§12.1) — every other decision in this table is closed.
+All statuses above reflect Step 3U-2's live-DB scan, the recorded business sign-off (Section 12),
+and Step 3U-3's `KRATemplateItem` #16 decision (Section 13). The one remaining blocker is narrow
+and explicit: `KRATemplateItem` row #16 is held for a config correction (re-link its metric),
+**not** for further classification ambiguity — every classification question in this table is
+now closed.
 
 ---
 
 ## 10. Release 2 Permission Ledger
 
-**Updated Step 3U-2 (2026-06-22) — see Section 12 for the live-DB scan evidence behind every
-status below.**
+**Updated Step 3U-3 (2026-06-22) — see Section 13 for the `KRATemplateItem` #16 decision behind
+the change to this ledger's last two rows; Section 12 carries the live-DB scan evidence behind
+every other status below.**
 
 | Decision | Final Value | Status |
 | -------- | ----------- | ------ |
 | Option selected | Option A — Full INR Canonical Model | **Approved** (locked, Step 3U-0) |
 | Temporary bridge (Option B) | Rejected for normal implementation; emergency-only with separate written approval if ever invoked | **Rejected** |
 | Payment/Collection included in combined Release 2 | `Payment.amountLakhs`; `Collection.invoiceValueLakhs/amountWithoutGstLakhs/amountReceivedLakhs` | **Approved** |
-| Sales/KRA targets included in combined Release 2 | `KRATemplateItem.expectedTarget/stretchTarget/minimumTarget` (live `metricType = "AMOUNT"` rows only — not `"REVENUE"`, the seed-file code that turned out not to exist live); legacy `KRA.target` (6 confirmed money KPI labels only, per §12.2) | **Approved with notes — except `KRATemplateItem` #16, which is Blocked / Manual Review** (§12.1) |
+| Sales/KRA targets included in combined Release 2 | `KRATemplateItem.expectedTarget/stretchTarget/minimumTarget` (live `metricType = "AMOUNT"` rows only — not `"REVENUE"`, the seed-file code that turned out not to exist live); legacy `KRA.target` (6 confirmed money KPI labels only, per §12.2) | **Approved with notes — except `KRATemplateItem` #16, which is Blocked pending config correction** (§13) |
 | Lead/Funnel/Opportunity included in combined Release 2 | `CrmLead.expectedValue`; `CrmOpportunity.value/dealValueExTax/netProfitLakhs`; `SalesFunnel.dealValueLakhs/billingValueLakhs` | **Approved** — unit, range, and zero-negatives confirmed live (§12.4) |
 | `EmployeeTarget`/`TeamTarget` `targetJson` included | `EmployeeTarget`: same 6-label money set as `KRA.target`, confirmed it is free text, not structured JSON, despite the field name. `TeamTarget`: 0 rows, nothing to include yet. | **Approved with notes for `EmployeeTarget`; Deferred (no data) for `TeamTarget`** (§12.3) |
 | `OrderAdvance.amountLakhs` included | Related to `Payment.amountLakhs` via `applyAdvance()`; 0 live rows, 0 `Payment` rows created via an advance | **Approved for inclusion** — added to Section 3's locked scope (§12.5) |
-| Release 2 implementation permission | Combined atomic release per Section 7's sequence | **Blocked / Manual Review — narrowly, on one item only.** Every decision above is closed except `KRATemplateItem` row #16 (§12.1): its `targetType = "AMOUNT"` conflicts with its linked metric's `metricType = "PERCENTAGE"`, and its values (1500/1800/2200) match a legacy money KPI exactly. This single ambiguous row blocks full Release 2 implementation permission per this step's own classification rule ("if any money metric classification remains ambiguous, implementation remains Blocked") — it does **not** block Payment/Collection, Lead/Funnel/Opportunity, or the other 14 `KRATemplateItem` rows, which are all clear. |
+| `KRATemplateItem` #16 classification | Business/admin selected **Option B** (Section 13): its `targetType = "AMOUNT"`/metric-`PERCENTAGE` mismatch is a configuration error, not a confirmed money override — it must be re-linked to a genuine `AMOUNT` metric before it converts | **Blocked pending config correction** |
+| Release 2 implementation permission | Combined atomic release per Section 7's sequence | **Blocked.** The business decision on `KRATemplateItem` #16 is now made (Option B, Section 13) — this is no longer a classification ambiguity. It is now a concrete, scoped prerequisite: re-link item #16's `metricId` to a real `AMOUNT`-typed metric (a config change in the admin-managed KRA Template setup, not code/schema) before Step 3U starts. Every other scope item (Payment/Collection, Lead/Funnel/Opportunity, the other 14 `KRATemplateItem` rows, `EmployeeTarget`, `OrderAdvance`, the business sign-off) is Approved. |
 
 ---
 
 ## 11. Final Recommendation
 
-- **Release 2 implementation remains Blocked, narrowly, on one open item:** `KRATemplateItem`
-  row #16's metric/item type mismatch (§12.1) must be resolved — either business confirms its
-  `targetType = "AMOUNT"` is the correct, intentional reading (a money override that takes
-  priority over its linked `PIPELINE_RATIO` metric's nominal `PERCENTAGE` type) and it converts
-  alongside `BOOKING`/`BILLING`, or the template configuration is corrected (re-link it to a
-  dedicated `AMOUNT` metric, e.g. the existing zero-row `FUNNEL_VALUE` metric or a new one) before
-  Step 3U. **This is a data/config classification decision, not a code or schema change — it does
-  not require touching `kra-engine.ts`, `payments.ts`, the schema, or any API/UI file to resolve.**
+- **Release 2 implementation remains Blocked, narrowly, on one resolved-but-not-yet-fixed item:**
+  the product owner selected **Option B** for `KRATemplateItem` #16 (Section 13) — its
+  `targetType = "AMOUNT"`/metric-`PERCENTAGE` mismatch is a configuration error, not a confirmed
+  money target. **A separate config-correction step must re-link item #16 to a genuine
+  `AMOUNT`-typed metric** (the existing zero-row `FUNNEL_VALUE` metric, or a new dedicated "Team
+  Pipeline Coverage" metric) **before** Step 3U's INR migration touches this row. **This is an
+  admin-config data change (`KRATemplateItem.metricId`), not a code or schema change — it does
+  not require touching `kra-engine.ts`, `payments.ts`, the schema, or any API/UI file**, but it is
+  explicitly out of scope for this documentation-only step and has not been performed.
 - **Every other open decision from Section 9 is now closed** (Section 9/10, evidence in Section
   12): Payment/Collection scope, Lead/Funnel/Opportunity unit and range, the legacy `KRA.target`
   and `EmployeeTarget.targetJson` money-label classification, `TeamTarget` (deferred, no data),
   `OrderAdvance` inclusion, the one-atomic-release requirement, and the Lakhs-for-Sales-display
   requirement (named business sign-off, §12.6).
-- **Once `KRATemplateItem` #16 is resolved, Step 3U should implement the combined atomic INR
-  migration** following the sequence in Section 7, against the before/after verification
-  requirements in Section 8.
+- **Once `KRATemplateItem` #16's metric link is corrected, Step 3U should implement the combined
+  atomic INR migration** following the sequence in Section 7, against the before/after
+  verification requirements in Section 8 — item #16 then re-enters the normal `AMOUNT`-row
+  conversion path alongside `BOOKING`/`BILLING`.
 - **Do not implement Payment/Collection alone.** Under Option A's locked design, shipping
   Payment/Collection independently of the Sales/KRA target migration reproduces the 100,000×
   KRA-scoring corruption risk this entire program exists to prevent (Section 1).
@@ -440,6 +446,32 @@ negative values (no data-quality blocker for the `× 100000` transform).
 
 ---
 
+## 13. KRATemplateItem #16 Decision (Step 3U-3, 2026-06-22)
+
+**Business/admin decision recorded.** The product owner was presented with the three options
+defined for this single remaining Release 2 blocker (§12.1) and selected **Option B —
+Configuration error, fix before migration.**
+
+| Item | Finding | Decision | Release 2 Action | Status |
+| ---- | ------- | -------- | -------------------- | ------ |
+| `KRATemplateItem` #16 | Linked to the `PERCENTAGE`-typed `PIPELINE_RATIO` metric ("Pipeline Ratio %"), but its own `targetType = "AMOUNT"` with values `minimumTarget=1500`/`expectedTarget=1800`/`stretchTarget=2200`, exactly matching the legacy `KRA` #71 / `EmployeeTarget` #34 `"total team pipeline coverage (₹ lakhs): 1500"` target | **Option B — Configuration error; must be corrected before any conversion** | Release 2 does **not** convert item #16's values in this pass. A separate config-correction step — re-linking item #16 to a metric whose `metricType = "AMOUNT"` (the existing zero-row `FUNNEL_VALUE` metric, or a new dedicated "Team Pipeline Coverage" metric) — must happen first, as its own change, before Step 3U's INR migration touches this row. Once re-linked and the `metricType`/`targetType` agree, this row re-enters the normal `AMOUNT`-row conversion path (`× 100000`) alongside `BOOKING`/`BILLING`. | **Blocked pending config correction** |
+
+**Re-verification note:** a live re-query of `KRATemplateItem` #16 was attempted this step but
+the Remote MySQL connection was rejected (`ER_ACCESS_DENIED_ERROR` — the connecting IP is not
+currently on Hostinger's allowlist, the same intermittent limitation documented in
+`DECIMAL_CONVERSION_READINESS_CHECK.md` §4 from an earlier step). The decision above relies on
+the already-captured, read-only evidence from Step 3U-2's live scan (§12.1), not a fresh query —
+no new database access was needed or attempted beyond the failed connection attempt itself,
+which performed no write and left no row touched.
+
+**Scope of the fix this decision requires:** correcting item #16's metric link is a
+`KRATemplateItem.metricId` data/config change in the admin-managed KRA Template configuration —
+it is **not** a code, schema, or `kra-engine.ts`/`payments.ts` change, and it is explicitly **out
+of scope for this step** (decision-locking and documentation only, per this step's own
+constraints). It is the named next step before Step 3U can proceed.
+
+---
+
 *Source documents reviewed for this sign-off (Step 3U-1):* `SALES_KRA_INR_UNIT_SCOPE_PLAN.md`,
 `DECIMAL_RELEASE2_SIGNOFF_PLAN.md`, `DECIMAL_MONEY_MIGRATION_PLAN.md`,
 `DECIMAL_CONVERSION_READINESS_CHECK.md`, `RBAC_MIGRATION_TRACKER.md`, `PROJECT_MEMORY.md`,
@@ -450,6 +482,12 @@ negative values (no data-quality blocker for the `× 100000` transform).
 `EmployeeTarget`, `TeamTarget`, `CrmLead`, `CrmOpportunity`, `SalesFunnel`, `OrderAdvance`, and
 `Payment.fromAdvanceId`. The scan script (`prisma/scan-release2-scope.mjs`) and its raw output
 were deleted after the findings above were captured — no scratch files remain.
+
+*Decision recorded for Step 3U-3 (2026-06-22):* the product owner selected Option B for
+`KRATemplateItem` #16 (Section 13) via direct confirmation in this conversation. A read-only
+re-verification attempt (`prisma/inspect-item16.mjs`) was blocked by a transient Remote MySQL
+access denial from the connecting IP; the script and its non-output were deleted — no scratch
+files remain, no database row was touched.
 
 **No application code was modified to produce this document at any step.** `kra-engine.ts`,
 `payments.ts`, every API route, every UI component, `prisma/schema.prisma`, and every migration

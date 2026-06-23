@@ -836,3 +836,23 @@ This document is **planning only**. As of this step:
 > or UI component was modified, `src/lib/kra-engine.ts` and `src/lib/payments.ts` were not
 > touched, and no database row was inserted, updated, or deleted** (read-only scan only; the
 > one-off scan script and its raw output were deleted after use).
+
+> **Step 3U-3 completed (2026-06-22):**
+> - `KRATemplateItem` #16 classification resolved — the product owner directly confirmed
+>   **Option B (configuration error; fix before migration)** for this step's single remaining
+>   Release 2 blocker (full decision record: `docs/database/DECIMAL_RELEASE2_COMBINED_SCOPE_
+>   SIGNOFF.md` §13). Item #16's `targetType = AMOUNT` on a `PERCENTAGE`-typed metric
+>   (`PIPELINE_RATIO`) is documented as a config/data error, not a confirmed money override — it
+>   must be re-linked to a genuine `AMOUNT`-typed metric (e.g. the existing zero-row
+>   `FUNNEL_VALUE` metric) before it converts. It does not convert in this Release 2 pass.
+> - Release 2 permission status updated: `KRATemplateItem` #16 → **Blocked pending config
+>   correction**; overall Release 2 implementation permission → **Blocked**, on the concrete
+>   config-correction prerequisite above (not a classification ambiguity any longer). Every
+>   other Release 2 scope item remains Approved.
+> - A live re-verification query for item #16 was attempted and blocked by a transient Remote
+>   MySQL access denial (connecting IP not currently allowlisted) — the decision relies on
+>   Step 3U-2's already-captured evidence; the failed-connection script was deleted, no scratch
+>   files remain, no database row was touched.
+> - **No code/schema/data changed.** `prisma/schema.prisma`, every migration file,
+>   `src/lib/kra-engine.ts`, `src/lib/payments.ts`, every API route, and every UI component
+>   remain untouched; no database row was inserted, updated, or deleted.
