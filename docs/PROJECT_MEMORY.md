@@ -21,6 +21,64 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4G: UAT Decimal/INR migration EXECUTED against the live database
+
+**The UAT migration actually ran.** Connected live to `u686730471_Caveo_UAT` (MariaDB
+`11.8.6-MariaDB-log`) using a credential Vijesh Vijayan provided and confirmed working via
+direct phpMyAdmin login (an initial connection attempt failed with `ER_ACCESS_DENIED_ERROR`
+before that confirmation; the retry succeeded). DB identity guard (`SELECT DATABASE()`)
+re-verified live before every script — nothing ran without it passing.
+
+**What changed on UAT:** soft-delete fields (`deleteReason`/`deletedAt`/`deletedById`) added to
+7 tables; `Payment`/`Collection`/`OrderAdvance` converted to `Decimal(18,2)` with **no
+multiply** (checksums confirmed exact to the cent against the pre-migration snapshot);
+`CrmLead`/`CrmOpportunity`/`SalesFunnel` converted to `Decimal` **and multiplied by exactly
+100,000** (checksums confirmed exact, including the known `CrmOpportunity` row 42 data-quality
+anomaly: `-0.1` → `-10000.00`, precisely as predicted). `Voucher`/`Ledger`/`FinAccount`
+confirmed untouched (still `double`) in both the migration log and the post-migration
+verification.
+
+**Pre-migration snapshot (29/29 statements), migration SQL (36/36 statements), and
+post-migration verification (27/27 statements) all completed with 0 errors.** Full logs:
+`docs/database/uat-migration-package/UAT_PRE_MIGRATION_SNAPSHOT_RESULT_20260624.md`,
+`UAT_MIGRATION_SQL_EXECUTION_LOG_20260624.md`, `UAT_POST_MIGRATION_VERIFICATION_RESULT_20260624.md`,
+and the consolidated `UAT_MIGRATION_EXECUTION_RESULTS.md`.
+
+**Two items deliberately left open and documented, not hidden:**
+1. **`KRA.target` free-text transform did not run.** `scripts/uat-transform-kra-target.mjs` was
+   executed with its confirm flag set and a correct, identity-confirmed connection — it
+   validated the DB, printed its 6-label allowlist, and exited cleanly at its designed
+   early-exit point without touching any row (its execution logic is still commented out).
+   Confirmed via direct diff that all 34 `KRA.target` rows are byte-identical before/after. No
+   manual SQL was substituted, per explicit instruction not to improvise around a guarded step.
+2. **Migration history not recorded.** All 3 `prisma migrate resolve --applied <name>` attempts
+   were blocked by this environment's own safety classifier (treated as high-severity,
+   hard-to-reverse, not independently verifiable from the visible transcript). No workaround was
+   attempted. `_prisma_migrations` still shows 19 rows total, 0 of the 3 target migrations
+   present — confirmed live, not assumed. Note: dev's own original migration for Release 2 also
+   never included the `KRA.target` transform (always a separate untracked script there too), so
+   the *SQL-tracked* scope of all 3 migrations is fully and correctly applied — only the
+   bookkeeping row is missing.
+
+**Credential handling:** the real UAT password was first accidentally saved into the tracked
+`.env.uat.example` template by mistake — caught and fixed immediately: moved into a new,
+gitignored `.env.uat` file, and the template reverted to its original committed placeholder
+before any further work. The password was never typed into a Bash command line or printed in
+any tool output throughout this session.
+
+**Production was not touched. Dev was not touched** — every UAT connection used `.env.uat`
+exclusively; the existing `.env` (pointing at the dev DB) was never read or written.
+
+**Rollback status: unchanged from Step 4F-1 — Approved with risk exception, reduced
+confidence.** This execution does not itself change that risk profile; the backup still has not
+been restore-tested.
+
+**Next actions:** close the migration-history gap (a human with direct UAT access running the 3
+`prisma migrate resolve` calls), complete the `KRA.target` transform, then begin Step 4H
+functional testing — Finance/Sales areas are ready now; KRA-area testing should wait until the
+`KRA.target` transform completes. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run
+build` ✅ (no local app source code changed this step — only live UAT schema/data).
+
 ### 2026-06-24 — Step 4F-1: UAT backup restore verification reviewed; risk exception recorded (migration not run)
 
 **Closed Step 4F's outstanding backup-verification gap — with an honest risk exception, not a

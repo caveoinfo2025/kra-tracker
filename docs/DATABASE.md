@@ -223,6 +223,27 @@
 > Pending) and `UAT_MIGRATION_APPROVAL_RECORD.md` (business/technical sign-off, write-freeze,
 > rollback approval all Pending). **Migration execution permission: Pending. Migration not
 > run.**
+>
+> **UAT backup risk exception recorded (Step 4F-1, 2026-06-24).** A real restore-to-scratch-DB
+> test was attempted and found impossible in this environment (no `mysql`/`mariadb`/`docker`
+> tooling). A structural sanity check of the backup file was done instead, and Vijesh Vijayan,
+> named as approving owner, explicitly accepted the residual risk. Backup/rollback/final
+> execution approval moved from Pending to **"Approved with risk exception."** Migration still
+> not run.
+>
+> **UAT Decimal/INR migration EXECUTED (Step 4G, 2026-06-24).** Connected live to
+> `u686730471_Caveo_UAT` (MariaDB `11.8.6-MariaDB-log`) and ran the full package:
+> pre-migration snapshot (29/29 statements), migration SQL (36/36 statements), post-migration
+> verification (27/27 statements) — **0 errors across all three.** Soft-delete fields added;
+> `Payment`/`Collection`/`OrderAdvance` converted to `Decimal(18,2)` with no multiply (confirmed
+> exact); `CrmLead`/`CrmOpportunity`/`SalesFunnel` converted and multiplied by exactly 100,000
+> (confirmed exact, including the known row-42 anomaly). `Voucher`/`Ledger`/`FinAccount`
+> confirmed untouched. **UAT's schema for these fields now matches dev's post-Release-2 state.**
+> Two items remain open: the `KRA.target` free-text transform did not run (guarded script's
+> execution path is still commented out — confirmed untouched via byte-identical diff), and
+> `_prisma_migrations` was not updated (the 3 `migrate resolve` calls were blocked by this
+> environment's safety classifier as a high-severity action). **Production untouched. Dev
+> untouched.** Full results: `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md`.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

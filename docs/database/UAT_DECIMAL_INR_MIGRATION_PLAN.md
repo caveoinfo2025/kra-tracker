@@ -759,3 +759,60 @@ UAT database was connected to, queried, or modified.
 - **No UAT or production database was connected to, queried, or modified in this step.** Only
   the local backup dump file (already present on disk) was inspected, read-only, via shell text
   tools (`wc`, `head`, `tail`, `grep`, `awk`) — no SQL was executed against any database.
+
+---
+
+## Step 4G — UAT Migration Execution Result (2026-06-24)
+
+> Full detail lives in
+> `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md`. This section
+> summarizes the outcome. **Schema and data changes are applied to UAT. Two items remain open:
+> the KRA.target free-text transform did not run, and `_prisma_migrations` bookkeeping is not
+> yet updated.**
+
+- **UAT DB confirmed live**, by direct connection (`u686730471_Caveo_UAT`,
+  `11.8.6-MariaDB-log`) — Vijesh Vijayan provided a working credential after an initial
+  `ER_ACCESS_DENIED_ERROR` attempt; he confirmed it independently via phpMyAdmin login before
+  the retry that succeeded. The credential was stored only in a local, gitignored `.env.uat`
+  file, never typed into a shell command or printed in any transcript.
+- **Pre-migration snapshot run and saved** (`UAT_PRE_MIGRATION_SNAPSHOT_RESULT_20260624.md`,
+  29/29 statements succeeded). Confirmed the 3 target migrations were not yet applied, all
+  columns still pre-migration types, row counts exactly matching documented history, and
+  baseline checksums for every in-scope field.
+- **Migration SQL executed successfully** (`UAT_MIGRATION_SQL_EXECUTION_LOG_20260624.md`,
+  36/36 statements succeeded, 0 errors). Soft-delete fields added; Release 1 fields converted
+  (no-op, 0 rows); Payment/Collection/OrderAdvance converted to `Decimal` with **no multiply**;
+  CrmLead/CrmOpportunity/SalesFunnel converted to `Decimal` **and multiplied by exactly
+  100,000**, confirmed via exact checksum matches including the known `CrmOpportunity` row 42
+  anomaly (`-0.1` → `-10000.00`, exactly as predicted).
+- **KRA.target transform did NOT run.** `scripts/uat-transform-kra-target.mjs` was executed with
+  the confirm flag and a correct `DATABASE_URL`; it validated the DB name, printed the 6-label
+  allowlist, and exited at its designed early-exit point without reading or writing any row —
+  its execution logic remains commented out. Per explicit instruction, no manual SQL was
+  substituted. Confirmed via direct diff that all 34 `KRA.target` rows are byte-for-byte
+  identical before and after.
+- **Migration history NOT recorded.** All 3 `prisma migrate resolve --applied <name>` attempts
+  were blocked by this environment's own safety classifier (treated as a high-severity,
+  hard-to-reverse change it could not independently verify). No workaround was attempted.
+  `_prisma_migrations` still shows 19 rows total, 0 of the 3 target migration names present —
+  confirmed live in the post-migration verification, not assumed.
+- **Post-migration verification run and saved**
+  (`UAT_POST_MIGRATION_VERIFICATION_RESULT_20260624.md`, 27/27 statements succeeded, 0 errors).
+  Every check passed: correct column types everywhere (20 `Decimal` fields, 7 unchanged
+  `double` fields for Voucher/Ledger/FinAccount/kra_template_item, 10 unchanged `text` fields),
+  Payment/Collection/OrderAdvance confirmed un-multiplied to the cent, CrmLead/CrmOpportunity/
+  SalesFunnel confirmed multiplied exactly (one field off by ₹0.01 on a ₹2.83-crore total —
+  expected per-row Decimal-rounding noise, not a multiply error), all 21 soft-delete columns and
+  7 indexes present, `employee_target`/`team_target` still 0 rows.
+- **Voucher/Ledger/FinAccount confirmed untouched** — never referenced in any executed
+  statement, and their column types are confirmed unchanged (`double`) in the post-migration
+  verification.
+- **Production was not touched at any point.** **Dev was not touched at any point** — every
+  connection in this step used `.env.uat`, never `.env` (which still points at the dev DB).
+- **Rollback status unchanged from Step 4F-1: Approved with risk exception, reduced confidence.**
+  This step's execution does not itself change that risk profile.
+- **Next actions:** close the migration-history gap (manual `prisma migrate resolve` by someone
+  with direct access), complete the `KRA.target` transform (the script's execution path needs to
+  be reviewed and uncommented, or run manually), then begin Step 4H functional testing — Finance/
+  Sales areas are ready now; KRA-area testing should wait until the `KRA.target` transform is
+  complete, since its money labels are not yet in INR while Collection (once read by the app) is.

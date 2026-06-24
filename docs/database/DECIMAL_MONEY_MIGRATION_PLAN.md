@@ -1062,3 +1062,23 @@ This document is **planning only**. As of this step:
 > modified — only the already-present local backup file was inspected read-only via shell text
 > tools. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass (no app code
 > changed, reconfirmations only).
+
+> **Step 4G (2026-06-24) completed:** UAT Decimal/INR migration **executed** against the live
+> `u686730471_Caveo_UAT` database. DB identity guard confirmed live before every script
+> (`SELECT DATABASE()` = `u686730471_Caveo_UAT`, MariaDB `11.8.6-MariaDB-log`). Pre-migration
+> snapshot (29/29 statements), migration SQL (36/36 statements), and post-migration verification
+> (27/27 statements) all ran with **0 errors**. Soft-delete fields added; Payment/Collection/
+> OrderAdvance converted to `Decimal` with no multiply (confirmed exact, to the cent);
+> CrmLead/CrmOpportunity/SalesFunnel converted and multiplied by exactly 100,000 (confirmed
+> exact, including the known `CrmOpportunity` row 42 anomaly `-0.1` → `-10000.00`). Voucher/
+> Ledger/FinAccount confirmed untouched. **Two items remain open, documented not hidden:**
+> (1) `scripts/uat-transform-kra-target.mjs` exited at its designed early-exit point without
+> transforming `KRA.target` — confirmed byte-identical before/after; no manual SQL was
+> substituted, per instruction. (2) `prisma migrate resolve --applied` for the 3 migration names
+> was blocked by this environment's own safety classifier as a high-severity, hard-to-reverse
+> action — `_prisma_migrations` still shows 0/3 recorded. Rollback status unchanged from Step
+> 4F-1 (Approved with risk exception, reduced confidence). **Production was not touched. Dev was
+> not touched** — every UAT connection used a separate, gitignored `.env.uat` credential file,
+> never `.env`. Full record: `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md`.
+> `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass (no local app code
+> changed — this step modified live UAT data/schema only, not the repository's source).

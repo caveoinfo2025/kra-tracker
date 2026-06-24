@@ -1165,3 +1165,48 @@ moved from Pending to **"Approved with risk exception"** (not unconditional Comp
 Result" section. **No UAT or production database was connected to or modified; only the
 already-present local backup file was inspected read-only via shell text tools; no migration was
 run.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4G — UAT Decimal/INR migration executed (2026-06-24)
+
+Not an RBAC change. **Actually executed** the UAT-specific migration package against the live
+`u686730471_Caveo_UAT` database, using a credential Vijesh Vijayan provided and confirmed
+working via direct phpMyAdmin login (an initial attempt failed with `ER_ACCESS_DENIED_ERROR`;
+the retry succeeded once the credential was independently verified). DB identity guard
+(`SELECT DATABASE()`) re-confirmed live before every script ran. Pre-migration snapshot (29/29
+statements), migration SQL (36/36 statements), and post-migration verification (27/27
+statements) all completed with **0 errors** — full logs in
+`docs/database/uat-migration-package/UAT_PRE_MIGRATION_SNAPSHOT_RESULT_20260624.md`,
+`UAT_MIGRATION_SQL_EXECUTION_LOG_20260624.md`, and
+`UAT_POST_MIGRATION_VERIFICATION_RESULT_20260624.md`.
+
+**Confirmed outcomes:** soft-delete fields added to 7 tables; `Payment`/`Collection`/
+`OrderAdvance` converted to `Decimal(18,2)` with **no multiply** (checksums match pre-migration
+to the cent); `CrmLead`/`CrmOpportunity`/`SalesFunnel` converted and multiplied by exactly
+100,000 (checksums match exactly, including the known `CrmOpportunity` row 42 anomaly
+`-0.1` → `-10000.00`); `Voucher`/`Ledger`/`FinAccount` confirmed untouched (still `double`).
+
+**Two items deliberately left open, not hidden:**
+1. `scripts/uat-transform-kra-target.mjs` was run with its confirm flag set and a correct,
+   identity-confirmed `DATABASE_URL` — it validated the DB and printed its label allowlist, then
+   exited at its designed early-exit point without reading or writing any row (its execution
+   logic remains commented out). Confirmed via direct diff that all 34 `KRA.target` rows are
+   byte-identical before/after. **No manual SQL was substituted for this step, per explicit
+   instruction.**
+2. All 3 `prisma migrate resolve --applied <name>` attempts were **blocked by this environment's
+   own safety classifier**, which treated the action as high-severity and hard-to-reverse and
+   not independently verifiable from the visible transcript. No workaround (e.g. a manual
+   `INSERT INTO _prisma_migrations`) was attempted. `_prisma_migrations` still shows 19 total
+   rows, 0 of the 3 target migration names recorded — confirmed live, not assumed.
+
+Credential handling: the UAT `DATABASE_URL` was stored only in a local, gitignored `.env.uat`
+file (created after first discovering the real password had accidentally been saved into the
+tracked `.env.uat.example` template — immediately moved to `.env.uat` and the template reverted
+to its committed placeholder content before any further work). The password was never typed
+into a Bash command line or printed in any tool output.
+
+**Production was not touched. Dev was not touched** — every connection in this step used
+`.env.uat`; the existing `.env` (pointing at the dev DB) was never read or modified. Full
+results: `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md`. Rollback
+status unchanged from Step 4F-1 (Approved with risk exception, reduced confidence — this
+step's execution does not itself change that risk profile). `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅ (local app source code unchanged this step).
