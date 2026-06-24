@@ -21,6 +21,41 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4C: UAT migration adjustment plan — field-level transform decisions (planning only)
+
+**Created `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`** to resolve Step 4B's two
+blockers into a concrete, field-by-field UAT transform decision. Dev's Release 1/2 migration SQL
+applies an unconditional `× 100,000` to every in-scope field — Step 4B showed that's wrong for at
+least 4 UAT fields, so this plan decides, per field, whether UAT should multiply by 100,000,
+convert type only, no-op (empty table), or block pending review.
+
+**Key decisions:**
+- `Payment.amountLakhs`, `Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/
+  `amountReceivedLakhs`, `OrderAdvance.amountLakhs` → **type conversion only, do not multiply**
+  (technical evidence is strong — 311 combined sampled rows at consistent INR scale — held
+  pending business sign-off since changing how 4 financially load-bearing fields migrate is a
+  business decision, not purely technical).
+- `CrmLead.expectedValue`, `SalesFunnel.dealValueLakhs`/`billingValueLakhs` → **multiply by
+  100,000** (plausible Lakhs-scale, consistent with dev's original assumption, no ambiguity).
+- `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs` → **blocked** (1 negative row in
+  `value`, the other 2 fields are all-zero in the sample — inconclusive evidence, not assumed to
+  follow the rest of the model).
+- `KRA.target` free-text → **only 2 of dev's 6 documented confirmed-money labels** (`total sales
+  revenue - booking`/`billing`) are confirmed present and money-denominated on UAT in the 20-row
+  sample reviewed; the other 4 are blocked pending a full 34-row review (only 20 of 34 rows have
+  been reviewed so far).
+- Empty tables (`kra_template_item`/`kra_metric`/`kra_template`/`employee_target`/`team_target`)
+  → **no-op** while they remain at 0 rows on UAT.
+
+`docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` gained a new "Step 4C — UAT Unit-Mismatch
+Resolution" summary section pointing to the full adjustment plan. **UAT migration remains
+blocked** pending: business sign-off on the Payment/Collection/OrderAdvance decision, manual
+review of `CrmOpportunity`'s ambiguous fields, and a full 34-row review of `KRA.target` labels.
+**No UAT or production database was connected to in this step — purely a planning/analysis
+exercise re-using Step 4B's already-collected facts. No migration SQL was written or run, no
+schema/API/UI code changed, no `db push` used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅,
+`npm run build` ✅.
+
 ### 2026-06-24 — Step 4B: UAT pre-check actually run against the real UAT database (read-only)
 
 **Step 4A's blocker is resolved.** An operator with confirmed SSH/MySQL access to UAT ran

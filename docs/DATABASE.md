@@ -191,6 +191,14 @@
 > UAT's `KRA.target` free-text only contains 2 of dev's 6 documented money labels. See
 > `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s "UAT Pre-Check Results — Confirmed Live
 > Findings" section for full detail. UAT migration still not run.
+>
+> **UAT migration adjustment plan created (Step 4C, 2026-06-24).** Field-by-field decision matrix
+> at `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`: `Payment`/`Collection`/
+> `OrderAdvance` → type conversion only, no multiply (pending business sign-off);
+> `CrmLead`/`SalesFunnel` → multiply by 100,000; `CrmOpportunity`'s 3 fields → blocked (negative
+> value + all-zero ambiguity); `KRA.target` → only 2 of 6 dev labels confirmed on UAT so far, rest
+> blocked pending full review. UAT migration remains blocked; planning only, no SQL written or
+> run.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

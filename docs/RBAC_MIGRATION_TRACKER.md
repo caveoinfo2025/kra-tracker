@@ -1048,3 +1048,27 @@ and `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s new "UAT Pre-Check Resul
 Live Findings" section. **No UAT or production data was changed — read-only throughout. UAT
 migration still not run, still blocked** pending business-side resolution of the unit-scale
 finding and the `KRA.target` re-classification.
+
+## Step 4C — UAT migration adjustment plan created (2026-06-24)
+
+Not an RBAC change. Created `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md` — a
+field-by-field decision matrix resolving Step 4B's unit-mismatch and KRA-label findings into a
+concrete UAT-specific transform plan (decide per field: multiply ×100,000 / type-conversion-only
+/ no-op-empty-table / blocked-pending-review), covering every Release 1/2 field plus the KRA
+free-text labels. Decisions: `Payment.amountLakhs` and `Collection`'s 3 fields and
+`OrderAdvance.amountLakhs` → type conversion only, no multiply (technical evidence strong —
+311 combined sampled rows at consistent INR scale — but held pending business sign-off since it's
+a business-impact decision, not just technical); `CrmLead.expectedValue` and `SalesFunnel`'s 2
+fields → multiply by 100,000 (plausible Lakhs-scale, consistent with dev's assumption);
+`CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs` → blocked (1 negative row, 2 all-zero
+fields, inconclusive evidence); `KRA.target` free-text → only 2 of dev's 6 documented money
+labels (`total sales revenue - booking`/`billing`) are confirmed present and money-denominated on
+UAT in the 20-row sample reviewed, the other 4 are blocked pending a full 34-row review; the
+empty `kra_template_item`/`kra_metric`/`kra_template`/`employee_target`/`team_target` tables are
+no-ops while they remain at 0 rows. `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` gained a
+new "Step 4C — UAT Unit-Mismatch Resolution" summary section. **UAT migration remains blocked**
+pending business sign-off on the Payment/Collection/OrderAdvance decision, manual review of
+CrmOpportunity's ambiguous fields, and a full 34-row review of KRA.target labels. **No UAT or
+production database was connected to, no migration was run, no migration SQL was written, no
+schema/API/UI code changed, no `db push` used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅,
+`npm run build` ✅.

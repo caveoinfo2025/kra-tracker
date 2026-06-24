@@ -595,3 +595,34 @@ exists); (2) re-derive the actual confirmed-money label set from all 34 `KRA.tar
 reusing dev's 6-label list against UAT. Once resolved, complete the remaining operational
 pre-checks (deployed commit, backup, test logins, write-freeze) before this plan's §4 execution
 sequence is considered for actual execution — and only when explicitly instructed.
+
+---
+
+## Step 4C — UAT Unit-Mismatch Resolution (2026-06-24)
+
+> Full field-by-field decision matrix lives in
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md` — this section summarizes it.
+> Planning only; no SQL was written or run, no UAT data was touched.
+
+- **UAT cannot use dev's Release 1/Release 2 migration SQL blindly.** Dev's SQL applies an
+  unconditional `× 100,000` to every in-scope field; Step 4B's findings show that's wrong for at
+  least 4 fields on UAT.
+- **`Payment.amountLakhs`, `Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/
+  `amountReceivedLakhs`, and `OrderAdvance.amountLakhs` likely require type conversion only (no
+  multiply)** — UAT evidence (311 combined sampled rows, consistent INR-magnitude values) is
+  strong, but the decision is held as "pending business sign-off" rather than auto-approved,
+  since it changes how financially load-bearing data is migrated.
+- **`CrmLead.expectedValue` and `SalesFunnel.dealValueLakhs`/`billingValueLakhs` likely still
+  require `× 100,000`** — their samples are plausible Lakhs-scale, consistent with dev's original
+  assumption. `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs` are **blocked** (1
+  negative row, 2 all-zero fields — inconclusive evidence).
+- **UAT's KRA free-text transform needs a UAT-specific label list**, not dev's hardcoded 6
+  labels — only 2 (`total sales revenue - booking`/`billing`) are confirmed present and
+  money-denominated in the 20-row sample reviewed; the other 4 are unconfirmed, and the full
+  34-row set hasn't been reviewed yet.
+- **The empty `kra_template_item`/`kra_metric`/`kra_template`/`employee_target`/`team_target`
+  tables are no-ops** — nothing to transform while they remain at 0 rows on UAT.
+- **UAT migration remains blocked** pending: business sign-off on the Payment/Collection/
+  OrderAdvance unit finding, manual review of `CrmOpportunity`'s ambiguous fields, and a full
+  34-row review of `KRA.target` labels. See the adjustment plan's §9 approval table for the
+  per-decision status.

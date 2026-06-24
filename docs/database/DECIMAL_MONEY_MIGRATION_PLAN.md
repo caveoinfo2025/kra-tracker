@@ -1003,3 +1003,14 @@ This document is **planning only**. As of this step:
 > and summarized in `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s new "UAT Pre-Check
 > Results — Confirmed Live Findings" section. **UAT migration still not run; still blocked
 > pending the two findings above being resolved.**
+
+> **Step 4C (2026-06-24) completed:** UAT unit-mismatch analysis started; a field-level UAT
+> transform plan was created at `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`,
+> deciding per-field whether to multiply by 100,000, convert type only, no-op (empty table), or
+> block pending review — for all Release 1/2 fields plus the KRA free-text labels. Key
+> decisions: `Payment`/`Collection`/`OrderAdvance` → type conversion only (no multiply, pending
+> business sign-off); `CrmLead`/`SalesFunnel` → multiply by 100,000; `CrmOpportunity`'s 3 fields
+> → blocked (1 negative row, 2 all-zero fields); only 2 of dev's 6 `KRA.target` money labels
+> confirmed on UAT, the rest blocked pending a full 34-row review. **UAT migration remains
+> blocked pending final classification of the flagged fields and labels.** No UAT/production
+> data was touched; no schema/API/UI code changed; no migration SQL was written or run.
