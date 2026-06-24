@@ -1,25 +1,27 @@
 # UAT Backup / Rollback Record
 
-> Step 4F (2026-06-24). This record tracks the actual backup and rollback readiness for the UAT
-> Decimal/INR migration — distinct from the *plan* documented in
-> [`uat-migration-dry-run-checklist.md`](uat-migration-dry-run-checklist.md). **No backup has
-> been taken as of this step.** Do not fake or assume any value below — every row is either a
-> real, confirmed fact or marked Pending.
+> Step 4G readiness review (2026-06-24). This record tracks the actual backup and rollback
+> readiness for the UAT Decimal/INR migration — distinct from the *plan* documented in
+> [`uat-migration-dry-run-checklist.md`](uat-migration-dry-run-checklist.md). A backup has now
+> been taken and most rows below are Completed. **One real gap remains: the backup has only
+> been confirmed non-empty, not restore-tested to a scratch DB** — see the Restore tested row.
+> Do not fake or assume any value below — every row is either a real, confirmed fact or marked
+> Pending.
 
 | Item | Value | Status | Notes |
 | ---- | ----- | ------ | ----- |
 | UAT DB name | `u686730471_Caveo_UAT` | Confirmed | Per Step 4B/4D's live confirmation — not re-verified in this step |
-| Backup filename/location | _(not yet taken)_ | **Pending** | No backup exists yet |
-| Backup timestamp | _(not yet taken)_ | **Pending** | |
-| Backup taken by | _(not yet assigned)_ | **Pending** | Needs an owner — likely whoever has UAT SSH/MySQL/hPanel access (the same operator who ran the Step 4B/4D pre-checks) |
-| Backup verification method | _(not yet defined)_ | **Pending** | Per the dry-run checklist's standard: restore to a scratch DB, spot-check row counts — not just confirm the dump file is non-empty |
-| Restore tested? | No | **Pending** | Cannot be tested until a backup exists |
-| Rollback owner | _(not yet assigned)_ | **Pending** | Needs a named person authorized to run a restore if the migration needs to be reversed |
-| Rollback method | Restore the pre-migration UAT backup | **Documented, not yet actionable** | There is no in-place "undo" SQL for this migration — the value transforms and type changes are not trivially reversible in a single statement, so backup restoration is the only supported rollback path (same approach documented in `uat-migration-dry-run-checklist.md`) |
-| App rollback commit/tag | _(not yet determined)_ | **Pending** | Depends on confirming what commit is currently deployed to the UAT server — this was flagged as still open back in Step 4B ("Branch/app gap confirmation... not collected") and remains open |
-| Migration window | _(not yet scheduled)_ | **Pending** | No date/time has been proposed or approved |
-| Write-freeze owner | _(not yet assigned)_ | **Pending** | Needs a named person responsible for communicating and enforcing the write-freeze decision, once that decision is made (see `UAT_MIGRATION_APPROVAL_RECORD.md`) |
-| Final approval status | **Not approved** | **Pending** | No backup/rollback approval has been granted — migration execution permission remains Pending per the dry-run checklist |
+| Backup filename/location | `C:\Users\VIJESHVIJAYAN\Code\SQL Backup\` + `u686730471_Caveo_UAT_240626.sql` | **Completed** | Reported by Vijesh Vijayan |
+| Backup timestamp | 2026-06-24 08:10 AM IST | **Completed** | Reported by Vijesh Vijayan |
+| Backup taken by | Vijesh Vijayan | **Completed** | |
+| Backup verification method | Confirmed the dump file exists and is non-empty | **Partial — does not meet the documented standard** | The dry-run checklist's standard is "restore to a scratch DB, spot-check row counts," which has **not** been done. This row should not be treated as equivalent to a verified-restorable backup until that restore test is actually run. |
+| Restore tested? | No | **Pending** | Recommended before relying on this backup as the rollback path — restore `u686730471_Caveo_UAT_240626.sql` to a scratch DB and spot-check row counts against the pre-migration snapshot |
+| Rollback owner | Vijesh Vijayan | **Completed** | Authorized to run a restore if the migration needs to be reversed |
+| Rollback method | Restore `u686730471_Caveo_UAT_240626.sql` | **Documented and actionable** | There is no in-place "undo" SQL for this migration — the value transforms and type changes are not trivially reversible in a single statement, so backup restoration is the only supported rollback path (same approach documented in `uat-migration-dry-run-checklist.md`). Actionability is still subject to the restore-tested gap above. |
+| App rollback commit/tag | `bb556a221ed0b6e92960887343ad754509bd6aab` (current local `master` HEAD) | **Best-effort — not independently verified** | This is the latest commit on local `master`, reported per Vijesh's instruction to use it. It has **not** been independently confirmed as what's actually deployed on the UAT server — treat as a working assumption, not a verified fact |
+| Migration window | 2026-06-24, starting now | **Completed** | Confirmed by Vijesh Vijayan |
+| Write-freeze owner | Vijesh Vijayan | **Completed** | No other active UAT testers during this window, confirmed by Vijesh Vijayan |
+| Final approval status | **Conditionally ready** | **Pending — one gap** | All rows are Completed except the restore test. Migration execution permission should remain Pending until the backup is actually restore-tested, per the dry-run checklist's own standard — see `UAT_MIGRATION_APPROVAL_RECORD.md` |
 
 ## What this record does NOT cover
 
@@ -30,8 +32,9 @@
 
 ## Next action
 
-Someone with UAT database access (the same access used to run the Step 4B/4D pre-checks) needs
-to take a full UAT backup, verify it restores correctly to a scratch database, and report back
-the filename/location, timestamp, and verification result so this record can be updated from
-Pending to Completed. Until then, migration execution permission remains Pending regardless of
-how complete the SQL review is.
+The backup exists (`u686730471_Caveo_UAT_240626.sql`, taken 2026-06-24 08:10 AM by Vijesh
+Vijayan) but has only been confirmed non-empty — not restore-tested. Before treating rollback
+as fully actionable, restore this file to a scratch database and spot-check row counts against
+`uat-decimal-inr-pre-migration-snapshot.sql`'s expected output. Until that restore test is done,
+this record should be read as "conditionally ready," not fully Completed, even though every
+other row above is filled in.
