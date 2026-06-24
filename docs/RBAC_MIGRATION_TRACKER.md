@@ -1380,3 +1380,25 @@ explicitly instructed") followed by a re-run of `npm run uat:check-version` retu
 
 **No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅
 (confirms the new build-time version-write step runs cleanly).
+
+## Step 4H-5 — UAT version deployment verification; FT-3 Closed (2026-06-24)
+
+`npm run deploy:uat` was attempted and failed cleanly (exit 1, missing `HOSTINGER_SSH_PASSWORD`
+— no credential pursued). Despite this session not completing a deploy, the live endpoint
+already serves the signed-off commit:
+
+| Check | Result |
+| ----- | ------ |
+| `npm run deploy:uat` | Failed — missing SSH credential, no workaround attempted |
+| `curl https://uat.caveoinfosystems.com/api/version` (×2) | HTTP 200, `gitCommit: "b7062f3"` both times |
+| `npm run uat:check-version` | **MATCH** |
+| `gitCommit` vs local HEAD | **Equal** (`b7062f3` == `b7062f3`) |
+| `gitBranch` / `environment` fields | `"unknown"` / `"local"` — cosmetic gaps, documented, not blocking |
+
+**FT-3 row: Closed.** Deployed commit confirmed equal to signed-off `uat` HEAD via two
+independent unauthenticated checks. How the commit reached UAT is not confirmed by this session
+(this session's own deploy attempt failed before the SSH step) — most likely a Hostinger
+auto-deploy-on-push, not verified via server access. Full detail in
+`UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-5".
+
+**No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

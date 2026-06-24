@@ -1163,3 +1163,12 @@ This document is **planning only**. As of this step:
 > checks no longer need to rely on inconclusive signals. This only adds the capability — it
 > requires a UAT deploy (not performed) and a re-run of the check (returned UNAVAILABLE today,
 > as expected pre-deploy) before FT-3 can actually close. No production action was taken.
+
+> **Step 4H-5 (2026-06-24): FT-3 Closed.** Live `https://uat.caveoinfosystems.com/api/version`
+> now returns HTTP 200 with `gitCommit: "b7062f3"`, matching the local signed-off `uat` HEAD —
+> verified independently via `curl` and `npm run uat:check-version` (both MATCH, repeated for
+> consistency). This session's own `npm run deploy:uat` failed on a missing SSH credential and
+> did not perform the deploy; the commit reaching UAT is attributed to a likely Hostinger
+> auto-deploy-on-push, not confirmed via server access. Full detail, including two minor
+> cosmetic field gaps (`gitBranch`/`environment`), in `UAT_DECIMAL_INR_MIGRATION_PLAN.md` →
+> "Step 4H-5". No production action was taken.

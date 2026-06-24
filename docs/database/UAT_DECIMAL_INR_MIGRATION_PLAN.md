@@ -1047,3 +1047,58 @@ itself. FT-3 closes only after: (1) this code is deployed to UAT via `npm run de
 **No production action taken.** No migration, no `db push`, no schema change, no UAT data
 change, no deployment. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅
 (confirms `version:write` runs cleanly as part of the build).
+
+---
+
+## Step 4H-5 — UAT version deployment verification — FT-3 Closed (2026-06-24)
+
+**Manual deploy attempt failed cleanly, but live UAT already serves the signed-off commit.**
+`npm run deploy:uat` was run and exited 1 with `"✗ HOSTINGER_SSH_PASSWORD env var is required"`
+— no credential was sought, guessed, or worked around; the script refused exactly as designed.
+No SSH deploy was performed by this session.
+
+Despite that, fetching the live endpoint shows the deployed commit already matches local `uat`
+HEAD:
+
+```
+$ curl -sS https://uat.caveoinfosystems.com/api/version
+{"app":"Caveo CRM","environment":"local","gitCommit":"b7062f3","gitBranch":"unknown",
+ "buildTimestamp":"2026-06-24T12:58:57.350Z","nodeEnv":"production"}
+```
+
+Verified independently via direct `curl` (HTTP 200, JSON, `Cache-Control: no-store` — proving a
+live dynamic response, not a cached/stale one) **and** via `npm run uat:check-version`, both
+returning the same result, checked twice for consistency.
+
+| Check | Result |
+| ----- | ------ |
+| HTTP status | 200 (no login required) |
+| `gitCommit` | `b7062f3` — **matches local `uat` HEAD exactly** |
+| `gitBranch` | `unknown` (expected `uat` — see note below) |
+| `environment` | `local` (expected `uat` — see note below) |
+| `npm run uat:check-version` verdict | **MATCH** |
+
+**How this commit got onto UAT is not confirmed by this session.** This session's own
+`deploy:uat` run failed before reaching the SSH step, so it did not perform this deployment.
+The most likely explanation is a Hostinger-native git auto-deploy-on-push (a separate mechanism
+from `scripts/deploy-uat.mjs`) firing on the `git push origin uat` from the prior turn — but
+this is inferred from evidence, not confirmed via server access, and is reported as such rather
+than asserted as fact.
+
+**Two cosmetic field gaps, documented rather than silently accepted:**
+- `gitBranch: "unknown"` instead of `"uat"` — `scripts/write-build-version.mjs` runs `git
+  branch --show-current` at build time; an empty/detached result on the UAT host (e.g. a
+  shallow or detached-HEAD checkout under whatever deploy path was actually used) falls back to
+  `"unknown"`. Does not affect commit identity, which is the field FT-3 cares about.
+- `environment: "local"` instead of `"uat"` — `NEXT_PUBLIC_DEPLOY_ENV` is simply not set in the
+  UAT `.env`; `src/lib/app-version.ts` falls back to the literal `"local"`. Cosmetic only; no
+  code change needed to close FT-3, but worth setting on UAT for future clarity.
+
+**FT-3 status: Closed.** The deployed-commit identity question — the actual purpose of FT-3 —
+is answered: the live UAT `gitCommit` matches the signed-off `uat` HEAD (`b7062f3`), confirmed by
+two independent methods (`curl`, `npm run uat:check-version`), repeated for consistency. The two
+field gaps above are tracked as minor follow-up polish, not reopened blockers.
+
+**No production action taken.** No migration, no `db push`, no schema change, no UAT data
+change. The only commands run against UAT were unauthenticated `GET /api/version` requests.
+`npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅ (post-doc-update validation).

@@ -26,6 +26,13 @@
 > answered definitively once UAT is redeployed. No deployment was performed and no production
 > action was taken — this document remains paused, unchanged.
 >
+> **Step 4H-5 (2026-06-24): FT-3 Closed — production still paused.** Live UAT now confirms the
+> deployed commit matches the signed-off `uat` HEAD (`b7062f3`) — see
+> `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-5". FT-3 closing does **not** lift this
+> document's deferral: the other four UAT closure items (FT-1, FT-2b, FT-4, FT-5) are still
+> open, so **production remains paused**, unchanged, until all close and Vijesh gives explicit
+> instruction to resume. No production action was taken.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

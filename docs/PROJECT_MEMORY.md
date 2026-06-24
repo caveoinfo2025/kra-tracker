@@ -19,7 +19,28 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-24 — Step 4H-4: app version marker added for FT-3; FT-3 itself still Open pending UAT redeploy)
+## 0. Current status (2026-06-24 — Step 4H-5: FT-3 Closed — live UAT deployed commit confirmed matching signed-off `uat` HEAD)
+
+### 2026-06-24 — Step 4H-5: UAT version deployment verification — FT-3 Closed
+
+`npm run deploy:uat` was run and failed cleanly (`HOSTINGER_SSH_PASSWORD` not set — no
+credential was sought or worked around). Despite that, `https://uat.caveoinfosystems.com/api/version`
+already returns HTTP 200 with `gitCommit: "b7062f3"`, matching local `uat` HEAD exactly —
+verified independently via direct `curl` (twice, consistent) and `npm run uat:check-version`
+(MATCH). The mechanism that got this commit onto UAT is **not confirmed** by this session (this
+session's own deploy attempt never reached the SSH step); most likely a Hostinger
+auto-deploy-on-push outside `scripts/deploy-uat.mjs`, reported as inferred, not asserted as fact.
+
+Two cosmetic field gaps were found and documented rather than silently accepted: `gitBranch`
+reads `"unknown"` instead of `"uat"` (git state on the UAT host at build time), and
+`environment` reads `"local"` instead of `"uat"` (`NEXT_PUBLIC_DEPLOY_ENV` unset on UAT). Neither
+affects the commit-identity match that FT-3 is actually about.
+
+**FT-3: Closed.** Of the five UAT closure items, FT-3 is now resolved; FT-1, FT-2b, FT-4, FT-5
+remain open and **production stays paused** until all close and Vijesh gives explicit
+instruction to resume. No production database was queried, no migration/`db push` was run, no
+UAT data was modified — the only UAT-facing calls were unauthenticated `GET /api/version`
+requests. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-24 — Step 4H-4: App version marker added; FT-3 verification capability closed, FT-3 itself still Open
 

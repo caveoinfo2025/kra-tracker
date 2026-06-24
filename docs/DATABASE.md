@@ -515,6 +515,11 @@ Beyond the implicit unique indexes, `@@index` covers FK / hot-filter columns:
   rev-parse`/`git branch`) — never `DATABASE_URL`, never any table, never a credential. It is
   allowlisted in `auth.config.ts`'s `isPublic` check specifically so it bypasses auth; do not
   add any DB-backed logic to this route.
+- **Deployment-verified (2026-06-24, Step 4H-5):** `https://uat.caveoinfosystems.com/api/version`
+  returns HTTP 200 with `gitCommit` matching the signed-off `uat` HEAD — confirms FT-3 (UAT
+  deployed-commit identity) without any database access. `gitBranch`/`environment` currently read
+  `"unknown"`/`"local"` on UAT (git-state and missing `NEXT_PUBLIC_DEPLOY_ENV` respectively) —
+  cosmetic, tracked in `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-5", not a DB concern.
 
 ---
 
