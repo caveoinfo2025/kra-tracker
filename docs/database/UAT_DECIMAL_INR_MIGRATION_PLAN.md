@@ -255,3 +255,233 @@ actually finds, not on what this document assumes.
 Until every item above is true, production migration remains paused — this document does not,
 on its own, unblock production; it only unblocks the *next* step, which is running UAT's
 execution sequence (§4) when explicitly instructed.
+
+---
+
+## UAT Pre-Check Dry Run Results (Step 4A, 2026-06-23)
+
+> **This is a read-only dry-run report, not a migration.** No UAT row, table, or schema object
+> was modified or queried with write intent. Several items below are blocked, for the reason
+> explained in "Environment confirmation," and remain "Needs verification" until a human with
+> confirmed UAT access runs `docs/database/uat-precheck/uat-readonly-precheck.sql` and fills in
+> `docs/database/uat-precheck/uat-precheck-result-template.md`.
+
+### Environment confirmation (Task 1)
+
+| Check | Result |
+| ----- | ------ |
+| Current local branch | `uat` |
+| Current commit | `2e767ff39547d4283529a4e60fbfc70c257a1720` |
+| Intended UAT branch | `uat` (matches current branch) |
+| Local working tree clean | Yes — `git status --short` returned no output before this step began |
+| Confirmed UAT `DATABASE_URL` available in this environment | **No — see blocker below** |
+
+### Blocker: no confirmed, externally-reachable UAT credential in this dev environment
+
+This dev environment has **no confirmed, safely-usable UAT database credential**, for the same
+class of reason Step 3X found for production — and this step stopped rather than guess at one,
+per its own instructions ("If UAT DATABASE_URL is not confirmed, stop and document blocker").
+
+Specifics:
+
+- `.env` (this repo's real local env file) is confirmed to point at the **dev** database
+  (`u686730471_caveodev`) — not UAT.
+- `.env.uat.example` is a committed **template** file, not a live secret. Its `DATABASE_URL`
+  uses connecting user `u686730471_uatuser` and host `127.0.0.1` — but:
+  - **The user doesn't match the documented working UAT credential.** Per `docs/CHANGELOG.md`
+    (Session 9, 2026-06-19), the project went through three different UAT DB users before
+    landing on the working one — `u686730471_devuser` (no access), `u686730471_Caveo_UAT`
+    (wrong/unwhitelisted), `u686730471_caveo` (unwhitelisted) — and the **correct** UAT user is
+    `u686730471_caveouat`. The template's `u686730471_uatuser` matches none of these, so it
+    cannot be assumed current or correct.
+  - **The host (`127.0.0.1`) only resolves correctly when the file is deployed onto the UAT
+    server itself** (per the template's own header comment: it's meant to be copied to
+    `/home/u686730471/domains/uat.caveoinfosystems.com/public_html/.builds/config/.env`). From
+    this local dev workstation, `127.0.0.1` does not route to the remote UAT server — it would
+    attempt a connection to whatever (if anything) is listening locally, which is not UAT.
+  - Several of the template's other fields are explicit unfilled placeholders
+    (`YOUR_AZURE_CLIENT_ID`, `GENERATE_WITH: openssl rand -base64 32`), reinforcing that this file
+    is a deploy-time scaffold, not a verified-current credential set.
+- Per `docs/CHANGELOG.md`, reaching the real UAT database from a developer workstation requires
+  the developer's current outbound IP to be separately whitelisted in hPanel → Remote MySQL
+  (distinct from the UAT app server's own IPv6 whitelist entry) — there is no record in this
+  environment confirming that whitelist entry is current, nor a documented external hostname for
+  UAT (unlike dev's documented `srv2201.hstgr.io`).
+- `.env.hostinger` exists locally but is not documented anywhere as the UAT (or production)
+  configuration — consistent with Step 3X's treatment of this file, it is treated as an
+  unconfirmed/untrusted credential and was not probed further in this step.
+
+**Net effect:** Tasks 2–8 (UAT DB identity, `_prisma_migrations` query, schema snapshot, row
+counts, unit sampling, KRA/Sales target classification, branch/app gap by live schema) could not
+be performed against a live UAT database from this environment. They remain **Needs
+verification** below, each with this same blocking reason — not because the checks are hard, but
+because no safe credential to run them exists here.
+
+### UAT DB identity (Task 2)
+
+| Check | Result |
+| ------------------------- | -------------------------- |
+| UAT DB host | Needs verification — blocked, no confirmed UAT credential in this environment |
+| UAT DB name | Documented as `u686730471_Caveo_UAT` (per Session 9, **not independently re-verified**) |
+| Connection user | Documented as `u686730471_caveouat` (per Session 9, **not independently re-verified**) |
+| Current database selected (`SELECT DATABASE()`) | Needs verification — blocked |
+| MySQL version | Needs verification — blocked |
+| Read-only test successful | Needs verification — blocked |
+
+### `_prisma_migrations` summary (Task 3)
+
+Live UAT migration-table contents could not be queried (see blocker above). What's known from
+documentation only: per Session 9 (2026-06-19), UAT was bootstrapped via a full schema-dump
+import covering the first 19 of this project's 22 migrations (through
+`20260618100000_crm_lead_customer_ref`), with a separate tracking-seed script marking that
+history as applied in `_prisma_migrations`. This is a **documented claim, not a live finding**.
+
+| Migration | Started At | Finished At | Rolled Back? | Status |
+| --------- | ---------- | ------------ | -------------- | ------ |
+| *(all rows)* | Needs verification — blocked, no confirmed UAT credential in this environment | | | |
+
+Local `prisma/migrations/` folder currently contains 21 migration directories + `migration_lock.toml`
+(confirmed by directory listing in this step — this part required no DB connection):
+
+| Local Migration Folder | Present In UAT? | UAT Status | Notes |
+| ----------------------- | --------------------------- | -------------------- | ----- |
+| `20260601000000_init_mysql` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap (Session 9) |
+| `20260602120000_finance_operations_phase1` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260604000000_admin_console_foundation` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260604120000_policy_engine_foundation` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260604180000_workflow_engine` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260604220000_master_data_management` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260605000000_opportunity_discount_pct` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260605010000_crm_admin_engine` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260605020000_opportunity_won_fields` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260605030000_legacy_promote_and_net_profit` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260605050000_finance_admin_engine` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260609060000_performance_management_engine` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260609070000_communication_engine` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260610080000_integration_center` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260610090000_security_center` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260615000000_add_advance_category` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260617100000_employeetarget_relations` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260618000000_master_data_linkage` | Needs verification — blocked | | Documented as part of the 19-migration bootstrap |
+| `20260618100000_crm_lead_customer_ref` | Needs verification — blocked | | Documented as the last migration in the 19-migration bootstrap |
+| `20260621120000_add_soft_delete_fields_phase_a` | Needs verification — blocked | | **Expected gap per Session 9's bootstrap cutoff — likely NOT yet applied to UAT** |
+| `20260622120000_decimal_release1_lakhs_to_inr` | Needs verification — blocked | | **Expected gap — likely NOT yet applied to UAT** |
+| `20260623060000_decimal_release2_combined_inr_canonical` | Needs verification — blocked | | **Expected gap — likely NOT yet applied to UAT** |
+
+### Schema snapshot summary (Task 4)
+
+Live column-type checks against UAT's `INFORMATION_SCHEMA.COLUMNS` could not be run (blocker
+above). Every row below is Needs verification — the "Dev Expected Type" column is carried over
+from dev's audited Release 1/2 work for reference only, not a UAT finding.
+
+| Table | Column | Exists? | UAT Type | Dev Expected Type | Match? | Notes |
+| ----- | ------ | ------- | -------- | ------------------ | ------ | ----- |
+| Expense | amountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| Expense | gstAmountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| EmployeeAdvance | amountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| EmployeeAdvance | disbursedAmountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2), nullable | Needs verification — blocked | |
+| EmployeeAdvance | settledAmountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2), nullable | Needs verification — blocked | |
+| EmployeeAdvance | balanceLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| TravelClaim | amountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| TravelClaim | amountRupees | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| TravelClaim | ratePerKm | Needs verification — blocked | Needs verification — blocked | Decimal(10,4) | Needs verification — blocked | |
+| Payment | amountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| Collection | invoiceValueLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| Collection | amountWithoutGstLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| Collection | amountReceivedLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| OrderAdvance | amountLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| CrmLead | expectedValue | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| CrmOpportunity | value | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| CrmOpportunity | dealValueExTax | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| CrmOpportunity | netProfitLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| SalesFunnel | dealValueLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| SalesFunnel | billingValueLakhs | Needs verification — blocked | Needs verification — blocked | Decimal(18,2) | Needs verification — blocked | |
+| kra_template_item (`KRATemplateItem`) | expectedTarget/stretchTarget/minimumTarget | Needs verification — blocked | Needs verification — blocked | Float (column type unchanged by design) | Needs verification — blocked | |
+| KRA | target | Needs verification — blocked | Needs verification — blocked | String/Text (free-text) | Needs verification — blocked | |
+| employee_target (`EmployeeTarget`) | targetJson | Needs verification — blocked | Needs verification — blocked | String/Text | Needs verification — blocked | |
+| team_target (`TeamTarget`) | targetJson | Needs verification — blocked | Needs verification — blocked | String/Text | Needs verification — blocked | Table may or may not exist on UAT depending on bootstrap fidelity |
+| Voucher | amountLakhs | Needs verification — blocked | Needs verification — blocked | **Should remain Float — excluded from both releases** | Needs verification — blocked | |
+| Ledger | amountLakhs | Needs verification — blocked | Needs verification — blocked | **Should remain Float — excluded from both releases** | Needs verification — blocked | |
+| FinAccount | openingBalance/currentBalance | Needs verification — blocked | Needs verification — blocked | **Should remain Float — excluded from both releases** | Needs verification — blocked | |
+
+### Row count summary (Task 5)
+
+| Table/Model | UAT Row Count | Notes |
+| ----------- | --------------------: | ----- |
+| Expense | Needs verification — blocked | |
+| EmployeeAdvance | Needs verification — blocked | |
+| TravelClaim | Needs verification — blocked | |
+| Payment | Needs verification — blocked | Session 9 documented ~26 post-copy; not independently re-verified |
+| Collection | Needs verification — blocked | Session 9 documented ~141 post-copy; not independently re-verified |
+| OrderAdvance | Needs verification — blocked | |
+| CrmLead | Needs verification — blocked | Session 9 documented ~280 post-copy; not independently re-verified |
+| CrmOpportunity | Needs verification — blocked | Session 9 documented ~49 post-copy; not independently re-verified |
+| SalesFunnel | Needs verification — blocked | Session 9 documented ~100 post-copy; not independently re-verified |
+| KRATemplateItem | Needs verification — blocked | |
+| KRA | Needs verification — blocked | Session 9 documented ~34 post-copy; not independently re-verified |
+| EmployeeTarget | Needs verification — blocked | |
+| team_target | Needs verification — blocked | Dev has 0 rows; UAT unknown |
+| Voucher | Needs verification — blocked | |
+| Ledger | Needs verification — blocked | |
+| FinAccount | Needs verification — blocked | |
+
+### Unit sampling summary (Task 6)
+
+Could not be performed — requires the same live UAT connection blocked above. No min/max/null/
+negative/top-5 sample exists for any Release 1/2 field on UAT as of this step. **Do not assume
+UAT values are Lakhs** just because dev was Lakhs before its own migration, and do not assume UAT
+matches production's (also unverified) state either — this must be sampled directly once a
+credential is available.
+
+### UAT KRA / Sales target classification (Task 7)
+
+| Area | UAT Finding | Migration Risk | Notes |
+| ---- | ----------- | -------------- | ----- |
+| `kra_metric` taxonomy | Needs verification — blocked | Unknown | Dev's live taxonomy is AMOUNT/PERCENTAGE/COUNT; the seed-file taxonomy (REVENUE/ACTIVITY/QUALITY/COMPLIANCE) was found never actually live on dev — UAT could match either, or differ |
+| `Team Pipeline Coverage` metric exists? | Needs verification — blocked | Unknown | Dev created this `AMOUNT`-typed metric in Step 3U-5 as a fix for `KRATemplateItem` #16 — if UAT was bootstrapped before that fix shipped, UAT's template-item #16 may still show the original mismatch dev found and fixed |
+| `KRATemplateItem` #16 linked to AMOUNT metric? | Needs verification — blocked | Unknown | See above — this is the single highest-value classification check, since dev found exactly one such mismatch |
+| AMOUNT/PERCENTAGE/COUNT taxonomy present? | Needs verification — blocked | Unknown | |
+| `KRA.target`/`EmployeeTarget.targetJson` free-text format matches dev? | Needs verification — blocked | Unknown | |
+| UAT differs materially from dev? | Needs verification — blocked | Unknown | Plausible given UAT carries prod-mirrored data, not dev's smoke-test data |
+
+### UAT branch/app gap assessment (Task 8)
+
+| Area | Finding | Risk | Recommended Action |
+| ---- | ------- | ---- | ------------------- |
+| Current UAT git branch (local) | `uat`, confirmed clean, HEAD at `2e767ff39547d4283529a4e60fbfc70c257a1720` as of this step | Low | This is the local repo's state, not a confirmed read of what's actually deployed on the UAT server — see next row |
+| Commit actually deployed on the UAT server | Needs verification — blocked (requires server access, e.g. `git rev-parse HEAD` run on the server, not a DB query) | Unknown | Confirm via the UAT server directly, not from this environment |
+| Local migration folder set | 21 migration directories + `migration_lock.toml` confirmed by directory listing this step | Low — this is a static, non-DB fact | None — already current |
+| Does UAT app code contain Release 1/2 source (`src/lib/money.ts`, rewritten `kra-engine.ts`/`payments.ts`)? | Needs verification — blocked (requires server file access) | Unknown | Confirm via the UAT server directly |
+| Does UAT schema likely match UAT app code? | Needs verification — blocked | Unknown | Cannot assess without both the DB schema snapshot (Task 4) and the deployed-commit check above |
+| Direct migration to current code vs. staged deployment | Needs verification — blocked | Unknown | Recommend deciding only after the schema snapshot and deployed-commit check are both confirmed — per §4 of this plan, schema and code must land together regardless |
+
+### Readiness blockers found
+
+1. **No confirmed, externally-reachable UAT database credential exists in this dev
+   environment.** `.env.uat.example`'s `DATABASE_URL` uses an unconfirmed/likely-stale user
+   (`u686730471_uatuser`, vs. the documented working `u686730471_caveouat`) and a host
+   (`127.0.0.1`) that only resolves correctly when run on the UAT server itself, not from this
+   workstation.
+2. **No documented external hostname for reaching UAT's database remotely** (unlike dev's
+   documented `srv2201.hstgr.io`) — even with a correct credential, the connection target is
+   unconfirmed.
+3. **No confirmation that this workstation's current outbound IP is whitelisted in hPanel →
+   Remote MySQL for the UAT database** — per `docs/CHANGELOG.md`, this whitelisting is required
+   per-IP and was previously needed for the *dev* database; nothing in this repo confirms an
+   equivalent UAT whitelist entry exists or is current for this machine.
+4. As a direct consequence of (1)–(3), Tasks 2 through 8 of this dry run could not produce live
+   findings — every DB-dependent item above is recorded as "Needs verification — blocked," not
+   guessed at.
+
+### Recommended next action
+
+Run the existing `docs/database/uat-precheck/` pack (`README.md`,
+`uat-readonly-precheck.sql`, `uat-precheck-result-template.md`,
+`uat-precheck-safety-checklist.md`) from a human session with **confirmed UAT access** — i.e.
+someone who can either (a) SSH/run directly on the UAT server where `127.0.0.1` correctly
+resolves, or (b) confirm their own IP is whitelisted in hPanel → Remote MySQL and has the current
+`u686730471_caveouat` password. That run is what converts every "Needs verification — blocked"
+row above into a fact, and is the actual prerequisite for §3 of this plan and for deciding
+whether §4's execution sequence is safe to run. **No UAT migration should be executed until that
+pre-check pack has been run and reviewed — this dry run did not, and could not, confirm UAT is
+ready.**

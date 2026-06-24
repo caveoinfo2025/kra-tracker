@@ -969,3 +969,17 @@ This document is **planning only**. As of this step:
 > retained as valid background and gains a top-of-document deferral notice — nothing in it is
 > withdrawn, it is simply not the next active step. No production connection, migration, or
 > deployment occurred in this step; no UAT migration was executed either — planning only.
+
+> **Step 4A (2026-06-23) — UAT pre-check dry run completed.** No UAT data was changed; no UAT
+> connection was made from this dev environment. Found and documented a blocker: this
+> environment has no confirmed, externally-reachable UAT database credential —
+> `.env.uat.example`'s `DATABASE_URL` uses an unconfirmed/likely-stale connecting user
+> (`u686730471_uatuser`) that doesn't match the documented working UAT user
+> (`u686730471_caveouat`, per `docs/CHANGELOG.md` Session 9), and its host (`127.0.0.1`) only
+> resolves correctly when the file is deployed onto the UAT server itself, not from this
+> workstation. UAT migration readiness findings (DB identity, `_prisma_migrations` state, schema
+> snapshot, row counts, unit sampling, KRA/Sales target classification, branch/app gap) are
+> documented in `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s new "UAT Pre-Check Dry Run
+> Results" section — every DB-dependent item is recorded as "Needs verification — blocked," not
+> guessed at. The actual unblock is the same as it was for production in Step 3X: a human with
+> confirmed UAT access needs to run `docs/database/uat-precheck/` directly.

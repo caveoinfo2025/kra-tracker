@@ -174,6 +174,14 @@
 > UAT-scoped plan and read-only pre-check pack (UAT identifiers only, never production
 > credentials). The production sign-off plan above remains valid background, not withdrawn — it
 > simply isn't the next active step.
+>
+> **UAT pre-check dry run attempted, blocked (Step 4A, 2026-06-23).** This dev environment has
+> no confirmed, externally-reachable UAT database credential — `.env.uat.example`'s
+> `DATABASE_URL` uses an unconfirmed/likely-stale user and a `127.0.0.1` host that only resolves
+> on the UAT server itself. Every DB-dependent finding in
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s schema/row-count/unit/migration-history
+> rows remains "Needs verification — blocked" until a human with confirmed UAT access runs
+> `docs/database/uat-precheck/uat-readonly-precheck.sql` directly.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

@@ -21,6 +21,35 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-23 — Step 4A: UAT pre-check dry run — blocked on no confirmed UAT credential (read-only)
+
+**Attempted to convert the UAT plan's "Needs verification" rows into facts; could not reach the
+live UAT database from this dev environment, and stopped rather than guess at a credential.**
+`.env.uat.example`'s `DATABASE_URL` uses connecting user `u686730471_uatuser` — this does not
+match the documented working UAT user `u686730471_caveouat` (per `docs/CHANGELOG.md` Session 9,
+which records three earlier wrong/unwhitelisted users before landing on that one) — and its host
+`127.0.0.1` only resolves correctly when the file is deployed onto the UAT server itself, not
+from this workstation. No documented external UAT hostname exists (unlike dev's
+`srv2201.hstgr.io`), and there is no record confirming this workstation's IP is whitelisted in
+hPanel → Remote MySQL for the UAT database. `.env.hostinger` remains untouched/unprobed, same as
+Step 3X's treatment.
+
+As a result, every DB-dependent check (UAT DB identity, `_prisma_migrations` state, schema
+snapshot for all Release 1/2 fields, row counts, unit sampling, KRA/Sales target classification,
+live branch/app gap) is recorded as **"Needs verification — blocked"** in
+`docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s new "UAT Pre-Check Dry Run Results" section —
+not guessed at. What *could* be confirmed without a DB connection: local branch is `uat`, working
+tree clean, current commit `2e767ff39547d4283529a4e60fbfc70c257a1720`, and the local
+`prisma/migrations/` folder holds 21 migration directories + `migration_lock.toml`.
+
+**Recommended next action (unchanged in kind from Step 3X's production blocker):** a human with
+confirmed UAT access — either on the UAT server itself, or with their IP whitelisted in hPanel →
+Remote MySQL and the current `u686730471_caveouat` password — needs to run
+`docs/database/uat-precheck/uat-readonly-precheck.sql` directly and fill in
+`uat-precheck-result-template.md`. **No UAT or production database was connected to, no
+migration was run, no schema/API/UI code changed, no `db push` used.** `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.
+
 ### 2026-06-23 — Step 3Z: UAT-first deployment decision — production migration paused
 
 **User decided to implement the Decimal / INR migration in UAT first and move to production

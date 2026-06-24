@@ -1004,3 +1004,23 @@ it before any UAT migration runs. `docs/database/PRODUCTION_DECIMAL_INR_MIGRATIO
 gains a top-of-document deferral notice; nothing in it is withdrawn. **No production or UAT
 database was connected to, no migration was run, no schema/API/UI code changed, no `db push`
 used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4A — UAT pre-check dry run (2026-06-23)
+
+Not an RBAC change. Attempted to convert `UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s "Needs
+verification" rows into facts by running the UAT pre-check pack's checks from this dev
+environment. **Blocked before any DB query:** no confirmed, externally-reachable UAT credential
+exists here. `.env.uat.example`'s `DATABASE_URL` uses connecting user `u686730471_uatuser`, which
+does not match the documented working UAT user `u686730471_caveouat` (per `docs/CHANGELOG.md`
+Session 9), and its host `127.0.0.1` only resolves correctly when the file is deployed onto the
+UAT server itself, not from this workstation. No documented external UAT hostname exists (unlike
+dev's `srv2201.hstgr.io`), and there is no record confirming this workstation's IP is whitelisted
+in hPanel → Remote MySQL for the UAT database. Per the step's own instruction ("if UAT DB cannot
+be safely reached, stop and document blocker"), every DB-dependent finding (DB identity,
+`_prisma_migrations` state, schema snapshot, row counts, unit sampling, KRA/Sales target
+classification, live branch/app gap) was recorded as "Needs verification — blocked" in
+`docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s new "UAT Pre-Check Dry Run Results" section,
+rather than guessed at. Static, non-DB facts (local branch `uat`, clean working tree, current
+commit, local migration folder listing — 21 dirs + lock file) were confirmed directly. **No UAT
+or production database was connected to, no migration was run, no schema/API/UI code changed, no
+`db push` used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
