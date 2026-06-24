@@ -19,7 +19,27 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-24 — Step 4H-3: FT-3 re-attempted, confirmed unresolvable from here; UAT gaps remain open)
+## 0. Current status (2026-06-24 — Step 4H-4: app version marker added for FT-3; FT-3 itself still Open pending UAT redeploy)
+
+### 2026-06-24 — Step 4H-4: App version marker added; FT-3 verification capability closed, FT-3 itself still Open
+
+Adds the fix for the exact gap Step 4H-3 hit (no way to confirm the deployed UAT commit): a
+public, unauthenticated `GET /api/version` route (`src/app/api/version/route.ts`, backed by
+`src/lib/app-version.ts`, allowlisted in `auth.config.ts`'s `isPublic` check) returning only
+non-sensitive build metadata (`gitCommit`, `gitBranch`, `buildTimestamp`, `environment`,
+`nodeEnv`) — never the database or a credential. `scripts/write-build-version.mjs` populates the
+source data (`src/generated/app-version.json`, gitignored) from `git rev-parse`/`git branch`,
+fails safe, and now runs automatically as part of `npm run build`. `npm run uat:check-version`
+(`scripts/check-uat-public-version.mjs`) fetches the live UAT endpoint and prints a real
+MATCH/MISMATCH/UNKNOWN/UNAVAILABLE verdict instead of relying on inconclusive signals
+(buildId, chunk-name patterns) like the prior two FT-3 attempts had to.
+
+Run today against `https://uat.caveoinfosystems.com/api/version`: **UNAVAILABLE** — expected,
+since this code has not been deployed to UAT (deployment was explicitly out of scope for this
+step). **FT-3 remains Open** — this closes the capability gap, not FT-3 itself; FT-3 closes only
+once UAT is redeployed and the check returns MATCH. Production remains paused (unchanged). No
+production database was queried, no migration/`db push` was run, no UAT data was modified, no
+deployment was performed. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-24 — Step 4H-3: FT-3 second verification attempt — status confirmed Open
 

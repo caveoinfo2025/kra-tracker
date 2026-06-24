@@ -20,6 +20,12 @@
 > the full attempt). This does not change anything in this document — production planning stays
 > paused until all five items above are closed.
 >
+> **Step 4H-4 (2026-06-24): FT-3 verification capability added, still Open, production still
+> paused.** A public `/api/version` endpoint + `npm run uat:check-version` script were added
+> (see `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-4") so the deployed-commit question can be
+> answered definitively once UAT is redeployed. No deployment was performed and no production
+> action was taken — this document remains paused, unchanged.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

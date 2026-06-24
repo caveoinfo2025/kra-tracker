@@ -508,6 +508,13 @@ Beyond the implicit unique indexes, `@@index` covers FK / hot-filter columns:
   writes WITHOUT a `$transaction`, and `syncCollectionTotals` is read-modify-write. Under
   SQLite's single-writer this was safe; on MySQL with concurrent connections wrap these in
   `prisma.$transaction` (and consider `SELECT … FOR UPDATE`) before high write volume.
+- **`GET /api/version` is intentionally public and queries nothing in this database.** Added
+  2026-06-24 (Step 4H-4, see `UAT_DECIMAL_INR_MIGRATION_PLAN.md`) to let a deployed commit be
+  confirmed (FT-3) without a session. It only reads `src/generated/app-version.json` (a
+  gitignored, build-time-only file written by `scripts/write-build-version.mjs` from `git
+  rev-parse`/`git branch`) — never `DATABASE_URL`, never any table, never a credential. It is
+  allowlisted in `auth.config.ts`'s `isPublic` check specifically so it bypasses auth; do not
+  add any DB-backed logic to this route.
 
 ---
 

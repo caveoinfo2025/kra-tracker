@@ -1361,3 +1361,22 @@ given) or resolved via redeploy (no `CONFIRM_UAT_REDEPLOY=YES` approval given).
 **Production remains paused** — unchanged from Step 4H-2. No production database was queried,
 no production pre-check was run, no `db push` was used, no production-related command was run.
 `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4H-4 — App version marker added; FT-3 capability gap closed, FT-3 itself still Open (2026-06-24)
+
+Adds what Step 4H-3 found missing: a public, unauthenticated `/api/version` endpoint
+(`src/app/api/version/route.ts`, allowlisted in `auth.config.ts`) backed by a build-time
+`src/generated/app-version.json` (written by `scripts/write-build-version.mjs`, now wired into
+`npm run build`). `npm run uat:check-version` (`scripts/check-uat-public-version.mjs`) fetches it
+from UAT and diffs against local `git rev-parse --short HEAD` → MATCH/MISMATCH/UNKNOWN/UNAVAILABLE.
+
+| Check | Result |
+| ----- | ------ |
+| `npm run uat:check-version` against live UAT | **UNAVAILABLE** — route not yet deployed; expected since no deploy was performed this step |
+
+**FT-3 row: still Open** — this step adds the verification *mechanism*, not a verified deploy.
+Closing FT-3 requires `npm run deploy:uat` (not run — out of scope: "Do not deploy unless
+explicitly instructed") followed by a re-run of `npm run uat:check-version` returning MATCH.
+
+**No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅
+(confirms the new build-time version-write step runs cleanly).

@@ -52,6 +52,10 @@ next-env.d.ts
 
 /src/generated/prisma
 
+# Build-time app/commit identity (FT-3 version marker) — regenerated every build by
+# scripts/write-build-version.mjs, would be stale/misleading if committed.
+/src/generated/app-version.json
+
 # SQLite databases
 *.db
 *.db-journal

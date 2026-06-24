@@ -1008,3 +1008,42 @@ to Accepted Risk (no explicit acceptance was given) or resolved via redeploy (no
   hash) — **not implemented here**, per instruction not to implement unless explicitly asked.
 - `node scripts/deploy-uat.mjs` is run with explicit approval to redeploy current `uat` HEAD,
   after which the deployed commit is unambiguous by construction.
+
+---
+
+## Step 4H-4 — App version marker added for FT-3 (2026-06-24)
+
+Implements the second bullet above (the lightweight, deterministic version marker), now that
+it has been explicitly asked for. **This step does not itself close FT-3** — the marker only
+exists locally until the next UAT build/deploy picks it up.
+
+**What was added:**
+- `src/lib/app-version.ts` — reads git commit/branch/build-timestamp from a build-time-generated
+  `src/generated/app-version.json` (or env var override), with a literal `"unknown"` fallback.
+  Never reads `DATABASE_URL` or any credential.
+- `src/app/api/version/route.ts` — `GET /api/version`, returns `{ app, environment, gitCommit,
+  gitBranch, buildTimestamp, nodeEnv }`. No DB query.
+- `auth.config.ts` — added `/api/version` to the `authorized` callback's `isPublic` allowlist, so
+  it's reachable without a session (otherwise the global `proxy.ts` gate 401s it, exactly as
+  observed for every `/api/*` candidate path in the check above).
+- `scripts/write-build-version.mjs` — writes `src/generated/app-version.json` from `git
+  rev-parse`/`git branch`. Fails safe (never throws, never blocks a build). Wired into `npm run
+  build` (`package.json`) so every future UAT/production build populates it automatically; also
+  exposed standalone as `npm run version:write`.
+- `scripts/check-uat-public-version.mjs` (`npm run uat:check-version`) — fetches
+  `https://uat.caveoinfosystems.com/api/version` and diffs `gitCommit` against local `git
+  rev-parse --short HEAD`. Prints MATCH / MISMATCH / UNKNOWN / UNAVAILABLE.
+- `.gitignore` — `src/generated/app-version.json` is build output, gitignored, never committed.
+
+**Verification run today:** `npm run uat:check-version` against the live UAT URL returned
+**UNAVAILABLE** (the route is not yet deployed there) — expected and acceptable, since no
+deployment was performed as part of this step (explicitly out of scope: "Do not deploy unless
+explicitly instructed").
+
+**FT-3 status: still Open.** This step closes the *capability* gap (no way to verify), not FT-3
+itself. FT-3 closes only after: (1) this code is deployed to UAT via `npm run deploy:uat`, and
+(2) `npm run uat:check-version` is re-run and returns MATCH. Neither has happened yet.
+
+**No production action taken.** No migration, no `db push`, no schema change, no UAT data
+change, no deployment. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅
+(confirms `version:write` runs cleanly as part of the build).

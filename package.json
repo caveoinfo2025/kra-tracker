@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && cross-env RAYON_NUM_THREADS=1 next build",
+    "version:write": "node scripts/write-build-version.mjs",
+    "build": "node scripts/write-build-version.mjs && prisma generate && cross-env RAYON_NUM_THREADS=1 next build",
     "build:test": "node scripts/run-build-test.mjs",
     "start": "next start",
     "lint": "eslint",
@@ -20,7 +21,8 @@
     "db:test:push": "node scripts/run-prisma-test.mjs db push",
     "db:test:seed": "node scripts/run-prisma-test.mjs db seed",
     "deploy:uat": "node scripts/deploy-uat.mjs",
-    "db:uat:copy": "node scripts/db-copy-prod-to-uat.mjs"
+    "db:uat:copy": "node scripts/db-copy-prod-to-uat.mjs",
+    "uat:check-version": "node scripts/check-uat-public-version.mjs"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.8.0",

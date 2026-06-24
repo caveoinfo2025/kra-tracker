@@ -1156,3 +1156,10 @@ This document is **planning only**. As of this step:
 > treated as proof. Per the decision rule, this is Option A (Open) — neither Hostinger access
 > nor a public version marker exists. Full detail:
 > `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-3 UAT deployed commit verification".
+
+> **Step 4H-4 (2026-06-24): app version marker added, FT-3 still Open.** A public
+> `/api/version` endpoint and `npm run uat:check-version` script were added (see
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-4") so future deployed-commit
+> checks no longer need to rely on inconclusive signals. This only adds the capability — it
+> requires a UAT deploy (not performed) and a re-run of the check (returned UNAVAILABLE today,
+> as expected pre-deploy) before FT-3 can actually close. No production action was taken.

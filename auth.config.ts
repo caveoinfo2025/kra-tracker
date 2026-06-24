@@ -39,6 +39,9 @@ export const authConfig = {
       const isPublic =
         pathname.startsWith("/login") ||
         pathname.startsWith("/api/auth") ||
+        // Non-sensitive build/commit identity only (no DB query, no secret) — public by
+        // design so a deployed commit can be verified without a session. See FT-3.
+        pathname.startsWith("/api/version") ||
         // Dev impersonation switch must be callable without a session
         // (it IS the endpoint that establishes the session).
         // Returns 404 in production so there is no attack surface there.
