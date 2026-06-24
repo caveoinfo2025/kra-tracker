@@ -257,6 +257,16 @@
 > bookkeeping are complete on UAT. Step 4H full functional testing (Finance, Sales, KRA) can
 > begin.** Full results:
 > `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md` §13–§17.
+>
+> **UAT post-migration functional testing performed; Final Sign-Off Pending (Step 4H,
+> 2026-06-24).** `uat.caveoinfosystems.com` is blocked by this environment's network policy —
+> **no live UI/login testing was possible**, documented honestly rather than faked. Read-only
+> UAT DB queries confirmed Finance/Sales/KRA data is all correct (no inflation/deflation/NULLs);
+> static code review found one low-severity fallback-constant issue in `kra-engine.ts`.
+> Sign-off: Finance/Sales/KRA = Passed with Minor Issues, RBAC = Pending (no live login
+> possible), Technical Validation = Passed, **Final UAT Migration Sign-Off = Pending**. No
+> Critical/High issue found in anything actually tested. Full results:
+> `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

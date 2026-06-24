@@ -1100,3 +1100,19 @@ This document is **planning only**. As of this step:
 > Production and dev untouched throughout. `npx prisma validate`, `npx tsc --noEmit`,
 > `npm run build` all pass. Full record:
 > `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md` §13–§17.
+
+> **Step 4H (2026-06-24) completed:** UAT post-migration functional testing performed, with an
+> honestly-documented limitation — `uat.caveoinfosystems.com` is blocked by this environment's
+> network policy and no interactive login is possible here, so **no live UI/API/login testing
+> was performed**; every such check is marked "Not performed — testing limitation," not
+> fabricated as Passed. What was verified: direct read-only UAT DB queries confirm Finance
+> (`Payment`/`Collection`/`OrderAdvance`), Sales (`CrmLead`/`CrmOpportunity`/`SalesFunnel`,
+> including the row-42 anomaly), and KRA (`KRA.target`'s 8 transformed rows) data is all
+> correct — no inflation, deflation, NULLs, or double-multiplication. Static code review of
+> `kra-engine.ts`/`money.ts`/`roles.ts` found one low-severity finding (pre-existing Lakhs-scale
+> fallback constants, not currently triggered) and no other inconsistency. **Sign-off:**
+> Finance/Sales/KRA = Passed with Minor Issues; RBAC = Pending (no live login possible);
+> Technical Validation = Passed; **Final UAT Migration Sign-Off = Pending** — correctly not
+> marked Passed, since live testing is a genuine gap rather than a confirmed result. No
+> Critical/High issue found in anything actually tested. Full record:
+> `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`.

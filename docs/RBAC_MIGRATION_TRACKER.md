@@ -1248,3 +1248,37 @@ connection used `.env.uat`. Full record:
 timestamped result files under `docs/database/uat-migration-package/results/`. `npx prisma
 validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅. **Step 4H — full UAT functional
 testing (Finance, Sales, and KRA) can now begin.**
+
+## Step 4H — UAT post-migration functional testing performed; sign-off Pending (2026-06-24)
+
+**Honest limitation, documented not hidden:** `uat.caveoinfosystems.com` is blocked by this
+environment's organization network policy (confirmed via a direct navigation attempt), and no
+interactive Microsoft Entra ID login is possible here. **No live UI test, live authenticated
+API call, or live Manager/Employee login was performed** — every such check in
+`UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` is marked "Not performed — testing limitation,"
+never fabricated as Passed.
+
+What was actually verified: direct read-only queries against the live UAT database confirm
+Finance (`Payment`/`Collection`/`OrderAdvance`), Sales (`CrmLead`/`CrmOpportunity`/
+`SalesFunnel`, including the row-42 negative-value anomaly), and KRA (`KRA.target`'s 8
+transformed rows) data is all correct — no inflation, no deflation, no NULLs, no double
+multiplication anywhere checked. Static review of `src/lib/kra-engine.ts`, `src/lib/money.ts`,
+and `src/lib/roles.ts` found one low-severity issue (pre-existing Lakhs-scale hardcoded
+fallback constants in `kra-engine.ts`, not currently triggered by any of UAT's 8 transformed
+rows) and no other inconsistency with the migrated data shape.
+
+**Sign-off status:** Finance = Passed with Minor Issues; Sales Pipeline = Passed with Minor
+Issues; KRA = Passed with Minor Issues; RBAC = Pending (no live login possible); Technical
+Validation = Passed. **Final UAT Migration Sign-Off: Pending** — correctly not marked Passed,
+since live UI/RBAC testing is a genuine, documented gap rather than a confirmed-clean result.
+No Critical or High-severity issue was found in anything that was actually tested.
+
+**Issues logged:** FT-1 (Low, `kra-engine.ts` fallback constants), FT-2 (Medium, live UI/login
+testing not possible from this environment), FT-3 (Medium, UAT-deployed commit still
+unconfirmed — open since Step 4B), FT-4 (Low, backup restore-test still not performed — open
+since Step 4F-1).
+
+**Production untouched. No new migration, schema change, or `db push` run. Migration history
+unchanged. Voucher/Ledger/FinAccount untouched.** `npx prisma validate` ✅, `npx tsc --noEmit`
+✅, `npm run build` ✅. Full record:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`.

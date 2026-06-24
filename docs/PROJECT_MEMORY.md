@@ -21,6 +21,46 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4H: UAT post-migration functional testing performed; Final Sign-Off Pending
+
+**Honest limitation, documented not hidden:** `uat.caveoinfosystems.com` is blocked by this
+environment's organization network policy (confirmed via a direct browser navigation attempt),
+and no interactive Microsoft Entra ID login is possible from here. **No live UI test, live
+authenticated API call, or live Manager/Employee login was performed.** Every check requiring
+those is marked "Not performed — testing limitation" in
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` — never
+fabricated as Passed, consistent with this entire program's standing rule never to fake
+results.
+
+**What was actually verified, with real evidence:** direct read-only queries against the live
+UAT database confirmed Finance (`Payment`/`Collection`/`OrderAdvance`), Sales
+(`CrmLead`/`CrmOpportunity`/`SalesFunnel`, including the row-42 negative-value anomaly), and
+KRA (`KRA.target`'s 8 transformed rows) data is all correct post-migration — no inflation, no
+deflation, no NULLs introduced, no double-multiplication anywhere checked. Static source-code
+review of `src/lib/kra-engine.ts`, `src/lib/money.ts`, and `src/lib/roles.ts` found the
+application logic consistent with the migrated (INR-canonical) data shape, with one low-severity
+exception: `kra-engine.ts` has a handful of pre-existing Lakhs-scale hardcoded fallback
+constants (e.g. `?? 70`) that would be scale-inconsistent with INR data if a KRA-row lookup ever
+missed — none of UAT's 8 transformed rows currently hit this path.
+
+**Sign-off status:** Finance / Sales Pipeline / KRA = **Passed with Minor Issues** (data-level
+checks clean, live UI testing not performed); RBAC = **Pending** (no live login possible from
+this environment — Manager/Employee test accounts confirmed to exist in the data, but their
+actual page-level access was never exercised); Technical Validation = **Passed**
+(`npx prisma validate`/`npx tsc --noEmit`/`npm run build` all pass). **Final UAT Migration
+Sign-Off: Pending** — correctly not marked Passed, since live UI/RBAC testing is a genuine,
+disclosed gap rather than a confirmed-clean result. No Critical or High-severity issue was
+found in anything that was actually tested.
+
+**4 issues logged:** FT-1 (Low — `kra-engine.ts` fallback constants), FT-2 (Medium — live UI/
+login testing impossible from this environment), FT-3 (Medium — UAT-deployed app commit still
+unconfirmed, open since Step 4B), FT-4 (Low — UAT backup restore-test still not performed, open
+since Step 4F-1). **Next step:** someone with working UAT browser/login access should walk
+through the specific untested rows in the functional-test report and confirm the deployed
+commit — final sign-off can likely move to Passed quickly once that happens, since every
+data-level and schema-level check is already clean. Full record:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`.
+
 ### 2026-06-24 — Step 4G-1: UAT KRA.target transform executed; migration history aligned (both Step 4G open items closed)
 
 **Secret hygiene finding (separate from Step 4G's incident):** before any live action, found a

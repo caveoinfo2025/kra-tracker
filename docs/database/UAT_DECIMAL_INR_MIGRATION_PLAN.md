@@ -862,3 +862,40 @@ UAT database was connected to, queried, or modified.
   credential.
 - **Step 4H — full UAT functional testing (Finance, Sales, and KRA) can now begin.** The
   KRA-testing blocker noted at the end of Step 4G no longer applies.
+
+---
+
+## Step 4H — UAT Functional Testing Results (2026-06-24)
+
+> Full detail lives in
+> `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`. This
+> section summarizes the outcome. **A genuine testing limitation applies — be honest about
+> what was and wasn't tested, not optimistic.**
+
+- **Live UI/browser testing could not be performed.** `https://uat.caveoinfosystems.com` is
+  blocked by this environment's organization network policy (confirmed by a direct navigation
+  attempt). No interactive Microsoft Entra ID login is possible from here either. Every check
+  requiring a live page load, live API call, or live Manager/Employee login is documented as
+  **"Not performed — testing limitation,"** not fabricated as Passed.
+- **What was actually verified:** direct read-only queries against the live UAT database
+  confirm Finance (`Payment`/`Collection`/`OrderAdvance`), Sales (`CrmLead`/`CrmOpportunity`/
+  `SalesFunnel`, including the row-42 negative-value anomaly), and KRA (`KRA.target`'s 8
+  transformed rows) data is all correct — no inflation, no deflation, no NULLs, no double
+  multiplication. Static review of `src/lib/kra-engine.ts`, `src/lib/money.ts`, and
+  `src/lib/roles.ts` found no code-level inconsistency with the migrated data shape.
+- **One low-severity finding (FT-1):** `kra-engine.ts` has a handful of pre-existing,
+  Lakhs-scale hardcoded fallback constants (e.g. `?? 70`) that would be scale-inconsistent with
+  INR data if ever hit — none of UAT's 8 transformed KRA rows trigger this path today. Logged,
+  not blocking.
+- **Two carried-over gaps remain open:** the UAT-deployed app commit is still unconfirmed (open
+  since Step 4B — this report's code-level findings assume the deployed commit matches local
+  `uat` HEAD), and the UAT backup restore-test is still not performed (open since Step 4F-1).
+- **App validation passed:** `npx prisma validate`, `npx tsc --noEmit`, `npm run build`.
+- **Sign-off status:** Finance/Sales Pipeline/KRA = Passed with Minor Issues (data-level clean,
+  live testing not performed); RBAC = Pending (no live login possible); Technical Validation =
+  Passed. **Final UAT Migration Sign-Off: Pending** — not marked Passed, since live UI/RBAC
+  testing is a genuine gap, not a confirmed-clean result. No Critical or High-severity issue was
+  found in anything that *was* tested.
+- **Next action:** someone with working UAT browser/login access should walk through the
+  specific untested rows in the functional-test report, and confirm the deployed commit,
+  before Final UAT Migration Sign-Off can move to Passed.
