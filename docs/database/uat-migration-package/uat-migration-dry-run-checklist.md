@@ -7,11 +7,13 @@
 > checklist does not authorize running the migration on its own; it is the gate before that
 > authorization is sought.
 >
-> **Status as of Step 4G (2026-06-24): nearly all items below are Completed.** This step
-> (readiness approvals review) obtained business/technical sign-off, confirmed the write-freeze
-> decision, and recorded a backup. **One item remains genuinely Pending: the backup restore
-> verification.** See `UAT_BACKUP_ROLLBACK_RECORD.md` and `UAT_MIGRATION_APPROVAL_RECORD.md`
-> (same folder) for the durable record of what's been confirmed vs. still outstanding.
+> **Status as of Step 4F-1 (2026-06-24): every item below is Completed or Approved with a named
+> risk exception.** This step attempted a real backup restore-to-scratch-DB test; no
+> `mysql`/`mariadb`/`docker` tooling was available in this environment, so the test could not be
+> run. A structural sanity check of the dump file was performed instead, and Vijesh Vijayan
+> explicitly accepted the residual risk as the named approving owner. See
+> `UAT_BACKUP_ROLLBACK_RECORD.md` and `UAT_MIGRATION_APPROVAL_RECORD.md` (same folder) for the
+> full record.
 
 ## Environment confirmation
 
@@ -19,7 +21,7 @@
 | ---- | ------ | ----- |
 | Confirm UAT database name (`SELECT DATABASE()` = `u686730471_Caveo_UAT`) | **Completed** | Confirmed live in Step 4B (2026-06-24) and re-confirmed in Step 4D's follow-up query — not re-verified again in this step, but two independent prior confirmations exist |
 | Confirm UAT backup taken | **Completed** | `u686730471_Caveo_UAT_240626.sql`, taken 2026-06-24 08:10 AM by Vijesh Vijayan — see `UAT_BACKUP_ROLLBACK_RECORD.md` |
-| Confirm UAT backup restore verified (not just dump-file-non-empty) | **Pending** | Only the dump file's existence/non-emptiness has been confirmed — it has not been restored to a scratch DB and row-count-checked. This is the one remaining gap before migration execution permission can be granted |
+| Confirm UAT backup restore verified (not just dump-file-non-empty) | **Approved with risk exception** | A live restore-to-scratch-DB test was attempted and found impossible (no DB client available in this environment). A structural sanity check (well-formed dump, all 13 required tables present, in-file row counts consistent with Step 4B's live findings) was done instead. Vijesh Vijayan explicitly accepted this gap rather than block — see `UAT_BACKUP_ROLLBACK_RECORD.md`'s "Risk acceptance" section |
 | Confirm no active UAT testers during the migration window | **Completed** | Confirmed by Vijesh Vijayan — no other testers active during the 2026-06-24 window |
 | Confirm UAT write-freeze decision | **Completed** | Write-freeze window: 2026-06-24, starting now. Owner: Vijesh Vijayan — see `UAT_MIGRATION_APPROVAL_RECORD.md` |
 | Confirm UAT test users available after migration (Manager-tier + Employee-tier login) | **Completed** | Confirmed working by Vijesh Vijayan |
@@ -54,14 +56,15 @@
 | Item | Status | Notes |
 | ---- | ------ | ----- |
 | Migration confirmed not run yet | **Completed** | Confirmed — no statement in any package file has been executed against UAT as of this step |
-| Rollback plan approved | **Pending — conditional** | Rollback owner (Vijesh Vijayan) is named and the method is documented in `UAT_BACKUP_ROLLBACK_RECORD.md`, but full approval is conditional on the backup restore-test gap above |
+| Rollback plan approved | **Approved with risk exception** | Rollback owner (Vijesh Vijayan) is named and the method is documented in `UAT_BACKUP_ROLLBACK_RECORD.md`. Approved with the named risk exception for the unperformed live restore test — rollback confidence is reduced, not absent |
 | Business owner approval | **Completed** | Vijesh Vijayan — see `UAT_MIGRATION_APPROVAL_RECORD.md` |
 | Technical owner approval | **Completed** | Vijesh Vijayan — see `UAT_MIGRATION_APPROVAL_RECORD.md` |
 | `prisma migrate resolve --applied <name>` plan confirmed (3 calls, one per migration name) | **Completed** | Documented and unchanged from Step 4E — this is a manual step run only after the SQL succeeds, not part of this approval step |
-| **Migration execution permission** | **Pending — one gap** | **Every item above is Completed except the backup restore-test.** Run the restore test, update `UAT_BACKUP_ROLLBACK_RECORD.md` and `UAT_MIGRATION_APPROVAL_RECORD.md` accordingly, then this row can move to Completed as its own explicit step |
+| **Migration execution permission** | **Approved with risk exception** | **Every item above is Completed or Approved with the same named risk exception.** Vijesh Vijayan, as named owner, explicitly accepted the unperformed live restore test rather than block on it. This authorizes proceeding to Step 4G — it does not itself run the migration. |
 
-**Do not treat "Completed" items above as a substitute for actually running the migration
-carefully when that step is explicitly instructed — this checklist documents what's ready and
-what isn't; it does not grant execution permission on its own. As of this step, migration
-execution permission is Pending on exactly one outstanding item: the backup has not been
-restore-tested to a scratch database.**
+**Do not treat "Completed"/"Approved with risk exception" items above as a substitute for
+actually running the migration carefully when that step is explicitly instructed — this
+checklist documents what's ready and what isn't; it does not grant execution permission on its
+own beyond the explicit risk-exception basis recorded here. As of this step, migration execution
+permission is Approved with risk exception: the backup has not been restore-tested to a scratch
+database, and Vijesh Vijayan has explicitly accepted that gap as the named approving owner.**

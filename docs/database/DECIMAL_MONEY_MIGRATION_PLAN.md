@@ -1047,3 +1047,18 @@ This document is **planning only**. As of this step:
 > `UAT_MIGRATION_APPROVAL_RECORD.md` — both fully Pending (no backup taken yet, no business/
 > technical sign-off obtained yet). **Migration still not run** — execution permission remains
 > Pending pending backup, write-freeze, and approval-record completion.
+
+> **Step 4F-1 (2026-06-24) completed:** UAT backup verification reviewed. A real
+> restore-to-scratch-DB test was attempted and found not possible in this environment (no
+> `mysql`/`mariadb`/`docker` tooling, no live UAT connection). A structural sanity check of
+> `u686730471_Caveo_UAT_240626.sql` was performed instead — well-formed dump, all 13 required
+> tables present, in-file row counts consistent with Step 4B's documented live findings.
+> **Rollback readiness updated to "Approved with risk exception"** — Vijesh Vijayan, named as
+> the approving owner, explicitly accepted the residual risk of an unperformed live restore test
+> rather than block indefinitely on missing tooling. **Final UAT migration execution approval
+> status updated to "Approved with risk exception"** (`UAT_MIGRATION_APPROVAL_RECORD.md`) — this
+> authorizes proceeding to Step 4G; it does not itself run the migration, which remains a
+> separate, explicitly-instructed step. No UAT/production database was connected to, queried, or
+> modified — only the already-present local backup file was inspected read-only via shell text
+> tools. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass (no app code
+> changed, reconfirmations only).

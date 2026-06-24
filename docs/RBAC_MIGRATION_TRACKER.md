@@ -1142,3 +1142,26 @@ Completed, but operational readiness (real backup, write-freeze decision, named 
 not, and both are required. **No UAT or production database was connected to or modified; no
 schema/API/UI code changed; no `db push` used; UAT migration not run.** `npx prisma validate` ✅,
 `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4F-1 — UAT backup restore verification reviewed; risk exception recorded (2026-06-24)
+
+Not an RBAC change. Closed Step 4F's outstanding backup-verification gap. Attempted a real
+restore-to-scratch-DB test for `u686730471_Caveo_UAT_240626.sql` (taken 2026-06-24 08:10 AM by
+Vijesh Vijayan) — **not possible in this environment**: no `mysql`, `mariadb`, or `docker`
+client is installed, and there is no live UAT database connection available. Performed a
+structural sanity check of the dump file instead: confirmed non-empty (459,589 bytes, 6,165
+lines), well-formed phpMyAdmin dump with a clean `COMMIT` footer (no truncation), all 13 required
+tables' `CREATE TABLE` statements present, and in-file row counts (`Payment` 26, `Collection`
+141, `OrderAdvance` 3, `CrmLead` 280, `CrmOpportunity` 49, `SalesFunnel` 100, `KRA` 34,
+`Expense`/`EmployeeAdvance`/`TravelClaim`/`Voucher`/`Ledger`/`FinAccount` 0 each) consistent with
+Step 4B's previously-documented live UAT counts — a cross-reference, not a fresh live
+comparison. **Did not silently mark backup approval Completed.** Instead recorded an explicit,
+named risk-acceptance decision: Vijesh Vijayan, as the named approving owner, accepted the
+residual risk of an unperformed live restore test. `UAT_BACKUP_ROLLBACK_RECORD.md`,
+`UAT_MIGRATION_APPROVAL_RECORD.md`, and `uat-migration-dry-run-checklist.md` updated accordingly
+— UAT DB backup approval, rollback plan approval, and final migration execution approval all
+moved from Pending to **"Approved with risk exception"** (not unconditional Completed).
+`docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` gained a new "Step 4F-1 — Backup Verification
+Result" section. **No UAT or production database was connected to or modified; only the
+already-present local backup file was inspected read-only via shell text tools; no migration was
+run.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

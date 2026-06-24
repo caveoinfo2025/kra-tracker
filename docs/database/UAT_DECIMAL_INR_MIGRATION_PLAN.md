@@ -722,3 +722,40 @@ sequence is considered for actual execution — and only when explicitly instruc
 
 **UAT migration has not been run.** This step is approval-tracking and record-creation only — no
 UAT database was connected to, queried, or modified.
+
+---
+
+## Step 4F-1 — Backup Verification Result (2026-06-24)
+
+> Full detail lives in `docs/database/uat-migration-package/UAT_BACKUP_ROLLBACK_RECORD.md` and
+> `UAT_MIGRATION_APPROVAL_RECORD.md` (both updated in place this step). This section summarizes
+> the outcome. **UAT migration has not been run.**
+
+- **Backup file:** `u686730471_Caveo_UAT_240626.sql` (`C:\Users\VIJESHVIJAYAN\Code\SQL Backup\`),
+  taken 2026-06-24 08:10 AM by Vijesh Vijayan. Confirmed present, 459,589 bytes, non-empty.
+- **Restore-test status: attempted, not possible in this environment.** No `mysql`, `mariadb`,
+  or `docker` client is available here, and there is no live UAT database connection — a genuine
+  restore-to-scratch-DB-and-compare test could not be performed. A structural sanity check of
+  the dump file was done instead: well-formed phpMyAdmin dump (proper header, clean `COMMIT`
+  footer, no truncation), all 13 required tables' `CREATE TABLE` statements present, and in-file
+  row counts extracted directly from the dump (`Payment` 26, `Collection` 141, `OrderAdvance` 3,
+  `CrmLead` 280, `CrmOpportunity` 49, `SalesFunnel` 100, `KRA` 34, `Expense`/`EmployeeAdvance`/
+  `TravelClaim`/`Voucher`/`Ledger`/`FinAccount` 0 each) — consistent with Step 4B's documented
+  live UAT counts, though that is a cross-reference against an earlier query, not a fresh live
+  comparison run alongside this attempt.
+- **Row-count comparison status: not possible against a live source.** No live UAT row counts
+  could be queried in this environment to populate a genuine before/after comparison table. The
+  table in `UAT_BACKUP_ROLLBACK_RECORD.md` records the dump file's own counts with "Live UAT
+  Count: Not available" rather than fabricating a comparison.
+- **Rollback readiness: Approved with risk exception.** The rollback method (restore this
+  backup file) remains the only supported rollback path. Confidence in that path is **reduced**
+  — the backup's structural validity is confirmed, but its actual restorability has not been
+  proven by a real restore.
+- **Final migration execution approval status: Approved with risk exception (Vijesh Vijayan,
+  2026-06-24),** the named owner who explicitly accepted this gap rather than block indefinitely
+  on tooling this environment does not have. This authorizes proceeding to Step 4G — it is a
+  distinct, separate decision from actually running the migration, which still requires its own
+  explicit instruction.
+- **No UAT or production database was connected to, queried, or modified in this step.** Only
+  the local backup dump file (already present on disk) was inspected, read-only, via shell text
+  tools (`wc`, `head`, `tail`, `grep`, `awk`) — no SQL was executed against any database.

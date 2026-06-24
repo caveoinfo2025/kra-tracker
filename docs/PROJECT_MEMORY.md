@@ -21,6 +21,38 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4F-1: UAT backup restore verification reviewed; risk exception recorded (migration not run)
+
+**Closed Step 4F's outstanding backup-verification gap — with an honest risk exception, not a
+silently-faked Completed.** Attempted a real restore-to-scratch-DB test for the UAT backup
+(`u686730471_Caveo_UAT_240626.sql`, taken 2026-06-24 08:10 AM by Vijesh Vijayan) — **not possible
+in this environment**, since no `mysql`/`mariadb`/`docker` client is installed and there is no
+live UAT database connection available here.
+
+**What was done instead:** a structural sanity check of the dump file (read-only, no DB
+involved) — confirmed non-empty (459,589 bytes, 6,165 lines), well-formed phpMyAdmin dump with a
+clean `COMMIT` footer (no truncation), all 13 required tables' `CREATE TABLE` statements present,
+and in-file row counts (`Payment` 26, `Collection` 141, `OrderAdvance` 3, `CrmLead` 280,
+`CrmOpportunity` 49, `SalesFunnel` 100, `KRA` 34, `Expense`/`EmployeeAdvance`/`TravelClaim`/
+`Voucher`/`Ledger`/`FinAccount` 0 each) — consistent with Step 4B's previously-documented live
+UAT counts, though that's a cross-reference against an earlier query, not a fresh live
+comparison run alongside this attempt.
+
+**Risk-acceptance decision recorded, not silently approved:** Vijesh Vijayan, named explicitly as
+the approving owner, accepted the residual risk of an unperformed live restore test rather than
+block indefinitely on missing tooling. `UAT_BACKUP_ROLLBACK_RECORD.md`,
+`UAT_MIGRATION_APPROVAL_RECORD.md`, and `uat-migration-dry-run-checklist.md` updated: UAT DB
+backup approval, rollback plan approval, and final migration execution approval all moved from
+Pending to **"Approved with risk exception"** — explicitly not an unconditional Completed.
+Rollback confidence is reduced (the file's structural validity is confirmed; its actual
+restorability is not proven).
+
+**Migration execution status: still not run.** This step authorizes proceeding to Step 4G on the
+basis of the explicit risk acceptance above — it does not itself run any migration SQL or script
+against UAT. **No UAT or production database was connected to, queried, or modified** — only the
+already-present local backup file was inspected read-only via shell text tools (`wc`, `head`,
+`tail`, `grep`, `awk`). `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
 ### 2026-06-24 — Step 4F: UAT operational approval checklist prepared/reviewed (migration not run)
 
 **Completed the technical/SQL-readiness half of UAT migration approval; the operational half
