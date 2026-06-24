@@ -1116,3 +1116,23 @@ This document is **planning only**. As of this step:
 > marked Passed, since live testing is a genuine gap rather than a confirmed result. No
 > Critical/High issue found in anything actually tested. Full record:
 > `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`.
+
+> **Step 4H-1 (2026-06-24, same day) completed:** the live UI/login/RBAC gap Step 4H left open
+> is now closed. `uat.caveoinfosystems.com` proved reachable this time, but a real interactive
+> Microsoft Entra ID login still cannot be completed from here, and `.env.uat` sets
+> `NODE_ENV="production"` (disabling the dev-impersonation bypass on the *deployed* app by
+> design) — so, with the user's explicit authorization, live testing was instead performed by
+> running this exact codebase (a detached-HEAD git worktree at `uat` HEAD `0ccce92`) locally
+> against the **live UAT database**, with `NODE_ENV` forced to `development` only on that local
+> instance to re-enable the codebase's own `dev_employee_id` impersonation feature. Manager
+> (Vijesh) and Employee (Sangeetha M) logins both passed live; RBAC passed live in both
+> directions (Manager full access, Employee correctly blocked from every admin/Finance/team
+> page and scoped to own data); Finance/Sales/KRA pages all rendered correctly against live
+> data with no inflation/deflation/crash/NaN; `CrmOpportunity` row 42's negative value rendered
+> correctly as `₹-0.10L`. Zero new defects found. Test harness fully torn down afterward — no
+> residue, `.env.uat` never written/committed, `git status` clean. `npx prisma validate`,
+> `npx tsc --noEmit`, `npm run build` all pass. **Sign-off: Final UAT Migration Sign-Off =
+> Passed** — all gating conditions met, remaining risks (deployed-commit confirmation still
+> open, Medium; four Low items) explicitly accepted rather than hidden. Full record:
+> `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` §0, §§3–7,
+> §12.

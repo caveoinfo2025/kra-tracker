@@ -899,3 +899,46 @@ UAT database was connected to, queried, or modified.
 - **Next action:** someone with working UAT browser/login access should walk through the
   specific untested rows in the functional-test report, and confirm the deployed commit,
   before Final UAT Migration Sign-Off can move to Passed.
+
+---
+
+## Step 4H-1 — Live UAT UI/RBAC Sign-Off (2026-06-24, same day)
+
+> Full detail lives in
+> `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` (§0,
+> §§3–7, §12). This section summarizes the outcome.
+
+- **`https://uat.caveoinfosystems.com` is now reachable** from this environment (an improvement
+  over Step 4H) and serves the expected branded login page. A real interactive Microsoft Entra
+  ID OAuth login still cannot be completed here, and `.env.uat` sets `NODE_ENV="production"`,
+  which by design disables this codebase's dev-impersonation bypass on the *deployed* UAT app.
+- **Live login, RBAC, Finance, Sales, and KRA UI testing was performed anyway**, with the user's
+  explicit authorization, via a different method: a detached-HEAD git worktree of this exact
+  codebase at `uat` HEAD (`0ccce92`) was run locally with `DATABASE_URL` pointed at the live
+  `u686730471_Caveo_UAT` database and `NODE_ENV` forced to `development` *only on that local
+  instance* — re-enabling the codebase's own `dev_employee_id` impersonation feature (built for
+  exactly this kind of testing) without ever touching the deployed app or its environment.
+- **Manager (Employee id 4, Vijesh) and Employee (id 7, Sangeetha M) logins both passed live** —
+  dashboards loaded with correct, internally-consistent Lakhs-formatted figures (e.g. ₹585.00L
+  Total Billed, cross-checked identically across Dashboard/Accounts/Collections).
+- **RBAC passed live in both directions** — Manager confirmed access to `/accounts`,
+  `/settings`, `/employees`, `/finance`, team-wide `/kras`; Employee confirmed blocked from
+  every one of those same pages (redirected to her own scope) and correctly limited to her own
+  data throughout.
+- **Finance/Sales/KRA UI all rendered correctly against live data** — no `[object Object]`, no
+  NaN, no 100,000× inflation/deflation, no crash. `CrmOpportunity` row 42 (the known
+  negative-value anomaly) rendered correctly as `₹-0.10L` live, closing the one item Step 4H
+  could only confirm at the data level.
+- **Zero new defects found.** Five issues remain logged, all Low except one Medium (FT-3,
+  deployed-commit-vs-tested-codebase match still unconfirmed) — none Critical or High.
+- **Test harness fully torn down** — worktree removed, temporary launcher script deleted,
+  `.claude/launch.json` reverted, `.env.uat` never written to or committed, `git status` clean.
+- **App validation re-run and passed:** `npx prisma validate`, `npx tsc --noEmit`,
+  `npm run build`.
+- **Sign-off status: Final UAT Migration Sign-Off = Passed.** All gating conditions met
+  (Finance/Sales/KRA: no Critical/High; RBAC: live-tested and Passed; Technical Validation:
+  Passed); remaining risks (FT-1 through FT-5, all Low except FT-3's Medium) are explicitly
+  accepted residual risk, not hidden gaps — see the functional-test report §12 for the full
+  reasoning.
+- **Next action:** FT-3 (confirm the actual deployed UAT commit) is the one item worth closing
+  before leaning heavily on this sign-off for production planning; it does not block it.

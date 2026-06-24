@@ -19,7 +19,53 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
+## 0. Current status (2026-06-24 — Step 4H-1: Live UAT UI/RBAC sign-off; Final UAT Migration Sign-Off Passed)
+
+### 2026-06-24 — Step 4H-1: Live UAT UI/RBAC sign-off — Final UAT Migration Sign-Off now Passed
+
+Closes the live-testing gap Step 4H left open. `uat.caveoinfosystems.com` proved reachable this
+round (serving the expected branded login page), but a real interactive Microsoft Entra ID
+login still cannot be completed from this environment, and `.env.uat` sets
+`NODE_ENV="production"` — disabling this codebase's `dev_employee_id` impersonation bypass on
+the *deployed* app by design.
+
+**With the user's explicit authorization** (asked mid-task, confirmed before proceeding), live
+testing was instead performed by running this exact codebase — a detached-HEAD git worktree at
+`uat` branch HEAD `0ccce92` — locally against the **live `u686730471_Caveo_UAT` database**,
+with `NODE_ENV` forced to `development` only on that local instance to re-enable the
+dev-impersonation feature already built into this codebase for QA role-switching. This proves
+the application/RBAC code is correct given a real session and real data; it does not prove the
+Microsoft OAuth handshake itself works on the deployed app, or that the deployed app is running
+this exact commit (both logged as open, low/medium-severity issues, not hidden).
+
+**Results:** Manager (Vijesh, id 4) and Employee (Sangeetha M, id 7) logins both passed live —
+dashboards loaded with figures cross-checked consistently across independent surfaces (e.g.
+₹585.00L Total Billed agreeing across Dashboard/Accounts/Collections). RBAC passed live in both
+directions: Manager confirmed full access to `/accounts`, `/settings`, `/employees`,
+`/finance`, team-wide `/kras`; Employee confirmed blocked from every one of those same pages
+(redirected to her own scope) and correctly limited to her own data throughout. Finance/Sales/
+KRA pages all rendered correctly against live data — no `[object Object]`, no NaN, no
+100,000× inflation/deflation, no crash. `CrmOpportunity` row 42's negative value (the one known
+data anomaly) rendered correctly as `₹-0.10L`, closing the one item Step 4H could only confirm
+at the data level. **Zero new defects found.**
+
+**Sign-off status:** RBAC moves Pending → **Passed**; Finance/Sales/KRA remain **Passed with
+Minor Issues** (now backed by live evidence); Technical Validation remains **Passed**
+(`npx prisma validate`/`npx tsc --noEmit`/`npm run build` re-run and pass). **Final UAT
+Migration Sign-Off: Passed** — all gating conditions met (no Critical/High issue anywhere;
+RBAC live-tested and Passed; Technical Validation Passed); remaining risks explicitly accepted
+rather than hidden: FT-2b (Low — OAuth handshake itself untested), FT-3 (Medium — deployed
+commit still unconfirmed, open since Step 4B), FT-4 (Low — backup restore-test still
+outstanding), FT-5 (Low — two secondary pages not independently click-tested), FT-1 (Low —
+pre-existing `kra-engine.ts` fallback constants). FT-2 (the original "live testing impossible"
+issue) is **Closed**.
+
+**Test harness fully torn down** — verification worktree removed, temporary launcher script
+deleted, `.claude/launch.json` reverted to its original two entries, `.env.uat` never written
+to, copied into a tracked file, or committed, `git status` clean. **Production untouched. No
+migration, schema change, or `db push` run. No write action against UAT data.** Full record:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` (§0,
+§§3–7, §12).
 
 ### 2026-06-24 — Step 4H: UAT post-migration functional testing performed; Final Sign-Off Pending
 

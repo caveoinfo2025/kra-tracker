@@ -267,6 +267,20 @@
 > possible), Technical Validation = Passed, **Final UAT Migration Sign-Off = Pending**. No
 > Critical/High issue found in anything actually tested. Full results:
 > `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`.
+>
+> **Live UAT UI/RBAC sign-off closes the gap (Step 4H-1, same day).** A real Microsoft OAuth
+> login still can't be completed from this environment, so — with explicit user authorization —
+> this exact codebase (`uat` HEAD `0ccce92`) was run locally against the **live UAT database**
+> via a detached-HEAD worktree, with `NODE_ENV` forced to `development` only on that local
+> instance to use the codebase's own `dev_employee_id` impersonation feature. Manager and
+> Employee logins both passed live; RBAC passed live in both directions; Finance/Sales/KRA pages
+> all rendered correctly against live data (incl. `CrmOpportunity` row 42's negative value,
+> `₹-0.10L`, no crash). Zero new defects. Test harness fully torn down afterward — no residue,
+> `.env.uat` untouched/uncommitted. **Sign-off: RBAC now Passed, Final UAT Migration Sign-Off =
+> Passed** — remaining risks (deployed-commit confirmation, OAuth handshake itself, backup
+> restore-test, two secondary pages not click-tested) explicitly accepted, not hidden. Full
+> results: `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`
+> §0, §§3–7, §12.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

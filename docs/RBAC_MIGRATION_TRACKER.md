@@ -1282,3 +1282,42 @@ since Step 4F-1).
 unchanged. Voucher/Ledger/FinAccount untouched.** `npx prisma validate` ✅, `npx tsc --noEmit`
 ✅, `npm run build` ✅. Full record:
 `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`.
+
+## Step 4H-1 — Live UAT UI/RBAC Sign-Off (2026-06-24, same day)
+
+`uat.caveoinfosystems.com` proved reachable this round (serving the expected login page), but a
+real interactive Microsoft Entra ID login still cannot be completed from this environment, and
+`.env.uat` sets `NODE_ENV="production"` — disabling this codebase's `dev_employee_id`
+impersonation bypass on the *deployed* app by design. **With the user's explicit
+authorization**, live testing was instead performed by running this exact codebase (a
+detached-HEAD git worktree at `uat` HEAD `0ccce92`) locally against the **live
+`u686730471_Caveo_UAT` database**, with `NODE_ENV` forced to `development` only on that local
+instance to re-enable the dev-impersonation feature already built into this codebase for this
+purpose.
+
+**RBAC results (live, both directions):**
+
+| Role | Page / Action | Result |
+| ---- | ------------- | ------ |
+| Employee (Sangeetha M, id 7) | `/accounts`, `/settings`, `/employees` (full directory), `/employees/4` (another employee's record), `/finance` (org dashboard) | **Blocked** — redirected to own scope every time |
+| Employee | `/finance/expenses`, `/finance/claims`, `/finance/advances`, `/finance/conveyance`, `/pipeline/leads`, `/pipeline/opportunities`, `/kras` | **Allowed**, correctly scoped to own data only |
+| Manager (Vijesh, id 4) | `/accounts`, `/settings`, `/employees`, `/finance`, `/collections`, `/kras` (team-wide), `/pipeline/opportunities/42` | **Allowed**, full org/team access |
+
+Manager and Employee logins both passed live, dashboards loaded with correct figures
+cross-checked across independent surfaces, `CrmOpportunity` row 42's negative value rendered
+correctly as `₹-0.10L` (no crash), and zero new defects were found. Test harness fully torn
+down afterward — worktree removed, temporary launcher script deleted, `.claude/launch.json`
+reverted, `.env.uat` never written to or committed, `git status` clean.
+
+**Sign-off status:** RBAC moves from Pending → **Passed**. Finance/Sales/KRA remain Passed with
+Minor Issues (now backed by live evidence, not just data-level checks). **Final UAT Migration
+Sign-Off: Passed** — all gating conditions met; remaining risks (FT-2b OAuth-handshake-untested
+Low, FT-3 deployed-commit-unconfirmed Medium, FT-4 backup-restore Low, FT-5 two pages not
+independently click-tested Low, FT-1 pre-existing fallback constants Low) explicitly accepted,
+not hidden. FT-2 (the original "live testing impossible" issue) is Closed.
+
+**Production untouched. No new migration, schema change, or `db push` run. Migration history
+unchanged. Voucher/Ledger/FinAccount untouched. No write action against UAT data.**
+`npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅. Full record:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` §0, §§3–7,
+§12.
