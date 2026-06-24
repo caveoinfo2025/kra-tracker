@@ -15,6 +15,7 @@ import { LeadCard } from "@/components/pipeline/LeadCard";
 import { KanbanBoard, KanbanColumn } from "@/components/pipeline/KanbanBoard";
 import { CrmSelect } from "@/components/pipeline/CrmSelect";
 import { useMasterValues } from "@/hooks/useMasterValues";
+import { formatINRAsLakhs } from "@/lib/money";
 
 // ── Delete Lead modal ─────────────────────────────────────────────────────────
 
@@ -1111,7 +1112,7 @@ export default function LeadsClient({
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-semibold text-[#CC2229]">
-                          {(m.expectedValue ?? 0) > 0 ? `₹${(m.expectedValue ?? 0).toFixed(2)}` : "—"}
+                          {(m.expectedValue ?? 0) > 0 ? formatINRAsLakhs(m.expectedValue ?? 0) : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">{m.source}</td>

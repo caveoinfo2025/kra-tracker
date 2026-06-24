@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { LeadSerialized } from "@/types/pipeline";
 import { LeadStageBadge } from "./StageBadge";
+import { formatINRAsLakhs } from "@/lib/money";
 
 // SLA thresholds (hours) — kept in sync with seed-crm-defaults.ts SLA rules
 const SLA_FIRST_CONTACT_H  = 4;   // NEW_LEAD: must be contacted within 4h
@@ -78,7 +79,7 @@ export function LeadCard({ lead }: { lead: LeadSerialized }) {
           <LeadStageBadge stage={lead.stage} />
           {lead.expectedValue > 0 && (
             <span className="text-xs font-semibold text-[#CC2229]">
-              ₹{lead.expectedValue.toFixed(1)}L
+              {formatINRAsLakhs(lead.expectedValue)}
             </span>
           )}
         </div>

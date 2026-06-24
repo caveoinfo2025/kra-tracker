@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 import CustomerNameCombobox from "@/components/CustomerNameCombobox";
+import { formatINRAsLakhs } from "@/lib/money";
 
 type Row = {
   id: number; opportunityId: string; employeeId: number; employee: { name: string };
@@ -139,8 +140,8 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Active Pipeline",   value: `₹${totalPipeline.toFixed(2)}` },
-          { label: "Closed Won",        value: `₹${closedWon.toFixed(2)}` },
+          { label: "Active Pipeline",   value: formatINRAsLakhs(totalPipeline) },
+          { label: "Closed Won",        value: formatINRAsLakhs(closedWon) },
           { label: "Total Opportunities", value: rows.length },
           { label: "New Customers",     value: rows.filter((r) => r.newCustomerFlag && r.stage === "Closed Won").length },
         ].map((s) => (
@@ -354,8 +355,8 @@ export default function SalesFunnelClient({ initialRows, employees, isManager, c
                   <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate">{r.opportunityName}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.solutionCategory}</td>
                   <td className="px-4 py-3"><Badge label={r.stage} variant={stageVariant(r.stage)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#CC2229]">{r.dealValueLakhs.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-gray-600">{(r.dealValueLakhs * r.grossProfitPct / 100).toFixed(2)}</td>
+                  <td className="px-4 py-3 font-semibold text-[#CC2229]">{formatINRAsLakhs(r.dealValueLakhs)}</td>
+                  <td className="px-4 py-3 text-gray-600">{formatINRAsLakhs(r.dealValueLakhs * r.grossProfitPct / 100)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.expectedCloseDate?.slice(0, 10)}</td>
                   <td className="px-4 py-3 text-xs font-medium text-emerald-700">{r.closedDate?.slice(0, 10) ?? "—"}</td>
                   <td className="px-4 py-3 text-center text-sm">

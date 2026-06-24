@@ -287,6 +287,22 @@ export function inrToLakhsEquivalent(inr: MoneyInput): number {
   return moneyToNumberForDisplay(inr) / 100000;
 }
 
+/**
+ * DISPLAY ONLY. Formats an actual-₹-INR amount as a `"₹X.XXL"` Lakhs string for the Sales
+ * module (pipeline leads/opportunities, sales funnel) — the single place that combines
+ * `inrToLakhsEquivalent` with the `₹…L` suffix so every Sales screen renders the same way.
+ * Storage stays full ₹ INR everywhere; only this presentation layer divides by 100,000.
+ */
+export function formatINRAsLakhs(
+  input: MoneyInput,
+  options?: { decimals?: number; symbol?: boolean }
+): string {
+  const decimals = options?.decimals ?? 2;
+  const symbol = options?.symbol ?? true;
+  const lakhs = inrToLakhsEquivalent(input);
+  return `${symbol ? "₹" : ""}${lakhs.toFixed(decimals)}L`;
+}
+
 // ── Comparisons ─────────────────────────────────────────────────────────────────────────────────
 
 /** True if the value is exactly zero. Throws on null/undefined/invalid input. */

@@ -9,6 +9,7 @@ import {
 } from "@/types/pipeline";
 import { OppStageBadge } from "@/components/pipeline/StageBadge";
 import { KanbanBoard, KanbanColumn } from "@/components/pipeline/KanbanBoard";
+import { formatINRAsLakhs } from "@/lib/money";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ function OppCard({ opp, onPromote, promoting }: { opp: OppWithLead; onPromote?: 
 
       <div className="flex items-center justify-between mb-2">
         <OppStageBadge stage={opp.stage} />
-        <span className="text-sm font-bold text-[#CC2229]">₹{opp.value.toFixed(2)}</span>
+        <span className="text-sm font-bold text-[#CC2229]">{formatINRAsLakhs(opp.value)}</span>
       </div>
 
       <div className="flex items-center justify-between text-xs text-gray-500">
@@ -253,9 +254,9 @@ export default function OpportunitiesClient({
       {/* ── Pipeline stats ── */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Active Pipeline",   value: `₹${totalValue.toFixed(2)}`, color: "text-[#CC2229]" },
-          { label: "Weighted Forecast", value: `₹${weighted.toFixed(2)}`,   color: "text-blue-700" },
-          { label: "Won Value",         value: `₹${wonValue.toFixed(2)}`,   color: "text-green-700" },
+          { label: "Active Pipeline",   value: formatINRAsLakhs(totalValue), color: "text-[#CC2229]" },
+          { label: "Weighted Forecast", value: formatINRAsLakhs(weighted),   color: "text-blue-700" },
+          { label: "Won Value",         value: formatINRAsLakhs(wonValue),   color: "text-green-700" },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
             <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
@@ -361,7 +362,7 @@ export default function OpportunitiesClient({
                         <p className="text-xs text-gray-400 truncate max-w-[200px]">{o.lead.title}</p>
                       </td>
                       <td className="px-4 py-3"><OppStageBadge stage={o.stage} /></td>
-                      <td className="px-4 py-3 font-bold text-[#CC2229]">₹{o.value.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-bold text-[#CC2229]">{formatINRAsLakhs(o.value)}</td>
                       <td className="px-4 py-3 text-gray-600">{o.probability}%</td>
                       <td className="px-4 py-3">
                         {o.expectedClosureDate ? (

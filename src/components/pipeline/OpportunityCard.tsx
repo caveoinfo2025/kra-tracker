@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { OpportunitySerialized } from "@/types/pipeline";
 import { OppStageBadge } from "./StageBadge";
+import { formatINRAsLakhs } from "@/lib/money";
 
 export function OpportunityCard({ opp }: { opp: OpportunitySerialized & { lead?: { title: string; companyName: string; assignedTo: { name: string } } } }) {
   const days = opp.expectedClosureDate
@@ -18,7 +19,7 @@ export function OpportunityCard({ opp }: { opp: OpportunitySerialized & { lead?:
 
         <div className="flex items-center justify-between mb-2">
           <OppStageBadge stage={opp.stage} />
-          <span className="text-sm font-bold text-[#CC2229]">₹{opp.value.toFixed(1)}L</span>
+          <span className="text-sm font-bold text-[#CC2229]">{formatINRAsLakhs(opp.value)}</span>
         </div>
 
         <div className="flex items-center justify-between text-xs text-gray-500">

@@ -6,6 +6,7 @@ import { Lock } from "lucide-react";
 import { OpportunitySerialized, OPP_STAGES, OPP_STAGE_LABELS, TaskSerialized, ActivitySerialized } from "@/types/pipeline";
 import { OppStageBadge, PriorityBadge } from "@/components/pipeline/StageBadge";
 import { ActivityFeed } from "@/components/pipeline/ActivityFeed";
+import { formatINRAsLakhs } from "@/lib/money";
 
 type FullOpp = OpportunitySerialized & {
   lead: {
@@ -315,10 +316,10 @@ export default function OppDetailClient({
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-[#CC2229]">₹{opp.value.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-[#CC2229]">{formatINRAsLakhs(opp.value)}</p>
                 {opp.stage === "WON" && opp.dealValueExTax > 0 && (
                   <p className="text-xs text-green-700 font-medium mt-0.5">
-                    ₹{opp.dealValueExTax.toFixed(2)} ex-tax · ₹{opp.netProfitLakhs.toFixed(2)} profit
+                    {formatINRAsLakhs(opp.dealValueExTax)} ex-tax · {formatINRAsLakhs(opp.netProfitLakhs)} profit
                   </p>
                 )}
               </div>
@@ -341,8 +342,8 @@ export default function OppDetailClient({
               {opp.stage === "WON" ? (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   {[
-                    ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? `₹${opp.dealValueExTax.toFixed(2)}` : "—"],
-                    ["Net Profit",          opp.netProfitLakhs > 0 ? `₹${opp.netProfitLakhs.toFixed(2)}` : "—"],
+                    ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? formatINRAsLakhs(opp.dealValueExTax) : "—"],
+                    ["Net Profit",          opp.netProfitLakhs > 0 ? formatINRAsLakhs(opp.netProfitLakhs) : "—"],
                     ["PO Number",           opp.poNumber || "—"],
                     ["PO Date",             opp.poDate?.slice(0, 10) ?? "—"],
                   ].map(([k, v]) => (
@@ -545,7 +546,7 @@ export default function OppDetailClient({
             <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Deal Summary</p>
             {([
               ["Stage",       <OppStageBadge key="s" stage={opp.stage} />],
-              ["Value",       `₹${opp.value.toFixed(2)}`],
+              ["Value",       formatINRAsLakhs(opp.value)],
               ["Probability", `${opp.probability}%`],
               ["Close Date",  opp.expectedClosureDate?.slice(0, 10) ?? "—"],
               ...(opp.discountPct > 0 ? [["Discount", `${opp.discountPct}%`]] : []),
@@ -562,8 +563,8 @@ export default function OppDetailClient({
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <p className="text-xs font-semibold text-green-700 uppercase mb-3">Closed Won Details</p>
               {[
-                ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? `₹${opp.dealValueExTax.toFixed(2)}` : "—"],
-                ["Net Profit",          opp.netProfitLakhs > 0 ? `₹${opp.netProfitLakhs.toFixed(2)}` : "—"],
+                ["Deal Value (ex-tax)", opp.dealValueExTax > 0 ? formatINRAsLakhs(opp.dealValueExTax) : "—"],
+                ["Net Profit",          opp.netProfitLakhs > 0 ? formatINRAsLakhs(opp.netProfitLakhs) : "—"],
                 ["PO Number",           opp.poNumber || "—"],
                 ["PO Date",             opp.poDate?.slice(0, 10) ?? "—"],
               ].map(([k, v]) => (
