@@ -1,10 +1,12 @@
 # UAT Decimal / INR Migration Adjustment Plan
 
-> **Step 4C (2026-06-24).** This is a planning/decision document only. No UAT database was
-> queried or modified, no migration was run, no schema/migration files were created, and no
-> API/UI code changed in this step. All facts below come from the real read-only pre-check
-> already completed in Step 4B (`docs/database/uat-precheck/uat-precheck-result-template.md`)
-> and from re-reading the existing dev migration SQL — no new database access happened here.
+> **Step 4C (2026-06-24), closed out by Step 4D (2026-06-24).** This is a planning/decision
+> document only — no UAT database was modified, no migration was run, no schema/migration files
+> were created, and no API/UI code changed in either step. Step 4C's facts came from Step 4B's
+> 20-row sample; Step 4D closes the remaining blockers using a full-population follow-up query
+> (all 49 `CrmOpportunity` rows, all 34 `KRA.target` rows) run by an operator with confirmed UAT
+> SSH/MySQL access and relayed back sanitized (no credentials shared), plus an explicit business
+> sign-off captured for the Payment/Collection/OrderAdvance unit decision.
 
 ---
 
@@ -25,19 +27,24 @@ Step 4B's real UAT pre-check found that UAT's money data does **not** uniformly 
 - **Applying dev's migration SQL to UAT unchanged would corrupt this data** — multiplying
   already-correct INR values by 100,000 a second time.
 - UAT's `KRA.target`/`EmployeeTarget.targetJson` free-text money labels also don't match dev's
-  documented 6-label set 1:1 — a hardcoded label-matching transform (dev used a guarded Node
-  script, `prisma/transform-kra-target-money.mjs`, since deleted after use) cannot be reused
-  against UAT without re-deriving which labels are actually money on UAT.
-- **UAT therefore needs its own, field-specific transform decision** — not a blind re-run of
-  dev's SQL. This document is that decision matrix. **It is a plan, not an execution** — no SQL
-  is written or run here; that's a later, explicitly-instructed step.
+  documented 6-label set 1:1 in a 20-row sample — a hardcoded label-matching transform (dev used
+  a guarded Node script, `prisma/transform-kra-target-money.mjs`, since deleted after use) needed
+  re-verification against the full 34-row set before reuse.
+- **UAT therefore needed its own, field-specific transform decision** — not a blind re-run of
+  dev's SQL. This document is that decision matrix. **It remains a plan, not an execution** — no
+  SQL is written or run here; that's a later, explicitly-instructed step.
+
+**Step 4D outcome (resolved in this update):** every blocker below has closed. Business
+sign-off was obtained for the Payment/Collection/OrderAdvance unit decision; a full-population
+review of all 49 `CrmOpportunity` rows and all 34 `KRA.target` rows resolved the remaining
+ambiguity. See §9's permission ledger — **UAT migration SQL generation permission: Approved.**
 
 ---
 
 ## 2. UAT Pre-Check Findings Summary
 
-(All facts below are carried forward from Step 4B's real, completed read-only run — not
-re-verified in this step.)
+(Facts below are carried forward from Step 4B's real read-only run, with Step 4D's full-population
+follow-up noted where it changes the picture.)
 
 | Fact | Value |
 | ---- | ----- |
@@ -47,9 +54,9 @@ re-verified in this step.)
 | Migration gap | Missing exactly 3: `add_soft_delete_fields_phase_a`, `decimal_release1_lakhs_to_inr`, `decimal_release2_combined_inr_canonical` |
 | Schema status | Every in-scope Release 1/2 column still `double`/`text` — no drift, clean pre-migration state |
 | Row counts | Match Session 9's documented estimates exactly (`Payment` 26, `Collection` 141, `OrderAdvance` 3, `CrmLead` 280, `CrmOpportunity` 49, `SalesFunnel` 100, `KRA` 34; `Expense`/`EmployeeAdvance`/`TravelClaim`/`employee_target`/`team_target`/`Voucher`/`Ledger`/`FinAccount` all 0) |
-| Unit mismatch finding | `Payment`/`Collection`/`OrderAdvance` sample at INR-scale (max values 342K–7.98M), not Lakhs-scale; `CrmLead`/`SalesFunnel` sample at plausible Lakhs-scale (max ≤120); `CrmOpportunity.value` has 1 negative row (-0.1); `CrmOpportunity.dealValueExTax`/`netProfitLakhs` are all-zero in the sample (unit can't be inferred from zero) |
-| KRA label mismatch finding | Only 2 of dev's 6 documented confirmed-money `KRA.target` labels (`total sales revenue - booking`, `total sales revenue - billing`) appear in the 20-row sample reviewed; the other 4 don't appear, and UAT instead has different KPI categories with mixed money/count/ratio sub-keys |
-| Structured KRA table finding | `kra_template_item`, `kra_metric`, `kra_template` all have **0 rows on UAT** — the structured engine dev's Release 2/Step 3U-5 fix depends on doesn't exist on UAT at all; real UAT KRA scoring runs entirely through legacy free-text `KRA.target`/`EmployeeTarget.targetJson` (0 rows on `employee_target`, so only `KRA.target` actually has data — 34 rows) |
+| Unit mismatch finding | `Payment`/`Collection`/`OrderAdvance` sample at INR-scale (max values 342K–7.98M), not Lakhs-scale; `CrmLead`/`SalesFunnel` sample at plausible Lakhs-scale (max ≤120). **Resolved in Step 4D:** business sign-off confirms Payment/Collection/OrderAdvance are already INR; full 49-row `CrmOpportunity` review confirms `value` is Lakhs-scale (1 negative row is a data-quality artifact, not a unit signal) and `dealValueExTax`/`netProfitLakhs` are uniformly 0 across every row (not just the sample) |
+| KRA label mismatch finding | Only 2 of dev's 6 documented confirmed-money `KRA.target` labels appeared in the 20-row sample reviewed in Step 4B. **Resolved in Step 4D:** a full 34-row review confirms all 6 dev-documented labels are present somewhere in the set — the missing 4 simply appeared in rows 58–71, outside the original 20-row sample |
+| Structured KRA table finding | `kra_template_item`, `kra_metric`, `kra_template` all have **0 rows on UAT** — the structured engine dev's Release 2/Step 3U-5 fix depends on doesn't exist on UAT at all; real UAT KRA scoring runs entirely through legacy free-text `KRA.target` (`employee_target`/`team_target` both confirmed 0 rows again in Step 4D) |
 
 ---
 
@@ -64,155 +71,191 @@ re-verified in this step.)
 | Release 1 | EmployeeAdvance | settledAmountLakhs | Unknown — 0 rows on UAT | INR | No-op (type conversion only) | Empty table | Ready |
 | Release 1 | EmployeeAdvance | balanceLakhs | Unknown — 0 rows on UAT | INR | No-op (type conversion only) | Empty table | Ready |
 | Release 1 | TravelClaim | amountLakhs | Unknown — 0 rows on UAT | INR | No-op (type conversion only) | Empty table | Ready |
-| Release 1 | TravelClaim | amountRupees | Unknown — 0 rows on UAT | INR (already INR by design, dev's migration never multiplies this field) | No-op (type conversion only) | Empty table; even if populated, dev's own migration SQL never multiplies this field — already-INR by design | Ready |
-| Release 1 | TravelClaim | ratePerKm | Unknown — 0 rows on UAT | INR-per-km (already actual rate, dev's migration never multiplies this field) | No-op (type conversion only) | Empty table; dev's migration never multiplies this field either | Ready |
-| Release 2 | Payment | amountLakhs | **Confirmed INR-scale** (sample max 1,000,000) | INR | **Type conversion only — do NOT multiply** | Dev's SQL would multiply by 100,000; UAT evidence shows the value is already actual INR | **Decision made — see §5** |
-| Release 2 | Collection | invoiceValueLakhs | **Confirmed INR-scale** (sample max 7,979,986) | INR | **Type conversion only — do NOT multiply** | Same reasoning | **Decision made — see §5** |
-| Release 2 | Collection | amountWithoutGstLakhs | **Confirmed INR-scale** (sample max 6,762,700) | INR | **Type conversion only — do NOT multiply** | Same reasoning | **Decision made — see §5** |
-| Release 2 | Collection | amountReceivedLakhs | **Confirmed INR-scale** (sample max 7,788,000) | INR | **Type conversion only — do NOT multiply** | Same reasoning | **Decision made — see §5** |
-| Release 2 | OrderAdvance | amountLakhs | **Confirmed INR-scale** (sample max 341,964, 3 rows) | INR | **Type conversion only — do NOT multiply** | Only 3 rows but unambiguous evidence at this scale; consistent with Payment/Collection | **Decision made — see §5** |
-| Release 2 | CrmLead | expectedValue | **Confirmed Lakhs-scale** (sample max 120) | INR | **Multiply by 100,000** | Plausible Lakhs deal-size range (≤₹1.2 Cr) | **Decision made — see §6** |
-| Release 2 | CrmOpportunity | value | Mostly Lakhs-scale (max 120) but **1 negative row (-0.1)** | INR | **Multiply by 100,000 — flag the 1 negative row for manual business review first** | Same plausible range as `CrmLead`, but the negative value needs a business decision on meaning before being carried through unchanged | **Blocked pending negative-value review — see §6** |
-| Release 2 | CrmOpportunity | dealValueExTax | **All-zero in sample (49 rows)** | INR | Multiply by 100,000 (moot for current data — 0 × 100,000 = 0 — but apply the same rule as `value` for consistency and any future rows) | Can't infer unit from an all-zero sample; treating it consistently with `value` is the safer default since both fields are part of the same record and conceptually the same deal-size scale | **Blocked pending confirmation — see §6** |
-| Release 2 | CrmOpportunity | netProfitLakhs | **All-zero in sample (49 rows)** | INR | Multiply by 100,000 (moot for current data, same reasoning as `dealValueExTax`) | Same reasoning | **Blocked pending confirmation — see §6** |
-| Release 2 | SalesFunnel | dealValueLakhs | **Confirmed Lakhs-scale** (sample max ~43) | INR | **Multiply by 100,000** | Plausible Lakhs deal-size range | **Decision made — see §6** |
-| Release 2 | SalesFunnel | billingValueLakhs | **Confirmed Lakhs-scale** (sample max ~51) | INR | **Multiply by 100,000** | Plausible Lakhs deal-size range | **Decision made — see §6** |
-| KRA / Sales targets | KRATemplateItem | AMOUNT rows (expectedTarget/stretchTarget/minimumTarget) | N/A — table has 0 rows on UAT | N/A | **No-op — table is empty** | `kra_template_item` has 0 rows on UAT; there is nothing to transform regardless of unit | **Ready — see §7** |
-| KRA / Sales targets | KRA | target (confirmed-money labels) | Mixed — only 2 of dev's 6 documented labels found in sample | INR (sub-values only, free-text format unchanged) | **Transform only the 2 confirmed labels; block the other 4 until re-confirmed against the full 34-row set** | Dev's hardcoded 6-label list does not match UAT 1:1 — blind reuse risks either missing real money values or touching non-money values by accident | **Partially blocked — see §7** |
-| KRA / Sales targets | EmployeeTarget | targetJson (confirmed-money labels) | N/A — table has 0 rows on UAT | N/A | **No-op — table is empty** | `employee_target` has 0 rows on UAT | **Ready — see §7** |
-| KRA / Sales targets | TeamTarget | targetJson (if rows exist) | N/A — table has 0 rows on UAT (confirmed in Step 4B, matches dev) | N/A | **No-op — table is empty** | `team_target` has 0 rows on UAT, same as dev | **Ready — see §7** |
+| Release 1 | TravelClaim | amountRupees | Unknown — 0 rows on UAT | INR (already INR by design) | No-op (type conversion only) | Empty table; even if populated, dev's own migration SQL never multiplies this field | Ready |
+| Release 1 | TravelClaim | ratePerKm | Unknown — 0 rows on UAT | INR-per-km (already actual rate) | No-op (type conversion only) | Empty table; dev's migration never multiplies this field either | Ready |
+| Release 2 | Payment | amountLakhs | **Confirmed INR-scale** (sample max 1,000,000) | INR | **Type conversion only — do NOT multiply** | Business-confirmed already INR (see §5) | **Approved — see §5** |
+| Release 2 | Collection | invoiceValueLakhs | **Confirmed INR-scale** (sample max 7,979,986) | INR | **Type conversion only — do NOT multiply** | Business-confirmed already INR | **Approved — see §5** |
+| Release 2 | Collection | amountWithoutGstLakhs | **Confirmed INR-scale** (sample max 6,762,700) | INR | **Type conversion only — do NOT multiply** | Business-confirmed already INR | **Approved — see §5** |
+| Release 2 | Collection | amountReceivedLakhs | **Confirmed INR-scale** (sample max 7,788,000) | INR | **Type conversion only — do NOT multiply** | Business-confirmed already INR | **Approved — see §5** |
+| Release 2 | OrderAdvance | amountLakhs | **Confirmed INR-scale** (sample max 341,964, 3 rows) | INR | **Type conversion only — do NOT multiply** | Business-confirmed already INR; consistent with Payment/Collection and the `applyAdvance()` lockstep relationship | **Approved — see §5** |
+| Release 2 | CrmLead | expectedValue | **Confirmed Lakhs-scale** (sample max 120) | INR | **Multiply by 100,000** | Plausible Lakhs deal-size range (≤₹1.2 Cr) | **Approved — see §6** |
+| Release 2 | CrmOpportunity | value | **Confirmed Lakhs-scale** (full 49-row review: max 120, 47 positive rows in plausible Lakhs range, 1 zero for a LOST deal, 1 zero for an unset FOLLOW_UP deal, 1 negative -0.1 flagged as a likely data-entry artifact) | INR | **Multiply by 100,000** | Full-population review confirms Lakhs-scale; the negative row is a separate data-quality issue, not a unit ambiguity (see §6) | **Approved — see §6** |
+| Release 2 | CrmOpportunity | dealValueExTax | **Confirmed: every one of the 49 rows is exactly 0** | INR | Multiply by 100,000 (mathematically moot — 0 × 100,000 = 0 — but applied for schema/logic consistency with `value`) | Full-population review (not just a sample) confirms this column holds no real data on UAT at all — no unit-classification risk because there is nothing to misclassify | **Approved — see §6** |
+| Release 2 | CrmOpportunity | netProfitLakhs | **Confirmed: every one of the 49 rows is exactly 0** | INR | Multiply by 100,000 (mathematically moot, same reasoning) | Same — fully confirmed empty-of-real-data | **Approved — see §6** |
+| Release 2 | SalesFunnel | dealValueLakhs | **Confirmed Lakhs-scale** (sample max ~43) | INR | **Multiply by 100,000** | Plausible Lakhs deal-size range | **Approved — see §6** |
+| Release 2 | SalesFunnel | billingValueLakhs | **Confirmed Lakhs-scale** (sample max ~51) | INR | **Multiply by 100,000** | Plausible Lakhs deal-size range | **Approved — see §6** |
+| KRA / Sales targets | KRATemplateItem | AMOUNT rows (expectedTarget/stretchTarget/minimumTarget) | N/A — table has 0 rows on UAT | N/A | **No-op — table is empty** | `kra_template_item` has 0 rows on UAT; nothing to transform | **Approved — see §7** |
+| KRA / Sales targets | KRA | target (confirmed-money labels) | **All 6 of dev's documented money labels confirmed present on UAT** (full 34-row review) | INR (sub-values only, free-text format unchanged) | **Transform all 6 confirmed labels** | Full 34-row review found the 4 previously-missing labels in rows 58–71 (outside the original 20-row sample) | **Approved — see §7** |
+| KRA / Sales targets | EmployeeTarget | targetJson (confirmed-money labels) | N/A — table has 0 rows on UAT (re-confirmed in Step 4D) | N/A | **No-op — table is empty** | `employee_target` has 0 rows on UAT | **Approved — see §7** |
+| KRA / Sales targets | TeamTarget | targetJson (if rows exist) | N/A — table has 0 rows on UAT (re-confirmed in Step 4D) | N/A | **No-op — table is empty** | `team_target` has 0 rows on UAT, same as dev | **Approved — see §7** |
 
 ---
 
-## Payment / Collection / OrderAdvance UAT Unit Decision
+## 4. UAT Unit Classification Rule
+
+- If UAT values are already actual INR, **do not multiply** — convert type only.
+- If UAT values are clearly Lakhs-scale, **multiply by 100,000**.
+- If values are ambiguous (e.g. an all-zero or mixed-sign sample), **block and require either a
+  full-population review or a business/source-data confirmation** before deciding — do not infer
+  the unit from the field name alone, and do not assume a field matches its sibling fields'
+  convention just because they're in the same model.
+- Dev's transform logic (which fields get multiplied, which KRA labels are money) is a starting
+  hypothesis for UAT, never an assumption to be reused blindly — every field and label in this
+  document was independently re-checked against UAT's own data before being marked Approved.
+
+---
+
+## 5. Payment / Collection / OrderAdvance UAT Unit Decision
+
+| Model | Field | Evidence | Business Decision | Migration Action | Status |
+| ----- | ----- | -------- | ----------------- | ----------------- | ------ |
+| Payment | amountLakhs | Sample range 0.01–1,000,000 across 26 rows, 0 nulls, 0 negatives. A value of 1,000,000 read as "Lakhs" would represent ₹1,000 Crore for a single payment — implausible for this business. | **Confirmed by business sign-off (2026-06-24): already actual ₹ INR** | Type conversion only — no multiply | **Approved** |
+| Collection | invoiceValueLakhs | Sample range 21.3344–7,979,986 across 141 rows. The high end (≈₹798 Cr for one invoice as "Lakhs") is implausible. | **Confirmed by business sign-off: already actual ₹ INR** | Type conversion only — no multiply | **Approved** |
+| Collection | amountWithoutGstLakhs | Sample range 2.5424–6,762,700, GST-derived sub-amount of the same invoice value. | **Confirmed by business sign-off: already actual ₹ INR** | Type conversion only — no multiply | **Approved** |
+| Collection | amountReceivedLakhs | Sample range 0–7,788,000, same reasoning. | **Confirmed by business sign-off: already actual ₹ INR** | Type conversion only — no multiply | **Approved** |
+| OrderAdvance | amountLakhs | Sample range 37,967–341,964 across only 3 rows; feeds directly into `Payment` via `applyAdvance()`, so it must share `Payment`'s unit. | **Confirmed by business sign-off: already actual ₹ INR** | Type conversion only — no multiply | **Approved** |
+
+**Sign-off record:** confirmed by the project owner (Vijesh Vijayan) on 2026-06-24, in direct
+response to this finding — "Confirm — already INR." This was a deliberate business decision, not
+a default, given the project-wide "money is stored in ₹ Lakhs" convention these 4 fields were
+originally assumed to follow (`CLAUDE.md` rule 5). Recommended follow-up (outside this migration's
+scope): if production carries the same characteristic for these fields, the same sign-off
+question should be asked again once production access exists — do not assume the answer
+transfers automatically.
+
+---
+
+## 6. Sales Pipeline UAT Unit Decision
 
 | Model | Field | Evidence | Decision | Status |
 | ----- | ----- | -------- | -------- | ------ |
-| Payment | amountLakhs | Sample range 0.01–1,000,000 across 26 rows, 0 nulls, 0 negatives. A value of 1,000,000 "Lakhs" would represent ₹1,000 Crore for a single payment — implausible for this business's transaction sizes. | **Type conversion only (Decimal(18,2)) — do not multiply** | Decision made, pending business sign-off before execution (see §9) |
-| Collection | invoiceValueLakhs | Sample range 21.3344–7,979,986 across 141 rows. The high end (≈₹798 Cr for one invoice as "Lakhs") is implausible; the low end (21.3344) is ambiguous in isolation but the field must use one consistent unit across all 141 rows. | **Type conversion only — do not multiply** | Decision made, pending business sign-off |
-| Collection | amountWithoutGstLakhs | Sample range 2.5424–6,762,700, same reasoning as `invoiceValueLakhs` (it's a GST-derived sub-amount of the same invoice value). | **Type conversion only — do not multiply** | Decision made, pending business sign-off |
-| Collection | amountReceivedLakhs | Sample range 0–7,788,000, same reasoning. | **Type conversion only — do not multiply** | Decision made, pending business sign-off |
-| OrderAdvance | amountLakhs | Sample range 37,967–341,964 across only 3 rows. Smaller sample than the others, but the scale is consistent with the same "already INR" pattern as `Payment`/`Collection`, and `OrderAdvance.amountLakhs` feeds directly into `Payment` via `applyAdvance()` — these two fields must use the same unit or every advance-applied payment would be unit-inconsistent. | **Type conversion only — do not multiply** | Decision made, pending business sign-off |
+| CrmLead | expectedValue | Sample range 0–120 across 280 rows, 0 nulls, 0 negatives — plausible Lakhs-scale deal-value range (≤₹1.2 Cr). | **Multiply by 100,000** | **Approved** |
+| SalesFunnel | dealValueLakhs | Sample range 0.002733–43.032004 across 100 rows — plausible Lakhs-scale. | **Multiply by 100,000** | **Approved** |
+| SalesFunnel | billingValueLakhs | Sample range 0–50.77776472 across 100 rows — plausible Lakhs-scale, consistent with `dealValueLakhs`. | **Multiply by 100,000** | **Approved** |
+| CrmOpportunity | value | **Full 49-row population reviewed** (not just a sample): 47 rows are positive and Lakhs-plausible (real deal names/companies — e.g. id 31 "Dell Server & Storage" at Thangamayil Jewellery Limited = 120, id 9 "Firewall" at CPF india = 59.1244); 2 rows are exactly 0 (id 25, stage LOST — plausible, a lost deal can legitimately have no value; id 41, stage FOLLOW_UP, "PAM Solution" — plausibly just not yet quoted); 1 row is negative (id 42, -0.1, stage FOLLOW_UP, lead title generically "IT" at "CPF foods India private limited"). | **Multiply by 100,000.** The negative row is judged a **likely data-entry artifact**, not a credit/adjustment or a unit signal: -0.1 Lakh (-₹10,000) on a generically-titled lead doesn't match the pattern of every other row (specific product/deal names, larger magnitudes); a real credit/loss adjustment would more plausibly show a negative `dealValueExTax`/`netProfitLakhs` instead, which it doesn't (both are 0 on this row). **Recommend a separate, non-blocking data-quality follow-up to correct or confirm row id 42 with the sales team — this does not block the migration's unit decision.** | **Approved (with a flagged data-quality note, not a unit blocker)** |
+| CrmOpportunity | dealValueExTax | **Full 49-row population reviewed:** every single row is exactly 0 — confirmed, not a sampling artifact. | **Multiply by 100,000** (mathematically moot today since 0 × 100,000 = 0; applied for consistency and to handle any future populated rows correctly without a second migration) | **Approved** |
+| CrmOpportunity | netProfitLakhs | **Full 49-row population reviewed:** every single row is exactly 0 — confirmed, not a sampling artifact. | **Multiply by 100,000** (same reasoning) | **Approved** |
 
-**Why "type conversion only" instead of "blocked": ** the evidence here is not ambiguous — every
-sampled value across 4 fields and 311 combined rows is consistent with "already INR," and the
-implausibility of the Lakhs reading (hundreds of billions of rupees for ordinary collections) is
-extreme enough to treat this as a confirmed finding, not a guess. The matrix still marks the
-*permission to execute* as pending business sign-off (§9) — not because the technical evidence is
-weak, but because changing how 4 financially load-bearing fields are migrated is a business-impact
-decision, not just a technical one, and should be confirmed by whoever owns Finance/Sales data
-before any SQL is written against UAT.
+The full-population review is what unblocks `CrmOpportunity` — Step 4C's 20-row-equivalent
+sample-based caution ("could be ambiguous") is resolved once every row is known, not just a
+subset: there is no remaining unit ambiguity, only a single flagged data-quality item (row 42)
+that is explicitly *not* a migration blocker.
 
 ---
 
-## Sales Pipeline UAT Unit Decision
-
-| Model | Field | Evidence | Decision | Status |
-| ----- | ----- | -------- | -------- | ------ |
-| CrmLead | expectedValue | Sample range 0–120 across 280 rows, 0 nulls, 0 negatives — a plausible Lakhs-scale deal-value range (≤₹1.2 Cr), matching dev's pre-migration assumption. | **Multiply by 100,000** | Decision made |
-| SalesFunnel | dealValueLakhs | Sample range 0.002733–43.032004 across 100 rows — plausible Lakhs-scale. | **Multiply by 100,000** | Decision made |
-| SalesFunnel | billingValueLakhs | Sample range 0–50.77776472 across 100 rows — plausible Lakhs-scale, consistent with `dealValueLakhs`. | **Multiply by 100,000** | Decision made |
-| CrmOpportunity | value | Sample range -0.1–120 across 49 rows — mostly plausible Lakhs-scale, **but exactly 1 row is negative (-0.1)**. | **Multiply by 100,000 — blocked until the negative row is reviewed** | **Blocked** |
-| CrmOpportunity | dealValueExTax | All 49 sampled rows are exactly 0 — no variance to confirm a unit from. | Multiply by 100,000 for consistency with `value` (moot numerically while all rows are 0) — **blocked until confirmed this isn't itself a sign of a different storage convention for this specific field** | **Blocked** |
-| CrmOpportunity | netProfitLakhs | All 49 sampled rows are exactly 0 — same situation as `dealValueExTax`. | Multiply by 100,000 for consistency (moot numerically) — **blocked until confirmed** | **Blocked** |
-
-The 3 `CrmOpportunity` fields are blocked not because the evidence points the *other* way (toward
-INR-scale) — it doesn't; an all-zero or near-zero-with-one-negative sample is genuinely
-inconclusive, and blocking is the correct response to inconclusive evidence per §4's rule, rather
-than assuming "probably Lakhs like the rest of the model."
-
----
-
-## UAT KRA Transform Decision
+## 7. UAT KRA Transform Decision
 
 The structured KRA template tables (`kra_template_item`, `kra_metric`, `kra_template`) all have
-**0 rows on UAT** — confirmed in Step 4B, unchanged from this step. **`KRATemplateItem`'s
-transformation is a no-op for UAT as long as the row count remains 0** — there's nothing to
-multiply or convert. If rows are ever added to these tables on UAT before migration, this
-decision must be revisited (a fresh read-only check would be needed to classify them the same way
-dev's Step 3U-5 classified its own rows).
+**0 rows on UAT** (confirmed again in Step 4D — `employee_target`/`team_target` also re-confirmed
+at 0 rows). **`KRATemplateItem`'s transformation is a no-op for UAT as long as the row count
+remains 0.** If rows are ever added to these tables on UAT before migration, this decision must
+be revisited with a fresh read-only check.
 
-UAT's real KRA money data lives entirely in the legacy free-text `KRA.target` field (34 rows;
-`EmployeeTarget.targetJson` has 0 rows). Dev's 6-label confirmed-money list cannot be reused
-blindly — only 2 of those 6 labels were found in the 20-row sample reviewed in Step 4B.
+UAT's real KRA money data lives entirely in the legacy free-text `KRA.target` field. **A full
+read of all 34 rows (not just the 20 sampled in Step 4B) confirms all 6 of dev's documented money
+labels are genuinely present on UAT** — the 4 that didn't appear in the original 20-row sample
+turned out to live in rows 58–71, a part of the table the Step 4B sample didn't reach (rows 58–62
+are a 5th repetition of the same "Sales Revenue targets"-style category cycle seen in rows
+38–57; rows 63–71 introduce 9 new categories not seen in the sample at all, including the 4
+missing labels).
 
-| Label / Pattern | Found In UAT? | Money-Denominated? | Transform Action | Status |
-| --------------- | ------------- | ------------------- | ----------------- | ------ |
-| `total sales revenue - booking` | **Yes** — sample values 70, 75, 120 (Lakhs-scale) | Yes | Multiply by 100,000 | Confirmed — ready to transform |
-| `total sales revenue - billing` | **Yes** — sample values 63, 67.5, 108 (Lakhs-scale) | Yes | Multiply by 100,000 | Confirmed — ready to transform |
-| `total funnel / pipeline value created (₹ lakhs)` | Not found in the 20-row sample reviewed | Unknown — not confirmed present | **Do not transform unless confirmed present in the remaining 14 rows** | Blocked — needs full 34-row review |
-| `total team booking target achievement (₹ lakhs)` | Not found in the 20-row sample reviewed | Unknown | **Do not transform unless confirmed present** | Blocked — needs full 34-row review |
-| `total team billing achievement` | Not found in the 20-row sample reviewed | Unknown | **Do not transform unless confirmed present** | Blocked — needs full 34-row review |
-| `total team pipeline coverage (₹ lakhs)` | Not found in the 20-row sample reviewed | Unknown | **Do not transform unless confirmed present** | Blocked — needs full 34-row review |
-| `average gross profit margin` | Yes — sample values 6.5, 8, 10, 12 | **No — this is a percentage/ratio, not money** | Do not transform | Confirmed non-money — excluded |
-| `payment collections within due dates & credit days reduction` | Yes — sample value 0.9 | **No — this is a ratio/percentage** | Do not transform | Confirmed non-money — excluded |
-| `customer retention rate` | Yes — sample value 0.9 | **No — percentage** | Do not transform | Confirmed non-money — excluded |
-| `qualified leads generation` | Yes — sample values 20, 30 | **No — this is a count of leads, not a money amount** | Do not transform | Confirmed non-money — excluded |
-| `new customers` / `new customers or upsell closure` | Yes — sample values 5, 8 | **No — count** | Do not transform | Confirmed non-money — excluded |
-| `non-obligatory proof of concept (poc)` | Yes — sample values 4, 10 | **No — count** | Do not transform | Confirmed non-money — excluded |
-| `pipeline` (as a standalone sub-key, distinct from the funnel-value label above) | Yes — sample value 2 | **No — this looks like a count/stage indicator, not a money value, given the small integer scale; needs business confirmation if ambiguous** | Do not transform unless confirmed money | Confirmed non-money by scale — excluded, flagged for double-check |
-| `network & security` / `server & storage` / `mssp services` / `cloud security & services` | Yes — sample values 0.10–0.35 | **No — these are weights/percentages (focus-area allocation), not money** | Do not transform | Confirmed non-money — excluded |
-| `forecast accuracy` | Yes — sample value 0.9 | **No — percentage** | Do not transform | Confirmed non-money — excluded |
-| `certification and product training` | Yes — sample value 2 | **No — count** | Do not transform | Confirmed non-money — excluded |
+### UAT KRA Free-Text Money Label Allowlist
 
-**Only transform labels confirmed present and confirmed money on UAT.** The 14 unreviewed
-`KRA.target` rows (34 total minus the 20 sampled) must be reviewed before this table is treated as
-final — it's possible the 4 missing labels appear later in the set, or that other money labels not
-in dev's original 6-label list exist on UAT and were never anticipated.
+| Label | Appears In `KRA.target`? | Appears In `EmployeeTarget.targetJson`? | Money-Denominated? | Transform by ×100,000? | Notes |
+| ----- | ------------------------- | ----------------------------------------- | ------------------- | ------------------------- | ----- |
+| `total sales revenue - booking` | **Yes** — rows 38, 43, 48, 53, 58 (values 70, 120, 120, 75, 150) | No — table is empty | **Yes** | **Yes** | Lakhs-scale revenue targets, plausible |
+| `total sales revenue - billing` | **Yes** — rows 38, 43, 48, 53, 58 (values 63, 108, 108, 67.5, 135) | No — table is empty | **Yes** | **Yes** | Lakhs-scale, consistent with booking |
+| `total funnel / pipeline value created (₹ lakhs)` | **Yes** — row 65 (value 75) | No — table is empty | **Yes** | **Yes** | Found outside the original 20-row sample |
+| `total team booking target achievement (₹ lakhs)` | **Yes** — row 68 (value 500) | No — table is empty | **Yes** | **Yes** | Team-level target, ₹500L = ₹5 Cr, plausible |
+| `total team billing achievement` | **Yes** — row 68 (value 450) | No — table is empty | **Yes** | **Yes** | Same row as booking achievement above |
+| `total team pipeline coverage (₹ lakhs)` | **Yes** — row 71 (value 1500) | No — table is empty | **Yes** | **Yes** | ₹1500L = ₹15 Cr team pipeline figure, plausible |
+| `average gross profit margin` / `gross profit margin (%)` | Yes — multiple rows, values 6.5–15, and 12 | **No — percentage** | No | Confirmed non-money — excluded |
+| `payment collections within due dates & credit days reduction` | Yes — value 0.9 throughout | **No — ratio/percentage** | No | Confirmed non-money — excluded |
+| `customer retention rate` | Yes — value 0.9 | **No — percentage** | No | Confirmed non-money — excluded |
+| `qualified leads generation` / `qualified leads generated` | Yes — values 20, 25, 30 | **No — count** | No | Confirmed non-money — excluded |
+| `new customers` / `new customers or upsell closure` | Yes — values 5, 8, 10 | **No — count** | No | Confirmed non-money — excluded |
+| `non-obligatory proof of concept (poc)` | Yes — values 4, 10 | **No — count** | No | Confirmed non-money — excluded |
+| `pipeline` (standalone count sub-key, distinct from the funnel-value label) | Yes — value 2 | **No — count/stage indicator** | No | Confirmed non-money by scale — excluded |
+| `network & security` / `server & storage` / `mssp services` / `cloud security & services` | Yes — values 0.10–0.35 | **No — focus-area weights/percentages** | No | Confirmed non-money — excluded |
+| `forecast accuracy` | Yes — value 0.9 | **No — percentage** | No | Confirmed non-money — excluded |
+| `certification and product training` | Yes — value 2 | **No — count** | No | Confirmed non-money — excluded |
+| `crm data accuracy & timely lead updates` | Yes — row 67, value 0.9 | **No — percentage** | No | Confirmed non-money — excluded |
+| `total outbound calls made` | Yes — row 63, value 180 | **No — count** | No | Confirmed non-money — excluded |
+| `meaningful connects achieved` | Yes — row 63, value 50 | **No — count** | No | Confirmed non-money — excluded |
+| `appointments fixed for bdm / sales closure team` | Yes — row 64, value 25 | **No — count** | No | Confirmed non-money — excluded |
+| `number of funnel opportunities created` | Yes — row 65, value 10 | **No — count** | No | Confirmed non-money — excluded |
+| `customer webinars organised` | Yes — row 66, value 2 | **No — count** | No | Confirmed non-money — excluded |
+| `blitz days conducted` | Yes — row 66, value 3 | **No — count** | No | Confirmed non-money — excluded |
+| `collections efficiency (% within due dates)` | Yes — row 68, value 0.9 | **No — percentage** | No | Confirmed non-money — excluded |
+| `new logos / strategic accounts acquired by team` | Yes — row 69, value 10 | **No — count** | No | Confirmed non-money — excluded |
+| `new projects & strategic deals initiated` | Yes — row 69, value 15 | **No — count** | No | Confirmed non-money — excluded |
+| `focus area revenue mix achievement (n&s, s&s, mssp, cloud)` | Yes — row 69, value 0.85 | **No — percentage** | No | Confirmed non-money — excluded |
+| `team aggregate kra achievement rate` | Yes — row 70, value 0.9 | **No — percentage** | No | Confirmed non-money — excluded |
+| `sales talent retention (attrition below threshold)` | Yes — row 70, value 0.9 | **No — percentage** | No | Confirmed non-money — excluded |
+| `team training & certification completion rate` | Yes — row 70, value 0.9 | **No — percentage** | No | Confirmed non-money — excluded |
+| `average deal win rate` | Yes — row 71, value 0.3 | **No — percentage** | No | Confirmed non-money — excluded |
+
+**Result: the full original 6-label allowlist from dev is confirmed valid for UAT as-is — no
+labels need to be added or removed.** Every label found in the full 34-row scan that wasn't in
+dev's original 6 was independently confirmed non-money (a count, percentage, ratio, or weight),
+so no new money labels were discovered either. This is the final, ready-to-use allowlist for the
+UAT `KRA.target` transform.
 
 ---
 
 ## 8. Revised UAT Migration Strategy
 
-UAT migration cannot reuse dev's Release 1/Release 2 SQL verbatim. It must use UAT-specific
-transformation logic, structured as:
+UAT migration cannot reuse dev's Release 1/Release 2 SQL verbatim, but every field-level decision
+needed to write UAT-specific SQL is now closed:
 
 - **Apply the same schema type changes** as Release 1 and Release 2 (`Float`/`Double` →
-  `Decimal(18,2)`/`Decimal(10,4)`) to every in-scope column — the type change itself is safe and
-  identical regardless of the unit-mismatch finding, since it doesn't alter values on its own.
-- **Apply `× 100,000` only to fields confirmed Lakhs-scale on UAT**: `CrmLead.expectedValue`,
-  `SalesFunnel.dealValueLakhs`, `SalesFunnel.billingValueLakhs`, plus Release 1's fields (all
-  currently empty on UAT, so technically moot, but should still multiply if rows ever appear
-  before migration, consistent with dev's own logic for those fields).
-- **Apply type-conversion-only (no multiply) to fields confirmed already-INR on UAT**:
-  `Payment.amountLakhs`, `Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/
-  `amountReceivedLakhs`, `OrderAdvance.amountLakhs`.
-- **Apply KRA free-text transforms only to the 2 UAT-confirmed money labels** (`total sales
-  revenue - booking`/`billing`) — not dev's full 6-label list — until the remaining 14
-  `KRA.target` rows are reviewed.
-- **Do not transform the empty structured KRA template rows** (`kra_template_item`) — no-op,
-  nothing to transform.
-- **Leave `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs` blocked** until the 1 negative
-  row and the all-zero sample ambiguity are resolved by a business-side decision.
+  `Decimal(18,2)`/`Decimal(10,4)`) to every in-scope column — identical to dev's migrations,
+  unaffected by the unit-mismatch finding.
+- **Apply `× 100,000`** to: `CrmLead.expectedValue`, `SalesFunnel.dealValueLakhs`/
+  `billingValueLakhs`, `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`, plus Release 1's
+  fields (all currently empty on UAT, multiply for consistency with dev's logic in case rows
+  appear before migration).
+- **Apply type-conversion-only (no multiply)** to: `Payment.amountLakhs`,
+  `Collection.invoiceValueLakhs`/`amountWithoutGstLakhs`/`amountReceivedLakhs`,
+  `OrderAdvance.amountLakhs` — per the business sign-off in §5.
+- **Apply the KRA free-text transform using the full 6-label allowlist** (§7) — confirmed
+  identical to dev's original list, no UAT-specific label changes needed.
+- **Do not transform the empty structured KRA template rows** (`kra_template_item`,
+  `kra_metric`, `kra_template`, `employee_target`, `team_target`) — no-op, nothing to transform.
+- **Flag `CrmOpportunity` row id 42 for a separate, non-blocking data-quality follow-up** with
+  the sales team (a -0.1 Lakh value on a generically-titled "IT" lead) — not part of the
+  migration itself.
 
 ---
 
-## 9. UAT Migration Approval Status
+## 9. UAT Migration Permission Ledger
 
 | Decision | Status | Notes |
 | -------- | ------ | ----- |
-| UAT schema type conversion (Float/Text → Decimal, all in-scope columns) | **Approved in principle** | Type-only change, safe regardless of unit finding; still gated by overall migration approval below |
-| Payment/Collection/OrderAdvance transform adjustment (type-only, no multiply) | **Decision made, pending business sign-off** | Technical evidence is strong (4 fields, 311 rows, consistent scale); needs a Finance/business owner to confirm before SQL is written |
-| Sales pipeline transform — `CrmLead`/`SalesFunnel` (×100,000) | **Decision made, ready** | Consistent with dev's original assumption, no ambiguity found |
-| Sales pipeline transform — `CrmOpportunity` (×100,000) | **Blocked** | 1 negative row + 2 all-zero fields need business review before any transform runs |
-| KRA free-text transform (2 confirmed labels only) | **Partially blocked** | 2 labels ready; full 34-row review needed before the other 4 dev-documented labels can be confirmed present/absent on UAT |
-| UAT migration permission (overall) | **Blocked** | Remains blocked until every row above reaches a non-blocked status |
+| Release 1 empty-table type conversions (`Expense`/`EmployeeAdvance`/`TravelClaim`) | **Approved** | 0 rows on UAT; type change only, no data risk |
+| Payment/Collection/OrderAdvance transform adjustment (type-only, no multiply) | **Approved** | Business sign-off received 2026-06-24 |
+| CrmLead transform (×100,000) | **Approved** | Plausible Lakhs-scale, no ambiguity |
+| CrmOpportunity transform (×100,000, all 3 fields) | **Approved** | Full 49-row review resolved the prior ambiguity; row id 42 flagged as a separate data-quality note, not a unit blocker |
+| SalesFunnel transform (×100,000) | **Approved** | Plausible Lakhs-scale, no ambiguity |
+| KRA.target transform allowlist (6 labels) | **Approved** | Full 34-row review confirms all 6 dev labels present and money-confirmed on UAT; no UAT-specific label changes needed |
+| EmployeeTarget transform allowlist | **Approved (no-op)** | 0 rows on UAT, re-confirmed |
+| TeamTarget no-op | **Approved (no-op)** | 0 rows on UAT, re-confirmed |
+| **UAT migration SQL generation permission** | **Approved** | Every decision above has closed — UAT-specific migration SQL may now be drafted in a future, explicitly-instructed step |
 
 ---
 
 ## 10. Final Recommendation
 
-**Do not run UAT migration yet.** The schema-level work is well understood and low-risk; the
-risk is entirely in the per-field unit/label classification, and three areas are still open:
-the `Payment`/`Collection`/`OrderAdvance` unit finding needs business sign-off (not because the
-evidence is weak, but because it's a business-impact decision), `CrmOpportunity`'s 3 fields need
-manual review of the 1 negative value and the all-zero ambiguity, and the full 34-row
-`KRA.target` set needs review before the KRA free-text label list is finalized.
+**UAT migration SQL generation is now approved — but UAT migration execution is a separate,
+still-future step that requires its own explicit instruction.** This document only unblocks
+*drafting* the UAT-specific migration SQL (per §8's strategy); it does not authorize running it.
 
-**Next step:** confirm the ambiguous fields and labels above (business/source-data review for
-Payment/Collection/OrderAdvance and CrmOpportunity; a full read-only re-scan of all 34
-`KRA.target` rows for the label question) — then, only after that confirmation, generate a
-UAT-specific migration SQL/script that mirrors dev's two-phase pattern (`UPDATE` while still
-Float, then `ALTER TABLE ... MODIFY` to Decimal) but with the field-specific actions in §3 above
-substituted for dev's blanket "multiply everything" approach. That SQL generation is a future
-step, not part of this one.
+Before actual UAT migration execution, the operational pre-checks Step 4B left open are still
+required: confirming the commit/code currently deployed on the UAT server, taking and verifying a
+restorable UAT backup, confirming at least one Manager-tier and one Employee-tier test login
+work, and deciding whether a write-freeze is needed during the migration window.
+
+**Next step:** generate the UAT-specific migration SQL (mirroring dev's two-phase `UPDATE` →
+`ALTER TABLE ... MODIFY` pattern, substituting the field-specific actions from §3/§8 for dev's
+blanket "multiply everything" approach) — as its own explicitly-instructed step, not part of this
+one — followed by the remaining operational pre-checks, before any UAT migration actually runs.

@@ -626,3 +626,40 @@ sequence is considered for actual execution — and only when explicitly instruc
   OrderAdvance unit finding, manual review of `CrmOpportunity`'s ambiguous fields, and a full
   34-row review of `KRA.target` labels. See the adjustment plan's §9 approval table for the
   per-decision status.
+
+---
+
+## Step 4D — Classification Closure Results (2026-06-24)
+
+> All three Step 4C blockers are now closed. Full detail lives in
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md` (updated in place) — this section
+> summarizes the outcome. Closure came from (1) an explicit business sign-off captured for the
+> Payment/Collection/OrderAdvance decision, and (2) a full-population follow-up read-only query
+> (all 49 `CrmOpportunity` rows, all 34 `KRA.target` rows) run by an operator with confirmed UAT
+> access and relayed back sanitized. No UAT data was modified; no SQL was written or run beyond
+> the read-only follow-up query.
+
+- **Payment/Collection/OrderAdvance — final decision: type conversion only, no multiply.**
+  Confirmed by explicit business sign-off (2026-06-24): these 4 fields are already stored in
+  actual ₹ INR on UAT. Approved.
+- **CrmOpportunity — final decision: multiply by 100,000 for all 3 fields (`value`,
+  `dealValueExTax`, `netProfitLakhs`).** A full 49-row review (not just the 20-row-equivalent
+  sample) showed `value` is genuinely Lakhs-scale across real, identifiable deals (e.g. a ₹120L
+  Dell Server & Storage deal), with the 1 negative row (id 42, -0.1) judged a likely data-entry
+  artifact — flagged for a separate, non-blocking follow-up with the sales team, not a migration
+  blocker. `dealValueExTax`/`netProfitLakhs` are confirmed exactly 0 across every one of the 49
+  rows — no real data exists in these columns on UAT, so multiplying is mathematically moot today
+  but applied for consistency. Approved.
+- **`KRA.target` full review result: all 6 of dev's documented money labels are confirmed present
+  on UAT.** The full 34-row read found the 4 labels missing from the original 20-row sample in
+  rows 58–71 (a part of the table the sample didn't reach). No new, UAT-only money labels were
+  found — every other label in the full set was independently confirmed non-money (count,
+  percentage, ratio, or weight). Dev's original 6-label allowlist is valid for UAT as-is.
+  Approved.
+- **`EmployeeTarget`/`TeamTarget` result:** both re-confirmed at 0 rows — no-op, unchanged from
+  Step 4B.
+- **UAT migration SQL generation permission: Approved.** Every item in the adjustment plan's §9
+  permission ledger has closed. This authorizes *drafting* UAT-specific migration SQL as a future
+  step — it does **not** authorize running any migration. UAT migration execution still requires
+  its own explicit instruction and still depends on the operational pre-checks Step 4B left open
+  (deployed-commit confirmation, backup verification, test logins, write-freeze decision).

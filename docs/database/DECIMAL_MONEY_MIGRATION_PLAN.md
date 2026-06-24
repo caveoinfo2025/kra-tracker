@@ -1014,3 +1014,18 @@ This document is **planning only**. As of this step:
 > confirmed on UAT, the rest blocked pending a full 34-row review. **UAT migration remains
 > blocked pending final classification of the flagged fields and labels.** No UAT/production
 > data was touched; no schema/API/UI code changed; no migration SQL was written or run.
+
+> **Step 4D (2026-06-24) completed:** UAT field/KRA classification blockers reviewed and closed.
+> Payment/Collection/OrderAdvance unit decision recorded — business sign-off confirms these 4
+> fields are already actual ₹ INR on UAT, type conversion only (no multiply), approved.
+> `CrmOpportunity` classification completed via a full 49-row review (not a sample) — `value` is
+> Lakhs-scale (1 negative row flagged as a data-quality artifact, not a unit blocker);
+> `dealValueExTax`/`netProfitLakhs` confirmed exactly 0 across every row — all 3 fields approved
+> for ×100,000. `KRA.target` full 34-row review confirms all 6 of dev's documented money labels
+> are present and money-confirmed on UAT — no UAT-specific label changes needed, dev's allowlist
+> reused as-is. **UAT migration SQL generation permission updated to Approved** — every item in
+> the adjustment plan's permission ledger has closed. This authorizes *drafting* UAT-specific
+> migration SQL as a future step; it does not authorize running any migration — UAT execution
+> still requires its own explicit instruction plus the operational pre-checks Step 4B left open.
+> No UAT/production data was touched; no schema/API/UI code changed; no migration SQL was written
+> or run in this step.

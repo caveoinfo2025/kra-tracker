@@ -21,6 +21,42 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4D: UAT classification blockers closed — migration SQL generation approved (read-only)
+
+**All three of Step 4C's remaining blockers are closed.** Two inputs resolved them: (1) an
+explicit business decision — Vijesh Vijayan confirmed ("Confirm — already INR") that
+`Payment.amountLakhs`, `Collection`'s 3 amount fields, and `OrderAdvance.amountLakhs` on UAT are
+genuinely already actual ₹ INR, approving "type conversion only, no multiply" for those 4
+fields; (2) a follow-up read-only SQL query, run by an operator with confirmed UAT SSH/MySQL
+access and relayed back sanitized (no credentials shared), covering the **full population** of
+both previously-ambiguous data sets — all 49 `CrmOpportunity` rows (not the 20-row-equivalent
+sample) and all 34 `KRA.target` rows (not the 20 sampled in Step 4B).
+
+**`CrmOpportunity` resolved:** `value` is confirmed Lakhs-scale across real, identifiable deals
+(e.g. a ₹120L "Dell Server & Storage" deal at Thangamayil Jewellery Limited). The 1 negative row
+found earlier (id 42, -0.1, a generically-titled "IT" lead at CPF Foods) is judged a likely
+data-entry artifact rather than a unit signal or a real credit/loss adjustment — flagged for a
+separate, non-blocking follow-up with the sales team. `dealValueExTax` and `netProfitLakhs` are
+confirmed **exactly 0 across every one of the 49 rows** — there is no real data in either column
+on UAT to misclassify. All 3 fields approved for `× 100,000`.
+
+**`KRA.target` resolved:** the full 34-row read found all 6 of dev's documented confirmed-money
+labels genuinely present on UAT — the 4 that didn't appear in the original 20-row sample turned
+out to live in rows 58–71 (a 9-category block the sample never reached, including team-level
+KPIs like "total team pipeline coverage (₹ lakhs)"). Every other label in the full set was
+independently confirmed non-money (counts, percentages, ratios, weights). **Dev's original
+6-label allowlist is valid for UAT as-is — no UAT-specific label changes were needed.**
+`employee_target`/`team_target` re-confirmed at 0 rows.
+
+**UAT migration SQL generation permission: Approved.** Every item in
+`docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`'s permission ledger has closed. This
+authorizes *drafting* UAT-specific migration SQL as a future step — it does **not** authorize
+running any migration. UAT migration execution still requires its own explicit instruction, plus
+the operational pre-checks Step 4B left open (deployed-commit confirmation, backup verification,
+test logins, write-freeze decision). **No UAT or production database was modified in this
+step — entirely read-only. No migration SQL was written or run, no schema/API/UI code changed, no
+`db push` used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
 ### 2026-06-24 — Step 4C: UAT migration adjustment plan — field-level transform decisions (planning only)
 
 **Created `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`** to resolve Step 4B's two

@@ -199,6 +199,16 @@
 > value + all-zero ambiguity); `KRA.target` → only 2 of 6 dev labels confirmed on UAT so far, rest
 > blocked pending full review. UAT migration remains blocked; planning only, no SQL written or
 > run.
+>
+> **UAT classification blockers closed (Step 4D, 2026-06-24).** Business sign-off confirms
+> `Payment`/`Collection`/`OrderAdvance` are already actual ₹ INR on UAT — type conversion only,
+> approved. A full 49-row `CrmOpportunity` review confirms `value` is Lakhs-scale (1 negative row
+> flagged as a data-quality artifact, not a unit blocker) and `dealValueExTax`/`netProfitLakhs`
+> are exactly 0 across every row — all 3 fields approved for ×100,000. A full 34-row `KRA.target`
+> review confirms all 6 of dev's documented money labels are present on UAT — dev's allowlist
+> reused as-is. **UAT migration SQL generation permission: Approved** — drafting UAT-specific
+> migration SQL is now unblocked, but running any migration still requires its own explicit
+> instruction plus the remaining operational pre-checks.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

@@ -1072,3 +1072,28 @@ CrmOpportunity's ambiguous fields, and a full 34-row review of KRA.target labels
 production database was connected to, no migration was run, no migration SQL was written, no
 schema/API/UI code changed, no `db push` used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅,
 `npm run build` ✅.
+
+## Step 4D — UAT classification blockers closed; migration SQL generation approved (2026-06-24)
+
+Not an RBAC change. Closed Step 4C's three remaining blockers: (1) explicit business sign-off
+captured (Vijesh Vijayan, "Confirm — already INR") for the Payment/Collection/OrderAdvance unit
+decision — type conversion only, no multiply, approved; (2) an operator with confirmed UAT
+SSH/MySQL access ran a follow-up read-only query covering the full `CrmOpportunity` population
+(49 rows, not a sample) and the full `KRA.target` set (34 rows, not the 20-row sample) — sanitized
+output relayed back, no credentials shared. **`CrmOpportunity` result:** `value` confirmed
+Lakhs-scale across real, identifiable deals (e.g. a ₹120L Dell Server & Storage deal); the 1
+negative row (id 42, -0.1, generically titled "IT" lead) is judged a likely data-entry artifact
+and flagged for a separate sales-team follow-up, not a migration blocker; `dealValueExTax`/
+`netProfitLakhs` are confirmed exactly 0 across every one of the 49 rows — no real data exists in
+either column on UAT. All 3 fields approved for ×100,000. **`KRA.target` result:** the full
+34-row read found all 6 of dev's documented money labels genuinely present on UAT (the 4 missing
+from the original 20-row sample turned out to be in rows 58–71) — dev's original allowlist is
+valid for UAT as-is, no changes needed. `employee_target`/`team_target` re-confirmed at 0 rows.
+**UAT migration SQL generation permission: Approved** — every item in
+`docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`'s permission ledger has closed. This
+authorizes *drafting* UAT-specific migration SQL as a future step; it does **not** authorize
+running any migration — UAT execution still requires its own explicit instruction plus the
+operational pre-checks (deployed commit, backup, test logins, write-freeze) Step 4B left open.
+**No UAT or production database was modified — read-only throughout. No migration SQL was
+written or run, no schema/API/UI code changed, no `db push` used.** `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.
