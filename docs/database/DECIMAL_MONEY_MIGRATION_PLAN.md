@@ -983,3 +983,23 @@ This document is **planning only**. As of this step:
 > Results" section — every DB-dependent item is recorded as "Needs verification — blocked," not
 > guessed at. The actual unblock is the same as it was for production in Step 3X: a human with
 > confirmed UAT access needs to run `docs/database/uat-precheck/` directly.
+
+> **Step 4B (2026-06-24) — UAT pre-check actually run against the real UAT database.** An
+> operator with confirmed SSH/MySQL access to UAT ran `docs/database/uat-precheck/
+> uat-readonly-precheck.sql` and relayed sanitized output (no credentials shared). Confirmed:
+> UAT's `_prisma_migrations` has exactly 19 rows, missing exactly the 3 predicted migrations
+> (`add_soft_delete_fields_phase_a`, `decimal_release1_lakhs_to_inr`,
+> `decimal_release2_combined_inr_canonical`); every in-scope Release 1/2 column is still
+> Float/Text (clean pre-migration state, no drift); row counts match Session 9's estimates
+> exactly. **New, important findings:** (1) `kra_template_item`/`kra_metric`/`kra_template` all
+> have 0 rows on UAT — the structured KRA engine is unpopulated there, real KRA scoring runs
+> through legacy free-text `KRA.target` only; (2) **`Payment`/`Collection`/`OrderAdvance` data on
+> UAT looks like it's already stored in actual ₹ INR, not ₹ Lakhs** (e.g. a `Collection`
+> invoice value as high as 7,979,986 — implausible as Lakhs) — this **blocks** running the
+> planned ×100,000 Release 2 transform uniformly against those 3 models until resolved with a
+> business/source-data review; (3) UAT's `KRA.target` free-text only contains 2 of dev's 6
+> documented money labels — the rest need independent re-classification before any data-transform
+> runs. Full findings filled into `docs/database/uat-precheck/uat-precheck-result-template.md`
+> and summarized in `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s new "UAT Pre-Check
+> Results — Confirmed Live Findings" section. **UAT migration still not run; still blocked
+> pending the two findings above being resolved.**

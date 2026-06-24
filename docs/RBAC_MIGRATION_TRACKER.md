@@ -1024,3 +1024,27 @@ rather than guessed at. Static, non-DB facts (local branch `uat`, clean working 
 commit, local migration folder listing — 21 dirs + lock file) were confirmed directly. **No UAT
 or production database was connected to, no migration was run, no schema/API/UI code changed, no
 `db push` used.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4B — UAT pre-check actually run against real UAT database (2026-06-24)
+
+Not an RBAC change. The Step 4A blocker was resolved by an operator with confirmed SSH/MySQL
+access to UAT, who ran `docs/database/uat-precheck/uat-readonly-precheck.sql` directly on the
+UAT server and relayed sanitized output back (`SELECT DATABASE()` = `u686730471_Caveo_UAT`,
+confirming genuine UAT — no host/user/password was shared). **Confirmed clean:**
+`_prisma_migrations` has 19 rows, missing exactly the 3 predicted migrations
+(`add_soft_delete_fields_phase_a`, `decimal_release1_lakhs_to_inr`,
+`decimal_release2_combined_inr_canonical`); every in-scope Release 1/2 column is still
+Float/Text; row counts match Session 9's documented estimates exactly. **Two new findings that
+block running the planned migration as-is:** (1) `Payment`/`Collection`/`OrderAdvance` data on
+UAT samples at scales implausible as ₹ Lakhs (e.g. a `Collection` invoice value of 7,979,986) —
+these 3 models appear to already store actual ₹ INR, contradicting the project-wide Lakhs
+convention, and would be corrupted by the planned ×100,000 transform; (2) UAT's `KRA.target`
+free-text only contains 2 of dev's 6 documented confirmed-money labels in the sample reviewed —
+the rest need independent re-classification. A third, minor finding: one `CrmOpportunity.value`
+row is negative (-0.1), flagged for business review. Also newly confirmed: `kra_template_item`/
+`kra_metric`/`kra_template` all have 0 rows on UAT — the structured KRA engine is unpopulated
+there, unlike dev. Full findings: `docs/database/uat-precheck/uat-precheck-result-template.md`
+and `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s new "UAT Pre-Check Results — Confirmed
+Live Findings" section. **No UAT or production data was changed — read-only throughout. UAT
+migration still not run, still blocked** pending business-side resolution of the unit-scale
+finding and the `KRA.target` re-classification.

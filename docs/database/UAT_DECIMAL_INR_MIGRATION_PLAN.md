@@ -260,6 +260,14 @@ execution sequence (§4) when explicitly instructed.
 
 ## UAT Pre-Check Dry Run Results (Step 4A, 2026-06-23)
 
+> **Superseded by Step 4B (2026-06-24) below.** This section documents the blocked dry run from
+> this dev environment — kept for the record, not withdrawn. The blocker described here (no
+> confirmed UAT credential reachable from this workstation) has since been resolved: an
+> operator with confirmed UAT SSH/MySQL access ran the actual pre-check pack and produced real
+> findings. See "UAT Pre-Check Results — Confirmed Live Findings (Step 4B, 2026-06-24)" near the
+> end of this document for the facts that replace every "Needs verification — blocked" row
+> below.
+
 > **This is a read-only dry-run report, not a migration.** No UAT row, table, or schema object
 > was modified or queried with write intent. Several items below are blocked, for the reason
 > explained in "Environment confirmation," and remain "Needs verification" until a human with
@@ -485,3 +493,105 @@ row above into a fact, and is the actual prerequisite for §3 of this plan and f
 whether §4's execution sequence is safe to run. **No UAT migration should be executed until that
 pre-check pack has been run and reviewed — this dry run did not, and could not, confirm UAT is
 ready.**
+
+---
+
+## UAT Pre-Check Results — Confirmed Live Findings (Step 4B, 2026-06-24)
+
+> **This section reports a real, completed read-only run against the confirmed UAT database**
+> (`u686730471_Caveo_UAT`, MariaDB `11.8.6-MariaDB-log`), executed by an operator with confirmed
+> SSH access to the UAT server, using `docs/database/uat-precheck/uat-readonly-precheck.sql`.
+> No UAT row, table, or schema object was modified. No hostname, username, password, or full
+> connection string was shared with or seen by this assistant — only the SQL output (table
+> names, row counts, column types, sampled values) was relayed and is recorded below, per the
+> safety rules in `docs/database/uat-precheck/README.md`. Full filled-in detail lives in
+> `docs/database/uat-precheck/uat-precheck-result-template.md` — this section summarizes it.
+
+### Environment confirmed
+
+`SELECT DATABASE()` returned `u686730471_Caveo_UAT` — genuinely UAT, not dev or production.
+Server time `2026-06-24 01:16:11`. Connection ran from inside
+`/home/u686730471/domains/uat.caveoinfosystems.com/public_html` via SSH, using the documented
+working UAT user `u686730471_caveouat`.
+
+### `_prisma_migrations` — confirmed exactly as predicted
+
+19 rows total, all applied, none rolled back. The full 19-name list matches the documented
+bootstrap set (`20260601000000_init_mysql` through `20260618100000_crm_lead_customer_ref`) with
+no surprises. **The 3 migrations predicted as UAT's gap are confirmed absent:**
+`20260621120000_add_soft_delete_fields_phase_a`, `20260622120000_decimal_release1_lakhs_to_inr`,
+`20260623060000_decimal_release2_combined_inr_canonical`. (All 19 rows share an identical
+timestamp from the bootstrap's bulk tracking-seed insert, so "latest by timestamp" isn't
+meaningful — completeness is judged by name presence, not recency.)
+
+### Schema snapshot — confirmed clean pre-migration state
+
+Every Release 1/2 column on UAT is still `double` (Float) or `text` (String) — **zero columns
+have been converted to Decimal.** This matches dev's pre-migration state exactly; no drift, no
+partial migration found.
+
+### Row counts — confirmed, with one new fact
+
+All of Session 9's documented estimates were confirmed exactly: `Payment` 26, `Collection` 141,
+`CrmLead` 280, `CrmOpportunity` 49, `SalesFunnel` 100, `KRA` 34, `team_target` 0.
+`Expense`/`EmployeeAdvance`/`TravelClaim`/`employee_target`/`Voucher`/`Ledger`/`FinAccount` are
+all 0 rows. **New fact: `kra_template_item` (and `kra_metric`/`kra_template`) all have 0 rows on
+UAT** — the structured KRA template/metric engine is completely unpopulated there; UAT's real KRA
+scoring runs entirely through the legacy free-text `KRA.target` field.
+
+### CRITICAL FINDING — `Payment`/`Collection`/`OrderAdvance` appear to already be in INR, not Lakhs
+
+Unit sampling shows `Payment.amountLakhs` (max 1,000,000), `Collection.invoiceValueLakhs`/
+`amountWithoutGstLakhs`/`amountReceivedLakhs` (maxes in the millions), and
+`OrderAdvance.amountLakhs` (max ~342,000) at scales that are not plausible as ₹ Lakhs (a single
+~₹8M-Lakhs invoice would imply ≈₹798 billion). **These three models' UAT data looks like it's
+already stored in actual ₹ INR**, contradicting the project-wide "money is stored in ₹ Lakhs"
+convention these columns were assumed to follow. By contrast, `CrmLead.expectedValue` (max 120)
+and `SalesFunnel.dealValueLakhs`/`billingValueLakhs` (max ~43/~51) sit in a plausible Lakhs
+range, consistent with the original assumption.
+
+**This blocks running the Release 2 migration's planned ×100,000 transform uniformly against
+UAT.** Applying it to `Payment`/`Collection`/`OrderAdvance` as currently designed would inflate
+already-correct INR values by 100,000× — e.g. a real ₹79,79,986 invoice would become
+₹7,97,99,86,00,00,000. **This needs a business-side/source-data review before any UAT (or
+production) migration touches these three models** — do not assume UAT mirrors dev's
+"everything is Lakhs" pre-migration state for every field.
+
+(Minor, separate finding: `CrmOpportunity.value` has exactly one negative row, `-0.1` — flag for
+manual review, not large enough to block on its own.)
+
+### KRA / Sales target classification — UAT's `KRA.target` labels differ from dev's documented set
+
+With the structured `kra_template_item`/`kra_metric` tables empty (see Row counts above), the
+SQL pack's mismatch-detection join returns nothing — there's no UAT equivalent of dev's "item
+#16" finding because no template items exist at all. The real classification work is against
+`KRA.target` free text: of dev's 6 documented confirmed-money labels, **only 2 appear in the
+20-row sample reviewed** — `total sales revenue - booking` and `total sales revenue - billing`
+(values like 70, 63, 120, 108 — Lakhs-scale, consistent with the assumption). The other 4 labels
+(`total funnel / pipeline value created`, `total team booking target achievement`, `total team
+billing achievement`, `total team pipeline coverage`) don't appear in this sample; UAT instead
+uses different KPI categories (`Customer & Business Development`, `Sales management`, `Focus
+area revenue achievement`, `Sales Operations Excellence`) with non-money sub-keys (counts,
+ratios, weights) mixed in. **UAT's `KRA.target` label set needs independent re-classification
+against the full 34-row set before any data-transform script runs against it** — dev's hardcoded
+label list cannot be reused as-is.
+
+### Still not collected
+
+Branch/app-deployed-commit confirmation (UAT's `public_html` has no `.git` checkout, so
+`git rev-parse HEAD` isn't available there — a different method is needed), full UAT backup
+verification, Manager/Employee test-login confirmation, and a write-freeze decision are all still
+open — out of scope for the read-only SQL pack itself, but required before scheduling actual
+migration execution.
+
+### Recommended next action (supersedes Step 4A's)
+
+**Still do not run the UAT migration.** The migration-history and schema findings are clean and
+exactly as predicted — that part is ready. But two new data-shape findings must be resolved
+first: (1) get a business/source-system answer on why `Payment`/`Collection`/`OrderAdvance` data
+looks like it's already INR rather than Lakhs on UAT, since this changes what the migration
+formula needs to do for those 3 models (and may apply to production too, once production access
+exists); (2) re-derive the actual confirmed-money label set from all 34 `KRA.target` rows before
+reusing dev's 6-label list against UAT. Once resolved, complete the remaining operational
+pre-checks (deployed commit, backup, test logins, write-freeze) before this plan's §4 execution
+sequence is considered for actual execution — and only when explicitly instructed.

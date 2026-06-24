@@ -182,6 +182,15 @@
 > `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s schema/row-count/unit/migration-history
 > rows remains "Needs verification — blocked" until a human with confirmed UAT access runs
 > `docs/database/uat-precheck/uat-readonly-precheck.sql` directly.
+>
+> **UAT pre-check actually run (Step 4B, 2026-06-24).** Confirmed clean: UAT's
+> `_prisma_migrations` is missing exactly the 3 predicted migrations, and every in-scope Release
+> 1/2 column is still Float/Text (no drift). **Two new blockers found:**
+> `Payment`/`Collection`/`OrderAdvance` data on UAT samples at scales implausible as ₹ Lakhs
+> (likely already actual ₹ INR — would be corrupted by the planned ×100,000 transform), and
+> UAT's `KRA.target` free-text only contains 2 of dev's 6 documented money labels. See
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md`'s "UAT Pre-Check Results — Confirmed Live
+> Findings" section for full detail. UAT migration still not run.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):
