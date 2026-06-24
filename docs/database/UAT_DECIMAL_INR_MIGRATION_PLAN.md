@@ -816,3 +816,49 @@ UAT database was connected to, queried, or modified.
   be reviewed and uncommented, or run manually), then begin Step 4H functional testing — Finance/
   Sales areas are ready now; KRA-area testing should wait until the `KRA.target` transform is
   complete, since its money labels are not yet in INR while Collection (once read by the app) is.
+
+---
+
+## Step 4G-1 — KRA Transform and Migration History Closure (2026-06-24)
+
+> Full detail lives in
+> `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md` §13–§17, plus 6
+> timestamped result files under `docs/database/uat-migration-package/results/`. This section
+> summarizes the outcome. **Both items left open by Step 4G are now closed.**
+
+- **Secret hygiene finding (Task 1):** before any live action, found that the tracked
+  `.env.uat.example` (committed, pushed to the **public** `caveoinfo2025/kra-tracker` repo since
+  commit `749ea28`, 2026-06-16) contained a real-looking password instead of a placeholder.
+  Confirmed with Vijesh Vijayan: the credential is stale/inactive, no rotation required. Fixed
+  the tracked file to use the `YOUR_UAT_DB_PASSWORD` placeholder again (the value still exists in
+  git history — a history rewrite was out of scope for this step). Unrelated to this finding: the
+  Step 4G secret incident (real password briefly placed in the same file, then correctly reverted
+  to gitignored `.env.uat`) was re-verified clean — no diff, not staged, no result/log file in
+  this step contains a password.
+- **`uat-transform-kra-target.mjs` finalized** with a real (no longer stubbed) execution path:
+  defaults to dry-run (read-only) unless `CONFIRM_UAT_KRA_TARGET_TRANSFORM=YES`; aborts without
+  writing if any label isn't on the approved 6-label money allowlist or the 31-label known-
+  non-money allowlist; transactional write; full before/after logging per row.
+- **KRA.target transform executed against live UAT.** Dry run first (clean, 8/34 rows proposed —
+  the dry run also caught and safely resolved a real UAT data quirk: rows 40/45/50/55/60 store
+  the non-money "proof of concept" label with a stray embedded quote character, not a new/
+  unclassified label), then live execution with explicit confirmation. **8 of 34 rows updated**
+  (ids 38, 43, 48, 53, 58, 65, 68, 71), only the 6 approved money labels multiplied by 100,000;
+  every non-money label in every row left byte-for-byte unchanged. Post-transform verification
+  confirmed row count still 34, `employee_target`/`team_target` still 0, and a SHA-256 checksum
+  change consistent with exactly 8 rows changing.
+- **Migration history aligned.** `npx prisma migrate resolve --applied <name>` succeeded for all
+  3 target migrations this time (the environment-level block Step 4G hit did not recur).
+  `_prisma_migrations` went from 19 rows (0/3 target migrations present) to **22 rows (3/3
+  present)** — `finished_at` populated, `rolled_back_at` NULL, no duplicates.
+- **Full post-migration verification re-run** (27/27 statements, 0 errors) — Payment/Collection/
+  OrderAdvance still un-multiplied, CrmLead/CrmOpportunity/SalesFunnel still correctly multiplied
+  (including the row-42 spot-check), `KRA.target` now correctly reflects the transform,
+  `employee_target`/`team_target` still 0, soft-delete fields/indexes unchanged, migration history
+  confirmed aligned.
+- **App validation passed:** `npx prisma validate`, `npx tsc --noEmit`, `npm run build`.
+- **Voucher/Ledger/FinAccount untouched. Production untouched. Dev untouched** — every live
+  connection in this step used the gitignored `.env.uat`, never `.env` or any production
+  credential.
+- **Step 4H — full UAT functional testing (Finance, Sales, and KRA) can now begin.** The
+  KRA-testing blocker noted at the end of Step 4G no longer applies.

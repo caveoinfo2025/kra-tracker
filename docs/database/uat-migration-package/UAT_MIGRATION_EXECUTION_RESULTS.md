@@ -6,6 +6,34 @@
 > and data changes are applied. Migration-history bookkeeping (`_prisma_migrations`) and the
 > `KRA.target` free-text transform are NOT complete** — both are documented honestly below as
 > open items, not silently skipped.
+>
+> **Step 4G-1 (2026-06-24) update: both open items are now closed.** The `KRA.target`
+> transform was executed (8/34 rows changed, only the 6 approved money labels) and all 3
+> migrations were marked applied via `prisma migrate resolve`. See §13–§15 below.
+
+## Secret Hygiene Follow-Up
+
+Step 4G-1 Task 1 found a real secret-hygiene issue, separate from the one this file originally
+flagged: `.env.uat.example` (tracked, committed) contained a real-looking password
+(`C%40veo%402026`, decoding to `C@veo@2026`, against username `u686730471_uatuser`) instead of
+the `YOUR_UAT_DB_PASSWORD` placeholder. It was introduced in commit `749ea28` (2026-06-16) and
+was already pushed to `origin/uat` on the **public** `caveoinfo2025/kra-tracker` GitHub repo.
+
+Per Vijesh Vijayan (confirmed live, 2026-06-24): this credential is **stale/inactive**, not the
+real working UAT credential (the working credential is `u686730471_caveouat` against
+`u686730471_Caveo_UAT`, stored only in the gitignored `.env.uat`, never committed). No rotation
+was required, but the tracked file was still fixed for hygiene: `.env.uat.example`'s
+`DATABASE_URL` was reverted to the safe `YOUR_UAT_DB_PASSWORD` placeholder in a new commit.
+
+This fix only changes the file going forward — the real-looking value remains visible in git
+history (`749ea28` and its descendants) on the public repo. No history rewrite/force-push was
+performed (out of scope for this step, requires separate explicit approval).
+
+Re-verified before any live UAT action this step: `git status --short` clean (no untracked/
+modified `.env.uat`), `.env.uat` correctly gitignored and not staged, `.env.uat.example`
+diffed clean against HEAD before the fix, no generated log file or result file under
+`docs/database/uat-migration-package/results/` contains any password (every script in this
+step masks `DATABASE_URL` to `dbname` + `host-label.***` only).
 
 ## 1. Execution timestamp
 
@@ -140,23 +168,109 @@ only rollback path remains restoring `u686730471_Caveo_UAT_240626.sql`, which ha
 restore-tested to a scratch database. This migration's actual execution does not change that
 risk profile — it was accepted before this step ran, per Step 4F-1.
 
-## 12. Next testing actions
+## 13. Step 4G-1 KRA Transform Dry Run
 
-1. **Close the migration-history gap.** Someone with direct UAT access (or the ability to grant
-   this environment a one-time, explicitly-scoped permission) should run the 3
-   `prisma migrate resolve --applied <name>` calls listed in §8 directly, then re-run §9's
-   Section 7 query to confirm `_prisma_migrations` shows all 3 rows.
-2. **Run the KRA.target transform** via `scripts/uat-transform-kra-target.mjs` with its
-   commented-out execution path uncommented and reviewed — or have a human run the equivalent
-   transform directly — to complete Release 2's free-text scope. Until then, KRA scoring on UAT
-   continues to compare INR (Collection, once UAT's app code reads it) against un-multiplied
-   Lakhs-scale money labels in `KRA.target` — this is a real functional gap for KRA-related UAT
-   testing, not just a bookkeeping one.
-3. **Step 4H — UAT post-migration functional testing** can begin for the Finance and Sales areas
-   (Payment/Collection/OrderAdvance/CrmLead/CrmOpportunity/SalesFunnel) since their data is fully
-   and correctly migrated. **KRA functional testing should wait** until item 2 above is resolved,
-   since `KRA.target`'s money labels are not yet in INR.
+Ran `scripts/uat-transform-kra-target.mjs` against UAT with no `CONFIRM_UAT_KRA_TARGET_TRANSFORM`
+set (default dry-run mode, read-only). The script first parsed every label in all 34 rows and
+flagged 5 rows (#40/45/50/55/60) for an apparent "unexpected label" — investigation showed this
+was a genuine UAT data-entry artifact (`non-obligatory" proof of concept (poc)` — a stray
+embedded quote character, not a new/unclassified label; values 4/8/10/2 exactly match the
+already-documented non-money count for this label). The script was updated to normalize stray
+`"` characters before label-matching (classification unchanged — still excluded as non-money) and
+re-run cleanly.
+
+Result: 8 of 34 rows proposed for change, only the 6 approved money labels touched in those rows,
+every non-money label in every row left untouched. No unexpected labels remained after the fix.
+No data was written. Full output saved to
+`docs/database/uat-migration-package/results/uat-kra-target-dry-run-20260624060625.md` (plus the
+pre-transform snapshot in `uat-kra-target-pre-transform-20260624060625.md`).
+
+## 14. Step 4G-1 KRA Transform Execution
+
+Ran the same script with `CONFIRM_UAT_KRA_TARGET_TRANSFORM=YES` against the live UAT database.
+
+- **Rows reviewed:** 34
+- **Rows changed:** 8 (`KRA` ids 38, 43, 48, 53, 58, 65, 68, 71)
+- **Labels transformed (×100,000):** `total sales revenue - booking`, `total sales revenue -
+  billing` (rows 38/43/48/53/58), `total funnel / pipeline value created (₹ lakhs)` (row 65),
+  `total team booking target achievement (₹ lakhs)`, `total team billing achievement` (row 68),
+  `total team pipeline coverage (₹ lakhs)` (row 71)
+- **Labels skipped (left unchanged):** all 31 known non-money labels across all 34 rows — e.g.
+  `average gross profit margin`, `payment collections within due dates & credit days reduction`,
+  `qualified leads generation`, `forecast accuracy`, `average deal win rate`, the
+  `non-obligatory" proof of concept (poc)` quirk-labeled rows, etc.
+- **Before/after example:** row 38 — `total sales revenue - booking: 70` → `: 7000000`;
+  `total sales revenue - billing: 63` → `: 6300000`; `average gross profit margin: 6.5`
+  unchanged.
+- Write ran inside a single transaction; committed once all 8 rows were staged.
+- `employee_target`/`team_target` confirmed still 0 rows after the transform (re-queried in the
+  same run).
+- No non-money label changed anywhere in the 34-row set (confirmed in §15 below).
+
+Full output: `docs/database/uat-migration-package/results/uat-kra-target-execution-20260624060625.md`.
+
+## 15. Step 4G-1 KRA Post-Transform Verification
+
+Read-only re-query of all 34 `KRA.target` rows plus `employee_target`/`team_target` counts.
+
+- Row count: still 34.
+- The 6 approved money labels are now INR-scale in exactly the 8 rows expected (e.g. row 71's
+  `total team pipeline coverage (₹ lakhs)`: `1500` → `150000000`).
+- Every non-money label across all 34 rows is byte-for-byte unchanged from the pre-transform
+  snapshot.
+- `employee_target`/`team_target`: still 0 rows each.
+- Checksum (`SHA-256` of all `id|target` concatenated) changed from
+  `7a4529e5265c39fdb1bec0dfb115081e2bf7ca97d848c301b66331fc49e317e7` (pre) to
+  `9dec2b264efb96755e84812042cd9c0618b1b6e79230d5d1dba641d8b34f41af` (post) — expected, since 8
+  of 34 rows changed.
+
+Full output: `docs/database/uat-migration-package/results/uat-kra-target-post-verification-20260624060625.md`.
+
+## 16. Step 4G-1 Migration History Alignment
+
+`npx prisma migrate resolve --applied <name>` was run (with `DATABASE_URL` pointed at UAT,
+DB identity re-confirmed `u686730471_Caveo_UAT` before each call) for all 3 target migrations.
+Unlike Step 4G, this environment did not block the calls this time — all 3 succeeded:
+
+- `20260621120000_add_soft_delete_fields_phase_a` — marked as applied.
+- `20260622120000_decimal_release1_lakhs_to_inr` — marked as applied.
+- `20260623060000_decimal_release2_combined_inr_canonical` — marked as applied.
+
+Verification: `_prisma_migrations` row count increased from 19 to **22**; all 3 target migration
+names now present with `finished_at` populated and `rolled_back_at` NULL; no duplicate rows; no
+failed migration entries. `applied_steps_count = 0` for all 3 — expected for `migrate resolve`
+(it records history, it does not replay steps).
+
+Full output: `docs/database/uat-migration-package/results/uat-migration-history-alignment-20260624060625.md`.
+
+## 17. Step 4G-1 Full Post-Migration Re-Verification
+
+Re-ran `uat-decimal-inr-post-migration-verification.sql` in full (27/27 statements, 0 errors)
+after both items above closed:
+
+- Column types unchanged from §9 (still correct).
+- Payment/Collection/OrderAdvance totals unchanged (still not multiplied) — exact match to §9.
+- CrmLead/CrmOpportunity/SalesFunnel totals unchanged (still correctly ×100,000) — exact match
+  to §9, including the row-42 spot-check (`value = -10000.00`).
+- `KRA.target`: now reflects the transform — 8/34 rows changed, exactly as documented in §15.
+- `employee_target`/`team_target`: still 0/0.
+- Soft-delete columns/indexes: unchanged, all present.
+- `_prisma_migrations`: now 22 rows, all 3 target migrations present — migration history is
+  **aligned**, no longer pending.
+
+Full output: `docs/database/uat-migration-package/results/uat-full-post-migration-verification-20260624060625.md`.
+
+## 12. Next testing actions (superseded by Step 4G-1 — see §13–§17 above)
+
+1. ~~Close the migration-history gap.~~ **Closed in Step 4G-1 (§16)** — all 3 migrations now
+   recorded in `_prisma_migrations` (22 total rows).
+2. ~~Run the KRA.target transform.~~ **Closed in Step 4G-1 (§13–§15)** — 8/34 rows transformed,
+   verified clean.
+3. **Step 4H — UAT post-migration functional testing can now begin for both Finance/Sales and
+   KRA areas.** The KRA-testing blocker from this section's original item 2 no longer applies —
+   `KRA.target`'s money labels are now in INR and verified unchanged elsewhere.
 4. Confirm what app commit is actually deployed on the UAT server (still an open item from Step
    4B) before doing any UI-level verification — the schema is now ahead of what may be deployed.
 5. Restore-test the backup (`u686730471_Caveo_UAT_240626.sql`) when DB tooling becomes available,
-   to retroactively close the Step 4F-1 risk exception with real evidence.
+   to retroactively close the Step 4F-1 risk exception with real evidence. **Still pending** —
+   Step 4G-1 did not touch backup/restore-test status.

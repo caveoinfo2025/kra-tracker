@@ -1210,3 +1210,41 @@ results: `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md
 status unchanged from Step 4F-1 (Approved with risk exception, reduced confidence — this
 step's execution does not itself change that risk profile). `npx prisma validate` ✅,
 `npx tsc --noEmit` ✅, `npm run build` ✅ (local app source code unchanged this step).
+
+## Step 4G-1 — UAT KRA.target transform executed; migration history aligned (2026-06-24)
+
+**Both items left open by Step 4G are now closed.**
+
+Before any live action: found a real-looking password committed in the tracked
+`.env.uat.example` (an older, separate leak — commit `749ea28`, 2026-06-16 — already pushed to
+the **public** `caveoinfo2025/kra-tracker` GitHub repo). Confirmed with Vijesh Vijayan the
+credential is stale/inactive; fixed the tracked file back to a safe placeholder. The Step 4G
+secret-handling concern was independently re-verified clean (no diff, not staged, no password
+in any log/result file this step).
+
+`scripts/uat-transform-kra-target.mjs`'s execution path was finalized — default dry-run
+(read-only), live write only behind `CONFIRM_UAT_KRA_TARGET_TRANSFORM=YES`, transactional,
+aborts without writing if any label isn't on the approved 6-label money allowlist or the
+31-label known-non-money allowlist. Dry run first (clean, after resolving a real UAT data quirk:
+5 rows store the non-money "proof of concept" label with a stray embedded quote character —
+confirmed not a new/unclassified label), then live execution: **8 of 34 `KRA.target` rows
+updated** (ids 38, 43, 48, 53, 58, 65, 68, 71), only the 6 approved labels multiplied by
+100,000, every non-money label byte-identical. Post-transform verification confirmed row count
+still 34, `employee_target`/`team_target` still 0, checksum changed consistent with exactly 8
+rows.
+
+`npx prisma migrate resolve --applied <name>` then succeeded for all 3 target migrations — the
+environment-level block Step 4G hit did not recur. `_prisma_migrations` went from 19 rows (0/3
+present) to **22 rows (3/3 present)**, `finished_at` populated, no duplicates.
+
+Full post-migration re-verification (27/27 statements, 0 errors) confirmed everything from Step
+4G unchanged (Payment/Collection/OrderAdvance still un-multiplied, CrmLead/CrmOpportunity/
+SalesFunnel still correctly multiplied, row-42 spot-check unchanged) plus the KRA transform and
+migration history now correctly reflected.
+
+**Voucher/Ledger/FinAccount untouched. Production untouched. Dev untouched** — every live
+connection used `.env.uat`. Full record:
+`docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md` §13–§17, plus 6
+timestamped result files under `docs/database/uat-migration-package/results/`. `npx prisma
+validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅. **Step 4H — full UAT functional
+testing (Finance, Sales, and KRA) can now begin.**

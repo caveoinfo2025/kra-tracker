@@ -1082,3 +1082,21 @@ This document is **planning only**. As of this step:
 > never `.env`. Full record: `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md`.
 > `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass (no local app code
 > changed — this step modified live UAT data/schema only, not the repository's source).
+
+> **Step 4G-1 (2026-06-24) completed:** the two items Step 4G left open are now closed. First, a
+> secret-hygiene check found a real-looking password (unrelated, older leak — commit `749ea28`,
+> 2026-06-16) committed in `.env.uat.example` on the **public** repo; confirmed stale/inactive
+> with Vijesh Vijayan, fixed the tracked file to a safe placeholder. Then: `scripts/
+> uat-transform-kra-target.mjs`'s execution path was finalized (default dry-run, transactional
+> live write behind `CONFIRM_UAT_KRA_TARGET_TRANSFORM=YES`, aborts on any unrecognized label) and
+> run against live UAT — 8 of 34 `KRA.target` rows updated, only the 6 approved money labels
+> multiplied by 100,000, every non-money label byte-identical (the dry run also caught and safely
+> resolved a real data quirk: a stray embedded quote character in 5 rows' "proof of concept"
+> label, not a new classification). `npx prisma migrate resolve --applied <name>` then succeeded
+> for all 3 target migrations (the environment block from Step 4G did not recur) —
+> `_prisma_migrations` went from 19 to 22 rows, all 3 present. Full post-migration re-verification
+> (27/27 statements) confirmed everything from Step 4G unchanged plus the KRA transform correctly
+> applied. **Step 4H — full UAT functional testing (Finance, Sales, and KRA) can now begin.**
+> Production and dev untouched throughout. `npx prisma validate`, `npx tsc --noEmit`,
+> `npm run build` all pass. Full record:
+> `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md` §13–§17.

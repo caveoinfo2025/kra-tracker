@@ -244,6 +244,19 @@
 > `_prisma_migrations` was not updated (the 3 `migrate resolve` calls were blocked by this
 > environment's safety classifier as a high-severity action). **Production untouched. Dev
 > untouched.** Full results: `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md`.
+>
+> **UAT KRA.target transform executed; migration history aligned (Step 4G-1, 2026-06-24).** Both
+> Step 4G open items closed. Secret-hygiene check found and fixed an older, unrelated leaked
+> credential in the tracked `.env.uat.example` (confirmed stale/inactive). The KRA transform
+> script's execution path was finalized (default dry-run, transactional live write behind an
+> explicit confirm flag) and run for real: 8 of 34 `KRA.target` rows updated, only the 6 approved
+> money labels multiplied by 100,000, every non-money label byte-identical. `prisma migrate
+> resolve --applied` then succeeded for all 3 target migrations — `_prisma_migrations` now shows
+> 22 rows, all 3 present. Full re-verification (27/27 statements) confirmed everything else from
+> Step 4G unchanged. **Migration execution permission: now fully exercised — both schema/data and
+> bookkeeping are complete on UAT. Step 4H full functional testing (Finance, Sales, KRA) can
+> begin.** Full results:
+> `docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md` §13–§17.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

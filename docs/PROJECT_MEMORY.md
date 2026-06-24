@@ -21,6 +21,49 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4G-1: UAT KRA.target transform executed; migration history aligned (both Step 4G open items closed)
+
+**Secret hygiene finding (separate from Step 4G's incident):** before any live action, found a
+real-looking password committed in the tracked `.env.uat.example` — an older, separate leak
+(commit `749ea28`, 2026-06-16) already pushed to the **public** `caveoinfo2025/kra-tracker`
+GitHub repo. Confirmed with Vijesh Vijayan the credential is stale/inactive, no rotation
+required. Fixed the tracked file back to the `YOUR_UAT_DB_PASSWORD` placeholder (the value
+remains in git history — a history rewrite was out of scope for this step, needs separate
+explicit approval if ever wanted).
+
+**`scripts/uat-transform-kra-target.mjs` finalized and run for real.** Default dry-run
+(read-only) unless `CONFIRM_UAT_KRA_TARGET_TRANSFORM=YES`; aborts without writing if any parsed
+label isn't on the approved 6-label money allowlist or the 31-label known-non-money allowlist;
+transactional live write; full before/after logging. The dry run surfaced and safely resolved a
+real UAT data quirk — 5 rows store the non-money "proof of concept" label with a stray embedded
+quote character (`non-obligatory" proof of concept (poc)`), not a new/unclassified label (values
+matched the already-documented non-money counts exactly). Live execution: **8 of 34
+`KRA.target` rows updated** (ids 38, 43, 48, 53, 58, 65, 68, 71) — only the 6 approved money
+labels (`total sales revenue - booking/billing`, `total funnel / pipeline value created (₹
+lakhs)`, `total team booking target achievement (₹ lakhs)`, `total team billing achievement`,
+`total team pipeline coverage (₹ lakhs)`) multiplied by 100,000; every non-money label in every
+row byte-identical. Post-transform verification confirmed row count still 34,
+`employee_target`/`team_target` still 0, checksum changed consistent with exactly 8 rows.
+
+**Migration history aligned.** `npx prisma migrate resolve --applied <name>` succeeded for all 3
+target migrations this time — the environment-level block Step 4G hit did not recur.
+`_prisma_migrations` went from 19 rows (0/3 target migrations present) to **22 rows (3/3
+present)**, `finished_at` populated, no duplicates.
+
+**Full post-migration re-verification** (27/27 statements, 0 errors) confirmed everything from
+Step 4G unchanged (Payment/Collection/OrderAdvance still un-multiplied to the cent,
+CrmLead/CrmOpportunity/SalesFunnel still correctly multiplied including the row-42 spot-check)
+plus the KRA transform and migration history now correctly reflected. Voucher/Ledger/FinAccount
+confirmed untouched. Production and dev untouched throughout — every live connection used the
+gitignored `.env.uat`. `npx prisma validate`, `npx tsc --noEmit`, `npm run build` all pass.
+
+**Step 4H — full UAT functional testing (Finance, Sales, and KRA) can now begin.** The
+KRA-testing blocker noted at the end of Step 4G no longer applies. Full record:
+`docs/database/uat-migration-package/UAT_MIGRATION_EXECUTION_RESULTS.md` §13–§17, plus 6
+timestamped result files under `docs/database/uat-migration-package/results/`. Still open,
+unrelated to this step: backup restore-test, deployed-UAT-commit confirmation, and any decision
+to scrub the older `.env.uat.example` leak from git history.
+
 ### 2026-06-24 — Step 4G: UAT Decimal/INR migration EXECUTED against the live database
 
 **The UAT migration actually ran.** Connected live to `u686730471_Caveo_UAT` (MariaDB
