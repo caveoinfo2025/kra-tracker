@@ -209,6 +209,13 @@
 > reused as-is. **UAT migration SQL generation permission: Approved** — drafting UAT-specific
 > migration SQL is now unblocked, but running any migration still requires its own explicit
 > instruction plus the remaining operational pre-checks.
+>
+> **UAT migration package generated (Step 4E, 2026-06-24).** Full reviewable SQL package at
+> `docs/database/uat-migration-package/` — migration plan SQL (UAT-specific transform decisions
+> baked in), pre/post read-only verification SQL, dry-run checklist, README, and 2 optional
+> guarded Node scripts. SQL safety review confirmed clean (no destructive statements, no
+> production reference, no Voucher/Ledger/FinAccount touched). **Migration not run** —
+> operational approval and dry run review are the next step.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

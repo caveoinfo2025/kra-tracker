@@ -1097,3 +1097,27 @@ operational pre-checks (deployed commit, backup, test logins, write-freeze) Step
 **No UAT or production database was modified — read-only throughout. No migration SQL was
 written or run, no schema/API/UI code changed, no `db push` used.** `npx prisma validate` ✅,
 `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4E — UAT migration SQL package generated (2026-06-24)
+
+Not an RBAC change. Generated a full UAT-specific migration package at
+`docs/database/uat-migration-package/`: `uat-decimal-inr-migration-plan.sql` (soft-delete fields
+made idempotent via `ADD COLUMN IF NOT EXISTS`/`CREATE INDEX IF NOT EXISTS` + Release 1 type
+conversion + Release 2 type conversion, with `Payment`/`Collection`/`OrderAdvance` getting type
+conversion only and no multiply, `CrmLead`/`CrmOpportunity`/`SalesFunnel` getting `× 100,000`,
+`kra_template_item`/`employee_target`/`team_target` left as explicit no-ops, and `KRA.target`'s
+free-text transform deliberately left OUT of the SQL file — handled instead by a separate
+guarded Node script, `scripts/uat-transform-kra-target.mjs`, mirroring dev's own established
+pattern for this exact problem), `uat-decimal-inr-pre-migration-snapshot.sql` and
+`uat-decimal-inr-post-migration-verification.sql` (read-only before/after capture),
+`uat-migration-dry-run-checklist.md`, `UAT_MIGRATION_README.md`, and
+`scripts/apply-uat-decimal-inr-migration.mjs` (optional guarded apply script). **SQL safety
+review:** all 3 SQL files scanned for destructive statements/production references — every match
+found was a comment, a column name, or a non-destructive `SHOW INDEX`/`CREATE INDEX IF NOT
+EXISTS`; no `DROP`/`TRUNCATE`/`DELETE`/`GRANT`/`REVOKE`, no live production reference, no
+Voucher/Ledger/FinAccount statement. Both `.mjs` scripts refuse to run without
+`CONFIRM_UAT_DECIMAL_INR_MIGRATION=YES` and a DB-name match, and exit before reaching their
+(commented-out) execution paths by design. **Migration not run** — recorded in
+`docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`'s new "Step 4E" section. No UAT or
+production database was connected to or modified; no schema/API/UI code changed; no `db push`
+used. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

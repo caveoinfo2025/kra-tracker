@@ -1029,3 +1029,12 @@ This document is **planning only**. As of this step:
 > still requires its own explicit instruction plus the operational pre-checks Step 4B left open.
 > No UAT/production data was touched; no schema/API/UI code changed; no migration SQL was written
 > or run in this step.
+
+> **Step 4E (2026-06-24) completed:** UAT-specific migration SQL package generated at
+> `docs/database/uat-migration-package/` — migration plan SQL (soft-delete + Release 1 + Release
+> 2 with UAT-specific transform decisions), pre/post-migration read-only verification SQL, a
+> dry-run checklist, a README, and 2 optional guarded Node scripts (apply + KRA-target transform,
+> both exit early by design). SQL safety review confirmed no destructive statements, no
+> production reference, no Voucher/Ledger/FinAccount touched. **Migration not run** —
+> operational approval (backup, write-freeze, test logins) still required before any UAT
+> migration execution, which remains its own future, explicitly-instructed step.

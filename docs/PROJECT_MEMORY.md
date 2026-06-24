@@ -21,6 +21,48 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4E: UAT-specific migration SQL package generated (not run)
+
+**Generated a complete, reviewable UAT migration package** at
+`docs/database/uat-migration-package/`, turning Step 4D's classification decisions into actual
+SQL — but **nothing in it has been executed.**
+
+- `uat-decimal-inr-migration-plan.sql` — the migration itself: soft-delete fields (made
+  idempotent with `ADD COLUMN IF NOT EXISTS`/`CREATE INDEX IF NOT EXISTS`, unlike dev's
+  single-apply original), Release 1 type conversion (currently a no-op — 0 rows on UAT), and
+  Release 2 with the UAT-specific split: `Payment`/`Collection`/`OrderAdvance` get type
+  conversion only (no `× 100,000`, per the business sign-off); `CrmLead`/`CrmOpportunity`/
+  `SalesFunnel` get `× 100,000` + type conversion; `kra_template_item`/`employee_target`/
+  `team_target` are explicit no-ops (0 rows). `KRA.target`'s free-text transform is deliberately
+  **not** inline SQL — multiplying only specific labels inside free text isn't reliably
+  expressible as one SQL statement, so it's handled by a separate guarded script instead, the
+  same way dev's own (now-deleted) `transform-kra-target-money.mjs` handled it.
+- `uat-decimal-inr-pre-migration-snapshot.sql` / `uat-decimal-inr-post-migration-verification.sql`
+  — read-only before/after capture, including aggregate checksums so a before/after diff doesn't
+  require manually comparing every row, plus an explicit spot-check on the previously-flagged
+  `CrmOpportunity` row id 42 (expect it to become exactly -10000.00 after migration).
+- `uat-migration-dry-run-checklist.md` — the gate before ever applying the migration SQL
+  (backup, write-freeze, SQL re-review, rollback plan = restore the pre-migration backup).
+- `UAT_MIGRATION_README.md` — package overview and usage instructions.
+- Two optional guarded Node scripts (`scripts/apply-uat-decimal-inr-migration.mjs`,
+  `scripts/uat-transform-kra-target.mjs`) — both refuse to run without an explicit
+  `CONFIRM_UAT_DECIMAL_INR_MIGRATION=YES` env var and a `u686730471_Caveo_UAT` DB-name match, and
+  both exit early by design before reaching their (commented-out) execution paths.
+
+**SQL safety review:** all 3 generated SQL files were scanned for destructive statements
+(`DROP`/`TRUNCATE`/`DELETE`/`GRANT`/`REVOKE`) and for any production/`db push`/Voucher/Ledger/
+FinAccount reference. Every match found was a comment, a column name (`deletedAt`/`deletedById`/
+`deleteReason`), or a non-destructive `SHOW INDEX`/`CREATE INDEX IF NOT EXISTS` — confirmed
+clean, recorded in `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`'s new "Step 4E"
+section.
+
+**Migration execution status: not run.** No UAT row, table, or schema object was modified in
+this step — every file was generated and reviewed only. Running this migration is a separate,
+future, explicitly-instructed step that still depends on the operational pre-checks Step 4B left
+open (deployed-commit confirmation, backup verification, test logins, write-freeze decision).
+**No production database was touched at any point.** `npx prisma validate` ✅, `npx tsc --noEmit`
+✅, `npm run build` ✅.
+
 ### 2026-06-24 — Step 4D: UAT classification blockers closed — migration SQL generation approved (read-only)
 
 **All three of Step 4C's remaining blockers are closed.** Two inputs resolved them: (1) an

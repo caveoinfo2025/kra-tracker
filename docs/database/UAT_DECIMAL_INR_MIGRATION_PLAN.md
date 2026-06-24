@@ -663,3 +663,27 @@ sequence is considered for actual execution — and only when explicitly instruc
   step — it does **not** authorize running any migration. UAT migration execution still requires
   its own explicit instruction and still depends on the operational pre-checks Step 4B left open
   (deployed-commit confirmation, backup verification, test logins, write-freeze decision).
+
+---
+
+## Step 4E — UAT Migration Package Generated (2026-06-24)
+
+> Full package lives in `docs/database/uat-migration-package/` — see
+> `UAT_MIGRATION_README.md` there for the file index and usage instructions. This section is a
+> short summary; **nothing in the package has been run.**
+
+- **Package files:** `UAT_MIGRATION_README.md`, `uat-migration-dry-run-checklist.md`,
+  `uat-decimal-inr-migration-plan.sql` (the migration itself — soft-delete fields + Release 1 +
+  Release 2 with UAT-specific transform decisions baked in), `uat-decimal-inr-pre-migration-
+  snapshot.sql` and `uat-decimal-inr-post-migration-verification.sql` (read-only before/after
+  capture), plus two optional guarded Node scripts (`scripts/apply-uat-decimal-inr-migration.mjs`,
+  `scripts/uat-transform-kra-target.mjs`) that exit early by design and were not run.
+- **Migration not run.** Every statement in the package was generated and reviewed only — no UAT
+  row, table, or schema object was modified in this step. Full SQL safety review result (no
+  destructive statements, no production reference, no Voucher/Ledger/FinAccount touched) is
+  recorded in `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`'s "Step 4E — UAT
+  Migration SQL Generation" section.
+- **Next step is operational approval and dry-run review** — work through
+  `uat-migration-dry-run-checklist.md` in full (backup verification, write-freeze decision, test
+  user confirmation, SQL re-review) before this migration is ever actually applied, and only when
+  explicitly instructed.

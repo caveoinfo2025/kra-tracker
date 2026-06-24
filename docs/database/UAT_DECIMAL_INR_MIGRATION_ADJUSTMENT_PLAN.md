@@ -259,3 +259,55 @@ work, and deciding whether a write-freeze is needed during the migration window.
 `ALTER TABLE ... MODIFY` pattern, substituting the field-specific actions from §3/§8 for dev's
 blanket "multiply everything" approach) — as its own explicitly-instructed step, not part of this
 one — followed by the remaining operational pre-checks, before any UAT migration actually runs.
+
+---
+
+## Step 4E — UAT Migration SQL Generation (2026-06-24)
+
+> The decisions above have been turned into an actual, reviewable migration package. **Nothing
+> in the package has been run.** No UAT database was connected to, queried, or modified to
+> generate it.
+
+### Files generated
+
+All under `docs/database/uat-migration-package/`:
+
+- `UAT_MIGRATION_README.md` — package overview, file index, usage instructions, what not to do.
+- `uat-migration-dry-run-checklist.md` — the gate to run through before ever applying the
+  migration SQL.
+- `uat-decimal-inr-migration-plan.sql` — the actual migration SQL (soft-delete fields + Release 1
+  type conversion + Release 2 type conversion with UAT-specific value-transform decisions).
+- `uat-decimal-inr-pre-migration-snapshot.sql` — read-only baseline-capture SQL.
+- `uat-decimal-inr-post-migration-verification.sql` — read-only post-migration verification SQL.
+- `scripts/apply-uat-decimal-inr-migration.mjs` — optional guarded apply script (DB-name refusal,
+  `CONFIRM_UAT_DECIMAL_INR_MIGRATION=YES` gate, exits early by design — not run).
+- `scripts/uat-transform-kra-target.mjs` — optional guarded `KRA.target` free-text transform
+  script (same guard pattern, exits early by design — not run).
+
+### UAT-specific transform differences from dev's original SQL
+
+| Domain | Dev's original action | UAT package's action | Why different |
+| ------ | ---------------------- | ---------------------- | -------------- |
+| `Payment.amountLakhs`, `Collection`'s 3 amount fields, `OrderAdvance.amountLakhs` | Multiply by 100,000 | **Type conversion only — no multiply** | Business-confirmed these are already actual ₹ INR on UAT (§5) |
+| `CrmLead.expectedValue`, `SalesFunnel`'s 2 fields, `CrmOpportunity`'s 3 fields | Multiply by 100,000 | Multiply by 100,000 (unchanged) | Confirmed Lakhs-scale on UAT via full-population review (§6) |
+| `KRA.target` money labels | Transformed via a guarded Node script using dev's 6-label list | Transformed via a UAT-specific guarded Node script using the UAT-confirmed 6-label allowlist | Confirmed identical to dev's list after full 34-row review (§7), but the script independently re-derives the allowlist rather than importing dev's deleted script |
+| Release 1 fields (`Expense`/`EmployeeAdvance`/`TravelClaim`) | Multiply by 100,000 | Multiply by 100,000 (unchanged — currently a no-op since 0 rows on UAT) | No evidence UAT diverges from dev's assumption for these; kept for consistency in case rows appear before migration |
+| Soft-delete fields | Plain `ADD COLUMN`/`CREATE INDEX` | `ADD COLUMN IF NOT EXISTS`/`CREATE INDEX IF NOT EXISTS` | UAT-specific idempotency safeguard — dev's version assumed a single clean apply, UAT's package tolerates being re-run without erroring on "column already exists" |
+
+### SQL safety review result
+
+All 3 SQL files were scanned for `DROP|TRUNCATE|DELETE|GRANT|REVOKE` and for any reference to
+`production`/the production database name/`db push`/`Voucher`/`Ledger`/`FinAccount`. **Every match
+found was either a comment, a column name (`deletedAt`/`deletedById`/`deleteReason`), or a
+non-destructive `SHOW INDEX`/`CREATE INDEX IF NOT EXISTS` statement — no actual destructive
+statement, no live production reference, and no Voucher/Ledger/FinAccount data statement exists
+in any file.** Both `.mjs` scripts exit before reaching their (commented-out) execution paths and
+contain DB-name + explicit-opt-in guards consistent with every other guarded script in this
+project.
+
+### Migration execution status
+
+**Not run.** Every file in the package has been generated and reviewed only. No UAT row, table,
+or schema object has been modified. Running this migration is a separate, future,
+explicitly-instructed step — it also still depends on the operational pre-checks Step 4B left
+open (deployed-commit confirmation, backup verification, test logins, write-freeze decision).
