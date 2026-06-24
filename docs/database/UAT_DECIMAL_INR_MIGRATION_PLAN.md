@@ -968,3 +968,43 @@ UAT database was connected to, queried, or modified.
 >
 > No production database was queried, no production migration was prepared or run, no `db push`
 > was used, and no production-related command was run as part of recording this decision.
+
+---
+
+## FT-3 UAT deployed commit verification
+
+**Second attempt (2026-06-24), result: still Open.** Two independent checks were run:
+
+1. **`node scripts/check-uat-status.mjs`** — **Unavailable.** Requires `HOSTINGER_SSH_PASSWORD`,
+   which is not set in this environment. The script was not modified, no credential was sought
+   or guessed, and the result was reported as unavailable rather than faked.
+2. **Public signal check against `https://uat.caveoinfosystems.com`** (no login) —
+   **Inconclusive / Not available** across every category checked:
+   - No version endpoint exists (`/api/version`, `/api/health`, `/api/build-info` all return the
+     generic `401` the auth gate fires for *any* `/api/*` path, existing or not).
+   - No release file exists (`/RELEASE`, `/release.json`, `/version.txt`,
+     `/.well-known/version`, `/build-info.json` all 307-redirect to `/login`, the same behavior
+     any nonexistent path gets).
+   - No version/commit text in page `<meta>` tags or visible footer.
+   - A Next.js `buildId` value (masked) **is** present in the page's React Flight payload, but
+     `next.config.ts` has no custom `generateBuildId` — the default BUILD_ID is randomly
+     generated per build, **not derived from the git commit**. Rebuilding the identical commit
+     locally would produce a different BUILD_ID, so this value cannot be linked to a known build
+     artifact and is **not treated as proof of match or mismatch**, per explicit instruction.
+   - The static asset chunk-naming pattern observed live still does not match this local
+     environment's production build naming — also **not treated as proof**, for the same reason
+     (no known-good artifact to link it to).
+
+**Outcome (per the task's own decision rule — Option A applies):** no Hostinger/deploy access
+exists and no public version marker exists, so **FT-3 remains Open.** It has not been escalated
+to Accepted Risk (no explicit acceptance was given) or resolved via redeploy (no
+`CONFIRM_UAT_REDEPLOY=YES` approval was given).
+
+**To close this gap, one of the following needs to happen:**
+- Someone with Hostinger SSH access runs `node scripts/check-uat-status.mjs` (or SSHes in
+  directly) and reports the deployed `BUILD_ID`/last build log/git commit.
+- A lightweight, deterministic version marker is added to the app (e.g. `/api/version` reading
+  `process.env.NEXT_PUBLIC_APP_VERSION` set from the git commit at build time, or a footer build
+  hash) — **not implemented here**, per instruction not to implement unless explicitly asked.
+- `node scripts/deploy-uat.mjs` is run with explicit approval to redeploy current `uat` HEAD,
+  after which the deployed commit is unambiguous by construction.

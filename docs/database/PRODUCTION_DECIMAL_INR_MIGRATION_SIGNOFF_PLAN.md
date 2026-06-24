@@ -14,6 +14,12 @@
 > No production pre-check, no production migration execution preparation, and no
 > production-related command has been run as part of recording this decision.
 >
+> **FT-3 re-attempted (2026-06-24), result: still Open — production remains paused.** Neither
+> Hostinger/deploy access nor a public version marker was available to confirm the deployed UAT
+> commit (see `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-3 UAT deployed commit verification" for
+> the full attempt). This does not change anything in this document — production planning stays
+> paused until all five items above are closed.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

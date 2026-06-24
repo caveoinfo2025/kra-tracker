@@ -1147,3 +1147,12 @@ This document is **planning only**. As of this step:
 > OrderAdvance click-through testing). No production database was queried, no production
 > migration was prepared or run, no `db push` was used, and no production-related command was
 > run as part of recording this decision.
+
+> **FT-3 status note (2026-06-24, second verification attempt):** still **Open**.
+> `scripts/check-uat-status.mjs` is unavailable (no `HOSTINGER_SSH_PASSWORD`); no public version
+> endpoint, release file, or commit-derived build marker exists on `uat.caveoinfosystems.com` —
+> a `buildId` is present in the page payload but is randomly generated (no custom
+> `generateBuildId` in `next.config.ts`), so it cannot be linked to a known commit and is not
+> treated as proof. Per the decision rule, this is Option A (Open) — neither Hostinger access
+> nor a public version marker exists. Full detail:
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-3 UAT deployed commit verification".

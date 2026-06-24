@@ -1341,3 +1341,23 @@ will resume only on explicit instruction from Vijesh.**
 **No production database was queried, no production migration was prepared or run, no `db
 push` was used, and no production-related command was run.** `npx prisma validate` ✅,
 `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4H-3 — FT-3 second verification attempt; status confirmed Open (2026-06-24)
+
+Two checks attempted, both inconclusive — **FT-3 row updated from "Open" to "Open (verified
+unresolvable from this environment)"**, not closed:
+
+| Check | Result |
+| ----- | ------ |
+| `node scripts/check-uat-status.mjs` | **Unavailable** — requires `HOSTINGER_SSH_PASSWORD`, not set here; not faked |
+| Public version endpoint / release file | **Not available** — every candidate path either returns the universal `401` (any `/api/*`, gated regardless of existence) or 307-redirects to `/login` (any nonexistent path does the same) |
+| Page `buildId` in React Flight payload | **Found, but inconclusive** — `next.config.ts` has no custom `generateBuildId`; the default is randomly generated per build, not commit-derived, so it cannot be linked to a known build artifact |
+| Static asset chunk-name pattern | **Inconclusive** — not treated as proof (same reasoning, no known-good artifact to compare against) |
+
+**Decision rule applied (Option A):** no Hostinger/deploy access exists and no public version
+marker exists → **FT-3 remains Open.** Not escalated to Accepted Risk (no explicit acceptance
+given) or resolved via redeploy (no `CONFIRM_UAT_REDEPLOY=YES` approval given).
+
+**Production remains paused** — unchanged from Step 4H-2. No production database was queried,
+no production pre-check was run, no `db push` was used, no production-related command was run.
+`npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

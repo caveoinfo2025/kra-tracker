@@ -290,6 +290,12 @@
 > commit), FT-1 (`kra-engine.ts` fallback constants), FT-2b (OAuth handshake end-to-end), FT-4
 > (backup restore-test), FT-5 (Sales Funnel + OrderAdvance click-through). No production
 > database was queried and no production-related command was run.
+>
+> **FT-3 second attempt (Step 4H-3, same day): still Open.** `check-uat-status.mjs` unavailable
+> (no SSH credential); no public version endpoint/release file exists; a page `buildId` was
+> found but is randomly generated (not commit-derived, per `next.config.ts`) so it isn't usable
+> evidence. Production stays paused. Full detail:
+> `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-3 UAT deployed commit verification".
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

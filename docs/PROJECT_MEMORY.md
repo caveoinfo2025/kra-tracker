@@ -19,7 +19,38 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-24 — Step 4H-2: Production deferred; UAT gaps remain open)
+## 0. Current status (2026-06-24 — Step 4H-3: FT-3 re-attempted, confirmed unresolvable from here; UAT gaps remain open)
+
+### 2026-06-24 — Step 4H-3: FT-3 second verification attempt — status confirmed Open
+
+A second, more rigorous attempt to close FT-3 (UAT deployed commit confirmation), following up
+on Step 4H-2. Two checks were run, both genuinely attempted rather than assumed:
+
+1. **`node scripts/check-uat-status.mjs`** — failed with "✗ `HOSTINGER_SSH_PASSWORD` env var is
+   required." No credential was sought, guessed, or worked around — reported as unavailable.
+2. **Public signal check against `https://uat.caveoinfosystems.com`** (no login) — checked for
+   a version endpoint, release file, page metadata, footer marker, and static asset/build
+   identifiers. Found nothing usable: every candidate API/release path returns the same generic
+   `401`/redirect-to-login that *any* path gets, gated or not. A Next.js `buildId` value *is*
+   embedded in the page's React Flight payload, but `next.config.ts` has no custom
+   `generateBuildId` — the default is randomly generated per build, not derived from the git
+   commit, so it cannot be linked to a known build artifact. Per explicit instruction, this was
+   **not** treated as proof of match or mismatch, and neither was the previously-noted CSS
+   chunk-naming difference.
+
+**Outcome: FT-3 remains Open** (Option A per the task's own decision rule — applies because
+neither Hostinger/deploy access nor a public version marker exists). Not escalated to Accepted
+Risk (no explicit acceptance given this round) and not resolved via redeploy (no
+`CONFIRM_UAT_REDEPLOY=YES` approval given). **Production remains paused**, unchanged from Step
+4H-2 — production planning resumes only on Vijesh's explicit instruction, after all five UAT
+gaps (FT-1, FT-2b, FT-3, FT-4, FT-5) close.
+
+**No production database was queried, no production pre-check was run, no production migration
+was prepared or executed, no `db push` was used, and no production-related command was run.**
+This step is documentation-only — six docs updated (`UAT_DECIMAL_INR_MIGRATION_PLAN.md`,
+`DECIMAL_MONEY_MIGRATION_PLAN.md`, `PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`,
+`RBAC_MIGRATION_TRACKER.md`, `PROJECT_MEMORY.md` (this entry), `DATABASE.md`).
+`npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-24 — Step 4H-2: Production deferral decision recorded; FT-3 attempted, remains Open
 
