@@ -1136,3 +1136,14 @@ This document is **planning only**. As of this step:
 > open, Medium; four Low items) explicitly accepted rather than hidden. Full record:
 > `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` §0, §§3–7,
 > §12.
+
+> **Production Deferral Decision (2026-06-24).** Production is paused until UAT gaps are closed
+> and final UAT testing/sign-off is completed. Production planning will resume only on explicit
+> instruction from Vijesh. This is the operative decision going forward — stricter than the
+> "FT-3 does not block production planning" framing in the Step 4H-1 note above, which is left
+> as a historical record only. **Remaining UAT closure items:** FT-3 (deployed commit
+> confirmation), FT-1 (`kra-engine.ts` fallback constants), FT-2b (Microsoft Entra ID OAuth
+> handshake end-to-end confirmation), FT-4 (backup restore-test), FT-5 (Sales Funnel +
+> OrderAdvance click-through testing). No production database was queried, no production
+> migration was prepared or run, no `db push` was used, and no production-related command was
+> run as part of recording this decision.

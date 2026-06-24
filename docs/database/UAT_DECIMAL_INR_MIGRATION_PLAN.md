@@ -942,3 +942,29 @@ UAT database was connected to, queried, or modified.
   reasoning.
 - **Next action:** FT-3 (confirm the actual deployed UAT commit) is the one item worth closing
   before leaning heavily on this sign-off for production planning; it does not block it.
+
+---
+
+## Production Deferral Decision (2026-06-24)
+
+> **Production is paused until UAT gaps are closed and final UAT testing/sign-off is
+> completed. Production planning will resume only on explicit instruction from Vijesh.**
+>
+> This supersedes the looser "FT-3 does not block production planning" framing in the Step
+> 4H-1 entry above — that statement is left in place as a historical record of what was said at
+> the time, but the operative decision as of this note is the stricter one: **no production
+> pre-checks, no production migration execution preparation, and no production-related commands
+> will be run until every item below is closed.**
+>
+> **Remaining UAT closure items (all must close before production planning resumes):**
+> - **FT-3** — UAT deployed commit/version confirmation (still open; no SSH/server access or
+>   version endpoint available to confirm it from this environment)
+> - **FT-1** — `kra-engine.ts` hardcoded Lakhs-scale fallback constants (Low, pre-existing)
+> - **FT-2b** — Microsoft Entra ID OAuth login end-to-end confirmation (live testing so far used
+>   the codebase's own dev-impersonation bypass, not a real interactive OAuth handshake)
+> - **FT-4** — UAT backup restore-test (outstanding since Step 4F-1)
+> - **FT-5** — Sales Funnel (legacy) + OrderAdvance click-through testing (not independently
+>   exercised live in Step 4H-1)
+>
+> No production database was queried, no production migration was prepared or run, no `db push`
+> was used, and no production-related command was run as part of recording this decision.

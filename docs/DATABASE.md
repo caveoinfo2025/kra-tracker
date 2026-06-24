@@ -281,6 +281,15 @@
 > restore-test, two secondary pages not click-tested) explicitly accepted, not hidden. Full
 > results: `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md`
 > §0, §§3–7, §12.
+>
+> **Production Deferral Decision (Step 4H-2, 2026-06-24).** FT-3 (deployed commit confirmation)
+> was attempted and remains Open — no SSH/version-endpoint access available, and the one public
+> signal checked (CSS chunk-naming pattern) was inconclusive. **Production is now paused until
+> all UAT gaps are closed and final UAT testing/sign-off is completed; production planning will
+> resume only on explicit instruction from Vijesh.** Remaining UAT closure items: FT-3 (deployed
+> commit), FT-1 (`kra-engine.ts` fallback constants), FT-2b (OAuth handshake end-to-end), FT-4
+> (backup restore-test), FT-5 (Sales Funnel + OrderAdvance click-through). No production
+> database was queried and no production-related command was run.
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

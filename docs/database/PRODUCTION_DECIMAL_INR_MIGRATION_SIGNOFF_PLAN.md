@@ -1,5 +1,19 @@
 # Production Decimal / INR Migration Sign-Off Plan
 
+> **Production Deferral Decision (2026-06-24) — reaffirmed, stricter gate.** Production is
+> paused until UAT gaps are closed and final UAT testing/sign-off is completed. Production
+> planning will resume only on explicit instruction from Vijesh. This document remains a
+> planning artifact only — nothing in it is executed, and nothing in it is to be acted on until
+> the deferral lifts. **Remaining UAT closure items, all of which must close first:**
+> - **FT-3** — UAT deployed commit/version confirmation
+> - **FT-1** — `kra-engine.ts` hardcoded Lakhs-scale fallback constants
+> - **FT-2b** — Microsoft Entra ID OAuth login end-to-end confirmation
+> - **FT-4** — UAT backup restore-test
+> - **FT-5** — Sales Funnel (legacy) + OrderAdvance click-through testing
+>
+> No production pre-check, no production migration execution preparation, and no
+> production-related command has been run as part of recording this decision.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

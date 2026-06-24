@@ -19,7 +19,35 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-24 — Step 4H-1: Live UAT UI/RBAC sign-off; Final UAT Migration Sign-Off Passed)
+## 0. Current status (2026-06-24 — Step 4H-2: Production deferred; UAT gaps remain open)
+
+### 2026-06-24 — Step 4H-2: Production deferral decision recorded; FT-3 attempted, remains Open
+
+FT-3 (UAT deployed commit confirmation) was attempted: no SSH/server access or version endpoint
+is available from this environment to confirm it, and the one circumstantial public signal
+checked (a live-response CSS chunk-naming pattern not matching this local build's naming) was
+inconclusive — suggestive of a possible build difference, not proof either way. Asked Vijesh how
+to resolve it; the response was to instead record an explicit, broader decision:
+
+**Production is paused until UAT gaps are closed and final UAT testing/sign-off is completed.
+Production planning will resume only on explicit instruction from Vijesh.** This is a stricter
+gate than the prior Step 4H-1 framing ("FT-3 does not block production planning") — that
+statement stands as a historical record only; this note is the operative decision going
+forward.
+
+**Remaining UAT closure items (all must close before production planning resumes):**
+- **FT-3** — UAT deployed commit/version confirmation (Open)
+- **FT-1** — `kra-engine.ts` hardcoded Lakhs-scale fallback constants (Open, Low)
+- **FT-2b** — Microsoft Entra ID OAuth login end-to-end confirmation (Open, Low)
+- **FT-4** — UAT backup restore-test (Open, Low)
+- **FT-5** — Sales Funnel (legacy) + OrderAdvance click-through testing (Open, Low)
+
+**No production database was queried, no production pre-check was run, no production migration
+was prepared or executed, no `db push` was used, and no production-related command was run.**
+This step is documentation-only — six docs updated (`UAT_DECIMAL_INR_MIGRATION_PLAN.md`,
+`DECIMAL_MONEY_MIGRATION_PLAN.md`, `PRODUCTION_DECIMAL_INR_MIGRATION_SIGNOFF_PLAN.md`,
+`RBAC_MIGRATION_TRACKER.md`, `PROJECT_MEMORY.md` (this entry), `DATABASE.md`).
+`npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-24 — Step 4H-1: Live UAT UI/RBAC sign-off — Final UAT Migration Sign-Off now Passed
 

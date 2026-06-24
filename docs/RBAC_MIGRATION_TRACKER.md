@@ -1321,3 +1321,23 @@ unchanged. Voucher/Ledger/FinAccount untouched. No write action against UAT data
 `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅. Full record:
 `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` §0, §§3–7,
 §12.
+
+## Step 4H-2 — Production deferral decision recorded; FT-3 remains Open (2026-06-24)
+
+FT-3 (UAT deployed commit confirmation) could not be closed — no SSH/server access or version
+endpoint is available from this environment, and the one circumstantial public signal checked
+(a CSS chunk-naming pattern in the live response not matching this local build's naming) was
+inconclusive, not proof either way. Per explicit instruction, **production is now paused until
+all UAT gaps are closed and final UAT testing/sign-off is fully completed. Production planning
+will resume only on explicit instruction from Vijesh.**
+
+**Remaining UAT closure items:**
+- **FT-3** — UAT deployed commit/version confirmation (Open)
+- **FT-1** — `kra-engine.ts` hardcoded Lakhs-scale fallback constants (Open, Low)
+- **FT-2b** — Microsoft Entra ID OAuth login end-to-end confirmation (Open, Low)
+- **FT-4** — UAT backup restore-test (Open, Low)
+- **FT-5** — Sales Funnel (legacy) + OrderAdvance click-through testing (Open, Low)
+
+**No production database was queried, no production migration was prepared or run, no `db
+push` was used, and no production-related command was run.** `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.
