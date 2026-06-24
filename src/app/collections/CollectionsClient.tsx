@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 import CustomerNameCombobox from "@/components/CustomerNameCombobox";
+import { formatINRAsLakhs } from "@/lib/money";
 
 // ─── Delete (soft-delete) reason modal — shared by single + bulk delete ───────
 
@@ -344,9 +345,9 @@ export default function CollectionsClient({
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Invoiced (filtered)",        value: `₹${totalInvoiced.toFixed(2)}` },
-          { label: "Total (Without GST)",        value: `₹${totalWithoutGst.toFixed(2)}` },
-          { label: "Collected (filtered)",       value: `₹${totalReceived.toFixed(2)}` },
+          { label: "Invoiced (filtered)",        value: formatINRAsLakhs(totalInvoiced) },
+          { label: "Total (Without GST)",        value: formatINRAsLakhs(totalWithoutGst) },
+          { label: "Collected (filtered)",       value: formatINRAsLakhs(totalReceived) },
           { label: "Collection Rate",            value: `${collRate}%` },
         ].map((s) => (
           <div key={s.label} className="bg-white border rounded-xl p-4 text-center">
@@ -392,7 +393,7 @@ export default function CollectionsClient({
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    {["Salesperson", "Invoices", "Total Billed (₹)", "Total (Without GST) (₹)", "GST Amount (₹)", "Collected (₹)", "Outstanding (₹)", "Collection %"].map((h) => (
+                    {["Salesperson", "Invoices", "Total Billed (₹L)", "Total (Without GST) (₹L)", "GST Amount (₹L)", "Collected (₹L)", "Outstanding (₹L)", "Collection %"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -404,11 +405,11 @@ export default function CollectionsClient({
                       <tr key={r.empId} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-semibold text-gray-900">{r.empName}</td>
                         <td className="px-4 py-3 text-center text-gray-600">{r.invoiceCount}</td>
-                        <td className="px-4 py-3 font-bold text-[#CC2229]">{r.totalBilled.toFixed(2)}</td>
-                        <td className="px-4 py-3 font-semibold text-indigo-700">{r.totalWithoutGst.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-gray-500">{r.totalGst > 0 ? r.totalGst.toFixed(2) : "—"}</td>
-                        <td className="px-4 py-3 text-green-700 font-semibold">{r.totalCollected.toFixed(2)}</td>
-                        <td className={`px-4 py-3 font-semibold ${r.outstanding > 0 ? "text-red-600" : "text-green-600"}`}>{r.outstanding.toFixed(2)}</td>
+                        <td className="px-4 py-3 font-bold text-[#CC2229]">{formatINRAsLakhs(r.totalBilled, { symbol: false })}</td>
+                        <td className="px-4 py-3 font-semibold text-indigo-700">{formatINRAsLakhs(r.totalWithoutGst, { symbol: false })}</td>
+                        <td className="px-4 py-3 text-gray-500">{r.totalGst > 0 ? formatINRAsLakhs(r.totalGst, { symbol: false }) : "—"}</td>
+                        <td className="px-4 py-3 text-green-700 font-semibold">{formatINRAsLakhs(r.totalCollected, { symbol: false })}</td>
+                        <td className={`px-4 py-3 font-semibold ${r.outstanding > 0 ? "text-red-600" : "text-green-600"}`}>{formatINRAsLakhs(r.outstanding, { symbol: false })}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 bg-gray-200 rounded-full h-1.5 min-w-[60px]">
@@ -432,19 +433,19 @@ export default function CollectionsClient({
                       {revenueTable.reduce((s, r) => s + r.invoiceCount, 0)}
                     </td>
                     <td className="px-4 py-3 font-bold text-[#CC2229]">
-                      {revenueTable.reduce((s, r) => s + r.totalBilled, 0).toFixed(2)}
+                      {formatINRAsLakhs(revenueTable.reduce((s, r) => s + r.totalBilled, 0), { symbol: false })}
                     </td>
                     <td className="px-4 py-3 font-bold text-indigo-700">
-                      {revenueTable.reduce((s, r) => s + r.totalWithoutGst, 0).toFixed(2)}
+                      {formatINRAsLakhs(revenueTable.reduce((s, r) => s + r.totalWithoutGst, 0), { symbol: false })}
                     </td>
                     <td className="px-4 py-3 font-semibold text-gray-600">
-                      {revenueTable.reduce((s, r) => s + r.totalGst, 0).toFixed(2)}
+                      {formatINRAsLakhs(revenueTable.reduce((s, r) => s + r.totalGst, 0), { symbol: false })}
                     </td>
                     <td className="px-4 py-3 font-bold text-green-700">
-                      {revenueTable.reduce((s, r) => s + r.totalCollected, 0).toFixed(2)}
+                      {formatINRAsLakhs(revenueTable.reduce((s, r) => s + r.totalCollected, 0), { symbol: false })}
                     </td>
                     <td className="px-4 py-3 font-bold text-red-600">
-                      {revenueTable.reduce((s, r) => s + r.outstanding, 0).toFixed(2)}
+                      {formatINRAsLakhs(revenueTable.reduce((s, r) => s + r.outstanding, 0), { symbol: false })}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {(() => {
@@ -668,9 +669,9 @@ export default function CollectionsClient({
                       isManager ? "Employee" : null,
                       "Customer",
                       "Invoice Date",
-                      "Invoice (₹)",
-                      "Total (Without GST) (₹)",
-                      "Received (₹)",
+                      "Invoice (₹L)",
+                      "Total (Without GST) (₹L)",
+                      "Received (₹L)",
                       "Balance",
                       "Due Date",
                       "Paid On",
@@ -702,12 +703,12 @@ export default function CollectionsClient({
                         {isManager && <td className="px-4 py-3 font-medium">{r.employee?.name ?? "—"}</td>}
                         <td className="px-4 py-3 font-medium">{r.customerName}</td>
                         <td className="px-4 py-3 text-gray-500">{r.invoiceDate.slice(0, 10)}</td>
-                        <td className="px-4 py-3 font-semibold">{r.invoiceValueLakhs.toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold">{formatINRAsLakhs(r.invoiceValueLakhs, { symbol: false })}</td>
                         <td className="px-4 py-3 font-semibold text-indigo-700">
-                          {r.amountWithoutGstLakhs > 0 ? r.amountWithoutGstLakhs.toFixed(2) : "—"}
+                          {r.amountWithoutGstLakhs > 0 ? formatINRAsLakhs(r.amountWithoutGstLakhs, { symbol: false }) : "—"}
                         </td>
-                        <td className="px-4 py-3 text-green-700">{r.amountReceivedLakhs.toFixed(2)}</td>
-                        <td className={`px-4 py-3 font-semibold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>{balance.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-green-700">{formatINRAsLakhs(r.amountReceivedLakhs, { symbol: false })}</td>
+                        <td className={`px-4 py-3 font-semibold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>{formatINRAsLakhs(balance, { symbol: false })}</td>
                         <td className={`px-4 py-3 ${overdue ? "text-red-600 font-semibold" : "text-gray-500"}`}>{r.dueDate.slice(0, 10)}</td>
                         <td className="px-4 py-3">
                           {r.paymentReceivedDate ? (

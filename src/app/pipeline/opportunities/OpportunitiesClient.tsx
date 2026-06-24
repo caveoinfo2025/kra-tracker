@@ -340,7 +340,7 @@ export default function OpportunitiesClient({
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Company / Opportunity", "Stage", "Value (₹)", "Prob %", "Close Date", "PO Date", "Owner", ""].map((h) => (
+                  {["Company / Opportunity", "Stage", "Value (₹L)", "Prob %", "Close Date", "PO Date", "Owner", ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
