@@ -216,6 +216,13 @@
 > guarded Node scripts. SQL safety review confirmed clean (no destructive statements, no
 > production reference, no Voucher/Ledger/FinAccount touched). **Migration not run** —
 > operational approval and dry run review are the next step.
+>
+> **UAT operational approval checklist prepared/reviewed (Step 4F, 2026-06-24).** SQL/package
+> readiness is fully Completed in `uat-migration-dry-run-checklist.md`. Two new records track
+> what's still outstanding: `UAT_BACKUP_ROLLBACK_RECORD.md` (no real backup taken yet — all
+> Pending) and `UAT_MIGRATION_APPROVAL_RECORD.md` (business/technical sign-off, write-freeze,
+> rollback approval all Pending). **Migration execution permission: Pending. Migration not
+> run.**
 
 > **2026-06-10 (Session 6) — Phase 12 Integration Center + Phase 13 Security Center.**
 > Two new migration blocks applied to `u686730471_caveodev` (uncommitted to git):

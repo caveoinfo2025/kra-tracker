@@ -687,3 +687,38 @@ sequence is considered for actual execution — and only when explicitly instruc
   `uat-migration-dry-run-checklist.md` in full (backup verification, write-freeze decision, test
   user confirmation, SQL re-review) before this migration is ever actually applied, and only when
   explicitly instructed.
+
+---
+
+## Step 4F — Operational Approval Status (2026-06-24)
+
+> Full detail lives in `docs/database/uat-migration-package/`: the updated
+> `uat-migration-dry-run-checklist.md`, the new `UAT_BACKUP_ROLLBACK_RECORD.md`, and the new
+> `UAT_MIGRATION_APPROVAL_RECORD.md`. This section summarizes the outcome. **UAT migration has
+> not been run.**
+
+- **Migration package reviewed.** Re-confirmed the SQL matches every Step 4D decision: Payment/
+  Collection/OrderAdvance are type-conversion-only (no `× 100,000`), CrmLead/CrmOpportunity/
+  SalesFunnel have the multiply, `KRA.target` is deliberately not touched by inline SQL (deferred
+  to the guarded script with the UAT-confirmed 6-label allowlist), and no destructive statement,
+  production reference, or Voucher/Ledger/FinAccount touch exists anywhere in the package.
+  Every "SQL review" item in the dry-run checklist is now **Completed**.
+- **Backup/rollback record created** (`UAT_BACKUP_ROLLBACK_RECORD.md`) — **fully Pending.** No
+  UAT backup has actually been taken yet; the rollback *method* (restore the pre-migration
+  backup) is documented, but cannot be approved until a real backup exists and an owner is named.
+- **Approval record created** (`UAT_MIGRATION_APPROVAL_RECORD.md`) — **fully Pending.** Business
+  owner, technical owner, backup approval, write-freeze approval, SQL approval, KRA-transform
+  approval, rollback-plan approval, and post-migration-testing ownership are all unassigned and
+  unapproved as of this step.
+- **Execution permission status: Pending.** SQL/package readiness is Completed, but operational
+  readiness (backup taken and verified, write-freeze decided, business/technical sign-off, test
+  users confirmed) is not — and migration execution permission requires both, not just the SQL
+  review.
+- **Remaining blockers / pending items:** take and verify a UAT backup; decide and communicate a
+  write-freeze (or explicitly decide none is needed); confirm no active UAT testers during the
+  migration window; confirm Manager/Employee test logins work post-migration; confirm the commit
+  currently deployed to the UAT server (still open since Step 4B); obtain named business and
+  technical owner sign-off.
+
+**UAT migration has not been run.** This step is approval-tracking and record-creation only — no
+UAT database was connected to, queried, or modified.

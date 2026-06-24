@@ -1038,3 +1038,12 @@ This document is **planning only**. As of this step:
 > production reference, no Voucher/Ledger/FinAccount touched. **Migration not run** —
 > operational approval (backup, write-freeze, test logins) still required before any UAT
 > migration execution, which remains its own future, explicitly-instructed step.
+
+> **Step 4F (2026-06-24) completed:** UAT operational approval checklist prepared/reviewed —
+> every SQL/package-content item in `uat-migration-dry-run-checklist.md` is now Completed
+> (re-confirmed Payment/Collection/OrderAdvance type-only, Sales Pipeline multiply, KRA.target
+> deferred to the guarded script, no destructive statements, no production reference, no
+> Voucher/Ledger/FinAccount). Created `UAT_BACKUP_ROLLBACK_RECORD.md` and
+> `UAT_MIGRATION_APPROVAL_RECORD.md` — both fully Pending (no backup taken yet, no business/
+> technical sign-off obtained yet). **Migration still not run** — execution permission remains
+> Pending pending backup, write-freeze, and approval-record completion.

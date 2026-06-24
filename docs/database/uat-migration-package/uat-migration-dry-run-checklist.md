@@ -2,92 +2,65 @@
 
 > Run through this checklist, in order, before ever applying
 > [`uat-decimal-inr-migration-plan.sql`](uat-decimal-inr-migration-plan.sql) against UAT. Every
-> item should be checked off — if any item can't be confirmed, stop and resolve it first. This
+> item should reach **Completed** or **Not Applicable** — if any item is **Pending** or
+> **Blocked**, stop and resolve it before requesting migration execution permission. This
 > checklist does not authorize running the migration on its own; it is the gate before that
 > authorization is sought.
+>
+> **Status as of Step 4F (2026-06-24): most items below are still Pending.** This step
+> (operational approval review) completed the SQL/package review items and documented what's
+> still outstanding — it did not itself take a backup, freeze writes, or obtain business/
+> technical sign-off. See `UAT_BACKUP_ROLLBACK_RECORD.md` and `UAT_MIGRATION_APPROVAL_RECORD.md`
+> (same folder) for the durable record of what's been confirmed vs. still outstanding.
 
 ## Environment confirmation
 
-- [ ] **Confirm UAT database name.** `SELECT DATABASE()` returns `u686730471_Caveo_UAT` — not
-      dev (`u686730471_caveodev`), not production (`u686730471_caveo_crm`).
-- [ ] **Confirm backup exists.** A full UAT database backup has been taken, **and verified
-      restorable** (restored to a scratch DB, row counts spot-checked — not just confirmed the
-      dump file is non-empty), immediately before this migration window.
-- [ ] **Confirm no active UAT testers.** Check with anyone who might currently be using UAT for
-      unrelated testing — this migration touches Finance/Sales/KRA tables broadly enough that
-      concurrent unrelated testing could produce confusing results during/after the migration.
-- [ ] **Confirm write-freeze.** Decide explicitly whether a write freeze is needed on UAT during
-      the migration window, and communicate it to anyone with UAT access if so. Record the
-      decision either way — don't leave it implicit.
+| Item | Status | Notes |
+| ---- | ------ | ----- |
+| Confirm UAT database name (`SELECT DATABASE()` = `u686730471_Caveo_UAT`) | **Completed** | Confirmed live in Step 4B (2026-06-24) and re-confirmed in Step 4D's follow-up query — not re-verified again in this step, but two independent prior confirmations exist |
+| Confirm UAT backup taken | **Pending** | No backup has been taken as of this step — see `UAT_BACKUP_ROLLBACK_RECORD.md` |
+| Confirm UAT backup restore verified (not just dump-file-non-empty) | **Pending** | Depends on the backup above being taken first |
+| Confirm no active UAT testers during the migration window | **Pending** | Not checked in this step — requires coordination with whoever else has UAT access |
+| Confirm UAT write-freeze decision | **Pending** | No write-freeze has been approved or declined yet — see `UAT_MIGRATION_APPROVAL_RECORD.md` |
+| Confirm UAT test users available after migration (Manager-tier + Employee-tier login) | **Pending** | Not verified in this step |
 
 ## Pre-migration data capture
 
-- [ ] **Run [`uat-decimal-inr-pre-migration-snapshot.sql`](uat-decimal-inr-pre-migration-snapshot.sql)**
-      and save the output somewhere durable (not just terminal scrollback).
-- [ ] **Confirm the snapshot's Section 1 migration-name check returns 0 rows** — i.e. none of the
-      3 migrations this package applies are already present in `_prisma_migrations`. If any row
-      comes back, STOP and investigate before proceeding — something has changed since Step 4B/4D.
+| Item | Status | Notes |
+| ---- | ------ | ----- |
+| Pre-migration snapshot SQL reviewed | **Completed** | Reviewed in this step (Task 1) — confirmed read-only, covers all in-scope fields, includes the `_prisma_migrations` 0-row sanity check |
+| Pre-migration snapshot SQL actually run against UAT | **Pending** | Not run in this step — running it requires the same UAT SSH/MySQL access used in Steps 4B/4D, and is itself part of the actual migration execution sequence, not this approval step |
 
 ## SQL review
 
-- [ ] **Review [`uat-decimal-inr-migration-plan.sql`](uat-decimal-inr-migration-plan.sql) yourself**,
-      line by line — do not just trust this checklist or the README.
-- [ ] **Confirm the SQL has no destructive statements.** Search it yourself:
-      ```bash
-      grep -iE "DROP|TRUNCATE|DELETE|GRANT|REVOKE" uat-decimal-inr-migration-plan.sql
-      ```
-      This should return no matches, or only matches inside a `--` comment line (harmless
-      commentary). Read each match yourself to confirm.
-- [ ] **Confirm Payment/Collection/OrderAdvance have NO `× 100,000` update.** Search for these 4
-      fields and confirm there is no `UPDATE ... SET ... = ... * 100000` statement touching them
-      anywhere in the file — only `ALTER TABLE ... MODIFY` statements should reference them.
-      ```bash
-      grep -A2 "SECTION 3" uat-decimal-inr-migration-plan.sql
-      ```
-- [ ] **Confirm the Sales Pipeline fields DO have a `× 100,000` update.** `CrmLead.expectedValue`,
-      `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/
-      `billingValueLakhs` should each have a corresponding `UPDATE` statement before their
-      `ALTER TABLE` statement.
-- [ ] **Confirm `KRA.target` is NOT touched by inline SQL in this file.** The migration plan SQL
-      intentionally has no `UPDATE` statement against the `KRA` table — that transform is handled
-      separately by [`scripts/uat-transform-kra-target.mjs`](scripts/uat-transform-kra-target.mjs).
-      Confirm that script's `MONEY_LABELS` array matches the 6 UAT-confirmed labels exactly (see
-      `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md` §7) before it is ever run.
-- [ ] **Confirm `kra_template_item`/`employee_target`/`team_target` are not referenced with any
-      write statement** — Section 6 of the plan SQL should contain comments only, no `UPDATE`/
-      `ALTER` against these tables.
-- [ ] **Confirm no production database reference appears anywhere** in any file in this package.
-- [ ] **Confirm no `db push` instruction appears anywhere** in any file in this package or in any
-      instructions you've been given alongside it.
-- [ ] **Confirm Voucher/Ledger/FinAccount are not referenced anywhere** in this package — this
-      migration is explicitly scoped to Release 1 + Release 2 + the soft-delete Phase A fields
-      only.
+| Item | Status | Notes |
+| ---- | ------ | ----- |
+| Migration plan SQL reviewed line by line | **Completed** | Reviewed in this step (Task 1) |
+| Confirmed no destructive statements (`DROP`/`TRUNCATE`/`DELETE`/`GRANT`/`REVOKE`) | **Completed** | Re-confirmed in this step — every match in the file is a comment or a column name (`deleteReason`/`deletedAt`/`deletedById`), no actual destructive statement |
+| Confirmed Payment/Collection/OrderAdvance have NO `× 100,000` update | **Completed** | Confirmed — Section 3 of the SQL contains only `ALTER TABLE ... MODIFY` statements for these 4 fields, no `UPDATE` |
+| Confirmed Sales Pipeline fields DO have a `× 100,000` update | **Completed** | Confirmed — Section 4 has an `UPDATE` for each of `CrmLead.expectedValue`, `CrmOpportunity.value`/`dealValueExTax`/`netProfitLakhs`, `SalesFunnel.dealValueLakhs`/`billingValueLakhs` |
+| Confirmed `KRA.target` is NOT touched by inline SQL | **Completed** | Confirmed — Section 5 is comments only; the transform is delegated to `scripts/uat-transform-kra-target.mjs`, whose `MONEY_LABELS` array was checked against the UAT-confirmed 6-label allowlist in `UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md` §7 and matches exactly |
+| Confirmed `kra_template_item`/`employee_target`/`team_target` have no write statement | **Completed** | Confirmed — Section 6 is comments only |
+| Confirmed no production database reference anywhere in the package | **Completed** | Confirmed across all SQL/script/doc files in the package |
+| Confirmed no `db push` instruction anywhere | **Completed** | Confirmed |
+| Confirmed Voucher/Ledger/FinAccount not referenced anywhere | **Completed** | Confirmed — these models are absent from every file in the package except cautionary "explicitly excluded" comments |
+| Post-migration verification SQL reviewed | **Completed** | Reviewed in this step — confirmed read-only, includes the checksum-comparison approach and the row-42 spot-check |
+| Guarded scripts reviewed (`apply-uat-decimal-inr-migration.mjs`, `uat-transform-kra-target.mjs`) | **Completed** | Both reviewed in this step — both refuse without `CONFIRM_UAT_DECIMAL_INR_MIGRATION=YES` and a `u686730471_Caveo_UAT` DB-name match, both exit before reaching their commented-out execution path; **connection-handling code itself is not yet filled in** (see Known Limitations) |
+| No `db push` anywhere in instructions given alongside this package | **Completed** | Confirmed — every step in this migration program has explicitly forbidden `db push` |
+| No production access used or referenced in this package | **Completed** | Confirmed |
 
-## Execution readiness (informational — confirm before actually running, not part of this step)
+## Execution readiness (gates the actual run — not satisfied by this step)
 
-- [ ] **Confirm migration is not run yet.** As of this checklist's creation (Step 4E,
-      2026-06-24), this package has been generated and reviewed only — no statement in
-      `uat-decimal-inr-migration-plan.sql` has been executed against UAT.
-- [ ] **Confirm rollback approach.** The rollback plan for this migration is: restore the
-      pre-migration backup confirmed above. There is no in-place "undo" SQL for this migration
-      (the type changes and value transforms are not trivially reversible in a single statement) —
-      backup restoration is the only supported rollback path. Confirm the restore procedure and
-      who is authorized to run it before proceeding.
-- [ ] **Confirm test users and test cases.** At least one Manager-tier and one Employee-tier UAT
-      login should be confirmed working, and the test plan in
-      `docs/database/UAT_DECIMAL_INR_MIGRATION_PLAN.md` §5 should be ready to execute immediately
-      after migration (Finance/Sales/KRA/Technical test areas).
-- [ ] **Confirm `prisma migrate resolve --applied <name>` is run 3 times after the SQL succeeds**
-      — once for each of `20260621120000_add_soft_delete_fields_phase_a`,
-      `20260622120000_decimal_release1_lakhs_to_inr`,
-      `20260623060000_decimal_release2_combined_inr_canonical` — followed by `prisma generate`
-      and a dev-server/app restart, per this project's established Hostinger no-shadow-DB
-      workflow. This is a manual step, not part of the SQL file itself.
-- [ ] **Run [`uat-decimal-inr-post-migration-verification.sql`](uat-decimal-inr-post-migration-verification.sql)**
-      after applying the migration and after the 3 `migrate resolve` calls, and compare every
-      section's output against the pre-migration snapshot per the inline expectations documented
-      in that file.
+| Item | Status | Notes |
+| ---- | ------ | ----- |
+| Migration confirmed not run yet | **Completed** | Confirmed — no statement in any package file has been executed against UAT as of this step |
+| Rollback plan approved | **Pending** | The *plan* (restore the pre-migration backup) is documented in this checklist and in `UAT_BACKUP_ROLLBACK_RECORD.md`, but it cannot be "approved" until a backup actually exists to restore from, and an owner is assigned |
+| Business owner approval | **Pending** | See `UAT_MIGRATION_APPROVAL_RECORD.md` |
+| Technical owner approval | **Pending** | See `UAT_MIGRATION_APPROVAL_RECORD.md` |
+| `prisma migrate resolve --applied <name>` plan confirmed (3 calls, one per migration name) | **Completed** | Documented and unchanged from Step 4E — this is a manual step run only after the SQL succeeds, not part of this approval step |
+| **Migration execution permission** | **Pending** | **Remains Pending until every item above reaches Completed/Not Applicable and an explicit execution instruction is given — this checklist update does not grant it** |
 
-**Do not check off "execution readiness" items as a substitute for actually running the
-migration carefully when that step is explicitly instructed — this checklist documents what
-"ready" looks like, it does not grant permission on its own.**
+**Do not treat "Completed" items above as a substitute for actually running the migration
+carefully when that step is explicitly instructed — this checklist documents what's ready and
+what isn't; it does not grant execution permission on its own. As of Step 4F, migration execution
+permission is Pending.**

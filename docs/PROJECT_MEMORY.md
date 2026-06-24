@@ -21,6 +21,40 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-18, end of session 7 — SFDC Lead Standardization + HR Automation + RBAC Role Assignment)
 
+### 2026-06-24 — Step 4F: UAT operational approval checklist prepared/reviewed (migration not run)
+
+**Completed the technical/SQL-readiness half of UAT migration approval; the operational half
+remains entirely open.** Re-reviewed every file in `docs/database/uat-migration-package/` against
+Step 4D's decisions and updated `uat-migration-dry-run-checklist.md`'s status per item:
+
+- **SQL/package review — all Completed:** Payment/Collection/OrderAdvance confirmed
+  type-conversion-only with no `× 100,000`; `CrmLead`/`CrmOpportunity`/`SalesFunnel` confirmed to
+  have the multiply; `KRA.target` confirmed not touched by inline SQL — deferred to
+  `scripts/uat-transform-kra-target.mjs`, whose label allowlist was checked against the
+  UAT-confirmed 6-label list and matches exactly; no destructive statement, production reference,
+  or Voucher/Ledger/FinAccount touch anywhere in the package.
+- **Operational readiness — all Pending.** Created two new records to track this honestly rather
+  than assume it's done:
+  - `UAT_BACKUP_ROLLBACK_RECORD.md` — **no UAT backup has actually been taken.** Filename,
+    timestamp, owner, verification method, restore-tested status, rollback owner, migration
+    window, and write-freeze owner are all unfilled/Pending. The rollback *method* (restore the
+    pre-migration backup) is documented but not yet actionable without a real backup.
+  - `UAT_MIGRATION_APPROVAL_RECORD.md` — business owner approval, technical owner approval,
+    backup approval, write-freeze approval, SQL approval, KRA-transform approval, rollback-plan
+    approval, post-migration-testing ownership, and final execution approval are all unassigned
+    and unapproved.
+- **Migration execution permission: still Pending.** Technical/SQL readiness being Completed
+  does not, on its own, authorize running the migration — operational readiness (a real backup,
+  a write-freeze decision, named business/technical sign-off, confirmed test users) is required
+  too, and none of that exists yet.
+
+**Remaining blockers:** take and verify a real UAT backup; decide and communicate a write-freeze
+(or explicitly decide none is needed); confirm no active UAT testers during the migration window;
+confirm Manager/Employee test logins work; confirm what commit is actually deployed to the UAT
+server (still open since Step 4B); obtain named business and technical sign-off. **No UAT or
+production database was connected to or modified in this step — purely document review and
+record creation.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
 ### 2026-06-24 — Step 4E: UAT-specific migration SQL package generated (not run)
 
 **Generated a complete, reviewable UAT migration package** at

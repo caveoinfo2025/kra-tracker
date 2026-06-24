@@ -1121,3 +1121,24 @@ Voucher/Ledger/FinAccount statement. Both `.mjs` scripts refuse to run without
 `docs/database/UAT_DECIMAL_INR_MIGRATION_ADJUSTMENT_PLAN.md`'s new "Step 4E" section. No UAT or
 production database was connected to or modified; no schema/API/UI code changed; no `db push`
 used. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## Step 4F — UAT operational approval checklist prepared/reviewed (2026-06-24)
+
+Not an RBAC change. Re-reviewed the entire `docs/database/uat-migration-package/` SQL/script
+content against Step 4D's decisions — every "SQL review" item in
+`uat-migration-dry-run-checklist.md` moved from unchecked to **Completed** (Payment/Collection/
+OrderAdvance confirmed type-only with no `× 100,000`; Sales Pipeline fields confirmed to have the
+multiply; `KRA.target` confirmed not touched by inline SQL, deferred to
+`scripts/uat-transform-kra-target.mjs` whose label allowlist matches the UAT-confirmed 6 labels
+exactly; no destructive statements, no production reference, no Voucher/Ledger/FinAccount
+anywhere in the package). Created `UAT_BACKUP_ROLLBACK_RECORD.md` (DB name confirmed; backup
+filename/timestamp/owner/verification/restore-tested/rollback-owner/migration-window/write-freeze
+-owner/final-approval all **Pending** — no backup has actually been taken) and
+`UAT_MIGRATION_APPROVAL_RECORD.md` (business owner, technical owner, backup approval,
+write-freeze approval, SQL approval, KRA-transform approval, rollback-plan approval,
+post-migration-testing ownership, and final execution approval all **Pending** — none assigned or
+granted). **Migration execution permission remains Pending** — technical/SQL readiness is
+Completed, but operational readiness (real backup, write-freeze decision, named sign-offs) is
+not, and both are required. **No UAT or production database was connected to or modified; no
+schema/API/UI code changed; no `db push` used; UAT migration not run.** `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.
