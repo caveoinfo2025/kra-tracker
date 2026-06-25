@@ -702,3 +702,383 @@ body:has(.mobile-root) {
   --border: rgba(255,255,255,0.08);
   --border-subtle: rgba(255,255,255,0.05);
 }
+
+/* ============================================================
+   Stitch design-system additions (Caveo Employee App)
+   ============================================================ */
+
+/* ───── App shell / top header bar ───── */
+.m-appshell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+.m-shell-header {
+  flex: 0 0 auto;
+  background: var(--cyber-black);
+  color: #fff;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 18px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.m-shell-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+.m-shell-header .brand .dot { color: var(--caveo-red); }
+.m-shell-header .role-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.14);
+  padding: 4px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.m-shell-header .actions { display: flex; align-items: center; gap: 6px; }
+.m-shell-header .icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  position: relative;
+}
+.m-shell-header .icon-btn .dot-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--caveo-red);
+  border: 1.5px solid var(--cyber-black);
+}
+
+/* ───── Page header (non-shell, in-content) ───── */
+.m-page-header {
+  padding: 16px 18px 6px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.m-page-header .back-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-1);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ───── Quick action grid (Home → Quick Actions) ───── */
+.m-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 0 18px 14px;
+}
+.m-quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+.m-quick-action:active { border-color: var(--caveo-red); background: var(--caveo-red-50); }
+.m-quick-action .ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--bg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-2);
+}
+.m-quick-action .lbl { font-size: 10.5px; font-weight: 600; color: var(--fg-2); line-height: 1.2; }
+
+/* ───── Insight card (alert / callout strip) ───── */
+.m-insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--caveo-red);
+  border-radius: 12px;
+  padding: 14px;
+}
+.m-insight.info { border-left-color: var(--infra-blue); }
+.m-insight.warn { border-left-color: var(--ot-orange); }
+.m-insight.success { border-left-color: var(--success); }
+.m-insight .ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--caveo-red-50);
+  color: var(--caveo-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.m-insight.info .ico { background: var(--infra-blue-50); color: var(--infra-blue); }
+.m-insight.warn .ico { background: var(--ot-orange-50); color: var(--ot-orange); }
+.m-insight.success .ico { background: #E8F5EE; color: #136B36; }
+.m-insight .body { flex: 1; min-width: 0; }
+.m-insight .title { font-size: 13.5px; font-weight: 700; color: var(--fg-1); margin-bottom: 2px; }
+.m-insight .desc { font-size: 12.5px; color: var(--fg-3); line-height: 1.4; }
+.m-insight .cta {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--caveo-red);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ───── List card (generic vertical card with header/footer slots) ───── */
+.m-list-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.m-list-card + .m-list-card { margin-top: 8px; }
+.m-list-card.accent-top { border-top: 3px solid var(--caveo-red); }
+.m-list-card .lc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.m-list-card .lc-title { font-size: 14px; font-weight: 700; color: var(--fg-1); line-height: 1.3; }
+.m-list-card .lc-sub { font-size: 12px; color: var(--fg-3); margin-top: 2px; }
+.m-list-card .lc-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+.m-list-card .lc-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.m-list-card .lc-foot button {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 0;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.m-list-card .lc-foot .approve { background: var(--caveo-red); color: #fff; border: none; }
+.m-list-card .lc-foot .reject { background: transparent; color: var(--fg-2); border: 1px solid var(--border); }
+
+/* ───── Search bar ───── */
+.m-searchbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 0 12px;
+  height: 42px;
+}
+.m-searchbar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  color: var(--fg-1);
+  min-width: 0;
+}
+.m-searchbar input::placeholder { color: var(--fg-4); }
+.m-searchbar .ico { color: var(--fg-3); flex-shrink: 0; display: flex; }
+
+/* ───── Filter chips ───── */
+.m-chip-row {
+  display: flex;
+  gap: 7px;
+  padding: 10px 18px 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.m-chip-row::-webkit-scrollbar { display: none; }
+.m-chip {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-2);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.m-chip.active { background: var(--cyber-black); color: #fff; border-color: var(--cyber-black); }
+
+/* ───── Status pill semantic variants (extends .m-pill) ───── */
+.m-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.m-status.approved, .m-status.success { background: #E8F5EE; color: #136B36; }
+.m-status.pending, .m-status.warn      { background: var(--ot-orange-50); color: #99400A; }
+.m-status.rejected, .m-status.danger   { background: var(--caveo-red-50); color: var(--caveo-red-700); }
+.m-status.info                          { background: var(--infra-blue-50); color: #003F99; }
+.m-status.neutral                       { background: var(--bg-muted); color: var(--fg-3); }
+
+/* ───── Form field wrapper ───── */
+.m-formfield { margin-bottom: 14px; }
+.m-formfield .ff-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin-bottom: 6px;
+  display: block;
+}
+.m-formfield .ff-hint { font-size: 11.5px; color: var(--fg-4); margin-top: 5px; }
+.m-formfield .ff-error { font-size: 11.5px; color: var(--caveo-red); margin-top: 5px; font-weight: 600; }
+
+/* ───── Bottom nav (named component variant of .m-tabbar) ───── */
+.m-bottom-nav {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+  height: 60px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 22px;
+  display: flex;
+  align-items: stretch;
+  padding: 4px 8px;
+  box-shadow: 0 8px 24px rgba(15, 17, 21, 0.1);
+  z-index: 5;
+}
+
+/* ───── KPI insight row variant (4px top accent) ───── */
+.m-kpi.top-accent { border-top: 3px solid var(--caveo-red); border-left: none; }
+
+/* ───── Login preview ───── */
+.m-login {
+  height: 100%;
+  width: 100%;
+  background: var(--cyber-black);
+  background-image:
+    linear-gradient(rgba(154,163,173,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(154,163,173,.07) 1px, transparent 1px);
+  background-size: 36px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 28px;
+  text-align: center;
+  color: #fff;
+}
+.m-login .mark {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--graphite);
+  border: 1px solid var(--graphite-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--caveo-red);
+  margin-bottom: 20px;
+}
+.m-login .name {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.m-login .name .dot { color: var(--caveo-red); }
+.m-login .tag {
+  font-size: 12.5px;
+  color: var(--steel-silver, #9AA3AD);
+  margin-top: 8px;
+  letter-spacing: 0.02em;
+}
+.m-login .sso-btn {
+  margin-top: 32px;
+  width: 100%;
+  max-width: 300px;
+  height: 48px;
+  background: #fff;
+  color: var(--cyber-black);
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.m-login .foot {
+  margin-top: 28px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.04em;
+}

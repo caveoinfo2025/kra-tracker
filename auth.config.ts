@@ -39,6 +39,8 @@ export const authConfig = {
       const isPublic =
         pathname.startsWith("/login") ||
         pathname.startsWith("/api/auth") ||
+        // Static UI-only design preview — no data, safe to view without a session.
+        pathname.startsWith("/mobile/login-preview") ||
         // Non-sensitive build/commit identity only (no DB query, no secret) — public by
         // design so a deployed commit can be verified without a session. See FT-3.
         pathname.startsWith("/api/version") ||
