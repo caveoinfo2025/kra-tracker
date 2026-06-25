@@ -19,7 +19,20 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-25 — FT-5 retry after reported grant fix: identical access-denied error persists; FT-2b/FT-4 unchanged)
+## 0. Current status (2026-06-25 — FT-5 retry, gated handshake check: still fails, no UI testing started this round; FT-2b/FT-4 unchanged)
+
+### 2026-06-25 — FT-5 retry, gated DB handshake check: still fails, stopped before any UI testing
+
+This round's task explicitly gated harness/browser testing on a successful direct DB handshake
+first, with instructions to stop immediately (not retry UI testing) if it still failed.
+Confirmed local public IP unchanged (`122.164.84.5`), then re-ran the direct MySQL handshake —
+**identical `ER_ACCESS_DENIED_ERROR (1045)`** for the same user/IP, the fourth consecutive
+identical result. Per instruction, stopped here: no harness/UI testing was started at all this
+round (a stricter stop than prior rounds, which at least confirmed the harness itself was
+healthy before hitting the DB block).
+
+**FT-5: still Open.** No production action taken; no UAT data touched beyond the single failed
+authentication attempt. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-25 — FT-5 retry after MySQL user-grant fix: identical error, fix not yet effective
 

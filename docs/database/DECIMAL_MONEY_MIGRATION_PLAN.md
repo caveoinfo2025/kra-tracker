@@ -1194,3 +1194,8 @@ This document is **planning only**. As of this step:
 > `ER_ACCESS_DENIED_ERROR` for the same user/IP, character-for-character. Confirmed local IP
 > unchanged first, ruling that out as the explanation. FT-5 still **Open**; no UI test was run,
 > none fabricated. No production action was taken.
+
+> **FT-5 retry, gated check (2026-06-25): handshake still fails, no UI testing started this
+> round.** This round's task gated harness/UI testing on a successful DB handshake first —
+> identical `ER_ACCESS_DENIED_ERROR` again, so per instruction no harness/UI step was
+> attempted at all. FT-5 still **Open**. No production action was taken.

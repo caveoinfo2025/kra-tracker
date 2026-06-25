@@ -364,3 +364,35 @@ confirmed active.
 
 **No production action taken.** No UAT data was read or written. `npx prisma validate` ✅,
 `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+---
+
+## FT-5 retry — gated DB handshake check, stopped before UI testing (2026-06-25)
+
+This round's task explicitly required a successful direct DB handshake **before** starting any
+harness/browser testing — and to stop immediately, without retrying UI testing, if the
+handshake still failed. It still failed.
+
+**Pre-check:** local public IP confirmed unchanged (`122.164.84.5`).
+
+**Direct MySQL handshake (one-off script, password never printed, deleted immediately after
+use):**
+
+```
+CONNECT FAILED: ER_ACCESS_DENIED_ERROR - (conn:303876519, no: 1045, SQLState: 28000)
+Access denied for user 'u686730471_caveouat'@'122.164.84.5' (using password: YES)
+```
+
+Identical to all three prior attempts — same user, same IP, same error code. The Hostinger
+grant for this exact user/IP combination is still not effective.
+
+**Per instruction, stopped here.** Sales Funnel and OrderAdvance click-through were **not
+attempted** this round (not just "not run due to a blocker reached mid-test" — the harness/
+browser steps were never started, per the explicit gate). No UI result of any kind is recorded
+for either area.
+
+**FT-5 status: still Open.** Harness (`kra-tracker-uat-verify`) remains in place, untouched,
+for the next retry once the grant is confirmed effective.
+
+**No production action taken.** No UAT data was read, written, or touched in any way — the
+only action against UAT was the single failed authentication attempt above.

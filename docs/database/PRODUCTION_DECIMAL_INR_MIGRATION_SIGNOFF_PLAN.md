@@ -53,6 +53,11 @@
 > user/IP, confirmed the IP itself hasn't changed. The grant change has not taken effect yet
 > from this client's perspective. No production action was taken; deferral unchanged.
 >
+> **FT-5 retry, gated check (2026-06-25): still Open, production still paused.** This round's
+> task required a successful DB handshake before any harness/UI testing — handshake still
+> failed identically, so no UI testing was started at all. No production action was taken;
+> deferral unchanged.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

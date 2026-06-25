@@ -1447,3 +1447,14 @@ running for a further retry. Full evidence:
 this client's perspective. Harness left running for another retry.
 
 **No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+## FT-5 retry — gated DB handshake check, stopped before UI testing (2026-06-25)
+
+| Check | Result |
+| ----- | ------ |
+| Local public IP | Unchanged (`122.164.84.5`) |
+| Direct MySQL handshake | Identical `ER_ACCESS_DENIED_ERROR (1045)`, same user/IP, character-for-character — 4th consecutive identical result |
+| Harness/UI testing | **Not started** — gated on the handshake succeeding first, per explicit instruction |
+
+**FT-5 row: still Open.** No production action was taken; no UAT data touched beyond the
+single failed auth attempt.

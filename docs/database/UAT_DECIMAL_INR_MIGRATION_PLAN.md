@@ -1194,3 +1194,15 @@ another retry once the grant takes effect.
 
 **No production action taken.** No UAT data read or written. `npx prisma validate` ✅,
 `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+---
+
+## FT-5 retry — gated DB handshake check, stopped before UI testing (2026-06-25)
+
+This round's task required a successful direct DB handshake before starting any harness/
+browser testing, stopping immediately without UI testing if it still failed. It did fail —
+identical `ER_ACCESS_DENIED_ERROR (1045)` for the same user/IP as all three prior attempts.
+Per instruction, **no harness/UI testing was started this round.** Full detail:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
+"FT-5 retry — gated DB handshake check". **FT-5 status: still Open.** No production action
+was taken; no UAT data was touched beyond the single failed auth attempt.
