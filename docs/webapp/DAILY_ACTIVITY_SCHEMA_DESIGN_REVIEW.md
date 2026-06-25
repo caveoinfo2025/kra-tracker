@@ -1,9 +1,8 @@
 # Daily Activity & Productivity — Schema Design Review (Phase W1)
 
-> **Status: Draft schema + draft migration only. Not applied to any database.** No
-> migration was run, no `prisma db push` was run, no database data was modified, no API
-> routes were created or modified, no UI was built, no mobile code was touched, and
-> production was not touched. UAT/dev planning only. **Do not touch production.**
+> **Status: Applied to UAT/dev only (Phase W1B, 2026-06-25).** See §13 below for the
+> application record. Production was not touched, no API routes were created or modified, no
+> UI was built, no mobile code was touched. **Do not touch production.**
 
 ## 1. Final model list
 
@@ -360,18 +359,108 @@ been reviewed and approved.
    different column shape than what's drafted here, only different application logic on top
    of it.
 
-## 12. Confirmation
+## 12. Confirmation (as of Phase W1, draft)
 
 The Prisma schema in `prisma/schema.prisma` was edited to add the 6 models above and the
-`CrmMeeting.status` field — **this is a draft schema edit only, in the working tree, not
-applied anywhere.** A draft migration file was hand-written at
-`prisma/migrations/20260625120000_daily_activity_foundation/migration.sql` and has **not**
-been applied, executed, or run against any database (no `migrate dev`, no `migrate deploy`,
-no `db push`, no `migrate resolve`). No database data was modified. No API routes were
-created or modified. No UI was built. No mobile code was touched. Production was not touched.
-No `.env` file was committed or had its contents printed. This document and the schema/
-migration files it describes are for review and sign-off only.
+`CrmMeeting.status` field. A draft migration file was hand-written at
+`prisma/migrations/20260625120000_daily_activity_foundation/migration.sql`. As of Phase W1,
+this was draft-only. **Phase W1B (below) has since applied it to the dev database** — this
+section is left as the historical Phase W1 record; §13 is the current status.
 
-**Draft schema/migration pending approval; not applied to DB.**
+## 13. Phase W1B UAT Application Status (2026-06-25)
+
+> **SQL manually applied to the UAT/dev database (`u686730471_caveodev` on
+> `srv2201.hstgr.io`). Migration marked applied via `prisma migrate resolve`. Production was
+> not touched at any point.**
+
+### What was applied
+- The 6 `CREATE TABLE` statements (`DailyActivityLog`, `DailyActivitySummary`,
+  `DailyActivityCorrectionRequest`, `DailyProductivityScore`, `ProductivityActivityRule`,
+  `ProductivityRoleTarget`), the `CrmMeeting.status` column + index, and all 9 foreign-key
+  constraints — applied via a one-off Node script
+  (`prisma/apply-daily-activity-foundation.mjs`, mariadb driver, hard-coded dev-DB-name guard
+  identical in style to this project's existing `apply-soft-delete-fields-phase-a.mjs` and
+  similar scripts) that reads and executes `migration.sql` directly, statement by statement.
+- **Not applied via** `prisma migrate dev`, `prisma migrate deploy`, or `prisma db push` — all
+  three were correctly avoided per the strict instructions for this phase.
+
+### Blocking issue found, documented, and fixed
+On first application attempt, statement 6 of 17 (`CREATE TABLE DailyProductivityScore`)
+failed with MySQL/MariaDB error 1059 (`Identifier name
+'DailyProductivityScore_employeeId_periodType_periodStart_periodEnd_key' is too long`) —
+Prisma's default-generated constraint name (71 characters) exceeds MySQL/MariaDB's
+64-character identifier limit. This was not caught by `prisma validate` (which doesn't
+check generated SQL identifier length) or by the earlier hand-review, since the limit only
+bites the *generated* constraint name, not anything visible in the schema's field list.
+
+The first 5 statements (the `CrmMeeting` column/index and 3 of the 6 new tables) had already
+applied successfully before the failure; application correctly **stopped** at that point per
+instruction, rather than silently working around it.
+
+**Fix applied** (the one explicitly-permitted exception to "don't modify the already-created
+migration SQL," since this is a genuine blocking issue, documented here): the unique
+constraint was given an explicit short name —
+`@@unique([employeeId, periodType, periodStart, periodEnd], name:
+"uq_daily_productivity_score_period")` in `prisma/schema.prisma`, and the corresponding
+`UNIQUE INDEX` line in `migration.sql` updated to match (`uq_daily_productivity_score_period`,
+35 characters). A full scan of every other identifier in the migration file
+(`grep` for backtick-quoted names, checked against the 64-char limit) confirmed this was the
+**only** identifier over the limit — no other statement needed changing.
+
+The apply script was re-run; it correctly skipped the 5 already-applied statements (detected
+via MySQL "already exists" error codes 1050/1060/1061/1091, the same idempotent-skip pattern
+this project's other apply scripts use) and applied the remaining 12, including the now-fixed
+`DailyProductivityScore` table. **All 17 statements applied successfully on the second run.**
+
+### Backup / pre-migration baseline
+A full `mysqldump` was not taken — not available in this environment, and not proportionate
+to the risk, since the migration is 100% additive and the one existing table being altered
+(`CrmMeeting`) had **zero rows** at the time. Instead, a read-only pre-migration snapshot
+(`prisma/snapshot-daily-activity-foundation-pre-migration.mjs`, SELECT/SHOW/
+information_schema only) was captured and saved to
+`docs/webapp/DAILY_ACTIVITY_FOUNDATION_PRE_MIGRATION_SNAPSHOT_20260625.md`:
+`CrmMeeting` = 0 rows, `DailyUpdate` = 0 rows, `CrmActivity` = 95 rows, none of the 6 new
+tables pre-existed, migration not already recorded. This snapshot is the rollback/verification
+baseline — rollback, if ever needed, is a trivial `DROP TABLE` × 6 plus one `DROP COLUMN`,
+since no existing data was touched.
+
+### Database object verification (post-migration, read-only)
+Via `prisma/verify-daily-activity-foundation.mjs` (information_schema queries only):
+- All 6 new tables exist, all with **0 rows** (no seed/default rule data was inserted).
+- `CrmMeeting.status`: `VARCHAR`, `NOT NULL`, default `'SCHEDULED'` — confirmed.
+- `CrmMeeting_status_idx` — confirmed present.
+- Index counts per table matched the expected design exactly (`DailyActivityLog`: 6,
+  `DailyActivitySummary`: 5, `DailyActivityCorrectionRequest`: 5, `DailyProductivityScore`: 3,
+  `ProductivityActivityRule`: 2, `ProductivityRoleTarget`: 2 — PRIMARY + each `@@index`/
+  `@@unique` from the schema).
+- Foreign-key counts per table matched exactly (`DailyActivityLog`: 2, `DailyActivitySummary`:
+  2, `DailyActivityCorrectionRequest`: 4, `DailyProductivityScore`: 1, the two config tables: 0
+  each, correctly relation-free).
+- **`DailyUpdate` row count: 0 (unchanged from baseline). `CrmActivity` row count: 95
+  (unchanged from baseline). `CrmMeeting` row count: 0 (unchanged from baseline).** No existing
+  data of any kind was modified by this migration.
+
+### Migration marked applied
+`npx prisma migrate resolve --applied 20260625120000_daily_activity_foundation` — succeeded.
+A subsequent read-only `npx prisma migrate status` confirms this migration is **not** in the
+unapplied list (two other, pre-existing, unrelated migrations —
+`20260615000000_add_advance_category` and `20260617100000_employeetarget_relations` — show as
+unapplied; both predate this work and are out of scope for this phase, not touched here).
+
+### Validation commands run
+`npx prisma validate` ✅ · `npx prisma generate` ✅ (codegen only, no DB write) ·
+`npx tsc --noEmit` ✅ · `npm run build` ✅ (162 routes) · `npx prisma migrate status` (read-only,
+exit code reflects the two unrelated pre-existing pending migrations noted above, not this
+one).
+
+### Confirmation
+Applied to **UAT/dev only** (`u686730471_caveodev`). Production was never connected to, read
+from, or written to at any point in this phase. No API route was created or modified. No UI
+was built. No mobile code was touched. No `prisma migrate dev`, `prisma migrate deploy`, or
+`prisma db push` was run at any point. No `.env` file was committed or printed. No seed/default
+rule rows were inserted into `ProductivityActivityRule` or `ProductivityRoleTarget` — both
+exist with 0 rows, exactly as planned for this phase.
+
+**Daily Activity foundation migration applied to UAT/dev only. Production not touched.**
 
 **Do not touch production.**

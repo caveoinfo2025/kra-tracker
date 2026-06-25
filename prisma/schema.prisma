@@ -659,7 +659,11 @@ model DailyProductivityScore {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([employeeId, periodType, periodStart, periodEnd])
+  // Default Prisma-generated constraint name
+  // ("DailyProductivityScore_employeeId_periodType_periodStart_periodEnd_key", 71 chars)
+  // exceeds MySQL/MariaDB's 64-character identifier limit (found applying the draft migration
+  // to dev, Phase W1B, 2026-06-25) — explicitly named shorter here.
+  @@unique([employeeId, periodType, periodStart, periodEnd], name: "uq_daily_productivity_score_period")
   @@index([periodType, periodStart])
 }
 

@@ -640,14 +640,18 @@ Plus **9 back-reference relations on `Employee`** (`ledgerEntries`, `expenses`,
   default `ApprovalRule`); idempotent; wired via `prisma.config.ts` `migrations.seed`.
 - `prisma/seed-dev-users.ts`, `prisma/seed-dev-finance.ts` — **dev-only**, run with `npx tsx`.
 
-## 8. Daily Activity & Productivity — Phase W1 schema (draft, 2026-06-25)
+## 8. Daily Activity & Productivity — Phase W1/W1B schema (2026-06-25)
 
-> **Draft schema/migration pending approval; not applied to DB.** No `prisma migrate dev`,
-> no `prisma db push`, no `prisma migrate deploy`, no `prisma migrate resolve` was run. No
-> database data was changed. Full design review:
-> `docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md`. Replaces the manual `DailyUpdate`
-> workflow going forward (`DailyUpdate` itself is untouched in this step and stays frozen/
-> read-only per the Option C hybrid plan — see `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md`).
+> **Daily Activity foundation migration applied to UAT/dev only. Production not touched.**
+> Applied to `u686730471_caveodev` (`srv2201.hstgr.io`) via hand-applied SQL + `prisma migrate
+> resolve --applied 20260625120000_daily_activity_foundation` (Phase W1B). No `prisma migrate
+> dev`, no `prisma db push`, no `prisma migrate deploy` was run. No existing database data was
+> changed (`DailyUpdate`/`CrmActivity`/`CrmMeeting` row counts verified unchanged
+> post-migration). All 6 new tables exist with 0 rows — no seed/default rule data inserted.
+> Full design review + application record: `docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md`
+> §13. Replaces the manual `DailyUpdate` workflow going forward (`DailyUpdate` itself is
+> untouched and stays frozen/read-only per the Option C hybrid plan — see
+> `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md`). No API/UI/mobile work yet (Phase W2+).
 
 ### Models drafted (6)
 | Model | Purpose | Key fields / notes |

@@ -21,6 +21,21 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-25 — Phase W1B: Daily Activity foundation migration applied to UAT/dev only
+
+Daily Activity foundation schema was manually applied to UAT/dev only and marked applied with
+Prisma migrate resolve. No API/UI/mobile/production changes. Applied to `u686730471_caveodev`
+via `prisma/apply-daily-activity-foundation.mjs` (hand-applied SQL, hardcoded dev-DB-name
+guard), then `npx prisma migrate resolve --applied 20260625120000_daily_activity_foundation`.
+One blocking issue found and fixed during application: the default-generated unique
+constraint name on `DailyProductivityScore` exceeded MySQL's 64-character identifier limit —
+renamed to `uq_daily_productivity_score_period` in both `prisma/schema.prisma` and the
+migration file (documented in `docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md` §13).
+Post-migration verification confirmed all 6 new tables exist with 0 rows (no seed data) and
+`DailyUpdate`/`CrmActivity`/`CrmMeeting` row counts are unchanged from the pre-migration
+snapshot. Full record: `docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md` §13,
+`docs/webapp/DAILY_ACTIVITY_FOUNDATION_PRE_MIGRATION_SNAPSHOT_20260625.md`.
+
 ### 2026-06-25 — Phase W1: Daily Activity schema design reviewed (draft only, not applied)
 
 Phase W1 schema design reviewed for webapp Daily Activity. Draft migration created only. No
