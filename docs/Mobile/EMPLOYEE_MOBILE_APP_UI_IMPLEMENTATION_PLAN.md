@@ -134,3 +134,65 @@ This refinement pass used mock data only. No Prisma schema changes, no migration
 `prisma db push`, no database tables created, no existing data modified, no write API routes
 added, and no production deployment was performed. All changes are local commits on the
 `uat` branch.
+
+## Real-data integration phase 1
+
+Full findings and the phased sequence live in
+[`EMPLOYEE_MOBILE_APP_REAL_DATA_INTEGRATION_PLAN.md`](./EMPLOYEE_MOBILE_APP_REAL_DATA_INTEGRATION_PLAN.md).
+This section summarizes the result of executing Phase 1 (read-only Attendance + Daily
+Updates).
+
+### Attendance integration result
+
+**Stayed mock — no integration performed.** There is no `Attendance`, `CheckIn`, or `Leave`
+model anywhere in `schema.prisma`, and no API route for it exists. `AttendanceScreen.tsx`
+is unchanged functionally; a code comment was added pointing future readers at the
+integration plan doc instead of re-discovering this from scratch. No new API was created to
+fill the gap, per scope.
+
+### Daily Updates integration result
+
+**Integrated — read-only, real, self-scoped data.** `DailyUpdatesScreen.tsx` now fetches
+`GET /api/daily-updates?employeeId=<self>` on mount and renders the logged-in user's actual
+`DailyUpdate` rows (most recent 10), replacing the static mock history list. The "Today's
+log" submission form is still non-functional (button shows the existing "preview only" toast)
+— Phase 1 is read-only by design; the existing `POST`/`PUT` endpoints already have correct
+per-employee ownership checks and are the documented Phase 2 target.
+
+The screen's content was reshaped to match the real `DailyUpdate` columns
+(`topUpdates`, `keyMovement`, `blockers`, `topDealThisWeek`, `updateStatus`,
+`managerSupportRequired`) instead of the mock's invented "Commitment" field and fabricated
+manager-comment reply, neither of which exist in the schema.
+
+### APIs reused
+
+- `GET /api/daily-updates` (`src/app/api/daily-updates/route.ts`) — pre-existing, unmodified.
+  Called with an explicit `employeeId` query param so a manager's own mobile screen shows
+  only their own updates, not the whole team's (see integration plan §2/§6 for why this
+  matters).
+
+### Mock fallbacks retained
+
+- `mockAttendance` in `src/app/mobile/mock-data.ts` — Attendance screen has no real data
+  source to switch to.
+- The Daily Updates "Today's log" submit action remains a no-op toast (write actions are
+  Phase 2, not this step).
+- `mockDailyUpdates` was removed from `mock-data.ts` since nothing references it anymore.
+
+### Limitations
+
+- No loading skeleton previously existed on any mobile screen since everything was
+  synchronous mock data; Daily Updates is the first screen with a genuine network fetch, so
+  it now has its own loading/error/empty states (`MobileSkeleton`, `MobileEmptyState` with
+  a Retry action, and an explicit "no updates yet" message) that don't yet have a shared
+  pattern other screens follow — worth extracting into a reusable data-fetch hook once a
+  second screen needs the same shape (Phase 2/3).
+- Attendance remains entirely aspirational UI with no path to real data until a new model,
+  migration, and API are explicitly scoped and approved — not attempted here.
+
+### Next recommended screen
+
+Daily Update create/edit (Phase 2) — the `POST`/`PUT /api/daily-updates` endpoints already
+enforce correct per-employee ownership and need no changes; only a mobile-side form needs to
+be wired to them, using the same field set (`topUpdates`/`keyMovement`/`blockers`/
+`topDealThisWeek`/`updateStatus`) the read view now uses.

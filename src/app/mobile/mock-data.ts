@@ -42,35 +42,8 @@ export const mockAttendance = {
   ],
 };
 
-export const mockDailyUpdates = [
-  {
-    date: "Today",
-    time: "06:30 PM",
-    status: "pending" as const,
-    commitment: "Close TechVision Corp proposal review and prep Q3 audit checklist.",
-    completed: "Reviewed proposal redlines, synced with finance on billing terms.",
-    blockers: "Awaiting legal sign-off on the MSA clause.",
-    managerComment: null as string | null,
-  },
-  {
-    date: "Yesterday",
-    time: "06:45 PM",
-    status: "reviewed" as const,
-    commitment: "Finish weekly KRA rollup and submit conveyance claims.",
-    completed: "Submitted KRA rollup, 2 conveyance claims filed.",
-    blockers: "None",
-    managerComment: "Good pace — keep the conveyance receipts attached next time.",
-  },
-  {
-    date: "Mon, 22 Jun",
-    time: "07:02 PM",
-    status: "reviewed" as const,
-    commitment: "Onsite visit — Apex Manufacturing OT security audit.",
-    completed: "Completed walkthrough, flagged 3 segmentation gaps.",
-    blockers: "None",
-    managerComment: null,
-  },
-];
+// Daily Updates now reads real data via GET /api/daily-updates — see DailyUpdatesScreen.tsx
+// and docs/Mobile/EMPLOYEE_MOBILE_APP_REAL_DATA_INTEGRATION_PLAN.md. Mock fixture removed.
 
 export const mockTasks = [
   { id: "TSK-2291", title: "Q3 Infrastructure Audit", assignee: "You", priority: "high" as const, status: "in-progress" as const, due: "Today, 5:00 PM", dept: "Security", estimate: "4h" },

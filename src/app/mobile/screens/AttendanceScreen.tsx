@@ -1,4 +1,10 @@
 "use client";
+/**
+ * Stays on mock data intentionally — there is no Attendance/CheckIn/Leave model or API
+ * anywhere in the schema (verified during the real-data integration pass). Building this
+ * for real requires new schema work, which is out of scope until explicitly approved. See
+ * docs/Mobile/EMPLOYEE_MOBILE_APP_REAL_DATA_INTEGRATION_PLAN.md §3/§5/§8.
+ */
 import MIcon from "../components/MIcon";
 import MobileHeader from "@/components/mobile/MobileHeader";
 import MobileAppShell from "@/components/mobile/MobileAppShell";

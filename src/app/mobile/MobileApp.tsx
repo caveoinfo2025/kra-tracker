@@ -45,7 +45,7 @@ interface Props {
   employeeId: number;
 }
 
-export default function MobileApp({ userName, userEmail, isManager }: Props) {
+export default function MobileApp({ userName, userEmail, isManager, employeeId }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [screen, setScreen] = useState<Screen>({ type: "tab" });
   const [toast, setToast] = useState<string | null>(null);
@@ -76,6 +76,7 @@ export default function MobileApp({ userName, userEmail, isManager }: Props) {
       case "dailyUpdates":
         return (
           <DailyUpdatesScreen
+            employeeId={employeeId}
             onBack={popScreen}
             onSubmitted={() => showToast("Saved to your daily log (preview only)")}
           />
