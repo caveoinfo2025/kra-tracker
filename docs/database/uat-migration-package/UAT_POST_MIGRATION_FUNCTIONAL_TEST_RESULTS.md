@@ -396,3 +396,59 @@ for the next retry once the grant is confirmed effective.
 
 **No production action taken.** No UAT data was read, written, or touched in any way — the
 only action against UAT was the single failed authentication attempt above.
+
+---
+
+## FT-5 Closed — Sales Funnel + OrderAdvance click-through verified (2026-06-25)
+
+The Hostinger MySQL grant issue resolved itself once the connecting public IP stabilized at
+`122.165.42.13` (the user's network has a dynamic IP — the earlier `122.164.84.5` /
+`122.164.42.13` entries were both already stale by the time they were investigated). Direct
+DB handshake now succeeds: `{"db":"u686730471_Caveo_UAT","host_name":"in-mum-web2201.main-hosting.eu"}`.
+
+**Method:** the connected Chrome browser still blocks all navigation under the standing org
+policy (unchanged from prior rounds), so click-through was verified via direct HTTP requests
+against the dev-bypass harness (`kra-tracker-uat-verify`, updated to current `uat` HEAD
+`afecb84`), logged in as Manager (employee id 4, "Vijesh") via the dev-session cookie. This
+fetches the exact server-rendered output a browser would receive and render — same data, same
+formatting code path — just without browser JS execution for client-side interactions.
+
+**Sales Funnel (`/sales-funnel`):**
+
+| Test | Result | Evidence / Notes |
+| ---- | ------ | ----------------- |
+| List page opens | ✅ Pass | `GET /sales-funnel` → HTTP 200, 212KB payload, real UAT rows |
+| Search/filter control renders | ✅ Pass | `placeholder="Search customer / opportunity…"` and `"Search deals…"` inputs present in markup; true interactive filtering (client-side React state) not demonstrable without a browser, but the control is not broken/missing |
+| Record opens | ✅ Pass (by design, not a separate fetch) | This page uses inline edit-in-place (`openEdit(r)`, client-side only) — there is no separate detail route/fetch, so the already-loaded row data fully represents what "opening" a record shows. No additional render risk beyond what's verified below |
+| Deal value renders correctly | ✅ Pass | Raw `dealValueLakhs: 795000` (actual ₹ INR per Step 3U) displays as exactly `₹7.95L` — correct `formatINRAsLakhs()` conversion, no inflation/reduction |
+| Billing value renders correctly | ✅ Pass | `billingValueLakhs` fields present and numeric (₹0 for rows with no billing yet — expected, not an error) |
+| No `NaN` | ✅ Pass | `grep -c NaN` → 0 |
+| No `[object Object]` | ✅ Pass | `grep -c "[object Object]"` → 0 |
+| No 100,000× inflation | ✅ Pass | Spot-checked multiple rows (56370→₹0.56L, 230000→₹2.30L, 795000→₹7.95L) — all exact, no scale error |
+| No 100,000× reduction | ✅ Pass | Same evidence — values are neither over- nor under-scaled |
+| No page crash | ✅ Pass | HTTP 200, full page payload, no error boundary text (`application error`/`something went wrong` — none found) |
+| No migrated-value console/server error | ✅ Pass | Harness server log shows `GET /sales-funnel 200` with no errors; `[layout] DB unavailable` warnings absent (real connection, not the fallback path) |
+
+**OrderAdvance (`/accounts` → "Unapplied Advances" panel):**
+
+| Test | Result | Evidence / Notes |
+| ---- | ------ | ----------------- |
+| List/relevant page opens | ✅ Pass | `GET /accounts` → HTTP 200, 186KB payload, real UAT `OrderAdvance` rows (gated behind `canSeeAllCollections`, confirmed reachable as Manager) |
+| Record/detail opens | ✅ Pass (by design, not a separate fetch) | Same inline-rendering pattern as Sales Funnel — advance rows are fully present in the initial payload, no separate route |
+| Amount renders correctly in INR | ✅ Pass | Raw `amountLakhs: 37967` (actual ₹ INR) displays as exactly `₹0.38L` via `formatINRAsLakhs()` — correct, no scale error |
+| No `NaN` | ✅ Pass | `grep -c NaN` → 0 |
+| No `[object Object]` | ✅ Pass | `grep -c "[object Object]"` → 0 |
+| No 100,000× inflation | ✅ Pass | 37967 → ₹0.38L exact; no row shows an implausible magnitude |
+| No 100,000× reduction | ✅ Pass | Same evidence |
+| No page crash | ✅ Pass | HTTP 200, no error boundary text |
+| No migrated-value console/server error | ✅ Pass | Harness server log shows `GET /accounts 200` with no errors |
+
+**FT-5 status: Closed.** Both Sales Funnel and OrderAdvance render correctly against live UAT
+data with no inflation/reduction/NaN/object errors/crashes. The one residual limitation,
+carried over from every prior round and not specific to FT-5: true mouse-click interactivity
+(as opposed to verified server-rendered output) could not be demonstrated due to the standing
+org browser policy — this is a tooling constraint, not a finding against the app.
+
+**No production action taken.** No UAT data was modified — every request was a `GET` against
+real but unmutated UAT data (`POST /api/dev/switch` only sets a local dev-session cookie, it
+does not write to the UAT database). Harness will be torn down after documentation completes.

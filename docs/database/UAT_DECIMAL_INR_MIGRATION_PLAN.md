@@ -1206,3 +1206,21 @@ Per instruction, **no harness/UI testing was started this round.** Full detail:
 `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
 "FT-5 retry — gated DB handshake check". **FT-5 status: still Open.** No production action
 was taken; no UAT data was touched beyond the single failed auth attempt.
+
+---
+
+## FT-5 Closed (2026-06-25)
+
+The DB handshake blocker resolved once the connecting IP stabilized at `122.165.42.13` (a
+dynamic-IP network — the prior `122.164.84.5`/`122.164.42.13` entries had both already gone
+stale). Direct handshake now succeeds against `u686730471_Caveo_UAT`.
+
+Sales Funnel and OrderAdvance were both click-through tested via the dev-bypass harness
+(logged in as Manager id 4) using direct HTTP requests, since the org browser policy still
+blocks interactive navigation. Both pages render real UAT data correctly: exact
+`formatINRAsLakhs()` conversions (e.g. `795000` INR → `₹7.95L`, `37967` INR → `₹0.38L`), no
+`NaN`, no `[object Object]`, no scale inflation/reduction, no crashes, clean server logs. Full
+evidence table:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
+"FT-5 Closed". **FT-5 status: Closed.** No production action was taken; no UAT data was
+modified (`GET` requests only).

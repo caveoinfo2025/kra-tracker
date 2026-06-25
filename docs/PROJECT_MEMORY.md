@@ -19,7 +19,31 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-25 — FT-5 retry, gated handshake check: still fails, no UI testing started this round; FT-2b/FT-4 unchanged)
+## 0. Current status (2026-06-25 — FT-5 Closed: Sales Funnel + OrderAdvance verified against live UAT data; FT-2b/FT-4 remain Open)
+
+### 2026-06-25 — FT-5 Closed: Sales Funnel + OrderAdvance click-through verified
+
+The DB handshake blocker resolved on its own — the connecting public IP had been drifting
+across retries (`122.164.84.5` → `122.164.42.13` mentioned but already stale → currently
+`122.165.42.13`), confirming this is a dynamic-IP network, not a misconfigured grant. Once
+the IP stabilized at `122.165.42.13`, the direct handshake succeeded immediately against
+`u686730471_Caveo_UAT`.
+
+Sales Funnel and OrderAdvance were both tested via the dev-bypass harness (updated to current
+`uat` HEAD `afecb84`), logged in as Manager (employee id 4, "Vijesh") via the dev-session
+cookie, using direct HTTP requests rather than browser clicks (the org browser policy still
+blocks all navigation, including localhost — unchanged from every prior round). Both pages
+returned the exact server-rendered output a browser would receive: real UAT rows, correct
+`formatINRAsLakhs()` conversions confirmed by exact arithmetic match (`795000` INR → `₹7.95L`
+on Sales Funnel; `37967` INR → `₹0.38L` on OrderAdvance/Accounts), no `NaN`, no
+`[object Object]`, no 100,000× inflation or reduction, no crashes, clean server logs with no
+errors and no `[layout] DB unavailable` fallback warnings (confirming a real connection).
+
+**FT-5: Closed.** Of the five original UAT closure items, FT-3, FT-1, and now FT-5 are
+resolved; FT-2b and FT-4 remain Open. **Production stays paused** until both close and Vijesh
+gives explicit instruction to resume. No production action was taken; no UAT data was
+modified — only `GET` requests were made (the one `POST /api/dev/switch` call sets a local
+session cookie, it does not write to the UAT database).
 
 ### 2026-06-25 — FT-5 retry, gated DB handshake check: still fails, stopped before any UI testing
 

@@ -1199,3 +1199,9 @@ This document is **planning only**. As of this step:
 > round.** This round's task gated harness/UI testing on a successful DB handshake first —
 > identical `ER_ACCESS_DENIED_ERROR` again, so per instruction no harness/UI step was
 > attempted at all. FT-5 still **Open**. No production action was taken.
+
+> **FT-5 Closed (2026-06-25).** The DB handshake blocker resolved once the connecting IP
+> stabilized (a dynamic-IP network had made the earlier whitelist entries stale). Sales Funnel
+> and OrderAdvance both verified rendering correctly against live UAT data via the dev-bypass
+> harness — exact `formatINRAsLakhs()` conversions, no NaN/object-errors/scale issues/crashes.
+> See `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-5 Closed". No production action was taken.

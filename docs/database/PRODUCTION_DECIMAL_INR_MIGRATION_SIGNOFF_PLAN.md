@@ -58,6 +58,13 @@
 > failed identically, so no UI testing was started at all. No production action was taken;
 > deferral unchanged.
 >
+> **FT-5 Closed (2026-06-25) — production still paused.** DB handshake succeeded once the
+> connecting IP stabilized; Sales Funnel and OrderAdvance both verified rendering correctly
+> against live UAT data — see `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-5 Closed". FT-5
+> closing does **not** lift this document's deferral: FT-2b and FT-4 are still open, so
+> **production remains paused**, unchanged, until both close and Vijesh gives explicit
+> instruction to resume.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

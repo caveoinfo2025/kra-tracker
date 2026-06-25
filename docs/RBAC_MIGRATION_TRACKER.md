@@ -1458,3 +1458,15 @@ this client's perspective. Harness left running for another retry.
 
 **FT-5 row: still Open.** No production action was taken; no UAT data touched beyond the
 single failed auth attempt.
+
+## FT-5 Closed (2026-06-25)
+
+| Test | Result |
+| ---- | ------ |
+| DB handshake | **Succeeds** — connecting IP stabilized at `122.165.42.13`; `u686730471_Caveo_UAT` confirmed as target |
+| Sales Funnel list/render | ✅ Pass — `795000` INR → `₹7.95L` exact, no NaN/object-errors/scale issues/crash |
+| OrderAdvance list/render | ✅ Pass — `37967` INR → `₹0.38L` exact, no NaN/object-errors/scale issues/crash |
+
+**FT-5 row: Closed.** Full evidence:
+`uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` → "FT-5 Closed". No
+production action was taken; no UAT data was modified.
