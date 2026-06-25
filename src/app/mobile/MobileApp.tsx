@@ -67,11 +67,27 @@ export default function MobileApp({ userName, userEmail, isManager }: Props) {
   function renderScreen() {
     switch (screen.type) {
       case "attendance":
-        return <AttendanceScreen onBack={popScreen} />;
+        return (
+          <AttendanceScreen
+            onBack={popScreen}
+            onToggleCheck={(msg) => showToast(msg)}
+          />
+        );
       case "dailyUpdates":
-        return <DailyUpdatesScreen onBack={popScreen} />;
+        return (
+          <DailyUpdatesScreen
+            onBack={popScreen}
+            onSubmitted={() => showToast("Saved to your daily log (preview only)")}
+          />
+        );
       case "approvals":
-        return <ApprovalsScreen onBack={popScreen} onApprovalClick={(id) => setScreen({ type: "approvalDetail", id })} />;
+        return (
+          <ApprovalsScreen
+            onBack={popScreen}
+            onApprovalClick={(id) => setScreen({ type: "approvalDetail", id })}
+            onReject={() => showToast("Rejecting from the queue is not available in this preview")}
+          />
+        );
       case "approvalDetail":
         return (
           <ApprovalDetailScreen
@@ -87,9 +103,19 @@ export default function MobileApp({ userName, userEmail, isManager }: Props) {
       case "notifications":
         return <NotificationsScreen onBack={popScreen} />;
       case "taskDetail":
-        return <TaskDetailScreen onBack={() => switchTab("tasks")} />;
+        return (
+          <TaskDetailScreen
+            onBack={() => switchTab("tasks")}
+            onToast={showToast}
+          />
+        );
       case "leadDetail":
-        return <LeadDetailScreen onBack={() => switchTab("sales")} />;
+        return (
+          <LeadDetailScreen
+            onBack={() => switchTab("sales")}
+            onToast={showToast}
+          />
+        );
       case "tab":
       default:
         break;
@@ -111,9 +137,14 @@ export default function MobileApp({ userName, userEmail, isManager }: Props) {
       case "tasks":
         return <TasksScreen onTaskClick={(id) => setScreen({ type: "taskDetail", id })} />;
       case "sales":
-        return <SalesScreen onDealClick={(id) => setScreen({ type: "leadDetail", id })} />;
+        return (
+          <SalesScreen
+            onDealClick={(id) => setScreen({ type: "leadDetail", id })}
+            onAddDeal={() => showToast("Adding deals is not available in this preview")}
+          />
+        );
       case "finance":
-        return <FinanceScreen />;
+        return <FinanceScreen onToast={showToast} />;
       case "profile":
         return (
           <ProfileScreen

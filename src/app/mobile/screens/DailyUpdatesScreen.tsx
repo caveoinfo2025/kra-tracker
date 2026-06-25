@@ -9,12 +9,13 @@ import { mockDailyUpdates } from "../mock-data";
 
 interface DailyUpdatesScreenProps {
   onBack: () => void;
+  onSubmitted?: () => void;
 }
 
-export default function DailyUpdatesScreen({ onBack }: DailyUpdatesScreenProps) {
+export default function DailyUpdatesScreen({ onBack, onSubmitted }: DailyUpdatesScreenProps) {
   return (
     <div className="m-screen">
-      <MobileHeader variant="page" title="Daily Updates" eyebrow="Operations log" onBack={onBack} />
+      <MobileHeader variant="page" title="Daily updates" eyebrow="Operations log" onBack={onBack} />
       <MobileAppShell hasHeader>
         <div className="m-section">
           <MobileSectionHeader label="Today's log" />
@@ -28,7 +29,7 @@ export default function DailyUpdatesScreen({ onBack }: DailyUpdatesScreenProps) 
             <MobileFormField label="Blockers" hint="Leave blank if none">
               <textarea className="m-textarea" placeholder="Anything blocking progress?" />
             </MobileFormField>
-            <button className="m-btn">
+            <button className="m-btn" onClick={onSubmitted}>
               <MIcon name="check" size={14} color="#fff" />
               Submit update
             </button>

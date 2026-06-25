@@ -9,9 +9,10 @@ import { mockAttendance } from "../mock-data";
 
 interface AttendanceScreenProps {
   onBack: () => void;
+  onToggleCheck?: (message: string) => void;
 }
 
-export default function AttendanceScreen({ onBack }: AttendanceScreenProps) {
+export default function AttendanceScreen({ onBack, onToggleCheck }: AttendanceScreenProps) {
   const a = mockAttendance;
   const isCheckedIn = a.status === "checked-in";
 
@@ -23,12 +24,7 @@ export default function AttendanceScreen({ onBack }: AttendanceScreenProps) {
           <div className="m-card" style={{ position: "relative", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <span
-                  className="m-pill"
-                  style={{ color: isCheckedIn ? "var(--success)" : "var(--fg-3)" }}
-                >
-                  {isCheckedIn ? "Checked in" : "Checked out"}
-                </span>
+                <MobileStatusPill status={isCheckedIn ? "approved" : "neutral"} label={isCheckedIn ? "Checked in" : "Checked out"} />
                 <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 700, marginTop: 8 }}>
                   {a.checkInTime}
                 </div>
@@ -51,7 +47,11 @@ export default function AttendanceScreen({ onBack }: AttendanceScreenProps) {
                 <MIcon name="fingerprint" size={24} />
               </div>
             </div>
-            <button className="m-btn" style={{ marginTop: 16 }}>
+            <button
+              className="m-btn"
+              style={{ marginTop: 16 }}
+              onClick={() => onToggleCheck?.(isCheckedIn ? "Check-out is not available in this preview" : "Check-in is not available in this preview")}
+            >
               {isCheckedIn ? "Check out" : "Check in"}
             </button>
           </div>

@@ -11,6 +11,7 @@ import { mockApprovals } from "../mock-data";
 interface ApprovalsScreenProps {
   onBack?: () => void;
   onApprovalClick: (id: string) => void;
+  onReject?: (id: string) => void;
 }
 
 const FILTERS = [
@@ -25,13 +26,13 @@ const PRIORITY: Record<string, { status: "danger" | "pending" | "info"; label: s
   low: { status: "info", label: "Low" },
 };
 
-export default function ApprovalsScreen({ onBack, onApprovalClick }: ApprovalsScreenProps) {
+export default function ApprovalsScreen({ onBack, onApprovalClick, onReject }: ApprovalsScreenProps) {
   const [filter, setFilter] = useState("pending");
   const items = filter === "history" ? [] : mockApprovals;
 
   return (
     <div className="m-screen">
-      <MobileHeader variant="page" eyebrow="Manager workflow" title="Approval Queue" onBack={onBack} />
+      <MobileHeader variant="page" eyebrow="Manager workflow" title="Approval queue" onBack={onBack} />
       <MobileAppShell hasHeader>
         <MobileFilterChips chips={FILTERS} active={filter} onChange={setFilter} />
 
@@ -54,7 +55,7 @@ export default function ApprovalsScreen({ onBack, onApprovalClick }: ApprovalsSc
                 }
                 footer={
                   <>
-                    <button className="reject">Reject</button>
+                    <button className="reject" onClick={() => onReject?.(a.id)}>Reject</button>
                     <button className="approve" onClick={() => onApprovalClick(a.id)}>Review</button>
                   </>
                 }

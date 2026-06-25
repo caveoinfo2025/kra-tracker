@@ -12,7 +12,7 @@ export default function KraScreen({ onBack }: KraScreenProps) {
 
   return (
     <div className="m-screen">
-      <MobileHeader variant="page" eyebrow="Performance" title="KRA Dashboard" onBack={onBack} />
+      <MobileHeader variant="page" eyebrow="Performance" title="KRA dashboard" onBack={onBack} />
       <MobileAppShell hasHeader>
         <div className="m-section">
           <div className="m-card" style={{ textAlign: "center", padding: "24px 16px" }}>

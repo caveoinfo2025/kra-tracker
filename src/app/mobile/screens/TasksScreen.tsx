@@ -41,7 +41,7 @@ export default function TasksScreen({ onTaskClick }: TasksScreenProps) {
       <MobileHeader variant="shell" roleBadge="TASKS" />
       <MobileAppShell hasBottomNav hasHeader>
         <div className="m-header">
-          <h1 className="m-title" style={{ fontSize: 22 }}>Tasks & Commitments</h1>
+          <h1 className="m-title" style={{ fontSize: 22 }}>Tasks &amp; commitments</h1>
         </div>
 
         <MobileFilterChips chips={FILTERS} active={filter} onChange={setFilter} />

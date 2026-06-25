@@ -9,6 +9,7 @@ import { mockSalesKpis, mockDeals } from "../mock-data";
 
 interface SalesScreenProps {
   onDealClick: (dealId: number) => void;
+  onAddDeal?: () => void;
 }
 
 const STAGE_LABEL: Record<string, { status: "pending" | "info" | "approved" | "danger"; label: string }> = {
@@ -18,13 +19,13 @@ const STAGE_LABEL: Record<string, { status: "pending" | "info" | "approved" | "d
   won: { status: "approved", label: "Won" },
 };
 
-export default function SalesScreen({ onDealClick }: SalesScreenProps) {
+export default function SalesScreen({ onDealClick, onAddDeal }: SalesScreenProps) {
   return (
     <div className="m-screen">
       <MobileHeader variant="shell" roleBadge="SALES" />
       <MobileAppShell hasBottomNav hasHeader>
         <div className="m-header">
-          <h1 className="m-title" style={{ fontSize: 22 }}>Sales Pipeline</h1>
+          <h1 className="m-title" style={{ fontSize: 22 }}>Sales pipeline</h1>
         </div>
 
         <div className="m-section">
@@ -36,7 +37,7 @@ export default function SalesScreen({ onDealClick }: SalesScreenProps) {
         </div>
 
         <div className="m-section">
-          <MobileSectionHeader label="Active opportunities" actionLabel="Add deal" />
+          <MobileSectionHeader label="Active opportunities" actionLabel="Add deal" onAction={onAddDeal} />
           {mockDeals.map((deal) => (
             <MobileListCard
               key={deal.id}

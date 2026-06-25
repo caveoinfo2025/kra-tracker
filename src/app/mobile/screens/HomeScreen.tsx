@@ -1,5 +1,5 @@
 "use client";
-import MIcon from "../components/MIcon";
+import type { CSSProperties } from "react";
 import MobileHeader from "@/components/mobile/MobileHeader";
 import MobileAppShell from "@/components/mobile/MobileAppShell";
 import MobileKpiCard from "@/components/mobile/MobileKpiCard";
@@ -29,6 +29,13 @@ export default function HomeScreen({
   onKra,
 }: HomeScreenProps) {
   const firstName = userName.split(" ")[0];
+
+  const quickActions = [
+    { icon: "fingerprint", label: "Attendance", onClick: onAttendance },
+    { icon: "doc", label: "Daily update", onClick: onDailyUpdates },
+    { icon: "target", label: "KRA", onClick: onKra },
+    ...(isManager ? [{ icon: "shield", label: "Approvals", onClick: onApprovals }] : []),
+  ];
 
   return (
     <div className="m-screen">
@@ -65,11 +72,10 @@ export default function HomeScreen({
 
         <div className="m-section">
           <MobileSectionHeader label="Quick actions" />
-          <div className="m-quick-grid" style={{ padding: 0 }}>
-            <MobileQuickActionButton icon="fingerprint" label="Attendance" onClick={onAttendance} />
-            <MobileQuickActionButton icon="doc" label="Daily Update" onClick={onDailyUpdates} />
-            <MobileQuickActionButton icon="shield" label="Approvals" onClick={onApprovals} />
-            <MobileQuickActionButton icon="target" label="KRA" onClick={onKra} />
+          <div className="m-quick-grid" style={{ "--quick-grid-cols": quickActions.length } as CSSProperties}>
+            {quickActions.map((action) => (
+              <MobileQuickActionButton key={action.label} icon={action.icon} label={action.label} onClick={action.onClick} />
+            ))}
           </div>
         </div>
 

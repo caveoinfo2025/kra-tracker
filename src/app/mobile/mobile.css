@@ -83,7 +83,7 @@ body:has(.mobile-root) {
   padding: 8px 16px 6px;
   gap: 8px;
 }
-.m-navbar .m-nav-icon {
+.m-nav-icon {
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -95,7 +95,10 @@ body:has(.mobile-root) {
   color: var(--fg-1);
   cursor: pointer;
   flex-shrink: 0;
+  padding: 0;
+  font-family: var(--font-sans);
 }
+.m-nav-icon:active { background: var(--bg-muted); }
 .m-navbar .m-nav-title {
   font-size: 15px;
   font-weight: 600;
@@ -277,7 +280,7 @@ body:has(.mobile-root) {
   font-family: var(--font-sans);
   transition: color 0.15s;
 }
-.m-tab.active { color: var(--caveo-red); }
+.m-tab.active { color: var(--caveo-red); background: var(--caveo-red-50); }
 .m-tab .label { font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
 .m-tab.fab {
   flex: 0 0 52px;
@@ -796,9 +799,8 @@ body:has(.mobile-root) {
 /* ───── Quick action grid (Home → Quick Actions) ───── */
 .m-quick-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(var(--quick-grid-cols, 4), 1fr);
   gap: 8px;
-  padding: 0 18px 14px;
 }
 .m-quick-action {
   display: flex;
@@ -831,29 +833,30 @@ body:has(.mobile-root) {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
+  background: var(--caveo-red-50);
+  border: 1px solid rgba(200, 16, 46, 0.16);
   border-left: 3px solid var(--caveo-red);
   border-radius: 12px;
   padding: 14px;
 }
-.m-insight.info { border-left-color: var(--infra-blue); }
-.m-insight.warn { border-left-color: var(--ot-orange); }
-.m-insight.success { border-left-color: var(--success); }
+.m-insight.info { background: var(--infra-blue-50); border-color: rgba(0, 102, 255, 0.16); border-left-color: var(--infra-blue); }
+.m-insight.warn { background: var(--ot-orange-50); border-color: rgba(255, 107, 0, 0.18); border-left-color: var(--ot-orange); }
+.m-insight.success { background: #E8F5EE; border-color: rgba(31, 157, 85, 0.18); border-left-color: var(--success); }
 .m-insight .ico {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: var(--caveo-red-50);
+  background: #fff;
   color: var(--caveo-red);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(200, 16, 46, 0.1);
 }
-.m-insight.info .ico { background: var(--infra-blue-50); color: var(--infra-blue); }
-.m-insight.warn .ico { background: var(--ot-orange-50); color: var(--ot-orange); }
-.m-insight.success .ico { background: #E8F5EE; color: #136B36; }
+.m-insight.info .ico { color: var(--infra-blue); box-shadow: 0 0 0 1px rgba(0, 102, 255, 0.1); }
+.m-insight.warn .ico { color: var(--ot-orange); box-shadow: 0 0 0 1px rgba(255, 107, 0, 0.12); }
+.m-insight.success .ico { color: #136B36; box-shadow: 0 0 0 1px rgba(31, 157, 85, 0.12); }
 .m-insight .body { flex: 1; min-width: 0; }
 .m-insight .title { font-size: 13.5px; font-weight: 700; color: var(--fg-1); margin-bottom: 2px; }
 .m-insight .desc { font-size: 12.5px; color: var(--fg-3); line-height: 1.4; }
@@ -1081,4 +1084,54 @@ body:has(.mobile-root) {
   align-items: center;
   gap: 6px;
   letter-spacing: 0.04em;
+}
+.m-login .preview-note {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.55);
+  max-width: 280px;
+  line-height: 1.4;
+}
+
+/* ───── Shared uppercase sub-section label (detail screens) ───── */
+.m-subhead {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+  margin: 0 0 8px;
+}
+
+/* ───── Outline danger button (reject / destructive secondary action) ───── */
+.m-btn-outline-danger {
+  background: transparent;
+  color: var(--caveo-red);
+  border: 1px solid var(--caveo-red);
+}
+.m-btn-outline-danger:active { background: var(--caveo-red-50); }
+
+/* ───── Receipt thumbnail tile (Approval detail) ───── */
+.m-receipt-tile {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  text-align: center;
+}
+.m-receipt-name {
+  font-size: 9px;
+  color: var(--fg-3);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

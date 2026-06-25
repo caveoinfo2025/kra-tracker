@@ -4,13 +4,15 @@ import MIcon from "../components/MIcon";
 import MobileHeader from "@/components/mobile/MobileHeader";
 import MobileAppShell from "@/components/mobile/MobileAppShell";
 import MobileStatusPill from "@/components/mobile/MobileStatusPill";
+import MobileKpiCard from "@/components/mobile/MobileKpiCard";
 import { mockTaskDetail } from "../mock-data";
 
 interface TaskDetailScreenProps {
   onBack: () => void;
+  onToast?: (message: string) => void;
 }
 
-export default function TaskDetailScreen({ onBack }: TaskDetailScreenProps) {
+export default function TaskDetailScreen({ onBack, onToast }: TaskDetailScreenProps) {
   const t = mockTaskDetail;
   const [subtasks, setSubtasks] = useState(t.subtasks);
 
@@ -29,28 +31,24 @@ export default function TaskDetailScreen({ onBack }: TaskDetailScreenProps) {
         </div>
 
         <div className="m-section">
-          <div className="m-kpi-row">
-            <div className="m-kpi"><span className="m-kpi-label">Assigned by</span><div className="m-kpi-value" style={{ fontSize: 15 }}>{t.assignedBy}</div></div>
-            <div className="m-kpi"><span className="m-kpi-label">Due date</span><div className="m-kpi-value" style={{ fontSize: 15 }}>{t.dueDate}</div></div>
-            <div className="m-kpi"><span className="m-kpi-label">Department</span><div className="m-kpi-value" style={{ fontSize: 15 }}>{t.department}</div></div>
-            <div className="m-kpi"><span className="m-kpi-label">Time estimate</span><div className="m-kpi-value" style={{ fontSize: 15 }}>{t.timeEstimate}</div></div>
+          <div className="m-kpi-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <MobileKpiCard label="Assigned by" value={t.assignedBy} valueSize={15} />
+            <MobileKpiCard label="Due date" value={t.dueDate} valueSize={15} />
+            <MobileKpiCard label="Department" value={t.department} valueSize={15} />
+            <MobileKpiCard label="Time estimate" value={t.timeEstimate} valueSize={15} />
           </div>
         </div>
 
         <div className="m-section">
           <div className="m-card">
-            <h4 style={{ fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fg-3)", margin: "0 0 8px" }}>
-              Requirements
-            </h4>
+            <h4 className="m-subhead">Requirements</h4>
             <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>{t.description}</p>
           </div>
         </div>
 
         <div className="m-section">
           <div className="m-card">
-            <h4 style={{ fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fg-3)", margin: "0 0 10px" }}>
-              Sub-tasks
-            </h4>
+            <h4 className="m-subhead">Sub-tasks</h4>
             {subtasks.map((s, i) => (
               <label
                 key={i}
@@ -90,8 +88,12 @@ export default function TaskDetailScreen({ onBack }: TaskDetailScreenProps) {
         </div>
 
         <div className="m-section" style={{ display: "flex", gap: 8 }}>
-          <button className="m-btn m-btn-secondary">Edit details</button>
-          <button className="m-btn">Update status</button>
+          <button className="m-btn m-btn-secondary" onClick={() => onToast?.("Editing tasks is not available in this preview")}>
+            Edit details
+          </button>
+          <button className="m-btn" onClick={() => onToast?.("Status update is not available in this preview")}>
+            Update status
+          </button>
         </div>
       </MobileAppShell>
     </div>
