@@ -19,7 +19,27 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-25 — FT-5 retry: DB whitelist progress made, new specific user-grant blocker found; FT-2b/FT-4 unchanged)
+## 0. Current status (2026-06-25 — FT-5 retry after reported grant fix: identical access-denied error persists; FT-2b/FT-4 unchanged)
+
+### 2026-06-25 — FT-5 retry after MySQL user-grant fix: identical error, fix not yet effective
+
+Retried FT-5 a third time after the task reported that the Hostinger-side MySQL user-grant fix
+(allowing `u686730471_caveouat` to connect from `122.164.84.5`) had been applied. Confirmed
+local public IP unchanged first (`122.164.84.5`, ruling out a stale-IP mismatch), then re-ran
+the direct MySQL handshake test against the harness's `.env`.
+
+**Result: identical error, character-for-character** —
+`ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'u686730471_caveouat'@'122.164.84.5'
+(using password: YES)`. Same user, same IP, same code as the prior round. This indicates the
+grant change has not taken effect yet from this client's perspective (could be a propagation
+delay, the wrong DB user was granted, or the grant wasn't saved) — not a new or different
+problem, and not something to guess at further without more information.
+
+**FT-5: still Open.** Sales Funnel and OrderAdvance click-through were **not run** — no result
+fabricated for either. The harness (`kra-tracker-uat-verify`, port 3001) remains running and
+otherwise healthy (responds normally to non-DB-dependent requests) for the next retry. No
+production action taken; no UAT data was read or written. `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-25 — FT-5 retry: network path opened, blocked by a MySQL user-grant issue instead
 

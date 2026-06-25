@@ -1188,3 +1188,9 @@ This document is **planning only**. As of this step:
 > generic pool-timeout. Sales Funnel/OrderAdvance click-through still **not run**, FT-5 still
 > **Open**. Full detail in `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-5 retry". No production
 > action was taken.
+
+> **FT-5 retry after grant fix (2026-06-25): identical error, grant change not yet effective.**
+> Re-ran the direct MySQL handshake after the reported Hostinger user-grant fix — same exact
+> `ER_ACCESS_DENIED_ERROR` for the same user/IP, character-for-character. Confirmed local IP
+> unchanged first, ruling that out as the explanation. FT-5 still **Open**; no UI test was run,
+> none fabricated. No production action was taken.

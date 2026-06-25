@@ -1434,4 +1434,16 @@ running for a further retry. Full evidence:
 **No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅,
 `npm run build` ✅.
 
+## FT-5 retry after MySQL user-grant fix (2026-06-25)
+
+| Check | Result |
+| ----- | ------ |
+| Local public IP | Unchanged (`122.164.84.5`) — ruled out as the explanation |
+| Direct MySQL handshake | Identical `ER_ACCESS_DENIED_ERROR (1045)`, same user/IP, character-for-character |
+| Sales Funnel click-through | **Not run** — blocked upstream, no result fabricated |
+| OrderAdvance click-through | **Not run** — blocked upstream, no result fabricated |
+
+**FT-5 row: still Open.** The reported Hostinger user-grant fix has not taken effect yet from
+this client's perspective. Harness left running for another retry.
+
 **No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

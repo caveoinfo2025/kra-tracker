@@ -1171,3 +1171,26 @@ pre-authentication or was a read-only diagnostic. `npx prisma validate` ✅, `np
 **No production action taken.** No migration, no `db push`, no schema change, no UAT data
 modified — the harness's database connection never actually succeeded, so no UAT data was
 read or written. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
+
+---
+
+## FT-5 retry after MySQL user-grant fix (2026-06-25)
+
+Retried after the task reported the Hostinger-side user-grant fix as applied. **Identical
+error to the prior attempt** — confirmed local public IP unchanged (`122.164.84.5`, ruling out
+a stale-IP explanation), then re-ran the direct MySQL handshake:
+
+```
+ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'u686730471_caveouat'@'122.164.84.5'
+(using password: YES)
+```
+
+Character-for-character the same as last round — the grant change has not taken effect from
+this client's perspective. Sales Funnel and OrderAdvance click-through were **not run**; full
+evidence in
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
+"FT-5 retry after MySQL user-grant fix". **FT-5 status: still Open.** Harness left running for
+another retry once the grant takes effect.
+
+**No production action taken.** No UAT data read or written. `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.

@@ -48,6 +48,11 @@
 > `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-5 retry". No production action was taken; this
 > document remains paused, unchanged.
 >
+> **FT-5 retry after grant fix (2026-06-25): still Open, production still paused.** Re-tested
+> after the reported Hostinger user-grant fix — identical `ER_ACCESS_DENIED_ERROR`, same
+> user/IP, confirmed the IP itself hasn't changed. The grant change has not taken effect yet
+> from this client's perspective. No production action was taken; deferral unchanged.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

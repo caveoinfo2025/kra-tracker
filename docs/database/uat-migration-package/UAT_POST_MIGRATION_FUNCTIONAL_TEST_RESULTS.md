@@ -318,3 +318,49 @@ retry once the DB user's grant is confirmed to include this IP.
 **No production action taken.** No UAT data was read or written — every attempt either failed
 before authenticating or was a read-only diagnostic. `npx tsc --noEmit` ✅, `npx prisma
 validate` ✅, `npm run build` ✅ (re-run after this retry).
+
+---
+
+## FT-5 retry after MySQL user-grant fix (2026-06-25)
+
+Retried again after the task reported the Hostinger user-grant fix as the required external
+action. **Same exact error as before — the fix does not appear to have taken effect yet (or
+hasn't propagated).**
+
+**Pre-checks:** confirmed local public IP is still `122.164.84.5` (unchanged — ruling out a
+stale-IP mismatch as the explanation). Harness (`kra-tracker-uat-verify`, detached HEAD
+`9cda027`) confirmed still running on port 3001, responding normally for non-DB-dependent
+requests (HTTP 200 on `/login`).
+
+**Direct MySQL handshake (one-off script using the `mariadb` driver directly, password never
+printed, deleted immediately after use):**
+
+```
+CONNECT FAILED: ER_ACCESS_DENIED_ERROR - (conn:303813946, no: 1045, SQLState: 28000)
+Access denied for user 'u686730471_caveouat'@'122.164.84.5' (using password: YES)
+```
+
+Identical to the previous round's error, character-for-character (same user, same IP, same
+error code). This confirms the grant change has not taken effect from this client's
+perspective — not a new or different problem.
+
+**Sales Funnel click-through:**
+
+| Test | Result | Evidence / Notes |
+| ---- | ------ | ----------------- |
+| Sales Funnel list opens | **Not run** | Blocked upstream — DB access still denied, no page could load real data |
+
+**OrderAdvance click-through:**
+
+| Test | Result | Evidence / Notes |
+| ---- | ------ | ----------------- |
+| OrderAdvance list/detail opens | **Not run** | Same upstream blocker |
+
+No UI test results are fabricated for either area.
+
+**FT-5 status: still Open** (not Partially Closed — neither area was tested, so there is
+nothing to partially close). Harness remains running for a further retry once the grant is
+confirmed active.
+
+**No production action taken.** No UAT data was read or written. `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.
