@@ -19,7 +19,36 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-25 — FT-5 Closed: Sales Funnel + OrderAdvance verified against live UAT data; FT-2b/FT-4 remain Open)
+## 0. Current status (2026-06-25 — Final UAT gap closure attempt: FT-2b and FT-4 remain Open on precise, reported blockers; UAT not yet fully closed, production stays paused)
+
+### 2026-06-25 — Final UAT gap closure attempt: FT-2b and FT-4 remain Open
+
+Attempted to close the last two of the five original UAT gaps.
+
+**FT-2b (Entra ID OAuth end-to-end) — still Open.** A real login/MFA flow on
+`uat.caveoinfosystems.com` requires Vijesh or another authorized human to perform it directly
+— no available tool can authenticate as a real user or approve MFA. The connected browser
+also still blocks all navigation to the UAT domain under the standing org policy. No
+login/logout result was fabricated; the task's own instruction for this case ("if not
+possible, keep Open, record the exact blocker, do not fabricate") was followed exactly.
+
+**FT-4 (backup restore-test) — still Open, but the blocker is now precisely identified.** The
+named backup file (`u686730471_Caveo_UAT_240626.sql`) is present locally this round and
+confirmed valid: a 459KB phpMyAdmin dump dated 2026-06-24 02:36, no embedded
+`CREATE DATABASE`/`DROP DATABASE` statements. Checked the existing UAT DB user's privileges
+directly with `SHOW GRANTS`: `GRANT ALL PRIVILEGES ON u686730471_Caveo_UAT.*` only — no
+privilege to create a database anywhere else on the server. This is a genuine access
+boundary, not a missing-file or missing-tool problem as in prior rounds. Closing this requires
+either a new scratch database provisioned in hPanel with access granted to this (or a new)
+user, someone with broader Hostinger access running the restore directly, or Vijesh explicitly
+accepting this as residual risk — none of which happened this round, so FT-4 was not
+escalated to Accepted Risk.
+
+**Remaining UAT gaps: FT-2b, FT-4.** FT-3, FT-1, and FT-5 are Closed. **UAT is not yet fully
+closed; production remains paused**, unchanged, until both remaining gaps close (or Vijesh
+explicitly accepts residual risk) and gives explicit instruction to resume. No production
+action was taken; no UAT data was read, written, or modified — the only DB action this round
+was a read-only `SHOW GRANTS` query.
 
 ### 2026-06-25 — FT-5 Closed: Sales Funnel + OrderAdvance click-through verified
 

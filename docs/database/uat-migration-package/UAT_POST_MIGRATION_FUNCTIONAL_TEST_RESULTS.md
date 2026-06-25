@@ -452,3 +452,16 @@ org browser policy — this is a tooling constraint, not a finding against the a
 **No production action taken.** No UAT data was modified — every request was a `GET` against
 real but unmutated UAT data (`POST /api/dev/switch` only sets a local dev-session cookie, it
 does not write to the UAT database). Harness will be torn down after documentation completes.
+
+---
+
+## Final UAT gap closure — FT-2b and FT-4 (2026-06-25)
+
+| Gap | Previous Status | Action Taken | Result | Final Status | Notes |
+| --- | ---------------- | ------------- | ------ | ------------- | ----- |
+| FT-2b (Entra ID OAuth end-to-end) | Open, Low | Reviewed what a real test requires: interactive login on `uat.caveoinfosystems.com`, real `@caveoinfosystems.com` credentials, possible MFA approval. No tool available to this session can authenticate as a real user or approve MFA — this is unchanged from every prior attempt, and additionally the connected browser still blocks all navigation to the UAT domain under the standing org policy | **Not performed** — genuinely requires a human (Vijesh or an authorized user) to do the interactive login | **Open** | No login/logout was fabricated. Per task instruction: "If not possible, keep FT-2b Open, record the exact blocker, do not fabricate the result." |
+| FT-4 (backup restore-test) | Open, Low (tooling limitation) | This round had real new material to test: the backup file `u686730471_Caveo_UAT_240626.sql` is now present locally (459KB, valid phpMyAdmin dump dated 2026-06-24 02:36, no embedded `CREATE`/`DROP DATABASE`). Checked the existing UAT DB user's grants directly: `SHOW GRANTS` returned `GRANT ALL PRIVILEGES ON u686730471_Caveo_UAT.*` only — no privilege to `CREATE DATABASE` anywhere else on the server. No local `mysql`/`mariadb` CLI or Docker either | **Cannot create a scratch database** — not a missing-file or missing-tool problem this round, but a genuine privilege boundary: this DB user is scoped to the live UAT database only | **Open — access limitation, not faked** | Not escalated to Accepted Risk — no explicit approval from Vijesh was given in this round. To actually close FT-4: either (a) a new empty database is created in hPanel and this user (or a new one) is granted access to it, or (b) someone with broader Hostinger access runs the restore directly, or (c) Vijesh explicitly accepts this as residual risk |
+
+**No production action taken** in either investigation. No UAT data was read, written, or
+modified — the only DB-facing action was a read-only `SHOW GRANTS` query against the existing
+connection (no schema/data access). No new database was created, no destructive SQL was run.

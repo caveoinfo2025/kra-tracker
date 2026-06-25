@@ -1205,3 +1205,11 @@ This document is **planning only**. As of this step:
 > and OrderAdvance both verified rendering correctly against live UAT data via the dev-bypass
 > harness — exact `formatINRAsLakhs()` conversions, no NaN/object-errors/scale issues/crashes.
 > See `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-5 Closed". No production action was taken.
+
+> **Final UAT gap closure attempt (2026-06-25): FT-2b and FT-4 remain Open.** FT-2b needs a
+> human to perform a real Entra ID login/MFA — no tool can do this. FT-4's blocker is now more
+> precise: the backup file exists and is valid, but the UAT DB user's grants are scoped to
+> `u686730471_Caveo_UAT` only, with no privilege to create a scratch database elsewhere on the
+> server. Neither escalated to Accepted Risk (no explicit approval given). See
+> `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Final UAT gap closure status". No production action
+> was taken.

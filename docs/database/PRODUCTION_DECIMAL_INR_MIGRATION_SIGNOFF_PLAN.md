@@ -65,6 +65,14 @@
 > **production remains paused**, unchanged, until both close and Vijesh gives explicit
 > instruction to resume.
 >
+> **Final UAT gap closure attempt (2026-06-25) — FT-2b and FT-4 remain Open, production still
+> paused.** FT-2b requires a real human-performed Entra ID login/MFA — no tool can do this.
+> FT-4's blocker is now precisely identified: the backup file is valid and present, but the
+> UAT DB user's grants are scoped to `u686730471_Caveo_UAT` only, with no privilege to create
+> a scratch database elsewhere. Neither was escalated to Accepted Risk — that requires
+> Vijesh's explicit approval, not given here. **Production remains paused.** UAT is not yet
+> fully closed.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

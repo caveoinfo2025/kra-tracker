@@ -1470,3 +1470,15 @@ single failed auth attempt.
 **FT-5 row: Closed.** Full evidence:
 `uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` → "FT-5 Closed". No
 production action was taken; no UAT data was modified.
+
+## Final UAT gap closure attempt — FT-2b and FT-4 (2026-06-25)
+
+| Gap | Result | Status |
+| --- | ------ | ------ |
+| FT-2b (Entra ID OAuth) | Requires a real human login/MFA — no tool can perform this; browser policy block also unchanged | **Open** |
+| FT-4 (backup restore-test) | Backup file now present and valid (459KB, no embedded `CREATE`/`DROP DATABASE`); `SHOW GRANTS` confirms the UAT DB user is scoped to `u686730471_Caveo_UAT` only — no privilege to create a scratch DB elsewhere | **Open — access limitation, precisely identified** |
+
+**Both rows remain Open.** Neither escalated to Accepted Risk (requires Vijesh's explicit
+approval, not given). **UAT is not fully closed; production remains paused.** No production
+action was taken; no UAT data was modified — the only DB action this round was a read-only
+`SHOW GRANTS`.

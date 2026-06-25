@@ -1224,3 +1224,24 @@ evidence table:
 `docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
 "FT-5 Closed". **FT-5 status: Closed.** No production action was taken; no UAT data was
 modified (`GET` requests only).
+
+---
+
+## Final UAT gap closure status — FT-2b and FT-4 (2026-06-25)
+
+**FT-2b: still Open.** A real Microsoft Entra ID login/MFA flow requires Vijesh or an
+authorized user to perform it directly — no tool available to this session can authenticate
+as a real human or complete MFA. The connected browser additionally still blocks all
+navigation to the UAT domain under the standing org policy. No result fabricated.
+
+**FT-4: still Open — a more precise blocker found this round.** The backup file
+(`u686730471_Caveo_UAT_240626.sql`) is now present locally and valid, but `SHOW GRANTS` on the
+existing UAT DB user confirms it is scoped to `u686730471_Caveo_UAT` only — no privilege to
+create a scratch database elsewhere on the server. This is a genuine access boundary, not a
+missing-tool or missing-file problem. Full evidence:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
+"Final UAT gap closure — FT-2b and FT-4".
+
+**Remaining UAT gaps: FT-2b, FT-4.** FT-3, FT-1, and FT-5 are Closed. Neither remaining gap
+was escalated to Accepted Risk — that requires Vijesh's explicit approval, not given here.
+**UAT is not yet fully closed; production remains paused.** No production action was taken.
