@@ -1401,4 +1401,20 @@ independent unauthenticated checks. How the commit reached UAT is not confirmed 
 auto-deploy-on-push, not verified via server access. Full detail in
 `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-5".
 
+## Step 4H-6 — Remaining UAT gap closure; FT-1 closed via code fix (2026-06-25)
+
+| Gap | Result | Status |
+| --- | ------ | ------ |
+| FT-5 (Sales Funnel + OrderAdvance) | Blocked — org browser policy (domain-wide, incl. `localhost`) + UAT DB pool-timeout (likely IP-whitelist gap, current IP `122.164.84.5`) | **Open** |
+| FT-2b (Entra ID OAuth) | Blocked — same browser policy + standing need for human credentials/MFA | **Open** |
+| FT-1 (KRA fallback constants) | **Real bug found and fixed** — `src/lib/kra-engine.ts` had 7 stale Lakhs-scale fallback targets compared directly against post-Step-3U INR-scale achieved values (~100,000× mismatch, silently clamped to ~100%). Fixed via `LAKHS_TO_INR` constant; reviewed for double-conversion, none found. `npx tsc --noEmit` clean | **Closed** |
+| FT-4 (backup restore-test) | No `mysql`/`mariadb`/Docker locally, and the named backup file isn't present (lives on Hostinger, no SSH access) | **Open — tooling limitation** |
+
+Full evidence: `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-6" and
+`uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` → "Step 4H-6".
+
+**No production action taken.** No migration, no `db push`, no schema change, no UAT data
+modified (the harness DB connection never succeeded). `npx prisma validate` ✅,
+`npx tsc --noEmit` ✅, `npm run build` ✅.
+
 **No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

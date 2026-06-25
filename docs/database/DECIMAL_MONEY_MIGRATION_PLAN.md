@@ -1172,3 +1172,12 @@ This document is **planning only**. As of this step:
 > auto-deploy-on-push, not confirmed via server access. Full detail, including two minor
 > cosmetic field gaps (`gitBranch`/`environment`), in `UAT_DECIMAL_INR_MIGRATION_PLAN.md` →
 > "Step 4H-5". No production action was taken.
+
+> **Step 4H-6 (2026-06-25): FT-1 closed via a real code fix; FT-5/FT-2b/FT-4 still Open.**
+> `src/lib/kra-engine.ts` had 7 stale Lakhs-scale fallback targets compared directly against
+> post-Step-3U INR-scale achieved values (~100,000× mismatch, silently clamped to ~100%
+> progress) — fixed with a `LAKHS_TO_INR` constant, no double-conversion found on review. FT-5
+> blocked by an org browser policy + a UAT DB IP-whitelist gap (pending the user whitelisting
+> `122.164.84.5`); FT-2b blocked by the same policy plus the standing need for human OAuth
+> credentials; FT-4 blocked by missing restore tooling. Full detail in
+> `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-6". No production action was taken.

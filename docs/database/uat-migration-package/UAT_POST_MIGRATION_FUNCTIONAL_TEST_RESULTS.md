@@ -244,3 +244,28 @@ Confirmed clean — no residue left in the repository:
 6. None of 1–5 block production planning from resuming on the strength of this sign-off; FT-3
    is the one item worth resolving first since it bears directly on whether "what was tested"
    and "what is deployed" are the same thing.
+
+---
+
+## Step 4H-6 — Remaining UAT gap closure (2026-06-25)
+
+Attempted to close the four gaps remaining after FT-3 (Step 4H-5). Two genuine environment
+blockers were hit and reported rather than worked around; one real bug was found and fixed;
+one gap remains a documented tooling limitation.
+
+| Gap | Previous Status | Action Taken | Result | Final Status | Notes |
+| --- | ---------------- | ------------- | ------ | ------------- | ----- |
+| FT-5 (Sales Funnel) | Open, Low | Attempted live click-through via the dev-bypass harness (same method as Step 4H-1) | **Blocked** — connected browser blocks all navigation under an org policy (confirmed domain-wide and even for `localhost`); harness DB connection also pool-timed-out (`srv2201.hstgr.io`), most likely an IP-whitelist gap (current IP `122.164.84.5` not yet in Hostinger → Remote MySQL access) | **Open** | User opted to whitelist the IP and have this retried; harness left running for that retry rather than torn down |
+| FT-5 (OrderAdvance) | Open, Low | Same harness attempt as above | **Blocked** — same two reasons | **Open** | Same retry plan as Sales Funnel |
+| FT-2b (OAuth login/logout) | Open, Low | Asked the user how to proceed given the org-policy browser block | N/A — real Entra ID login requires human credentials/MFA that no available tool can supply | **Open** | User chose to keep this Open and document the limitation rather than fabricate a result |
+| FT-1 (KRA fallback constants) | Open, Low | Read `src/lib/kra-engine.ts` in full; found 7 hardcoded Lakhs-scale fallback targets (used only when no admin-configured KRA target exists for that KPI) being compared directly against post-Step-3U INR-scale achieved values — a real ~100,000× unit mismatch, not a cosmetic gap. Fixed by adding a `LAKHS_TO_INR = 100_000` constant and scaling each of the 7 fallbacks; reviewed every downstream use (display via `inrToLakhsEquivalent()`, derived `gpLakhTarget`/`billingTarget`) for double-conversion — none found | `npx tsc --noEmit` clean | **Closed (code fixed)** | This was Option B, not Option A/C — left unfixed it would have silently shown ~100% progress for any employee/team lacking that specific configured target, regardless of real performance |
+| FT-4 (backup restore-test) | Open, Low | Checked for `mysql`/`mariadb` CLI, `docker`, and the named backup file (`u686730471_Caveo_UAT_240626.sql`) on this machine | **Unavailable** — no DB client, no Docker, and the backup file itself isn't present locally (it lives on Hostinger; no SSH/hPanel access available this session, consistent with the FT-3 access gap established earlier) | **Open — tooling limitation, not faked** | Not escalated to Accepted Risk (requires Vijesh's explicit approval, not given) |
+
+**Net change this round:** FT-1 closed via a real code fix. FT-5, FT-2b, FT-4 remain Open —
+each blocked by a concrete, reported reason (org browser policy, DB IP whitelist, missing
+human-in-the-loop OAuth credentials, missing restore tooling), not by inaction.
+
+**No production action taken.** No migration, no `db push`, no schema change, no UAT data
+modified. The only UAT-facing interaction was the dev-bypass harness's attempted (and
+currently failing) database connection — no UAT data was read or written since the pool never
+established a connection. `npx tsc --noEmit` ✅ after the FT-1 fix.

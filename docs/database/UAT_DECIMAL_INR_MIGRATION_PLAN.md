@@ -1102,3 +1102,42 @@ field gaps above are tracked as minor follow-up polish, not reopened blockers.
 **No production action taken.** No migration, no `db push`, no schema change, no UAT data
 change. The only commands run against UAT were unauthenticated `GET /api/version` requests.
 `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅ (post-doc-update validation).
+
+---
+
+## Step 4H-6 — Remaining UAT gap closure (2026-06-25)
+
+Attempted FT-5, FT-2b, FT-1, FT-4 — the four items left after FT-3 closed. Full evidence and
+the gap table live in
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
+"Step 4H-6". Summary:
+
+- **FT-5 (Sales Funnel + OrderAdvance):** attempted via the same dev-bypass harness method as
+  Step 4H-1. Blocked twice: the connected Chrome browser blocks all navigation under an org
+  policy (confirmed domain-wide, including `localhost`), and the harness's database connection
+  to UAT pool-timed-out — most likely an IP-whitelist gap on Hostinger's Remote MySQL access
+  (current IP `122.164.84.5`). Per the user's choice, the harness was left running rather than
+  torn down, pending the user whitelisting that IP and a retry. **Still Open.**
+- **FT-2b (Entra ID OAuth login):** confirmed (again) that a real interactive login requires
+  human credentials/MFA no available tool can supply — additionally now also blocked by the
+  same browser org policy. User chose to document this rather than attempt a workaround.
+  **Still Open.**
+- **FT-1 (KRA fallback constants):** this round went further than "review" — reading
+  `src/lib/kra-engine.ts` end to end surfaced a real bug, not just a stale comment. Seven
+  hardcoded Lakhs-scale fallback targets (used only when no admin-configured KRA target string
+  supplies that KPI) were being divided into post-Step-3U INR-scale achieved values directly,
+  a ~100,000× unit mismatch that silently clamps to ~100% progress whenever a KRA lacks an
+  explicit target for that KPI — exactly the kind of silently-wrong result this migration's
+  testing has been trying to catch. Fixed with a `LAKHS_TO_INR = 100_000` constant scaling all
+  seven fallbacks (`src/lib/kra-engine.ts`); reviewed every downstream use for double-conversion
+  (none found — `gpLakhTarget`, `billingTarget`, and all `inrToLakhsEquivalent()` display calls
+  stay consistent). `npx tsc --noEmit` clean. **Closed via code fix**, not just documented.
+- **FT-4 (backup restore-test):** no `mysql`/`mariadb` CLI, no Docker, and the named backup
+  file (`u686730471_Caveo_UAT_240626.sql`) isn't present on this machine — it lives on
+  Hostinger, which this session has no SSH/hPanel access to. Reported as a tooling limitation,
+  not faked. Not escalated to Accepted Risk (would need Vijesh's explicit approval). **Still
+  Open.**
+
+**No production action taken.** No migration, no `db push`, no schema change, no UAT data
+modified — the harness's database connection never actually succeeded, so no UAT data was
+read or written. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

@@ -33,6 +33,15 @@
 > open, so **production remains paused**, unchanged, until all close and Vijesh gives explicit
 > instruction to resume. No production action was taken.
 >
+> **Step 4H-6 (2026-06-25): FT-1 closed, FT-5/FT-2b/FT-4 still Open — production still paused.**
+> FT-1 (`kra-engine.ts` fallback constants) was fixed with a real code change (a genuine
+> ~100,000× unit-mismatch bug, not just a documentation gap) — see
+> `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-6". FT-5 and FT-2b are blocked by an org
+> browser policy (plus a UAT DB IP-whitelist gap for FT-5, and the standing human-OAuth-
+> credential requirement for FT-2b); FT-4 is blocked by missing restore tooling. **Production
+> remains paused** — three of five items are still open, and nothing here changes until all
+> five close and Vijesh gives explicit instruction to resume.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

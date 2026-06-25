@@ -19,7 +19,41 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-24 — Step 4H-5: FT-3 Closed — live UAT deployed commit confirmed matching signed-off `uat` HEAD)
+## 0. Current status (2026-06-25 — Step 4H-6: FT-1 closed via a real code fix; FT-5/FT-2b/FT-4 remain Open on concrete, reported blockers)
+
+### 2026-06-25 — Step 4H-6: Remaining UAT gap closure
+
+Attempted the four gaps left after FT-3 closed (Step 4H-5).
+
+**FT-1 (KRA fallback constants) — Closed via a real code fix, not just review.** Reading
+`src/lib/kra-engine.ts` end to end surfaced an actual bug: 7 hardcoded Lakhs-scale fallback
+targets (used only when no admin-configured KRA target string supplies that KPI) were being
+divided into post-Step-3U INR-scale achieved values directly — a ~100,000× unit mismatch that
+silently clamps to ~100% progress whenever a KRA lacks an explicit target, masking true
+performance. Fixed with a `LAKHS_TO_INR = 100_000` constant scaling all seven fallbacks;
+reviewed every downstream use (`gpLakhTarget`, `billingTarget`, all `inrToLakhsEquivalent()`
+display calls) for double-conversion — none found. `npx tsc --noEmit` clean.
+
+**FT-5 (Sales Funnel + OrderAdvance) — still Open.** Attempted via the same dev-bypass harness
+method as Step 4H-1. Hit two genuine blockers: the connected Chrome browser blocks all
+navigation under an org policy (confirmed domain-wide, including `localhost`), and the
+harness's connection to the live UAT database pool-timed-out — most likely an IP-whitelist gap
+on Hostinger's Remote MySQL access (current IP `122.164.84.5`). User chose to whitelist that IP
+and have this retried; the harness was left running rather than torn down.
+
+**FT-2b (Entra ID OAuth) — still Open.** Confirmed again that a real interactive login needs
+human credentials/MFA no available tool can supply, now also blocked by the same browser
+policy. User chose to document this rather than attempt a workaround.
+
+**FT-4 (backup restore-test) — still Open, tooling limitation.** No `mysql`/`mariadb` CLI, no
+Docker, and the named backup file (`u686730471_Caveo_UAT_240626.sql`) isn't present locally —
+it lives on Hostinger, with no SSH/hPanel access this session. Not escalated to Accepted Risk
+(needs Vijesh's explicit approval).
+
+**Production remains paused** — one of five UAT closure items (FT-3) is fully closed, FT-1 is
+now closed too, but FT-5/FT-2b/FT-4 remain open. No production database was queried, no
+migration/`db push` was run, no UAT data was modified (the harness DB connection never
+succeeded). `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-24 — Step 4H-5: UAT version deployment verification — FT-3 Closed
 

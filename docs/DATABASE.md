@@ -520,6 +520,14 @@ Beyond the implicit unique indexes, `@@index` covers FK / hot-filter columns:
   deployed-commit identity) without any database access. `gitBranch`/`environment` currently read
   `"unknown"`/`"local"` on UAT (git-state and missing `NEXT_PUBLIC_DEPLOY_ENV` respectively) —
   cosmetic, tracked in `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-5", not a DB concern.
+- **Field names still saying "Lakhs" after Step 3U is a live trap, not cosmetic** (Step 4H-6,
+  2026-06-25). `SalesFunnel.dealValueLakhs`/`billingValueLakhs` and
+  `Collection.invoiceValueLakhs`/`amountWithoutGstLakhs` now store actual ₹ INR Decimals (Step
+  3U), but any code written against the *old* assumption that a `*Lakhs` field is Lakhs-scale
+  will silently misbehave. Caught one real instance in `src/lib/kra-engine.ts` — see
+  `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-6" (FT-1). When adding new code that reads
+  these fields, check the file header in `kra-engine.ts` for the current authoritative scale
+  before assuming the field name tells you the unit.
 
 ---
 

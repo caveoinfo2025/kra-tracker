@@ -45,6 +45,12 @@ function clamp(v: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, v));
 }
 
+// FT-1: hardcoded fallback targets below (used only when no admin-configured KRA target
+// string supplies the KPI) predate the Step 3U Decimal/INR migration and were left in their
+// original ₹ Lakhs scale. Every achieved value they're compared against is now real ₹ INR
+// (see file header), so each money-denominated fallback is scaled here to stay unit-consistent.
+const LAKHS_TO_INR = 100_000;
+
 function toScore(progress: number): number {
   if (progress >= 100) return 10;
   if (progress >= 90)  return 9;
@@ -443,7 +449,7 @@ export async function computeKRAProgress(
 
     // ── Sales Revenue targets ─────────────────────────────────────────────
     if (t.includes("sales revenue")) {
-      const bookingTarget = targets["total sales revenue - booking"] ?? 70;
+      const bookingTarget = targets["total sales revenue - booking"] ?? 70 * LAKHS_TO_INR;
       // Use explicit billing target from target string; fall back to 90% of booking target
       const billingTarget = targets["total sales revenue - billing"] ?? (bookingTarget * 0.9);
       const booking       = await closedWonBooking(employeeId);
@@ -517,7 +523,7 @@ export async function computeKRAProgress(
         select: { target: true },
       });
       const salesTargets       = salesKra ? parseTargets(salesKra.target) : {};
-      const bookingTargetForPip = salesTargets["total sales revenue - booking"] ?? 70;
+      const bookingTargetForPip = salesTargets["total sales revenue - booking"] ?? 70 * LAKHS_TO_INR;
 
       const poc      = await pocCount(employeeId);
       const pipRatio = await activePipelineRatio(employeeId, pipTarget * bookingTargetForPip);
@@ -550,7 +556,7 @@ export async function computeKRAProgress(
         select: { target: true },
       });
       const salesTargets  = salesKra ? parseTargets(salesKra.target) : {};
-      const bookingTarget = salesTargets["total sales revenue - booking"] ?? 70;
+      const bookingTarget = salesTargets["total sales revenue - booking"] ?? 70 * LAKHS_TO_INR;
 
       // Targets are proportions of booking target (e.g. 0.35 = 35% × bookingTarget actual ₹ INR)
       const nsProp    = targets["network & security"]        ?? 0;
@@ -669,7 +675,7 @@ export async function computeKRAProgress(
 
     // ── Funnel Creation (Akshayah) ────────────────────────────────────────
     else if (t.includes("funnel creation")) {
-      const valTarget = targets["total funnel / pipeline value created (₹ lakhs)"] ?? 75;
+      const valTarget = targets["total funnel / pipeline value created (₹ lakhs)"] ?? 75 * LAKHS_TO_INR;
       const cntTarget = targets["number of funnel opportunities created"] ?? 10;
       const val = await totalPipelineValue(employeeId);
       const cnt = await pipelineOpportunities(employeeId);
@@ -691,8 +697,8 @@ export async function computeKRAProgress(
 
     // ── Revenue & Profitability (Vijesh) ──────────────────────────────────
     else if (t.includes("revenue & profitability")) {
-      const bookTarget = targets["total team booking target achievement (₹ lakhs)"] ?? 500;
-      const billTarget = targets["total team billing achievement"] ?? 450;
+      const bookTarget = targets["total team booking target achievement (₹ lakhs)"] ?? 500 * LAKHS_TO_INR;
+      const billTarget = targets["total team billing achievement"] ?? 450 * LAKHS_TO_INR;
       // GP target is % of booking target → convert to absolute ₹ INR
       const gpPctTarget = targets["gross profit margin (%)"] ?? 12;
       const gpLakhTarget = bookTarget * gpPctTarget / 100;
@@ -755,7 +761,7 @@ export async function computeKRAProgress(
 
     // ── Pipeline Health & Strategic Execution (Vijesh) ────────────────────
     else if (t.includes("pipeline health")) {
-      const pipTarget      = targets["total team pipeline coverage (₹ lakhs)"] ?? 1500;
+      const pipTarget      = targets["total team pipeline coverage (₹ lakhs)"] ?? 1500 * LAKHS_TO_INR;
       const forecastTarget = targets["forecast accuracy"] ?? 0.9;
       const winTarget      = targets["average deal win rate"] ?? 0.3;
 
