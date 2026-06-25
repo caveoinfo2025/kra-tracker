@@ -3,6 +3,11 @@
 > UAT/dev-only planning + Phase 1 execution. Production is untouched. No schema, migration,
 > `db push`, or new write API was created in this step.
 
+> **Mobile phase is paused (2026-06-25).** Webapp gaps and the Daily Activity webapp workflow
+> will be completed first. Mobile work resumes only on Vijesh's explicit instruction. No
+> mobile code is being modified while paused — see `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md`
+> and `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` for the current priority.
+
 ## 1. Current mobile UI state
 
 The mobile shell at `/mobile` (session-gated) and `/mobile/login-preview` (public, static
@@ -135,6 +140,10 @@ touched is a new client-side `fetch` call from `DailyUpdatesScreen` to the **pre
 - Daily Update create/edit — safe to wire next; `POST`/`PUT` already exist with correct
   ownership checks, just needs a mobile form bound to the real field set established in
   this phase
+  > **Update (2026-06-25): paused.** Daily Updates Phase 2 create/edit is paused because
+  > the business workflow changed to Daily Activity & Productivity. See
+  > [`DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md`](./DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md)
+  > for the replacement plan. Planning only — no schema/API/migration/production changes made.
 
 **Phase 3:** Tasks, KRA, Notifications — inspect `src/app/api/pipeline/tasks`,
 KRA/`weekly-commits` routes, and `Notification` model/API for safe read integration.

@@ -1,0 +1,374 @@
+# Daily Activity & Productivity — Webapp Requirements
+
+> **Status: Planning only.** No Prisma schema changes, no migrations, no `prisma db push`,
+> no database data changes, no API changes, no mobile code changes, and no production
+> changes were made while producing this document. UAT/dev only. **Do not touch production.**
+
+## 1. Purpose
+
+Replace the manual webapp Daily Updates workflow (`/daily-updates`, `DailyUpdate` model) with
+**Daily Activity & Productivity**: CRM actions are auto-captured as scored events throughout
+the day; the employee submits only an end-of-day summary (Blockers, Next-day plan, Final
+remarks); the day is assigned a status that determines KRA eligibility; employees see a
+banded productivity status, managers see exact points. This document specifies the target
+**webapp** workflow in implementation-ready detail. The companion
+[`WEBAPP_GAP_CLOSURE_PLAN.md`](./WEBAPP_GAP_CLOSURE_PLAN.md) covers what's missing to get
+here; this document specifies what "here" is.
+
+## 2. User roles
+
+- **Employee** (ISR / BDE / Sales employee / other non-manager roles) — owns their own daily
+  activity and summary.
+- **Manager** — owns team visibility, correction approval, day reopening.
+- **Admin** (future, Phase 6) — owns activity-rule and role-target configuration.
+
+## 3. Employee workflow
+
+1. Throughout the day, CRM actions the employee performs (lead qualification, lead/opportunity
+   updates, task/meeting completion, proposals, notes/follow-ups) are auto-captured, with no
+   employee action required.
+2. At any point during the day, the employee can open the Daily Activity page and see today's
+   captured activity timeline and running banded status (not points).
+3. Before the cutoff (8:00 PM) or within the grace window (until 10:00 PM), the employee fills
+   in Blockers, Next-day plan, and Final remarks (optional) and submits the end-of-day summary.
+4. Submitting the summary closes the day (if valid activity exists) and is itself worth +2
+   points ("End-of-day summary submitted").
+5. The employee can edit the three free-text fields until the grace window ends; after that
+   they're locked unless a next-working-day late submission or manager reopen applies.
+6. If the employee notices a missing or wrong captured activity, they file a correction
+   request; the score only changes if a manager approves it.
+
+## 4. Manager workflow
+
+1. View a team daily-activity dashboard: no-activity/absent employees, incomplete days,
+   summary-pending employees, correction-request queue, reopened-days list.
+2. Drill into any team member's specific day to see the full activity timeline, summary, and
+   exact point total.
+3. Approve or reject correction requests, with a required reason on reject.
+4. Reopen a day that locked as Incomplete beyond the next-working-day late-submission window,
+   so the employee can resubmit.
+5. **Cannot** manually adjust point values for any activity or day, under any circumstance —
+   this must be enforced server-side, not just hidden in the UI.
+6. View weekly/monthly productivity rollups for the team.
+
+## 5. Admin/settings workflow (Phase 6, not built now)
+
+1. Configure point values per activity type (`ProductivityActivityRule`).
+2. Configure per-role daily minimum targets (`ProductivityRoleTarget`) — ISR=8, BDE=10, Sales
+   Manager=12 as defaults; Accounts/Finance and Operations/Support left unconfigured (null,
+   not zero) until business rules for those roles are defined.
+3. Configure cutoff/grace timing (default 8:00 PM / 10:00 PM) — global default with a possible
+   future per-role override, not decided here.
+
+## 6. Activity capture rules
+
+- Activity is auto-captured continuously during the day as the underlying CRM action occurs
+  (not batched or computed only at summary time).
+- Each captured event maps to exactly one scored activity type (§8) with a fixed point value
+  unless an admin-configured override exists.
+- **No-activity rule:** if an employee has zero qualifying CRM activity for the day, the day is
+  marked `No activity recorded` / Absent and is excluded from KRA — regardless of whether they
+  later submit a summary (a summary with zero underlying activity does not manufacture
+  productivity; see §9 for the exact precedence between "no activity" and "summary submitted").
+- Duplicate-prevention is enforced per event, not per day: e.g. task completion counts once per
+  status→Completed transition (already the existing behavior of `task_completed` in
+  `pipeline/tasks/[id]/route.ts:35`, reused unchanged); a qualified-lead event counts once per
+  lead per qualification (not per subsequent edit); a proposal-sent event counts once per
+  proposal version (pending the open question in
+  [`WEBAPP_GAP_CLOSURE_PLAN.md`](./WEBAPP_GAP_CLOSURE_PLAN.md) G-09 about proposal identity).
+
+## 7. Qualified lead rules
+
+- Only a transition from a non-Qualified stage (Raw/Data, i.e. anything before `QUALIFIED` in
+  the existing `LEAD_STAGES` ordering — `src/types/pipeline.ts:3-11`) **into** `QUALIFIED`
+  counts as a scored qualification event.
+- A lead created but left at `NEW_LEAD` (raw upload, unqualified data entry) scores nothing.
+- Any subsequent update, follow-up, or stage progression on an *already-qualified* lead scores
+  under its own activity type (lead updated / opportunity updated), never as a second
+  qualification event.
+- **Permissions:**
+
+| Role | Permission |
+|---|---|
+| ISR / BDE / Sales employee | Can qualify own assigned leads only |
+| Manager | Can qualify, audit, or revert qualification on any lead for their team |
+| Other employees | No qualification rights unless the lead is assigned to them |
+
+  This reuses the existing ownership check already present in
+  `pipeline/leads/[id]/stage/route.ts:32-34` (`!isManager && lead.assignedToId !==
+  employeeId → 403`) — no new RBAC primitive is required for the qualification gate
+  specifically; the gate that already exists for stage changes in general is sufficient.
+
+## 8. Productivity scoring rules
+
+| Activity | Points |
+|---|---|
+| Qualified lead created (Raw/Data → Qualified) | 3 |
+| Lead updated / follow-up | 1 |
+| Task completed | 2 |
+| Meeting scheduled | 2 |
+| Meeting completed | 4 |
+| Proposal sent | 5 |
+| Opportunity updated | 3 |
+| Call / email / WhatsApp note added | 1 |
+| End-of-day summary submitted | 2 |
+
+- **Employee visibility:** banded status only.
+
+| Score range | Employee status |
+|---|---|
+| 0 | No activity recorded |
+| 1–4 | Low activity |
+| 5–9 | Active |
+| 10–14 | Productive |
+| 15+ | Highly productive |
+
+- **Manager visibility:** exact point total, plus the full per-event breakdown.
+- **Role-based daily minimum targets:** ISR = 8, BDE = 10, Sales Manager = 12. Accounts/
+  Finance and Operations/Support are explicitly undefined for now (no target configured,
+  treated as "not yet applicable," never as "target = 0" — a role with no target should not be
+  flagged as under-target by default).
+- Points are rule-based and **only** an admin (Phase 6) can change the rule values; a manager
+  can never directly edit a point value for any individual event or day.
+
+## 9. End-of-day summary rules
+
+- The auto-generated portion (Activities completed, Leads qualified, Meetings completed,
+  Proposals sent, Tasks completed, Follow-ups done) is **read-only** to the employee — computed
+  from that day's captured activity, never typed.
+- The employee-input portion is exactly three fields: Blockers, Next-day plan, Final remarks
+  (remarks optional; the other two are required to submit).
+- Submitting the summary is the action that closes the day, *provided* valid activity already
+  exists for it — submitting a summary on a day with zero captured activity does not convert
+  `No activity recorded` into `Closed`; the no-activity rule (§6) takes precedence over summary
+  submission. (This sequencing is an explicit design decision, not stated verbatim in the
+  source requirements, and should be confirmed with Vijesh before Phase 3 — flagged again in
+  §18.)
+- The employee cannot edit system-captured activities under any circumstance — the only
+  editable surface is the three summary fields, and only until the grace cutoff.
+
+## 10. Correction request rules
+
+- An employee files a correction request against a specific day, describing a missing or
+  wrong activity.
+- The request does not affect score while pending.
+- A manager reviews: **Approve** (the correction is applied and the day's score recomputes) or
+  **Reject** (no change; a reason should be recorded).
+- This is the only path by which a closed day's score can change after the fact.
+
+## 11. Late submission/reopen rules
+
+- Cutoff: **8:00 PM**. Grace: until **10:00 PM**.
+- The employee can edit the summary until the grace window ends.
+- After 10:00 PM with no summary submitted, the day locks as `Incomplete`.
+- The employee can still submit within the **next working day** — this is a system-permitted
+  late submission, not a manager action — but only counts toward KRA after acceptance (the
+  exact accept mechanism — automatic on submission within window, vs. requiring explicit
+  manager sign-off — is an open question, §18).
+- Beyond the next working day, the day remains `Incomplete` permanently unless a manager
+  manually reopens it; after reopening, the employee resubmits and the day becomes `Reopened`,
+  counted only after that resubmission (and approval, if required).
+- Manager approval is required only for: correction requests, late submissions beyond the
+  allowed next-working-day window, and reopened days — never for the ordinary on-time
+  submission path.
+
+## 12. KRA impact
+
+- Daily productivity rolls up into a daily score, then weekly/monthly reports, then KRA input.
+- **Only `Closed` days count** toward any rollup (and `SubmittedLate`-after-acceptance,
+  `Reopened`-after-resubmission, per their own rules above).
+- `Incomplete` days are excluded entirely — not counted as zero, simply not included in the
+  denominator either, which matters for any average calculation.
+- Correction requests affect score only after manager approval.
+- Quality indicators (e.g. qualified-lead quality, proposal value, meeting outcome,
+  conversion impact) are explicitly for **manager/KRA review only** — they never modify the
+  daily score directly.
+- The existing `KRA`/`WeeklyReview`/`WeeklyCommit` models remain the system of record for
+  formal KRA tracking; the new productivity rollup is an **input** a manager sees and
+  considers when completing a `WeeklyReview`, not an automatic overwrite of `WeeklyReview.score`
+  — confirmed in the gap audit that nothing today wires `DailyUpdate` into KRA, so this is a
+  net-new integration point with no existing behavior to preserve compatibility with.
+
+## 13. Reporting requirements
+
+- Daily team activity dashboard (manager-facing, §4).
+- Weekly/monthly productivity rollup per employee and per team.
+- No-activity-day frequency report (for manager attention, not punitive automation).
+- Correction-request volume/outcome report (for process health, e.g. "are corrections mostly
+  approved or rejected" signals whether capture logic needs fixing).
+- Whether historical `DailyUpdate` data should remain visible: **yes, read-only**, per the
+  Option C hybrid recommendation (§19 implementation phases / gap-plan §11) — old data is not
+  deleted or hidden, just frozen and not added to.
+
+## 14. RBAC requirements
+
+| Actor | Allowed | Forbidden |
+|---|---|---|
+| Employee | View own daily activity; submit own summary; request own correction | View another employee's activity; submit another employee's summary (including via any manager-override path — explicitly removing the current Daily Updates `body.employeeId` override capability, gap G-07) |
+| Manager | View team daily activity (own team only); approve/reject corrections for their team; reopen days for their team; view exact points | View outside their team unless an existing higher-level role explicitly grants it (not assumed); manually adjust any point value (hard rule, gap G-08) |
+| Admin | Configure activity rules and role targets (Phase 6) | Everything else outside config |
+
+Object-level checks (e.g. "is this employeeId actually on this manager's team") must be
+explicit in every manager-facing handler, following the existing pattern in
+`pipeline/leads/[id]/stage/route.ts:32-34` and `api/daily-updates/[id]/route.ts:13` — not
+assumed from `isManager` alone.
+
+## 15. Required UI changes
+
+**Employee webapp page** (replaces `/daily-updates` for non-manager view):
+- Today's productivity status (banded label).
+- Auto-captured activity timeline (qualified leads, tasks completed, meetings completed,
+  proposals sent, follow-ups done).
+- Blockers input, Next-day plan input, Final remarks input (optional).
+- Submit end-of-day summary action.
+- Correction request entry point.
+- Summary status indicator (Open / Closed / Incomplete / etc.).
+
+**Manager webapp page** (replaces manager mode of `/daily-updates`):
+- Team daily activity dashboard: no-activity/absent list, incomplete list, summary-pending
+  list, correction-request queue, reopened-days list.
+- Exact productivity points per employee.
+- Weekly/monthly rollup view.
+
+**Admin webapp page** (Phase 6, later): activity rules, role targets, cutoff/grace settings.
+
+## 16. Required API changes
+
+### Employee
+| Endpoint | Method | Purpose | Permission | Scope |
+|---|---|---|---|---|
+| `/api/daily-activity/today` | GET | Today's captured activity + status | Authenticated | self |
+| `/api/daily-activity/history` | GET | Past days' summaries/status | Authenticated | self |
+| `/api/daily-activity/summary` | POST | Submit end-of-day summary | Authenticated | self only, no employeeId override |
+| `/api/daily-activity/summary/[id]` | PUT | Edit own free-text fields pre-grace-cutoff | Authenticated | owner only, server-enforced cutoff |
+| `/api/daily-activity/corrections` | POST | File correction request | Authenticated | self |
+
+### Manager
+| Endpoint | Method | Purpose | Permission | Scope |
+|---|---|---|---|---|
+| `/api/daily-activity/team` | GET | Team dashboard | `isManager` | own team |
+| `/api/daily-activity/team/[employeeId]/[date]` | GET | Drill-in | `isManager` | must verify employee is on this manager's team |
+| `/api/daily-activity/corrections/[id]/approve` | POST | Approve correction | `isManager` | team only |
+| `/api/daily-activity/corrections/[id]/reject` | POST | Reject correction | `isManager` | team only |
+| `/api/daily-activity/day/[id]/reopen` | POST | Reopen locked day | `isManager` | team only |
+
+### Admin (Phase 6)
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/productivity/rules` | GET/PUT | Activity point values |
+| `/api/productivity/role-targets` | GET/PUT | Per-role daily minimums |
+
+Every manager-mutating endpoint must write an audit record (reusing `AuditLog`,
+`prisma/schema.prisma:830-846` — see §17.7) so "managers never adjust points" is independently
+verifiable, not just asserted.
+
+## 17. Required data model changes
+
+Candidate models (proposed, not created), each evaluated for reuse against existing models —
+this evaluation is shared with, and unchanged from,
+`docs/Mobile/DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md` §14, since the schema is one shared
+layer regardless of which UI (webapp or mobile) reads/writes it:
+
+### 17.1 `DailyActivityLog`
+Per-event scored record. `CrmActivity` is the closest existing analog (generic
+employee-attributed audit log) but lacks `points`/`activityDate`/dedupe support and is also
+used for non-scored events — recommend a **new dedicated table** rather than overloading
+`CrmActivity`. Proposed shape: `id, employeeId, activityType, points, sourceEntityType,
+sourceEntityId, leadId?, opportunityId?, taskId?, meetingId?, activityDate, occurredAt,
+dedupeKey (unique), createdAt`. Indexes: `[employeeId, activityDate]`, `[activityType]`,
+unique `dedupeKey`.
+
+### 17.2 `DailyActivitySummary`
+One per employee per day: auto-generated counts + employee free text + day status.
+`DailyUpdate` is structurally close but has the wrong fields and no status state machine —
+recommend a **new model**, leaving `DailyUpdate` as frozen history (Option C, §19). Proposed
+shape: `id, employeeId, activityDate (unique with employeeId), blockers, nextDayPlan,
+finalRemarks?, dayStatus, submittedAt?, lockedAt?, totalPoints, createdAt, updatedAt`.
+
+### 17.3 `DailyActivityCorrectionRequest`
+No close existing analog (`ApprovalRule` is a monetary limit-ladder config, wrong shape).
+Proposed: `id, employeeId, activityDate, summaryId?, requestType, description,
+proposedActivityType?, status, reviewedById?, reviewedAt?, reviewNotes?, createdAt`.
+
+### 17.4 `DailyProductivityScore`
+Persisted snapshot at day-closure, so later rule changes don't retroactively rewrite history;
+"today" (still open) is computed live from `DailyActivityLog`. Proposed: `id, employeeId,
+activityDate (unique with employeeId), totalPoints, band, closedAt, ruleVersionTag?`.
+
+### 17.5 `ProductivityActivityRule`
+Admin-configurable point values. No existing analog fits (`CRMAutomationRule` is a different
+rule shape for pipeline automation, not scoring). Proposed: `id, activityType (unique), label,
+points, isActive, updatedAt, updatedById`.
+
+### 17.6 `ProductivityRoleTarget`
+Admin-configurable per-role daily minimums. `KRA.target` is free-text and per-employee, wrong
+granularity. Proposed: `id, role (unique), dailyMinTarget?, updatedAt, updatedById` — nullable
+target so an unconfigured role is explicitly "no target," not "target 0."
+
+### 17.7 `DailyActivityAuditLog`
+**Recommend reusing the existing `AuditLog`** (`prisma/schema.prisma:830-846`) with
+`entityType: "daily_activity_summary"` rather than building a 7th new model — `AuditLog` is
+already generic enough (`entityType`/`entityId`/`action`/`performedById`/`changes`/`notes`)
+and this is the one case where a new table would be pure duplication.
+
+## 18. Open questions
+
+1. Does submitting a summary on a zero-activity day stay `No activity recorded`, or does the
+   no-activity rule only apply if the employee never opens the summary form at all? (§9 — needs
+   Vijesh's confirmation before Phase 3.)
+2. Late-submission "acceptance" — automatic on submission within the next-working-day window,
+   or does a manager have to explicitly accept it?
+3. Finance/Accounts and Operations/Support — what activities count, and what are their daily
+   targets?
+4. Exact role names for `ProductivityRoleTarget.role` — reconcile against
+   `src/lib/rbac.ts`/`src/lib/roles.ts` (two coexisting authorization systems, CLAUDE.md
+   gotcha #6).
+5. Proposal-sent identity/versioning — is a new explicit "Proposal" concept needed, or is the
+   current 1:1 lead↔proposal-via-stage-change assumption acceptable indefinitely? (gap G-09)
+6. Should `DailyUpdate` be migrated/backfilled into `DailyActivitySummary` for historical
+   continuity, or simply frozen read-only? (leaning frozen, per Option C — not finally decided)
+7. Should `employees/[id]/page.tsx`'s blockers widget be re-pointed at the new summary's
+   `blockers` field once available, or keep reading frozen `DailyUpdate` indefinitely?
+8. Note-channel differentiation (call/email/WhatsApp) — needed for scoring, or fine
+   undifferentiated at 1 point each?
+
+## 19. Implementation phases
+
+- **Phase 0 — Planning (this document + the gap closure plan).** No schema/API/production
+  changes.
+- **Phase 1 — Schema design review and migration (separately approved), webapp-scoped.**
+  `DailyActivityLog`, `DailyActivitySummary`, `DailyActivityCorrectionRequest`,
+  `DailyProductivityScore`, `ProductivityActivityRule`, `ProductivityRoleTarget`; resolve the
+  `AuditLog` reuse decision (§17.7); add `CrmMeeting.status` if meeting-completion capture is
+  approved.
+- **Phase 2 — Event-capture hooks** on existing pipeline routes: qualification detection,
+  meeting-completion detection (once schema allows), de-duplication keys.
+- **Phase 3 — Webapp employee Daily Activity page**, replacing `/daily-updates` for the
+  employee view.
+- **Phase 4 — Webapp manager Daily Activity dashboard**, replacing manager mode of
+  `/daily-updates`.
+- **Phase 5 — Scoring, weekly/monthly/KRA-input wiring, reporting.**
+- **Phase 6 — Admin settings** (activity rules, role targets, cutoff/grace config).
+- **Phase 7 — Legacy `DailyUpdate` disposition** (Option C: freeze read-only; re-point or
+  retire the `employees/[id]/page.tsx` blockers widget as decided).
+
+**Recommended implementation strategy (Task 6): Option C — Hybrid transition.** Keep
+`DailyUpdate` as a frozen, read-only historical table (no new rows after cutover); build the
+new `DailyActivityLog`/`DailyActivitySummary` system as the system of record going forward;
+the webapp switches to the new system for all *new* daily activity starting at cutover. This
+is recommended over Option A (enhancing `DailyUpdate` in place — would force the wrong shape
+and wrong semantics onto a model whose meaning is changing entirely, and conflates "manual
+log" with "auto-captured + scored," which is a correctness problem, not just a tidiness one)
+and over a "big-bang" version of Option B that migrates/deletes `DailyUpdate` immediately
+(unnecessary risk to the one confirmed dependent — the blockers widget — for no compensating
+benefit, since the gap audit found nothing else depends on it). Option C gets the clean
+long-term model of Option B without forcing an immediate, riskier cutover of historical data.
+
+## Confirmation
+
+No Prisma schema changes were made. No migrations were created or run. No `prisma db push`
+was run. No database data was modified. No new or modified API routes were created. No
+existing API behavior was changed. No mobile code was modified. Production was not touched.
+No `.env` files were committed. This document is a plan only, for UAT/dev.
+
+**Do not touch production.**

@@ -1,5 +1,10 @@
 # Caveo Employee Mobile App — UI Implementation Plan
 
+> **Mobile phase is paused (2026-06-25).** Webapp gaps and the Daily Activity webapp workflow
+> will be completed first. Mobile work resumes only on Vijesh's explicit instruction. No
+> mobile code is being modified while paused — see `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md`
+> and `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` for the current priority.
+
 ## Overview
 
 A mock/static UI shell for the Caveo Employee Mobile App, based on the Stitch design
@@ -196,3 +201,8 @@ Daily Update create/edit (Phase 2) — the `POST`/`PUT /api/daily-updates` endpo
 enforce correct per-employee ownership and need no changes; only a mobile-side form needs to
 be wired to them, using the same field set (`topUpdates`/`keyMovement`/`blockers`/
 `topDealThisWeek`/`updateStatus`) the read view now uses.
+
+> **Update (2026-06-25):** the Daily Updates screen should be replaced by Daily Activity in
+> future implementation. See
+> [`DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md`](./DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md)
+> — planning only, no schema/API/production changes made.

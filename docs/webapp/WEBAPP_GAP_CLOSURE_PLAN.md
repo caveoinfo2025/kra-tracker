@@ -1,0 +1,250 @@
+# Webapp Gap Closure Plan
+
+> **Status: Planning only.** No Prisma schema changes, no migrations, no `prisma db push`,
+> no database data changes, no API changes, no mobile code changes, and no production
+> changes were made while producing this document. UAT/dev only. **Do not touch production.**
+
+## 1. Executive summary
+
+Mobile app work is paused (per Vijesh, 2026-06-25). Focus shifts back to the webapp: closing
+existing gaps and replacing the manual Daily Updates workflow with auto-captured Daily
+Activity & Productivity. This document audits the current webapp Daily Updates
+implementation and its dependencies, audits which CRM activity sources already exist vs. are
+missing, and produces a severity-ranked gap table to drive implementation phasing. The
+companion document,
+[`DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md`](./DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md), specifies
+the target workflow in detail; this document focuses on **what's missing to get there**.
+
+## 2. Daily Updates current-state audit
+
+**Desktop page:** `src/app/daily-updates/page.tsx` (server component) → `DailyUpdatesClient.tsx`
+(client). The server page fetches:
+- `employees` — all employees if manager, else just self (`isManager ? {} : { id: empId }`).
+- `rows` — all `DailyUpdate` rows if manager (no `employeeId` filter applied server-side at the
+  page level), else self only, latest 100, via `prisma.dailyUpdate.findMany`.
+
+`DailyUpdatesClient.tsx` renders: a filter bar (status quick-filters, employee dropdown for
+managers, date range), an "+ Add Update" modal form (Employee select for managers, Date,
+Status, Top Updates *required*, Key Movement, Blockers, Top Deal This Week, Manager Support
+Required checkbox), and a card list with inline **Edit**/**Del** actions per row. This is a
+**fully functional, real CRUD desktop UI** — materially more complete than the mobile shell
+that preceded it (mobile is currently read-only for this data).
+
+**API:** `GET/POST /api/daily-updates`, `PUT/DELETE /api/daily-updates/[id]`
+(`src/app/api/daily-updates/route.ts`, `[id]/route.ts`). RBAC: GET/POST scope to self unless
+`isManager` (POST lets a manager submit on behalf of another employee via `body.employeeId`
+— this is an existing, working manager-override path, not a gap, but is worth flagging
+explicitly for the new workflow since "employee cannot submit another employee's summary" is
+now an explicit hard rule, §8). PUT/DELETE check `existing.employeeId === session.user.employeeId
+|| isManager` (403 otherwise) — correctly ownership-scoped.
+
+**`DailyUpdate` Prisma model fields:** `id, date, employeeId, topUpdates, keyMovement,
+blockers, topDealThisWeek, managerSupportRequired, updateStatus, createdAt`. No `points`, no
+status-machine field beyond the free-text `updateStatus` label, no link to any CRM entity.
+
+**Dependents found (full-repo grep, excluding generated Prisma client code and the mobile
+screen already covered by the paused mobile plan):**
+- `src/app/employees/[id]/page.tsx:93-97` — the employee profile page reads the **5 most
+  recent `DailyUpdate` rows that have a non-empty `blockers` field** for that employee, as a
+  "recent blockers" widget. This is the **one cross-feature dependency** on `DailyUpdate`
+  found in the codebase.
+- `src/app/daily-updates/page.tsx`, `DailyUpdatesClient.tsx`, `api/daily-updates/route.ts`,
+  `[id]/route.ts` — the feature itself.
+- `src/app/mobile/...` — covered separately by the paused mobile plan; not touched here.
+
+**Not found anywhere:** no reference to `DailyUpdate` in any KRA (`KRA`, `WeeklyReview`,
+`WeeklyCommit`), dashboard, or reports code. **`DailyUpdate` is fully decoupled from KRA
+scoring today** — it has never fed weekly/monthly rollups or KRA calculations. This is an
+important, confirmed finding: replacing it does not require unwinding any existing KRA
+computation, only the one blockers-widget read and the page/API/component themselves.
+
+### What exists today
+A complete, working manual CRUD feature: desktop page, client component, full REST API with
+correct ownership RBAC, one downstream read (employee profile blockers widget).
+
+### What can be reused temporarily
+- The ownership/scoping pattern in the API routes (self-scope unless manager) is the exact
+  pattern the new Daily Activity APIs should follow — no new RBAC primitive needed for basic
+  self/manager scoping.
+- `DailyUpdatesClient.tsx`'s filter-bar and card-list structure (status quick-filters, date
+  range, manager employee-dropdown) is a reasonable UI skeleton to adapt for the team
+  dashboard view, not because the component is kept as-is, but because the *pattern* (filter
+  bar + status badges + per-row detail) is proven and brand-consistent with the rest of the
+  webapp.
+
+### What should be deprecated
+- The free-text `updateStatus` self-selected label (On Track/At Risk/Blocked/Ahead) — replaced
+  by the computed day-status state machine (§9 of the requirements doc).
+- The "Add Update" manual-entry form for `topUpdates`/`keyMovement`/`topDealThisWeek` — these
+  become auto-captured activity, not employee-typed fields.
+- Manager's ability to submit a Daily Update **on behalf of** another employee
+  (`POST` with `body.employeeId`) — directly conflicts with the new hard rule that nobody but
+  the employee submits their own end-of-day summary (§8). This must NOT be carried into the
+  new API.
+
+### What must not be expanded further
+- No new fields, no new filters, no new write paths should be added to the existing
+  `DailyUpdate` model/API/UI from this point forward — any further investment goes into the
+  new Daily Activity system instead, per the "Option C hybrid" recommendation (§6 of the
+  requirements doc / Task 6 below).
+
+### What breaks if DailyUpdate is removed too early
+- `employees/[id]/page.tsx`'s blockers widget would break (empty/error) if the table or API
+  is dropped before that one read is migrated or removed.
+- Any **historical** record of what employees logged before the cutover would be lost if the
+  table is dropped rather than archived/frozen — there is no other source of this history.
+- No KRA/report breakage risk exists (confirmed above — nothing else reads it).
+
+## 3. Daily Activity target workflow
+
+Full specification lives in
+[`DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md`](./DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md). Summary:
+CRM actions (lead qualification, lead/opportunity updates, task/meeting completion, proposals,
+notes/follow-ups) are auto-captured as scored events; the employee submits only an end-of-day
+summary (Blockers / Next-day plan / Final remarks); the day is assigned a status that gates
+KRA eligibility; managers see exact points and audit/correct/reopen; employees see only a
+banded status.
+
+## 4. Existing activity sources
+
+`CrmActivity` (`prisma/schema.prisma:444-463`) is a generic, employee-attributed, timestamped
+audit log already written to by 8 of the 9 required event types:
+
+| Source | File | `action` value | Already matches target activity |
+|---|---|---|---|
+| Lead stage change | `pipeline/leads/[id]/stage/route.ts:78` | `stage_changed` | Lead updated (generic — not qualification-specific) |
+| Lead stage change (alt route) | `pipeline/leads/[id]/route.ts:100,136` | `stage_changed` | Lead updated |
+| Lead created | `pipeline/leads/route.ts:135` | `created` | Not scored (creation ≠ qualification) |
+| Lead converted | `pipeline/leads/[id]/convert/route.ts:118` | `converted` | Needs review vs. qualification overlap |
+| Task completed | `pipeline/tasks/[id]/route.ts:35-46` | `task_completed`, **gated on `status → "completed"` transition only** | Task completed — already matches the required duplicate-prevention rule |
+| Meeting scheduled | `pipeline/meetings/route.ts:76` | `meeting_scheduled` | Meeting scheduled |
+| Note added | `pipeline/notes/route.ts:28` | `note_added` | Call/email/WhatsApp note (undifferentiated by channel) |
+| Opportunity stage change | `pipeline/opportunities/[id]/route.ts:115` | `stage_changed` | Opportunity updated |
+| Opportunity auto-created | `pipeline/opportunities/promote/route.ts:93` | `created` | Opportunity updated (creation path) |
+| Free-form activity log | `pipeline/leads/[id]/activity/route.ts` | body `action: call\|note\|meeting` | Call/email/WhatsApp note |
+
+`LEAD_STAGES` (`src/types/pipeline.ts:3-11`) already includes a `"QUALIFIED"` stage in
+sequence after `NEW_LEAD`/`CONTACTED` — the data needed to detect a Raw→Qualified transition
+exists; the detection *logic* does not yet exist anywhere.
+
+## 5. Missing activity sources
+
+- **Qualified-lead detection.** No code path checks "previous stage was not Qualified, new
+  stage is Qualified" — `stage_changed` fires identically for every transition.
+- **Meeting completion.** `CrmMeeting` (`prisma/schema.prisma:424-442`) has **no status field
+  at all** (`meetingDate`, `notes`, `attendees`, `location` only) — there is no way to know if
+  a scheduled meeting actually happened. This is a schema gap, not just an instrumentation gap.
+- **Proposal-sent identity.** A proposal is "sent" only as a side effect of a lead's stage
+  becoming `PROPOSAL_SENT` (which also auto-creates the `CrmOpportunity`). There is no
+  proposal versioning, so "count once per proposal version" cannot be implemented — there is
+  currently only one possible proposal-sent event per lead, which incidentally satisfies
+  "count once" only because resending isn't a modeled concept yet.
+- **Note-channel differentiation.** `CrmNote`/`note_added` doesn't distinguish call vs. email
+  vs. WhatsApp — if differentiated scoring is ever needed, a `noteType` field is required.
+- **End-of-day summary submission.** No event source exists today — this is an entirely new
+  action.
+
+## 6. Data model gaps
+
+No new model exists yet for: per-event scored activity log, end-of-day summary with a status
+state machine, correction requests, persisted closed-day score snapshots, configurable
+activity-point rules, configurable role targets. Full candidate-model evaluation (including
+explicit reuse-vs-new-model analysis for each) lives in §17 of the requirements document and
+mirrors the evaluation already done in
+`docs/Mobile/DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md` §14 — that evaluation is reused
+here unchanged, since the underlying schema doesn't differ between the mobile and webapp
+surfaces (one schema, two UIs).
+
+## 7. API gaps
+
+No endpoints exist yet for: today's auto-captured activity feed, activity history, summary
+submission/edit, correction requests (employee side); team dashboard, correction
+approve/reject, day reopen (manager side); activity-rule/role-target config (admin side). Full
+endpoint table in §16 of the requirements document.
+
+## 8. UI/page gaps
+
+- No webapp page shows an auto-captured activity timeline for "today."
+- No webapp page lets an employee submit only Blockers/Next-day plan/Final remarks against a
+  pre-computed activity set — `DailyUpdatesClient.tsx`'s form is built entirely around manual
+  free-text entry of what is meant to become auto-captured data.
+- No manager team-dashboard view exists for daily activity (no-activity list, incomplete list,
+  summary-pending list, correction queue, reopened-days list) — `DailyUpdatesClient.tsx`'s
+  manager mode is just "all rows, filterable," not a status-driven dashboard.
+- No admin UI exists for activity-point rules, role targets, or cutoff/grace configuration.
+
+## 9. RBAC/security gaps
+
+- The existing Daily Updates API allows a manager to **create** an update on behalf of another
+  employee (`POST` with `body.employeeId`). The new workflow's hard rule — nobody submits
+  another employee's summary, ever, including managers — means this exact capability must
+  **not** be carried forward into the new endpoints. This is a real, identified gap between
+  current and target behavior, not just a missing feature.
+- No existing enforcement anywhere prevents a manager from manually setting a "score" — because
+  no score exists yet. This needs to be a server-side constraint from day one of the new API
+  (no point-adjustment field on any manager-facing endpoint), not retrofitted later.
+- Object-level "is this employee actually on this manager's team" scoping needs explicit
+  verification against whichever of the two coexisting RBAC systems
+  (`src/lib/rbac.ts` DB-driven `AppRole`/`RolePageAccess` vs. `src/lib/roles.ts` hardcoded
+  predicates — CLAUDE.md gotcha #6) governs employee-manager relationships, before the team
+  dashboard ships. Not resolved in this document.
+
+## 10. KRA/reporting gaps
+
+- No computed productivity number exists anywhere today; `KRA`/`WeeklyReview`/`WeeklyCommit`
+  are entirely manual (`progress`, `score`, `notes` typed by a manager). The new system needs
+  to feed these as an **input** to that manual process, not silently overwrite it — the exact
+  wiring point (e.g., a read-only "this week's auto productivity" field shown during
+  `WeeklyReview` entry) is a design decision for Phase 5, not made here.
+- No reporting surface exists for daily/weekly/monthly productivity, no-activity-day counts,
+  or correction-request volume.
+
+## 11. Migration/backfill risks
+
+- **Low risk overall** — confirmed in §2 that nothing outside the Daily Updates feature itself
+  and one profile-page widget depends on `DailyUpdate`.
+- The one dependency (`employees/[id]/page.tsx` blockers widget) must be explicitly handled —
+  either kept reading frozen historical `DailyUpdate` rows indefinitely (Option C, recommended,
+  §6 below) or re-pointed at the new summary's `blockers` field once that exists.
+- No automatic migration of historical `DailyUpdate` rows into the new model is proposed —
+  see Task 6 recommendation below for why a hybrid (keep-old, build-new) approach avoids this
+  problem entirely for now.
+
+## 12. Recommended implementation sequence
+
+1. **Phase 1** — Schema design review and (separately approved) migration for the new Daily
+   Activity models; no code changes to the existing Daily Updates feature yet.
+2. **Phase 2** — Event-capture hooks added to existing pipeline routes (qualification
+   detection, meeting-completion field + detection once schema allows, de-duplication keys).
+3. **Phase 3** — Webapp employee Daily Activity page (replaces `/daily-updates` employee view).
+4. **Phase 4** — Webapp manager Daily Activity dashboard (replaces manager mode of
+   `/daily-updates`).
+5. **Phase 5** — Scoring, weekly/monthly/KRA-input wiring, reporting.
+6. **Phase 6** — Admin settings (activity rules, role targets, cutoff/grace config).
+7. **Phase 7** — Decide and execute the `DailyUpdate` legacy disposition (freeze read-only vs.
+   archive) and re-point `employees/[id]/page.tsx`'s blockers widget if needed.
+
+## 13. No-production confirmation
+
+No Prisma schema changes, no migrations, no `prisma db push`, no database data changes, no
+new or modified API routes, no existing API behavior changes, no mobile code changes, and no
+production changes were made while producing this document. UAT/dev only.
+
+## Gap table
+
+| Gap ID | Area | Description | Severity | Recommended Fix | Phase |
+|---|---|---|---|---|---|
+| G-01 | Activity capture | No qualified-lead (Raw/Data→Qualified) detection exists | High | Add stage-transition check in lead stage-update routes | 2 |
+| G-02 | Data model | `CrmMeeting` has no status field — meeting completion can't be captured | High | Add `status` field to `CrmMeeting` (separate, approved migration) | 1 |
+| G-03 | Data model | No `DailyActivityLog`/`DailyActivitySummary`/correction/score models exist | High | New models per §17 of requirements doc | 1 |
+| G-04 | API | No employee/manager/admin Daily Activity endpoints exist | High | New endpoint set per §16 of requirements doc | 1–6 |
+| G-05 | UI | No auto-activity-timeline or end-of-day-summary-only employee page exists | High | New webapp employee page, replaces `/daily-updates` | 3 |
+| G-06 | UI | No manager team-activity dashboard exists | High | New webapp manager dashboard | 4 |
+| G-07 | RBAC | Manager-submits-on-behalf-of-employee path exists today and must not carry forward | Medium | Explicitly omit `employeeId` override from new submission endpoint | 1 |
+| G-08 | RBAC | Manager-cannot-adjust-points rule has no enforcement point yet (nothing to enforce against today) | Medium | Server-side: no point-edit field on any manager endpoint, from day one | 1 |
+| G-09 | Proposal tracking | No proposal versioning/identity — "sent" is a side effect of lead stage only | Medium | Decide in Phase 1 review whether to model proposals explicitly or accept current 1:1 lead↔proposal assumption | 1 |
+| G-10 | Note capture | Call/email/WhatsApp notes are undifferentiated (`note_added` only) | Low | Add `noteType` to `CrmNote` if differentiated scoring is later required | 2 (optional) |
+| G-11 | KRA integration | No wiring point exists between any computed score and `WeeklyReview`/`KRA` | Medium | Define read-only rollup input field, design in Phase 5 | 5 |
+| G-12 | Legacy dependency | `employees/[id]/page.tsx` blockers widget depends directly on `DailyUpdate` | Low | Leave reading frozen `DailyUpdate` (Option C) or re-point at new summary later | 7 |
+| G-13 | Reporting | No daily/weekly/monthly productivity report surface exists | Medium | New report page, Phase 5 | 5 |
+| G-14 | Admin config | No UI/API exists for activity-point rules or role targets | Low | New admin settings page, Phase 6 | 6 |

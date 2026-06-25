@@ -19,7 +19,45 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-25 — Final UAT gap closure attempt: FT-2b and FT-4 remain Open on precise, reported blockers; UAT not yet fully closed, production stays paused)
+## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
+
+### 2026-06-25 — Daily Updates workflow revised to Daily Activity & Productivity (planning only)
+
+Daily Updates workflow revised to Daily Activity & Productivity. Planning created before
+schema/API changes. No schema/migration/API/production changes made. Full requirements and
+architecture plan: `docs/Mobile/DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md`.
+
+### 2026-06-25 — Mobile phase paused; focus shifted to webapp gap closure + Daily Activity webapp workflow
+
+Mobile phase paused. Webapp gaps and Daily Activity replacement for Daily Updates are now
+priority. Planning created before schema/API changes. Production remains paused. Mobile work
+resumes only on Vijesh's explicit instruction. Plans:
+`docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md`, `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md`.
+
+### 2026-06-25 — Step 4H-7: Manual verification handoff — FT-2b and FT-4
+
+Vijesh's instruction: **"Skip both tests; I will do them manually. Proceed next step."**
+
+FT-2b (Microsoft Entra ID OAuth end-to-end login) and FT-4 (UAT backup restore-test) are no
+longer being pursued via automated/session attempts. Both are reassigned to Vijesh for manual
+completion or formal acceptance, marked **Manual verification pending — owner: Vijesh
+Vijayan** — explicitly not Closed and not Accepted Risk, a distinct intermediate status.
+
+This reflects the genuine state reached over several prior rounds: FT-2b requires a real
+human login/MFA that no available tool can perform; FT-4's blocker was narrowed down to a
+precise access boundary (the UAT DB user's grants are scoped to `u686730471_Caveo_UAT` only,
+no privilege to create a scratch database) that needs either a hPanel-side grant change or
+direct Hostinger access Vijesh has and this session doesn't.
+
+**Production remains paused** until Vijesh manually verifies or explicitly accepts both items
+and separately instructs production planning to resume — neither has happened yet. This step
+made no code, schema, or UAT data change.
+
+Note: live UAT (`https://uat.caveoinfosystems.com`) returned **HTTP 503 on every route**
+(including `/login`) when checked during this step — the app appears to be down or restarting
+(possibly the CloudLinux LVE worker-pileup issue in `CLAUDE.md` gotcha #8). Not investigated
+or acted on further — out of scope for this documentation-only step, and no SSH/hPanel access
+is available to this session regardless.
 
 ### 2026-06-25 — Final UAT gap closure attempt: FT-2b and FT-4 remain Open
 
