@@ -639,3 +639,36 @@ Plus **9 back-reference relations on `Employee`** (`ledgerEntries`, `expenses`,
 - `prisma/seed.ts` — finance **config** (cash+bank account, `VoucherSequence` FY 26-27,
   default `ApprovalRule`); idempotent; wired via `prisma.config.ts` `migrations.seed`.
 - `prisma/seed-dev-users.ts`, `prisma/seed-dev-finance.ts` — **dev-only**, run with `npx tsx`.
+
+## 8. Daily Activity & Productivity — Phase W1 schema (draft, 2026-06-25)
+
+> **Draft schema/migration pending approval; not applied to DB.** No `prisma migrate dev`,
+> no `prisma db push`, no `prisma migrate deploy`, no `prisma migrate resolve` was run. No
+> database data was changed. Full design review:
+> `docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md`. Replaces the manual `DailyUpdate`
+> workflow going forward (`DailyUpdate` itself is untouched in this step and stays frozen/
+> read-only per the Option C hybrid plan — see `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md`).
+
+### Models drafted (6)
+| Model | Purpose | Key fields / notes |
+|---|---|---|
+| `DailyActivityLog` | Canonical per-event scored activity record | `activityType`/`sourceType` vocab (String, no Prisma enum — matches this schema's existing convention), per-day dedupe unique key |
+| `DailyActivitySummary` | One closure record per employee per day | `status` state machine, `productivityBand` (the one field employees see) |
+| `DailyActivityCorrectionRequest` | Employee correction request, manager-reviewed | two distinct relations to `DailyActivityLog` (disputed entry vs. generated entry) |
+| `DailyProductivityScore` | Persisted daily/weekly/monthly rollup snapshot | unique per employee+period |
+| `ProductivityActivityRule` | Admin-configurable point values | global default + optional role override, not yet seeded |
+| `ProductivityRoleTarget` | Admin-configurable role daily/weekly/monthly targets | not yet seeded |
+
+Plus a new `CrmMeeting.status` column (`SCHEDULED` default) so meeting completion can later be
+detected the same way `CrmTask.status → "completed"` already is. No capture logic added.
+
+**No new audit table** — manager/admin actions on this system (correction approve/reject, day
+reopen, rule/target changes) are planned to reuse the existing `AuditLog` model unmodified.
+
+### Migration
+- **`20260625120000_daily_activity_foundation`** — 6 `CREATE TABLE`, 1 `ALTER TABLE` (CrmMeeting),
+  9 FKs, inline indexes, `utf8mb4_unicode_ci`. **Hand-written**, not tool-generated — both
+  `prisma migrate dev` (needs a shadow DB; Hostinger's MySQL user has no `CREATE DATABASE`
+  privilege, the same `P3014` this repo already hit once) and `prisma migrate diff
+  --from-config-datasource` (needs to connect to the live DB) were correctly avoided for this
+  draft-only step. **Not applied.**

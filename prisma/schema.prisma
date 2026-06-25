@@ -42,6 +42,14 @@ model Employee {
   pipelineActivities CrmActivity[] @relation("ActivityPerformedBy")
   pipelineNotes      CrmNote[]     @relation("NoteAuthor")
 
+  // ── Daily Activity & Productivity (Phase W1, draft schema, 2026-06-25) ──
+  dailyActivityLogs             DailyActivityLog[]               @relation("DailyActivityLogEmployee")
+  dailyActivitySummaries        DailyActivitySummary[]            @relation("DailyActivitySummaryEmployee")
+  dailyActivitySummariesReopened DailyActivitySummary[]           @relation("DailyActivitySummaryReopenedBy")
+  dailyActivityCorrectionsRaised  DailyActivityCorrectionRequest[] @relation("CorrectionRequestEmployee")
+  dailyActivityCorrectionsManaged DailyActivityCorrectionRequest[] @relation("CorrectionRequestManager")
+  dailyProductivityScores         DailyProductivityScore[]        @relation("ProductivityScoreEmployee")
+
   // â"€â"€ Finance Operations Module (Phase 1) â"€â"€
   ledgerEntries            Ledger[]          @relation("LedgerRecordedBy")
   expenses                 Expense[]         @relation("ExpenseEmployee")
@@ -428,6 +436,11 @@ model CrmMeeting {
   notes         String          @default("") @db.Text
   attendees     String          @default("") @db.Text
   location      String          @default("")
+  // Daily Activity & Productivity (Phase W1, 2026-06-25): added so meeting completion can be
+  // detected as a Raw status → COMPLETED transition, the same pattern CrmTask already uses
+  // for task_completed. No capture logic added yet — schema only. See
+  // docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md.
+  status        String          @default("SCHEDULED") // SCHEDULED|COMPLETED|CANCELLED|RESCHEDULED
   lead          CrmLead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId        Int?
   opportunity   CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
@@ -439,6 +452,7 @@ model CrmMeeting {
   @@index([leadId])
   @@index([opportunityId])
   @@index([employeeId])
+  @@index([status])
 }
 
 model CrmActivity {
@@ -473,6 +487,222 @@ model CrmNote {
 
   @@index([leadId])
   @@index([authorId])
+}
+
+// ── Daily Activity & Productivity — webapp replacement for DailyUpdate (Phase W1, 2026-06-25) ──
+// Draft schema only — see docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md.
+// Follows existing project convention: no Prisma `enum` types anywhere in this schema; status/
+// type vocabularies are plain `String` columns with a default + inline comment listing allowed
+// values (see CrmLead.stage, CrmTask.status, DailyUpdate.updateStatus, ApprovalRule.entityType
+// for precedent). The vocabularies below mirror the enum lists requested in planning, expressed
+// the same way the rest of this schema already expresses them.
+// No DailyActivityAuditLog model — manager/admin actions on this system (correction
+// approve/reject, day reopen, rule/target changes) reuse the existing AuditLog model below with
+// entityType: "daily_activity_summary" | "daily_activity_correction" | "productivity_rule" |
+// "productivity_role_target".
+
+model DailyActivityLog {
+  id         Int      @id @default(autoincrement())
+  employee   Employee @relation("DailyActivityLogEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId Int
+
+  activityDate DateTime @db.Date
+
+  // QUALIFIED_LEAD_CREATED|LEAD_UPDATED|FOLLOW_UP_ADDED|TASK_UPDATED|TASK_COMPLETED|
+  // MEETING_SCHEDULED|MEETING_COMPLETED|PROPOSAL_SENT|OPPORTUNITY_UPDATED|CALL_NOTE_ADDED|
+  // EMAIL_NOTE_ADDED|WHATSAPP_NOTE_ADDED|END_OF_DAY_SUMMARY_SUBMITTED
+  activityType String
+
+  // CRM_ACTIVITY|LEAD|TASK|MEETING|OPPORTUNITY|PROPOSAL|FOLLOW_UP|NOTE|SUMMARY|CORRECTION
+  sourceType   String
+  sourceId     Int?
+  sourceTable  String  @default("")
+  sourceAction String  @default("")
+
+  points Int @default(0)
+
+  // CAPTURED|COUNTED|EXCLUDED|CORRECTION_PENDING|CORRECTION_APPROVED|CORRECTION_REJECTED
+  status String @default("CAPTURED")
+
+  capturedAt DateTime  @default(now())
+  countedAt  DateTime?
+
+  isCorrection        Boolean                         @default(false)
+  correctionRequest   DailyActivityCorrectionRequest? @relation("CorrectionGeneratedLog", fields: [correctionRequestId], references: [id], onDelete: SetNull)
+  correctionRequestId Int?
+
+  metadataJson String @default("") @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  disputedByCorrections DailyActivityCorrectionRequest[] @relation("CorrectionDisputedLog")
+
+  @@index([employeeId, activityDate])
+  @@index([activityType])
+  @@index([sourceType, sourceId])
+  @@index([correctionRequestId])
+  // Duplicate-prevention: blocks the same employee from logging the identical
+  // (sourceType, sourceId, sourceAction) event twice on the same day — see
+  // docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md §9 for why this is "once per day" rather
+  // than "once ever" (an entity like an Opportunity can legitimately update more than once
+  // across different days), and for the documented application-level gap (this constraint
+  // cannot by itself distinguish two distinct same-day transitions on the same entity from a
+  // retried duplicate of one transition — sourceAction must encode enough detail, e.g. the
+  // specific stage pair, for that distinction to hold).
+  @@unique([employeeId, sourceType, sourceId, sourceAction, activityDate], name: "uq_activity_log_event_per_day")
+}
+
+model DailyActivitySummary {
+  id         Int      @id @default(autoincrement())
+  employee   Employee @relation("DailyActivitySummaryEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId Int
+
+  summaryDate DateTime @db.Date
+
+  // NO_ACTIVITY|SUMMARY_PENDING|INCOMPLETE|CLOSED|REOPENED|LATE_SUBMITTED|PENDING_CORRECTION
+  status String @default("NO_ACTIVITY")
+
+  // NO_ACTIVITY|LOW_ACTIVITY|ACTIVE|PRODUCTIVE|HIGHLY_PRODUCTIVE — this is the one field
+  // employees see; managers additionally see totalPoints. No separate "employeeVisibleBand"
+  // column — it would only ever duplicate this value, see design review doc §4.
+  productivityBand String @default("NO_ACTIVITY")
+  totalPoints      Int    @default(0)
+
+  autoSummaryJson String @default("") @db.Text
+  blockers        String @default("") @db.Text
+  nextDayPlan     String @default("") @db.Text
+  finalRemarks    String @default("") @db.Text
+
+  submittedAt DateTime?
+  closedAt    DateTime?
+  lockedAt    DateTime?
+
+  reopenedAt   DateTime?
+  reopenedBy   Employee? @relation("DailyActivitySummaryReopenedBy", fields: [reopenedById], references: [id], onDelete: SetNull)
+  reopenedById Int?
+
+  lateSubmittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  correctionRequests DailyActivityCorrectionRequest[] @relation("CorrectionSummary")
+
+  @@unique([employeeId, summaryDate])
+  @@index([status])
+  @@index([summaryDate])
+  @@index([reopenedById])
+}
+
+model DailyActivityCorrectionRequest {
+  id         Int      @id @default(autoincrement())
+  employee   Employee @relation("CorrectionRequestEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId Int
+
+  summary   DailyActivitySummary @relation("CorrectionSummary", fields: [summaryId], references: [id], onDelete: Cascade)
+  summaryId Int
+
+  // The originally-captured log entry being disputed as wrong, if any — null when the
+  // correction is for a *missing* activity (nothing was captured to reference).
+  activityLog   DailyActivityLog? @relation("CorrectionDisputedLog", fields: [activityLogId], references: [id], onDelete: SetNull)
+  activityLogId Int?
+
+  requestedActivityType String  @default("")
+  requestedSourceType   String  @default("")
+  requestedSourceId     Int?
+  reason                String  @db.Text
+
+  // PENDING|APPROVED|REJECTED|CANCELLED
+  status String @default("PENDING")
+
+  manager           Employee? @relation("CorrectionRequestManager", fields: [managerId], references: [id], onDelete: SetNull)
+  managerId         Int?
+  managerDecisionAt DateTime?
+  managerRemarks    String    @default("") @db.Text
+  approvedPoints    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // The log entry created as a result of this correction being approved (e.g. backfilling a
+  // missing activity). Distinct relation from `activityLog` above — that one points at the
+  // disputed/original entry, this one points at what the approval generated.
+  generatedLog DailyActivityLog[] @relation("CorrectionGeneratedLog")
+
+  @@index([summaryId, status])
+  @@index([employeeId, status])
+  @@index([activityLogId])
+  @@index([managerId])
+}
+
+model DailyProductivityScore {
+  id         Int      @id @default(autoincrement())
+  employee   Employee @relation("ProductivityScoreEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId Int
+
+  // DAILY|WEEKLY|MONTHLY
+  periodType  String
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+
+  totalPoints       Int    @default(0)
+  closedDays        Int    @default(0)
+  incompleteDays    Int    @default(0)
+  absentDays        Int    @default(0)
+  productivityBand  String @default("NO_ACTIVITY")
+  kraEligiblePoints Int    @default(0)
+
+  qualityIndicatorJson String @default("") @db.Text
+
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([employeeId, periodType, periodStart, periodEnd])
+  @@index([periodType, periodStart])
+}
+
+model ProductivityActivityRule {
+  id           Int     @id @default(autoincrement())
+  // Same vocabulary as DailyActivityLog.activityType.
+  activityType String
+  displayName  String  @default("")
+  points       Int     @default(0)
+  isActive     Boolean @default(true)
+
+  // null = global default rule for this activityType; non-null = role-specific override.
+  // See design review doc §11 for the open question on exact role-string values.
+  appliesToRole String?
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activityType, isActive])
+}
+
+model ProductivityRoleTarget {
+  id Int @id @default(autoincrement())
+
+  // Matches Employee.role free-text values (e.g. "Inside Sales", "BDE") — see design review
+  // doc §11 for the open mapping question (no seeded role currently reads exactly "Sales
+  // Manager").
+  roleName String
+
+  dailyTargetPoints   Int?
+  weeklyTargetPoints  Int?
+  monthlyTargetPoints Int?
+  isActive            Boolean @default(true)
+
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roleName, isActive])
 }
 
 model Customer {

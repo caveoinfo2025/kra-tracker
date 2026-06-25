@@ -21,6 +21,18 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-25 — Phase W1: Daily Activity schema design reviewed (draft only, not applied)
+
+Phase W1 schema design reviewed for webapp Daily Activity. Draft migration created only. No
+migration applied, no `db push`, no production changes. 6 new models drafted
+(`DailyActivityLog`, `DailyActivitySummary`, `DailyActivityCorrectionRequest`,
+`DailyProductivityScore`, `ProductivityActivityRule`, `ProductivityRoleTarget`) plus a draft
+`CrmMeeting.status` column. Full review: `docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md`.
+Draft migration file: `prisma/migrations/20260625120000_daily_activity_foundation/migration.sql`
+— hand-written (not tool-generated, since both `prisma migrate dev` and `prisma migrate diff
+--from-config-datasource` would have required connecting to a database, which this draft-only
+step avoided). **Not applied to UAT or production.**
+
 ### 2026-06-25 — Daily Updates workflow revised to Daily Activity & Productivity (planning only)
 
 Daily Updates workflow revised to Daily Activity & Productivity. Planning created before
