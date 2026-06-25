@@ -1417,4 +1417,21 @@ Full evidence: `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-6" and
 modified (the harness DB connection never succeeded). `npx prisma validate` ✅,
 `npx tsc --noEmit` ✅, `npm run build` ✅.
 
+## FT-5 retry — DB user-grant blocker identified (2026-06-25)
+
+| Check | Result |
+| ----- | ------ |
+| Raw TCP to `srv2201.hstgr.io:3306` | **Succeeds** (improvement — network path now open) |
+| Direct MySQL handshake | `ER_ACCESS_DENIED_ERROR (1045)`: access denied for `u686730471_caveouat`@`122.164.84.5` |
+| Sales Funnel click-through | **Not run** — blocked upstream, no result fabricated |
+| OrderAdvance click-through | **Not run** — blocked upstream, no result fabricated |
+
+**FT-5 row: still Open.** The blocker changed from a network/firewall gap to a MySQL
+user-grant gap — the whitelist update helped but didn't fully resolve access. Harness left
+running for a further retry. Full evidence:
+`uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` → "FT-5 retry result".
+
+**No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅,
+`npm run build` ✅.
+
 **No production action taken.** `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.

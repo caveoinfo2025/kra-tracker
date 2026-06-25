@@ -19,7 +19,29 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 - **Local dev:** `http://localhost:3000`
 - **Database:** **MySQL / MariaDB 11.8** (migrated from SQLite 2026-06-02).
 
-## 0. Current status (2026-06-25 — Step 4H-6: FT-1 closed via a real code fix; FT-5/FT-2b/FT-4 remain Open on concrete, reported blockers)
+## 0. Current status (2026-06-25 — FT-5 retry: DB whitelist progress made, new specific user-grant blocker found; FT-2b/FT-4 unchanged)
+
+### 2026-06-25 — FT-5 retry: network path opened, blocked by a MySQL user-grant issue instead
+
+Retried FT-5 after the IP whitelist was reportedly updated on Hostinger. Updated the
+`kra-tracker-uat-verify` worktree to current `uat` HEAD (`9cda027`, includes the FT-1 fix) and
+restarted the harness. Also noted along the way: `npm run uat:check-version` now reports
+**MISMATCH** (live UAT still serves `3652ec0`, predating this session's push to `9cda027`) —
+expected lag, not a regression of FT-3's prior closure, but reported honestly rather than
+glossed over.
+
+Diagnosis: raw TCP to `srv2201.hstgr.io:3306` now succeeds (the network/firewall path is open —
+real progress from the whitelist change). A direct MySQL handshake (bypassing Prisma's pool,
+password never printed) returned a precise error instead of a generic timeout:
+`ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'u686730471_caveouat'@'122.164.84.5'
+(using password: YES)`. This is a MySQL user-grant problem, not a network block — the account
+doesn't yet have a grant covering this IP even though the IP can now reach the port.
+
+**FT-5: still Open.** Sales Funnel and OrderAdvance click-through were not run — neither could
+load real data past this DB block, and no result was fabricated for either. Harness left
+running for a further retry once the grant is updated. No production action taken; no UAT
+data was read or written (every attempt either failed pre-auth or was a read-only diagnostic).
+`npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
 
 ### 2026-06-25 — Step 4H-6: Remaining UAT gap closure
 

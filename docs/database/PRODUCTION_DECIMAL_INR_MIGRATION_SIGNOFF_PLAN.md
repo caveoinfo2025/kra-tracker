@@ -42,6 +42,12 @@
 > remains paused** — three of five items are still open, and nothing here changes until all
 > five close and Vijesh gives explicit instruction to resume.
 >
+> **FT-5 retry (2026-06-25): still Open, production still paused.** The DB whitelist update
+> opened the network path, but a MySQL user-grant issue (`ER_ACCESS_DENIED_ERROR` for the
+> account, not the network) now blocks the click-through test — see
+> `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-5 retry". No production action was taken; this
+> document remains paused, unchanged.
+>
 > **Step 3Z (2026-06-23) — DEPLOYMENT STRATEGY CHANGED. PRODUCTION MIGRATION IS DEFERRED.**
 > The business decision is now: dev → **UAT** → UAT sign-off → production planning → production
 > migration only after approval. **Production migration is paused** — it does not proceed

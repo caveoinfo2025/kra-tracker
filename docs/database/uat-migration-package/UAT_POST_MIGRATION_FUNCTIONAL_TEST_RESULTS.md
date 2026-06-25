@@ -269,3 +269,52 @@ human-in-the-loop OAuth credentials, missing restore tooling), not by inaction.
 modified. The only UAT-facing interaction was the dev-bypass harness's attempted (and
 currently failing) database connection — no UAT data was read or written since the pool never
 established a connection. `npx tsc --noEmit` ✅ after the FT-1 fix.
+
+---
+
+## FT-5 retry result (2026-06-25)
+
+Retried after the IP whitelist was reportedly updated. Progress, but still blocked — by a
+**different, more specific** error than last time.
+
+**Setup:** updated the existing `kra-tracker-uat-verify` worktree to current `uat` HEAD
+(`9cda027`, includes the FT-1 fix), restarted the harness dev server on port 3001.
+
+**Connectivity diagnosis (read-only, no UAT data touched):**
+
+| Check | Result |
+| ----- | ------ |
+| Raw TCP connect to `srv2201.hstgr.io:3306` | **Succeeds** — improvement over last attempt; confirms the network/firewall path is now open |
+| Direct MySQL handshake (one-off script using the `mariadb` driver directly, bypassing Prisma's pool wrapper, password never printed) | **`ER_ACCESS_DENIED_ERROR` (1045)**: `Access denied for user 'u686730471_caveouat'@'122.164.84.5' (using password: YES)` |
+| App-level `npm run dev` against the harness | Same pool-timeout symptom as before, now explained by the access-denied error above (Prisma's pool wrapper just reports it as a generic timeout) |
+
+**Interpretation:** this is no longer a network-level/firewall block — the IP whitelist change
+did open the TCP path. The remaining block is a MySQL user-grant issue: the account
+`u686730471_caveouat` does not (yet) have a grant that includes `122.164.84.5` as an allowed
+host, even though the IP itself can now reach port 3306. This is a different, more specific
+problem than the one reported last round, and is recorded precisely rather than re-describing
+it as "still the same timeout."
+
+**Sales Funnel click-through:**
+
+| Test | Result | Evidence / Notes |
+| ---- | ------ | ----------------- |
+| Sales Funnel list opens | **Not run** | Blocked upstream by the DB access-denied error above — no page could load real data |
+
+**OrderAdvance click-through:**
+
+| Test | Result | Evidence / Notes |
+| ---- | ------ | ----------------- |
+| OrderAdvance list/detail opens | **Not run** | Same upstream blocker |
+
+No UI test results are fabricated for either area — both are explicitly **Not run**, not
+assumed-passing.
+
+**FT-5 status: still Open.** Real progress was made (network path confirmed open, exact
+failure mode now identified precisely instead of a generic timeout), but the click-through
+itself could not be performed. The temporary worktree/harness remains in place for a further
+retry once the DB user's grant is confirmed to include this IP.
+
+**No production action taken.** No UAT data was read or written — every attempt either failed
+before authenticating or was a read-only diagnostic. `npx tsc --noEmit` ✅, `npx prisma
+validate` ✅, `npm run build` ✅ (re-run after this retry).

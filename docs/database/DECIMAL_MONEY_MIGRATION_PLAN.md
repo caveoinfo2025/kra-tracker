@@ -1181,3 +1181,10 @@ This document is **planning only**. As of this step:
 > `122.164.84.5`); FT-2b blocked by the same policy plus the standing need for human OAuth
 > credentials; FT-4 blocked by missing restore tooling. Full detail in
 > `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "Step 4H-6". No production action was taken.
+
+> **FT-5 retry (2026-06-25): network path now open, blocked by a MySQL user-grant issue
+> instead.** TCP to the UAT DB host now connects, but the account `u686730471_caveouat` gets
+> `ER_ACCESS_DENIED_ERROR` for IP `122.164.84.5` — a more specific problem than the prior
+> generic pool-timeout. Sales Funnel/OrderAdvance click-through still **not run**, FT-5 still
+> **Open**. Full detail in `UAT_DECIMAL_INR_MIGRATION_PLAN.md` → "FT-5 retry". No production
+> action was taken.

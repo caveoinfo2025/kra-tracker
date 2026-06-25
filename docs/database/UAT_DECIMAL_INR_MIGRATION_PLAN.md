@@ -1138,6 +1138,36 @@ the gap table live in
   not faked. Not escalated to Accepted Risk (would need Vijesh's explicit approval). **Still
   Open.**
 
+---
+
+## FT-5 retry (2026-06-25) — DB whitelist progress, new specific blocker found
+
+Retried after the IP whitelist was reportedly updated. Updated the `kra-tracker-uat-verify`
+worktree to current `uat` HEAD (`9cda027`, includes the FT-1 fix) and restarted the harness.
+
+**Diagnosis (read-only):**
+- Raw TCP connect to `srv2201.hstgr.io:3306` now **succeeds** — the network/firewall path is
+  open, an improvement over the prior attempt.
+- A direct MySQL handshake (one-off script using the `mariadb` driver, bypassing Prisma's pool
+  wrapper, password never printed) returned a precise error:
+  `ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'u686730471_caveouat'@'122.164.84.5'
+  (using password: YES)`.
+
+This is a **different problem than last round**: not a network block, but a MySQL user-grant
+issue — the account `u686730471_caveouat` doesn't yet have a grant covering
+`122.164.84.5` as an allowed host, even though that IP can now reach the port. Recorded
+precisely rather than re-labeled as "still timing out."
+
+**FT-5 status: still Open.** Sales Funnel and OrderAdvance click-through were **not run** —
+neither page could load real data past this DB block, and no result is fabricated for either.
+Full evidence table:
+`docs/database/uat-migration-package/UAT_POST_MIGRATION_FUNCTIONAL_TEST_RESULTS.md` →
+"FT-5 retry result". Harness left running for a further retry once the user-grant is updated.
+
+**No production action taken.** No UAT data read or written — every attempt either failed
+pre-authentication or was a read-only diagnostic. `npx prisma validate` ✅, `npx tsc --noEmit`
+✅, `npm run build` ✅.
+
 **No production action taken.** No migration, no `db push`, no schema change, no UAT data
 modified — the harness's database connection never actually succeeded, so no UAT data was
 read or written. `npx prisma validate` ✅, `npx tsc --noEmit` ✅, `npm run build` ✅.
