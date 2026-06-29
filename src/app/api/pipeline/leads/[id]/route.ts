@@ -3,6 +3,54 @@ import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
 import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
+import { captureDailyActivityEvent, type DailyActivityType, type DailyActivitySourceType } from "@/lib/daily-activity";
+
+/** Shared Daily Activity capture for a lead stage transition — same qualification/proposal-sent
+ *  rules as /api/pipeline/leads/[id]/stage/route.ts (Phase W2). Used by this route's PUT/PATCH
+ *  legacy stage-change fallbacks so all three lead-mutation paths capture consistently. */
+function captureLeadStageChange(opts: {
+  empId: number; leadId: number; prevStage: string; newStage: string; role?: string | null; opportunityId?: number | null;
+}) {
+  if (opts.prevStage === opts.newStage) return;
+  let activityType: DailyActivityType = "LEAD_UPDATED";
+  let sourceType: DailyActivitySourceType = "LEAD";
+  if (opts.newStage === "QUALIFIED" && opts.prevStage !== "QUALIFIED") {
+    activityType = "QUALIFIED_LEAD_CREATED";
+  } else if (opts.newStage === "PROPOSAL_SENT" && opts.prevStage !== "PROPOSAL_SENT") {
+    activityType = "PROPOSAL_SENT";
+    sourceType = "PROPOSAL";
+  }
+  captureDailyActivityEvent({
+    employeeId: opts.empId,
+    activityType,
+    sourceType,
+    sourceId: opts.leadId,
+    sourceTable: "CrmLead",
+    sourceAction: `stage:${opts.prevStage}->${opts.newStage}`,
+    leadId: opts.leadId,
+    opportunityId: opts.opportunityId ?? null,
+    employeeRole: opts.role,
+  }).catch(() => {});
+}
+
+/** Daily Activity capture for a non-stage lead edit (Phase W2). Gated to leads that have moved
+ *  past raw/unqualified intake (stage !== "NEW_LEAD") — per the qualified-lead rule, raw/data
+ *  entry on a not-yet-qualified lead must not score (docs/webapp/
+ *  DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md §5). Only fires when at least one editable
+ *  field actually changed, to avoid scoring a no-op resave. */
+function captureLeadFieldUpdate(opts: { empId: number; leadId: number; stage: string; changed: boolean; role?: string | null }) {
+  if (!opts.changed || opts.stage === "NEW_LEAD") return;
+  captureDailyActivityEvent({
+    employeeId: opts.empId,
+    activityType: "LEAD_UPDATED",
+    sourceType: "LEAD",
+    sourceId: opts.leadId,
+    sourceTable: "CrmLead",
+    sourceAction: "fields_updated",
+    leadId: opts.leadId,
+    employeeRole: opts.role,
+  }).catch(() => {});
+}
 
 function leadForResponse<T extends {
   expectedValue: unknown;
@@ -103,6 +151,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         leadId:        updated.id,
       },
     });
+    captureLeadStageChange({
+      empId, leadId: updated.id, prevStage, newStage: body.stage,
+      role: session?.user?.role, opportunityId: updated.opportunity?.id ?? null,
+    });
+  } else {
+    const changed = ["title", "companyName", "contactPerson", "email", "phone", "source", "categoryId",
+      "categoryName", "oemId", "oemName", "productId", "productName", "customerId", "customerName",
+      "customerRefId", "expectedValue", "remarks", "assignedToId"]
+      .some((k) => body[k] !== undefined && body[k] !== (lead as Record<string, unknown>)[k]);
+    captureLeadFieldUpdate({ empId, leadId: updated.id, stage: updated.stage, changed, role: session?.user?.role });
   }
 
   return NextResponse.json(leadForResponse(updated));
@@ -139,6 +197,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         leadId: lead.id,
       },
     });
+    captureLeadStageChange({ empId, leadId: lead.id, prevStage: lead.stage, newStage: body.stage, role: session?.user?.role });
   }
 
   return NextResponse.json(leadForResponse(updated));

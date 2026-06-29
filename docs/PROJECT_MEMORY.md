@@ -21,6 +21,20 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-25 — Phase W2: Daily Activity event-capture hooks and read-only APIs implemented
+
+Phase W2 implemented webapp Daily Activity event-capture hooks and read-only APIs. Mobile
+remained paused. DailyUpdate UI/API unchanged. Production untouched. New
+`src/lib/daily-activity.ts` helper; capture hooks added to 7 existing pipeline API routes
+(lead stage/update, task update/complete, meeting scheduled, opportunity update, notes,
+lead activity log); 4 new read-only routes under `/api/daily-activity/*` (`today`, `history`,
+`team`, `team/[employeeId]/[date]`). Employee responses never include exact points; manager
+responses do. MEETING_COMPLETED capture exists in the helper but has no live route hook yet —
+no meeting-update API exists in the webapp. Manually verified against the dev DB (15/15 checks
+passed, test rows fully cleaned up); `npx tsc --noEmit` and `npm run build` clean. Full record:
+`docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W2 progress",
+`docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W2 implementation notes".
+
 ### 2026-06-25 — Phase W1B: Daily Activity foundation migration applied to UAT/dev only
 
 Daily Activity foundation schema was manually applied to UAT/dev only and marked applied with

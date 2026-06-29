@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { captureDailyActivityEvent } from "@/lib/daily-activity";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -80,6 +81,21 @@ export async function POST(req: Request) {
       },
     });
   }
+
+  // Daily Activity capture (Phase W2) — attributed to the assignee (who the meeting is
+  // scheduled for/by), matching how the activity is meant to reflect their productivity.
+  captureDailyActivityEvent({
+    employeeId: assigneeId,
+    activityType: "MEETING_SCHEDULED",
+    sourceType: "MEETING",
+    sourceId: meeting.id,
+    sourceTable: "CrmMeeting",
+    sourceAction: "scheduled",
+    leadId,
+    opportunityId,
+    meetingId: meeting.id,
+    employeeRole: session.user.role,
+  }).catch(() => {});
 
   // Notify the assignee if it's not the person creating it
   if (assigneeId !== callerId) {

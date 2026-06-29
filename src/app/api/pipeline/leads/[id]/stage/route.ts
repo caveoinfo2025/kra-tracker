@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { LEAD_STAGES } from "@/types/pipeline";
+import { captureDailyActivityEvent } from "@/lib/daily-activity";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -85,6 +86,48 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       leadId:        lead.id,
     },
   });
+
+  // Daily Activity capture (Phase W2) — fire-and-forget, never blocks this response.
+  // Qualified-lead rule: only a transition INTO QUALIFIED from a non-QUALIFIED stage counts;
+  // a lead that's already QUALIFIED being re-saved or moved between later stages does not
+  // re-fire qualification (docs/webapp/DAILY_ACTIVITY_PRODUCTIVITY_WORKFLOW_PLAN.md §5).
+  if (prevStage !== stage) {
+    if (stage === "QUALIFIED" && prevStage !== "QUALIFIED") {
+      captureDailyActivityEvent({
+        employeeId: empId,
+        activityType: "QUALIFIED_LEAD_CREATED",
+        sourceType: "LEAD",
+        sourceId: lead.id,
+        sourceTable: "CrmLead",
+        sourceAction: `stage:${prevStage}->${stage}`,
+        leadId: lead.id,
+        employeeRole: session.user.role,
+      }).catch(() => {});
+    } else if (stage === "PROPOSAL_SENT" && prevStage !== "PROPOSAL_SENT") {
+      captureDailyActivityEvent({
+        employeeId: empId,
+        activityType: "PROPOSAL_SENT",
+        sourceType: "PROPOSAL",
+        sourceId: lead.id,
+        sourceTable: "CrmLead",
+        sourceAction: `stage:${prevStage}->${stage}`,
+        leadId: lead.id,
+        opportunityId: opportunity?.id ?? null,
+        employeeRole: session.user.role,
+      }).catch(() => {});
+    } else {
+      captureDailyActivityEvent({
+        employeeId: empId,
+        activityType: "LEAD_UPDATED",
+        sourceType: "LEAD",
+        sourceId: lead.id,
+        sourceTable: "CrmLead",
+        sourceAction: `stage:${prevStage}->${stage}`,
+        leadId: lead.id,
+        employeeRole: session.user.role,
+      }).catch(() => {});
+    }
+  }
 
   return NextResponse.json({ ...updated, opportunity });
 }

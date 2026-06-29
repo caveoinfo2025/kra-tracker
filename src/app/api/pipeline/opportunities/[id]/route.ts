@@ -5,6 +5,7 @@ import { OPP_STAGES } from "@/types/pipeline";
 import { startApproval, getWorkflowByCode } from "@/lib/workflow-engine";
 import { executeAutomation } from "@/lib/crm-engine";
 import { parseMoneyInput, moneyToNumberForDisplay } from "@/lib/money";
+import { captureDailyActivityEvent } from "@/lib/daily-activity";
 
 function oppForResponse<T extends {
   value: unknown; dealValueExTax: unknown; netProfitLakhs: unknown;
@@ -131,6 +132,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       prevStage,
       assignedToId:  empId,
     }).catch(() => {/* never block response */});
+  }
+
+  // Daily Activity capture (Phase W2) — fires once per meaningfully-changed PATCH (stage
+  // change or any other tracked field), never on a no-op resave.
+  const oppFieldsChanged = (body.stage && body.stage !== prevStage)
+    || ["value", "discountPct", "expectedClosureDate", "probability", "lostReason",
+        "dealValueExTax", "netProfitLakhs", "poNumber", "poDate", "status"]
+      .some((k) => body[k] !== undefined && body[k] !== (opp as Record<string, unknown>)[k]);
+  if (oppFieldsChanged) {
+    captureDailyActivityEvent({
+      employeeId: empId,
+      activityType: "OPPORTUNITY_UPDATED",
+      sourceType: "OPPORTUNITY",
+      sourceId: opp.id,
+      sourceTable: "CrmOpportunity",
+      sourceAction: "fields_updated",
+      leadId: opp.leadId,
+      opportunityId: opp.id,
+      employeeRole: session.user.role,
+    }).catch(() => {});
   }
 
   // ── Approval triggers (fire-and-forget; never block the save) ──────────────

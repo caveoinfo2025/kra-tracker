@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { captureDailyActivityEvent } from "@/lib/daily-activity";
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -31,6 +32,20 @@ export async function POST(req: Request) {
       leadId:        Number(body.leadId),
     },
   });
+
+  // Daily Activity capture (Phase W2) — CrmNote has no channel field (call/email/WhatsApp
+  // undifferentiated, docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md §11), so this is
+  // conservatively captured as FOLLOW_UP_ADDED rather than guessed at a specific channel type.
+  captureDailyActivityEvent({
+    employeeId: empId,
+    activityType: "FOLLOW_UP_ADDED",
+    sourceType: "NOTE",
+    sourceId: note.id,
+    sourceTable: "CrmNote",
+    sourceAction: "note_added",
+    leadId: Number(body.leadId),
+    employeeRole: session.user.role,
+  }).catch(() => {});
 
   return NextResponse.json(note, { status: 201 });
 }

@@ -248,3 +248,29 @@ production changes were made while producing this document. UAT/dev only.
 | G-12 | Legacy dependency | `employees/[id]/page.tsx` blockers widget depends directly on `DailyUpdate` | Low | Leave reading frozen `DailyUpdate` (Option C) or re-point at new summary later | 7 |
 | G-13 | Reporting | No daily/weekly/monthly productivity report surface exists | Medium | New report page, Phase 5 | 5 |
 | G-14 | Admin config | No UI/API exists for activity-point rules or role targets | Low | New admin settings page, Phase 6 | 6 |
+
+## Phase W2 progress (2026-06-25)
+
+Backend foundation implemented on the dev DB — closes G-01, G-04 (read side), and the capture
+half of G-03's consumption. No production changes; no `/daily-updates` UI/API changes; no
+mobile changes.
+
+- **Event-capture helper implemented:** `src/lib/daily-activity.ts` — `captureDailyActivityEvent`,
+  `recomputeDailySummary`, `buildAutoSummary`, `getDailyActivityForEmployee`,
+  `getDailyActivityForManagerEmployee`, `getTeamDailyActivity`,
+  `getDailyActivityHistoryForEmployee`, `getProductivityBand`, `getDefaultActivityPoints`,
+  `captureFromCrmActivity`.
+- **Hooks added** to 7 existing route files (closes G-01 for qualified-lead detection):
+  `pipeline/leads/[id]/stage/route.ts`, `pipeline/leads/[id]/route.ts` (PUT + PATCH),
+  `pipeline/tasks/[id]/route.ts`, `pipeline/meetings/route.ts`,
+  `pipeline/opportunities/[id]/route.ts`, `pipeline/notes/route.ts`,
+  `pipeline/leads/[id]/activity/route.ts`. No existing route behavior changed — capture calls
+  are additive and fire-and-forget.
+- **Read APIs added** (closes G-04's read side): `GET /api/daily-activity/today`, `/history`,
+  `/team`, `/team/[employeeId]/[date]` — all read-only, no write/submission/correction/reopen
+  endpoints exist yet (those remain G-04's write side, Phase 3+).
+- **Still pending:** MEETING_COMPLETED has no live hook — no meeting-update route exists yet
+  (G-02 partially closed: the `status` column exists from Phase W1, but no API writes to it).
+  G-09 (proposal versioning) and G-10 (note-channel differentiation) remain open — both
+  captured conservatively per their documented fallbacks. UI (G-05/G-06), KRA wiring (G-11),
+  reporting (G-13), and admin config (G-14) are unstarted — later phases.

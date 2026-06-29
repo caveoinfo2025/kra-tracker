@@ -364,11 +364,49 @@ and over a "big-bang" version of Option B that migrates/deletes `DailyUpdate` im
 benefit, since the gap audit found nothing else depends on it). Option C gets the clean
 long-term model of Option B without forcing an immediate, riskier cutover of historical data.
 
+## Phase W2 implementation notes (2026-06-25)
+
+Backend foundation (capture + read APIs) implemented on the dev DB. Full record:
+`docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W2 progress" and
+`docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md`. Notes specific to how the §6–§9 rules
+were actually implemented:
+
+- **§6 scoring:** `ProductivityActivityRule` is checked first (role-specific, then global
+  active rule); falls back to the §6 default-points table in code
+  (`DEFAULT_ACTIVITY_POINTS` in `src/lib/daily-activity.ts`) when no DB rule exists — the table
+  is intentionally **not seeded** in Phase W2, so every capture today resolves via the code
+  fallback. This matches the requirement to implement defaults as "safe code-level
+  defaults/fallbacks only" without seeding.
+- **§7 qualified-lead rule:** implemented as `prevStage !== "QUALIFIED" && newStage ===
+  "QUALIFIED"` in all three lead-mutation routes (the dedicated `/stage` endpoint, the full
+  `PUT`, and the mobile `PATCH`) via a shared `captureLeadStageChange` helper in
+  `leads/[id]/route.ts` — one qualification rule, applied consistently across all three entry
+  points rather than only the canonical one.
+- **§9 correction requests:** not implemented in Phase W2 (read-only phase) — the
+  `DailyActivityCorrectionRequest` model exists from Phase W1 but has no API yet.
+- **§11 cutoff/grace:** `getDailyActivityForEmployee` computes and returns `cutoffTime`/
+  `graceUntil`/`canSubmitSummary`/`canEditSummary` as response metadata using the §11 8 PM/10 PM
+  constants, but no submit/edit endpoint exists yet to act on them — they describe timing only.
+- **Employee/manager visibility split (§8):** enforced by constructing two different return
+  shapes in `src/lib/daily-activity.ts` — `EmployeeDailyActivityView`/`EmployeeTimelineEntry`
+  never include a `points` field anywhere (not just omitted at the API layer — the type itself
+  has no such field, so it can't leak by accident); `ManagerEmployeeDayView`/
+  `ManagerTimelineEntry` extend the employee shape and add `points`/`totalPoints`. Verified by
+  a manual test asserting the serialized employee response JSON contains no `"points"` or
+  `"totalPoints"` substring anywhere (`prisma/test-daily-activity-capture.ts`).
+- **Manager team scoping:** matches the existing `/api/daily-updates` precedent — any
+  `isManager === true` employee can see all employees (optionally filtered by `employeeId`),
+  not narrowed to `Employee.reportsToId` direct reports, since no other endpoint in this
+  codebase scopes manager visibility that way. Documented explicitly in code comments in case
+  this should change in a later phase.
+
 ## Confirmation
 
-No Prisma schema changes were made. No migrations were created or run. No `prisma db push`
-was run. No database data was modified. No new or modified API routes were created. No
-existing API behavior was changed. No mobile code was modified. Production was not touched.
-No `.env` files were committed. This document is a plan only, for UAT/dev.
+No Prisma schema changes were made in Phase W2 (Phase W1's schema, already applied to dev, is
+unchanged). No migrations were created or run. No `prisma db push` was run. No database *data*
+was modified by anything committed — the manual verification script creates and fully deletes
+its own throwaway rows. 4 new read-only API routes were created; 7 existing API route files
+got additive capture hooks only (no existing behavior changed). No mobile code was modified.
+Production was not touched. No `.env` files were committed.
 
 **Do not touch production.**

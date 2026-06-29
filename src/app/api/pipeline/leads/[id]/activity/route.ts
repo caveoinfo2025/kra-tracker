@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import { captureDailyActivityEvent, type DailyActivityType } from "@/lib/daily-activity";
 
 export async function GET(
   _req: Request,
@@ -98,6 +99,28 @@ export async function POST(
     },
     include: { performedBy: { select: { id: true, name: true } } },
   });
+
+  // Daily Activity capture (Phase W2). This endpoint's `action` field is the one place in the
+  // codebase that already distinguishes "call" from a generic "note" — captured as
+  // CALL_NOTE_ADDED accordingly. Email/WhatsApp still have no distinct source anywhere
+  // (docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md §11) — a plain "note" here is
+  // conservatively captured as FOLLOW_UP_ADDED, same as the separate /api/pipeline/notes route.
+  const activityType: DailyActivityType | null =
+    action === "call" ? "CALL_NOTE_ADDED" :
+    action === "meeting" ? "MEETING_SCHEDULED" :
+    action === "note" ? "FOLLOW_UP_ADDED" : null;
+  if (activityType) {
+    captureDailyActivityEvent({
+      employeeId: empId,
+      activityType,
+      sourceType: activityType === "MEETING_SCHEDULED" ? "MEETING" : "NOTE",
+      sourceId: activity.id,
+      sourceTable: "CrmActivity",
+      sourceAction: action,
+      leadId,
+      employeeRole: session.user.role,
+    }).catch(() => {});
+  }
 
   return NextResponse.json({
     id: activity.id,
