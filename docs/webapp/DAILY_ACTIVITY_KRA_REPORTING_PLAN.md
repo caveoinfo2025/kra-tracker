@@ -161,6 +161,16 @@ Exact behavior per state, as implemented in `src/lib/daily-activity.ts` today:
 
 ## 4. Status Automation Gap
 
+> **Status: IMPLEMENTED (Phase W6.1, 2026-06-29).** Option D below was built exactly as
+> recommended — `resolveEffectiveDailyActivityStatus()` in `src/lib/daily-activity.ts` is the
+> shared dynamic predicate, wired into every read path. See
+> `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W6.1" for the implementation
+> writeup, `scripts/test-daily-activity-status-lifecycle.mjs` for verification (19/19), and
+> `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W6.1 progress" for the change summary. The
+> Option-B scheduled job remains deferred, exactly as recommended — not built. **§17.1 (which
+> KRA system to feed) remains unresolved** — W6.1 implemented status lifecycle logic only and
+> deliberately did not touch KRA wiring.
+
 **Confirmed gap:** `INCOMPLETE` is documented in the schema comment
 (`// NO_ACTIVITY|SUMMARY_PENDING|INCOMPLETE|CLOSED|REOPENED|LATE_SUBMITTED|PENDING_CORRECTION`)
 and referenced in `getTeamDailyActivity`'s counting logic and `needsReview`'s flag — but **no
@@ -550,9 +560,13 @@ data loss risk either way, since nothing is deleted at any stage of B or C.
 
 ## 16. Implementation Phases (proposed ordering for future work)
 
-1. **W6.1** — Implement §4's effective-status predicate (`resolveEffectiveStatus`), wire it into
-   every existing read path that currently reads `summary.status` raw. Smallest, lowest-risk
-   change; unblocks everything else.
+1. **W6.1 — ✅ DONE (2026-06-29)** — Implemented §4's effective-status predicate
+   (`resolveEffectiveDailyActivityStatus`), wired into every existing read path that previously
+   read `summary.status` raw (`getDailyActivityForEmployee`, `getDailyActivityHistoryForEmployee`,
+   `getDailyActivityForManagerEmployee`, `getTeamDailyActivity`). Also added the §6
+   KRA-eligibility placeholder helpers (`isDailyActivityKraEligible`/
+   `getDailyActivityKraEligibilityReason`) — pure, unwired, no KRA system call. §17.1 remains
+   unresolved and was not addressed by this step, as designed.
 2. **W6.2** — Implement the daily rollup shape (§7) as a small addition to existing read
    functions (mostly already present; formalize as a stable contract).
 3. **W6.3** — Implement dynamic weekly rollup (§8) + `GET /api/daily-activity/reports/my-weekly`

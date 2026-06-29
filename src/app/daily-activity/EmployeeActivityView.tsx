@@ -178,9 +178,11 @@ function SummaryForm({ today, onChanged }: { today: EmployeeDailyActivityView; o
 
       {!allowed && (
         <p className="text-xs text-gray-500">
-          {useEdit
-            ? "This summary is locked and can no longer be edited."
-            : "The submission window for today has closed, or there is nothing to submit yet."}
+          {today.summaryStatus === "INCOMPLETE"
+            ? "This day closed without a submitted summary and is now marked Incomplete. Ask your manager to reopen it if you still need to submit."
+            : useEdit
+              ? "This summary is locked and can no longer be edited."
+              : "The submission window for today has closed, or there is nothing to submit yet."}
         </p>
       )}
 

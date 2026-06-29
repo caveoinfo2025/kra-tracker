@@ -21,6 +21,22 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W6.1: Daily Activity effective status lifecycle implemented
+
+Phase W6.1 implemented Daily Activity effective status lifecycle. Days past grace with activity
+but no summary now resolve as INCOMPLETE at read time. KRA wiring, DailyUpdate deprecation,
+mobile, schema, migrations, and production remain untouched. New `resolveEffectiveDailyActivityStatus()`
+in `src/lib/daily-activity.ts` is a read-time-only overlay (never writes to the DB), wired into
+every employee/manager read path (`getDailyActivityForEmployee`, `getDailyActivityHistoryForEmployee`,
+`getDailyActivityForManagerEmployee`, `getTeamDailyActivity`). Centralized cutoff/grace helpers
+(`getDailyActivityCutoffWindow`/`isPastGraceWindow`/`isWithinSummarySubmissionWindow`) replace
+duplicated inline date math. Added unwired KRA-eligibility placeholder helpers
+(`isDailyActivityKraEligible`/`getDailyActivityKraEligibilityReason`) per the W6 plan's matrix —
+no KRA system call, §17.1 (which KRA system to feed) remains an open decision. Verified via
+`scripts/test-daily-activity-status-lifecycle.mjs` (19/19) and a live browser check (manager
+dashboard correctly showed "Incomplete" + totals + points for a temporary stuck-day row, fully
+cleaned up after).
+
 ### 2026-06-29 — Phase W6: Daily Activity KRA/reporting integration planned
 
 Phase W6 planned Daily Activity KRA/reporting integration, including status lifecycle, KRA

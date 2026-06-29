@@ -630,3 +630,44 @@ production changes.** Full document: `docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_P
   zero-KRA-dependency audit finding above.
 - **9 open business decisions documented** (notably: which KRA system to feed, §17.1) — none
   resolved this phase, all gating future implementation phases explicitly.
+
+## Phase W6.1 progress (2026-06-29)
+
+Implements the W6 plan's §4 recommendation (Option D, dynamic-first). Status lifecycle logic
+only — no KRA rollup, no KRA system wiring, no schema/migration changes, `/daily-updates`
+unchanged, mobile untouched.
+
+- **Effective status helper implemented** — `resolveEffectiveDailyActivityStatus()` in
+  `src/lib/daily-activity.ts`. Read-time overlay only, never writes to the DB. Authoritative
+  stored statuses (`CLOSED`/`LATE_SUBMITTED`/`REOPENED`/`PENDING_CORRECTION`) pass through
+  unchanged; everything else resolves to `NO_ACTIVITY`/`SUMMARY_PENDING`/`INCOMPLETE` based on
+  whether activity exists and whether the day's grace window has passed.
+- **`INCOMPLETE` dynamic status gap fixed** — every read path that previously left a
+  past-grace day stuck at its raw stored status (`getDailyActivityForEmployee`,
+  `getDailyActivityHistoryForEmployee`, `getDailyActivityForManagerEmployee`,
+  `getTeamDailyActivity`) now resolves through the effective-status predicate. Manager team
+  totals (`incompleteCount`) and the `needsReview` flag now count correctly — confirmed via
+  both a focused script and a live browser check (manager dashboard showed "Incomplete" + Review
+  flag + correct totals for a stuck day created via temporary rows, fully cleaned up after).
+- **Cutoff/grace logic centralized** — new `getDailyActivityCutoffWindow(day)`,
+  `isPastGraceWindow(day, now)`, `isWithinSummarySubmissionWindow(day, now)`. Removed the
+  duplicated inline `new Date(day); .setHours(...)` cutoff/grace computation previously repeated
+  in `getDailyActivityForEmployee` and `evaluateSubmissionWindow` — both now share one
+  `isPastGraceWindow` predicate, so they can never silently drift relative to each other.
+- **No scheduled job added** — per the plan's explicit recommendation, the Option-B close-day
+  job remains deferred; this phase is display-only, matching "no job-runner pattern exists in
+  this project yet, so do not add one now."
+- **KRA wiring still pending** — `isDailyActivityKraEligible()`/
+  `getDailyActivityKraEligibilityReason()` added as pure, unwired placeholder helpers (per the
+  W6 plan §6 eligibility matrix: `CLOSED`/`LATE_SUBMITTED` eligible, everything else not).
+  Neither calls any KRA engine; the legacy-vs-enterprise KRA system decision (W6 plan §17.1)
+  remains unresolved and unaddressed by this phase.
+- **UI**: `EmployeeActivityView.tsx`'s summary-form lock message now explicitly explains the
+  `INCOMPLETE` case ("ask your manager to reopen it") rather than the generic "submission
+  window closed" text. No new features, no KRA reports, no badge/label changes needed — `labels.ts`
+  already had an `INCOMPLETE` → "Incomplete" / danger-variant mapping from Phase W3.
+- **Test script** `scripts/test-daily-activity-status-lifecycle.mjs` — 19/19 checks passed
+  (12 pure-predicate/KRA-eligibility/date-only-regression checks + 7 live-DB integration checks
+  against temporary rows, fully cleaned up afterward).
+- **Validation:** `npx prisma validate` ✅, `npx prisma generate` ✅, `npx tsc --noEmit` ✅,
+  `npm run build` ✅ (exit 0).

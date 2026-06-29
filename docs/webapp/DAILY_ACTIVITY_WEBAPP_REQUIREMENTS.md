@@ -683,3 +683,46 @@ whoever implements the future phases (§16 of that doc).
   `EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`. Picking which one any future
   Daily-Activity-feeds-KRA write path targets is an explicit open decision (planning doc
   §17.1) and must be resolved before any such write path is built.
+
+## Phase W6.1 — status lifecycle implementation notes (2026-06-29)
+
+Implements the `INCOMPLETE` automation gap fix recommended in Phase W6's planning doc §4
+(Option D, dynamic-first). Status lifecycle logic only — no KRA wiring, no schema changes.
+
+- **`resolveEffectiveDailyActivityStatus({ storedStatus, hasActivity, day, now })`** in
+  `src/lib/daily-activity.ts` is now the single source of truth for "what status should this
+  day display as," called from every read path that previously read `summary.status` (or its
+  `?? "SUMMARY_PENDING"/"NO_ACTIVITY"` fallback) raw:
+  `getDailyActivityForEmployee`, `getDailyActivityHistoryForEmployee`,
+  `getDailyActivityForManagerEmployee`, `getTeamDailyActivity`. It is a **read-time overlay
+  only** — no write path was added or changed; `recomputeDailySummary` and every Phase W4 write
+  helper are untouched.
+- **Decision rule**: `CLOSED`/`LATE_SUBMITTED`/`REOPENED`/`PENDING_CORRECTION` are authoritative
+  (an explicit write path already decided them — never overridden). Otherwise: no activity →
+  `NO_ACTIVITY`; activity exists and the day's grace window hasn't passed → `SUMMARY_PENDING`;
+  activity exists and grace has passed (today past 10 PM, or any earlier calendar day at all) →
+  `INCOMPLETE`. This exactly matches the W6 plan §3–§4 decision table.
+- **Centralized cutoff/grace helpers**: `getDailyActivityCutoffWindow(day)` (returns the
+  `{cutoff, grace}` `Date` pair for a day), `isPastGraceWindow(day, now)`, and
+  `isWithinSummarySubmissionWindow(day, now)`. `evaluateSubmissionWindow` (Phase W4's
+  submit/edit-eligibility decision function) and `getDailyActivityForEmployee` both now share
+  `isPastGraceWindow` instead of each re-deriving `new Date(day); .setHours(GRACE_UNTIL_HOUR...)`
+  inline — they can no longer drift apart on what "past grace" means.
+- **KRA-eligibility placeholders** (not wired to either KRA system):
+  `isDailyActivityKraEligible(effectiveStatus)` returns true only for `CLOSED`/`LATE_SUBMITTED`;
+  `getDailyActivityKraEligibilityReason(effectiveStatus)` returns the matching human-readable
+  reason from the W6 plan's §6 eligibility matrix. Both take an *effective* status (this
+  function's output), not a raw stored one.
+- **Employee/manager visibility unchanged**: employee reads still never include a `points`
+  field anywhere in the response shape (unaffected by this change — only the `summaryStatus`
+  string value changed for stuck days, no new fields). Manager reads still include exact
+  `totalPoints` throughout, confirmed via both the focused test script and a live browser
+  check against the running dev server.
+- **Verified** via `scripts/test-daily-activity-status-lifecycle.mjs` (19/19 — 12 pure-function
+  checks including a regression re-run of 2 Phase W4.1 date-only checks, 7 live-DB integration
+  checks against temporary `Employee`/`DailyActivityLog`/`DailyActivitySummary` rows, fully
+  cleaned up) and a manual browser check (temporary employee + stuck day, dev quick-login,
+  manager dashboard showed `Incomplete` badge + correct totals + Review flag + exact points,
+  then cleaned up). `npx prisma validate`/`generate`/`tsc --noEmit`/`npm run build` all clean.
+  No schema/migration changes; `/daily-updates` unchanged; `/mobile` untouched; production
+  untouched.

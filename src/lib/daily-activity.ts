@@ -98,11 +98,152 @@ function startOfDay(d: Date): Date {
   return x;
 }
 
+/** Centralizes the cutoff/grace `Date` pair for one local-midnight day — every place in this
+ *  file that needs "8 PM"/"10 PM for *this* day" as an actual `Date` (not just an hour number)
+ *  goes through this, instead of each call site re-deriving `new Date(day); .setHours(...)`
+ *  inline (Phase W6.1 — was previously duplicated in `getDailyActivityForEmployee` and
+ *  `evaluateSubmissionWindow`). */
+export function getDailyActivityCutoffWindow(day: Date): { cutoff: Date; grace: Date } {
+  const cutoff = new Date(day);
+  cutoff.setHours(CUTOFF_HOUR, 0, 0, 0);
+  const grace = new Date(day);
+  grace.setHours(GRACE_UNTIL_HOUR, 0, 0, 0);
+  return { cutoff, grace };
+}
+
+/**
+ * Has `day`'s 10:00 PM grace window definitively passed, as of `now`? True for every day
+ * strictly before today (the grace window for a past day has obviously passed, regardless of
+ * what time it is now) and for today only once `now` is past today's grace instant. False for
+ * today before grace, and for any future day (never expected in practice, but defined rather
+ * than left to throw).
+ *
+ * This is the one predicate `resolveEffectiveDailyActivityStatus` (below) and
+ * `evaluateSubmissionWindow` (Phase W4) both need — Phase W6.1 centralizes it here so the two
+ * never drift relative to each other.
+ */
+export function isPastGraceWindow(day: Date, now: Date = new Date()): boolean {
+  const today = startOfDay(now);
+  if (day.getTime() < today.getTime()) return true;
+  if (day.getTime() > today.getTime()) return false;
+  return now.getTime() > getDailyActivityCutoffWindow(day).grace.getTime();
+}
+
+/** Is `now` within the same-day, on-time submission window for `day` (i.e. `day` is today and
+ *  grace hasn't passed yet)? Equivalent to `day` being today AND `!isPastGraceWindow(day, now)`,
+ *  but expressed as its own named predicate since "can the employee submit on-time right now"
+ *  is a distinct question from "has this day's window definitively closed" even though they
+ *  share the same underlying grace instant. */
+export function isWithinSummarySubmissionWindow(day: Date, now: Date = new Date()): boolean {
+  const today = startOfDay(now);
+  return day.getTime() === today.getTime() && !isPastGraceWindow(day, now);
+}
+
 /** Converts a **local-midnight Date** (the shape `startOfDay`/`parseDateOnlyAsLocalDate`
  *  produce) into the value to write/query against an `activityDate`/`summaryDate` `@db.Date`
  *  column — see `@/lib/date-only` module doc for the full write-up of why this two-shape split
  *  exists. Every Prisma call below that touches one of those columns goes through this. */
 const toDbDate = localDateToDbDate;
+
+/** `DailyActivitySummary.status` values that are the result of an explicit write path (summary
+ *  submit/edit, correction request, manager reopen) — see `submitDailyActivitySummary`,
+ *  `createDailyActivityCorrectionRequest`, `reopenDailyActivityDay`,
+ *  `reconcileSummaryStatusAfterCorrectionDecision`. These are authoritative: the read-time
+ *  overlay below never overrides them, since a human/manager action already decided the status
+ *  more specifically than the dynamic predicate ever could. */
+const AUTHORITATIVE_STATUSES = new Set(["CLOSED", "LATE_SUBMITTED", "REOPENED", "PENDING_CORRECTION"]);
+
+export interface ResolveEffectiveStatusInput {
+  /** The stored `DailyActivitySummary.status`, or `undefined`/`null` if no summary row exists
+   *  yet for this employee/day. */
+  storedStatus: string | null | undefined;
+  /** Whether this day has any captured activity (typically `totalPoints > 0` from either the
+   *  summary row or a fresh `DailyActivityLog` sum — callers choose whichever they already have
+   *  on hand; both represent the same fact). */
+  hasActivity: boolean;
+  /** The day this status is for, as a **local-midnight Date** (`startOfDay`/
+   *  `parseDateOnlyAsLocalDate` shape — never a raw DB-read `@db.Date` value, convert with
+   *  `dbDateToLocalDate` first). */
+  day: Date;
+  now?: Date;
+}
+
+/**
+ * Phase W6.1 — the effective Daily Activity status lifecycle predicate.
+ *
+ * Resolves what status a day's summary *should* read as right now, given the stored status,
+ * whether activity exists, and how the 8 PM cutoff / 10 PM grace window relates to `day`/`now`.
+ * This is a **read-time overlay only** — it never writes to the database. The known Phase W4/W5
+ * gap this closes: `INCOMPLETE` is a documented valid `DailyActivitySummary.status` value, but
+ * no write path ever assigns it (confirmed via full-file audit, Phase W6 planning doc §3–§4) —
+ * a day that ends `SUMMARY_PENDING`/`NO_ACTIVITY` and is never touched again after grace expires
+ * previously stayed in that state forever. Every read path in this file now resolves the
+ * *displayed* status through this function instead of trusting the raw stored column for a
+ * past-grace day.
+ *
+ * Decision table (docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md §3–§4):
+ *   - Stored status already `CLOSED`/`LATE_SUBMITTED`/`REOPENED`/`PENDING_CORRECTION` → returned
+ *     as-is (`AUTHORITATIVE_STATUSES` — an explicit write path already decided this).
+ *   - No activity → `NO_ACTIVITY` (absence, not a missed-submission penalty).
+ *   - Activity exists, grace hasn't passed for `day` yet → `SUMMARY_PENDING`.
+ *   - Activity exists, grace has passed for `day` (today past 10 PM, or any past day at all) →
+ *     `INCOMPLETE`.
+ *
+ * Deliberately does not consider `qualityIndicatorJson`/correction *history* here — a
+ * resolved (APPROVED/REJECTED) correction has already been folded back into the stored status
+ * by `reconcileSummaryStatusAfterCorrectionDecision`; only a *currently PENDING* correction
+ * matters for status, and that's already reflected in `storedStatus` being `PENDING_CORRECTION`
+ * by the time this function ever sees it — there is no separate "pending correction" input
+ * parameter because the stored column already carries that fact authoritatively.
+ */
+export function resolveEffectiveDailyActivityStatus(input: ResolveEffectiveStatusInput): string {
+  const now = input.now ?? new Date();
+  const stored = input.storedStatus ?? "NO_ACTIVITY";
+
+  if (AUTHORITATIVE_STATUSES.has(stored)) return stored;
+
+  if (!input.hasActivity) return "NO_ACTIVITY";
+
+  return isPastGraceWindow(input.day, now) ? "INCOMPLETE" : "SUMMARY_PENDING";
+}
+
+/**
+ * Phase W6.1 — KRA-eligibility placeholder, per the W6 plan's eligibility matrix
+ * (docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md §6). Pure helper only — does **not** call
+ * either KRA system (legacy `KRA`/`WeeklyReview` or enterprise `EmployeeTarget`/
+ * `KRAAchievement`); that wiring is explicitly deferred until the W6 plan's open decision on
+ * which system to feed (§17.1) is resolved. Takes an *effective* status (the output of
+ * `resolveEffectiveDailyActivityStatus`), not a raw stored one — eligibility is meaningless
+ * against a stale `SUMMARY_PENDING` that should actually read as `INCOMPLETE`.
+ */
+const KRA_ELIGIBLE_STATUSES = new Set(["CLOSED", "LATE_SUBMITTED"]);
+
+export function isDailyActivityKraEligible(effectiveStatus: string): boolean {
+  return KRA_ELIGIBLE_STATUSES.has(effectiveStatus);
+}
+
+/** Human-readable reason paired with `isDailyActivityKraEligible` — for a future Exceptions/
+ *  KRA-input report to explain *why* a day did or didn't count, not just whether it did. */
+export function getDailyActivityKraEligibilityReason(effectiveStatus: string): string {
+  switch (effectiveStatus) {
+    case "CLOSED":
+      return "Day closed on time — eligible.";
+    case "LATE_SUBMITTED":
+      return "Day submitted late — eligible (subject to future business decision, see W6 plan §17.4).";
+    case "NO_ACTIVITY":
+      return "No activity recorded — not eligible.";
+    case "SUMMARY_PENDING":
+      return "Summary not yet submitted — not eligible until closed.";
+    case "INCOMPLETE":
+      return "Day closed without a submitted summary — not eligible.";
+    case "REOPENED":
+      return "Day reopened by a manager — not eligible until resubmitted.";
+    case "PENDING_CORRECTION":
+      return "Correction pending — whole day excluded until resolved.";
+    default:
+      return `Unrecognized status "${effectiveStatus}" — not eligible.`;
+  }
+}
 
 /** Resolve the point value for an activity type: active DB rule (role-specific, then global)
  *  if present, else the code-level default. Defensive — never throws (mirrors crm-engine's
@@ -385,14 +526,21 @@ export async function getDailyActivityForEmployee(employeeId: number, date: Date
   const productivityBand = summary?.productivityBand as ProductivityBand | undefined ?? getProductivityBand(totalPoints);
 
   const now = new Date();
-  const cutoff = new Date(day); cutoff.setHours(CUTOFF_HOUR, 0, 0, 0);
-  const grace = new Date(day); grace.setHours(GRACE_UNTIL_HOUR, 0, 0, 0);
-  const isToday = startOfDay(now).getTime() === day.getTime();
-  const withinGrace = isToday && now <= grace;
+  const { cutoff, grace } = getDailyActivityCutoffWindow(day);
+  const withinSubmissionWindow = isWithinSummarySubmissionWindow(day, now);
+  // Phase W6.1 — effective status, not the raw stored column: a day with activity whose grace
+  // window has passed (today past 10 PM, or any past day) now reads as INCOMPLETE here instead
+  // of staying stuck at whatever it last was. Read-time overlay only — never written back.
+  const effectiveStatus = resolveEffectiveDailyActivityStatus({
+    storedStatus: summary?.status,
+    hasActivity: totalPoints > 0,
+    day,
+    now,
+  });
 
   return {
     date: toDateKeyLocal(day),
-    summaryStatus: summary?.status ?? (totalPoints > 0 ? "SUMMARY_PENDING" : "NO_ACTIVITY"),
+    summaryStatus: effectiveStatus,
     productivityBand,
     employeeVisibleStatus: productivityBand,
     activityCounts: autoSummary,
@@ -410,8 +558,8 @@ export async function getDailyActivityForEmployee(employeeId: number, date: Date
     graceUntil: grace.toISOString(),
     // Submission/edit are not implemented until a later phase — these flags describe the
     // *timing* rule only; the actual submit/edit endpoints don't exist yet (Phase W2 scope).
-    canSubmitSummary: isToday && withinGrace && !summary?.submittedAt,
-    canEditSummary: isToday && withinGrace,
+    canSubmitSummary: withinSubmissionWindow && !summary?.submittedAt,
+    canEditSummary: withinSubmissionWindow,
     correctionRequestStatus: correction?.status ?? null,
   };
 }
@@ -432,14 +580,23 @@ export async function getDailyActivityHistoryForEmployee(employeeId: number, day
     orderBy: { summaryDate: "desc" },
   });
 
-  return summaries.map((s) => ({
+  return summaries.map((s) => {
     // `s.summaryDate` is a DB-read `@db.Date` value — must go through dbDateToLocalDate (UTC
-    // components) before formatting, never toDateKeyLocal directly (local components) on a raw
-    // DB-read value. See `@/lib/date-only` module doc.
-    date: toDateKeyLocal(dbDateToLocalDate(s.summaryDate)),
-    summaryStatus: s.status,
-    productivityBand: s.productivityBand as ProductivityBand,
-  }));
+    // components) before formatting/predicate use, never toDateKeyLocal or a raw `Date`
+    // comparison directly on a raw DB-read value. See `@/lib/date-only` module doc.
+    const day = dbDateToLocalDate(s.summaryDate);
+    return {
+      date: toDateKeyLocal(day),
+      // Phase W6.1 — effective status, same overlay as every other read path (a past history
+      // day stuck at SUMMARY_PENDING now reads as INCOMPLETE here too).
+      summaryStatus: resolveEffectiveDailyActivityStatus({
+        storedStatus: s.status,
+        hasActivity: s.totalPoints > 0,
+        day,
+      }),
+      productivityBand: s.productivityBand as ProductivityBand,
+    };
+  });
 }
 
 export interface ManagerTimelineEntry extends EmployeeTimelineEntry {
@@ -493,12 +650,18 @@ export async function getDailyActivityForManagerEmployee(employeeId: number, dat
 
   const autoSummary = await buildAutoSummary(employeeId, day);
   const totalPoints = summary?.totalPoints ?? logs.reduce((sum, l) => sum + l.points, 0);
+  // Phase W6.1 — effective status; manager still sees exact totalPoints unchanged below.
+  const effectiveStatus = resolveEffectiveDailyActivityStatus({
+    storedStatus: summary?.status,
+    hasActivity: totalPoints > 0,
+    day,
+  });
 
   return {
     employeeId: employee.id,
     employeeName: employee.name,
     summaryDate: toDateKeyLocal(day),
-    summaryStatus: summary?.status ?? (totalPoints > 0 ? "SUMMARY_PENDING" : "NO_ACTIVITY"),
+    summaryStatus: effectiveStatus,
     totalPoints,
     productivityBand: (summary?.productivityBand as ProductivityBand | undefined) ?? getProductivityBand(totalPoints),
     activityCounts: autoSummary,
@@ -559,25 +722,32 @@ export async function getTeamDailyActivity(date: Date, employeeIds?: number[]): 
     ]);
 
     const totalPoints = summary?.totalPoints ?? logs.reduce((sum, l) => sum + l.points, 0);
-    const status = summary?.status ?? (totalPoints > 0 ? "SUMMARY_PENDING" : "NO_ACTIVITY");
+    // Phase W6.1 — effective status drives both the per-row display and the team totals below;
+    // an employee with activity but no summary past grace now counts as INCOMPLETE here instead
+    // of silently staying SUMMARY_PENDING forever.
+    const effectiveStatus = resolveEffectiveDailyActivityStatus({
+      storedStatus: summary?.status,
+      hasActivity: totalPoints > 0,
+      day,
+    });
     const autoSummary = await buildAutoSummary(emp.id, day);
     const lastActivityAt = logs.length ? logs.reduce((latest, l) => (l.capturedAt > latest ? l.capturedAt : latest), logs[0].capturedAt) : null;
 
-    if (status === "CLOSED") closedCount++;
-    else if (status === "INCOMPLETE") incompleteCount++;
-    else if (status === "NO_ACTIVITY") noActivityCount++;
-    else if (status === "SUMMARY_PENDING") summaryPendingCount++;
+    if (effectiveStatus === "CLOSED") closedCount++;
+    else if (effectiveStatus === "INCOMPLETE") incompleteCount++;
+    else if (effectiveStatus === "NO_ACTIVITY") noActivityCount++;
+    else if (effectiveStatus === "SUMMARY_PENDING") summaryPendingCount++;
 
     rows.push({
       employeeId: emp.id,
       employeeName: emp.name,
-      summaryStatus: status,
+      summaryStatus: effectiveStatus,
       totalPoints,
       productivityBand: (summary?.productivityBand as ProductivityBand | undefined) ?? getProductivityBand(totalPoints),
       activityCounts: autoSummary,
       lastActivityAt,
       hasCorrectionPending: correctionPending > 0,
-      needsReview: correctionPending > 0 || status === "INCOMPLETE",
+      needsReview: correctionPending > 0 || effectiveStatus === "INCOMPLETE",
     });
   }
 
@@ -660,9 +830,7 @@ function evaluateSubmissionWindow(
     return { allowed: false, isLate: false, reason: "Cannot submit a summary for a future date." };
   }
   if (diffDays === 0) {
-    const grace = new Date(day);
-    grace.setHours(GRACE_UNTIL_HOUR, 0, 0, 0);
-    if (now <= grace) return { allowed: true, isLate: false, reason: "Within same-day grace window." };
+    if (!isPastGraceWindow(day, now)) return { allowed: true, isLate: false, reason: "Within same-day grace window." };
     return { allowed: false, isLate: false, reason: "Same-day grace window (10:00 PM) has passed." };
   }
   if (diffDays === 1) {
