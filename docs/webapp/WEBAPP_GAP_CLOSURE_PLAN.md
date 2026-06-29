@@ -476,3 +476,51 @@ edit, correction request/approve/reject, manager reopen). No UI write flow yet (
 - **Still pending:** UI write flow (submit/edit/correction-request/approve/reject/reopen
   buttons) — explicitly out of scope for this phase. KRA rollup wiring (G-11), reporting
   (G-13), admin config (G-14) remain unstarted.
+
+## Phase W4.1 — `@db.Date` round-trip standardization (2026-06-29)
+
+Date-handling hardening phase, ahead of the UI write flow. No UI write buttons. No new Daily
+Activity features. No `DailyUpdate` changes. No mobile changes. No schema/migration/db-push
+changes. No production changes.
+
+- **Root cause confirmed:** the Phase W4 `recoverLocalDayFromDbDate` workaround papered over a
+  deeper issue — writing a **local**-midnight `Date` directly into a `@db.Date` MySQL/MariaDB
+  column truncates it to the previous **UTC** calendar day on this IST (positive-UTC-offset)
+  server. The workaround only patched the 3 call sites Phase W4 happened to touch; every other
+  existing write (`captureDailyActivityEvent`, `recomputeDailySummary`, etc.) carried the same
+  latent bug, masked because nothing had re-derived a day from those particular DB-read values
+  yet.
+- **Shared helper added — `src/lib/date-only.ts`:** `parseDateOnlyAsLocalDate`/`toDateKeyLocal`
+  (moved here from `daily-activity.ts`, still re-exported from there for existing call sites) +
+  3 new functions: `dateKeyToDbDate` (writes/queries a `@db.Date` column using **UTC**
+  components — `Date.UTC(y, m-1, d)` — so the calendar day survives the round trip regardless of
+  server timezone offset), `dbDateToDateKey` (reads a `@db.Date` value back via UTC components),
+  `dbDateToLocalDate` (converts a DB-read value into a local-midnight `Date` for business logic).
+  Single consistent strategy, documented in the module's doc comment — no more mixing
+  UTC-midnight/local-midnight/ISO-formatting strategies without explicit conversion.
+- **Daily Activity refactored** (`src/lib/daily-activity.ts`): every `activityDate`/
+  `summaryDate` Prisma write and `where` filter now goes through `toDbDate` (a local alias for
+  `localDateToDbDate`); every DB-read date re-derived back into local-logic now uses
+  `dbDateToLocalDate` instead of the removed `recoverLocalDayFromDbDate`. The narrow Phase W4
+  workaround is gone — replaced by the general fix at every read/write site, not just the 3 Phase
+  W4 touched.
+- **Non-Daily-Activity check:** audited every other `DateTime` field in `prisma/schema.prisma` —
+  confirmed `activityDate`/`summaryDate`/`periodStart`/`periodEnd` (the last two on the unused
+  `DailyProductivityScore` model) are the **only** `@db.Date` columns in the schema. No
+  KRA/WeeklyReview/DailyUpdate/attendance/leave field uses `@db.Date` — they're plain `DateTime`,
+  out of this round-trip bug's blast radius. Several `.toISOString().slice(0, 10)` call sites
+  exist in Finance/Masters UI code (`src/app/finance/**`, `src/app/masters/**`) operating on
+  plain `DateTime` fields or client-side "today" strings — left untouched (out of scope, no
+  `@db.Date` round-trip risk) and documented as an open risk below.
+- **Test script** `scripts/test-date-only-handling.mjs` — 19/19 checks passed (pure helper
+  validation/leap-year/rejection tests + a real DB round trip against temporary
+  `DailyActivityLog`/`DailyActivitySummary`/`Employee` rows, fully cleaned up afterward, plus
+  the 3 live Daily Activity query helpers re-verified against the temp data).
+- **Validation:** `npx prisma validate` ✅, `npx prisma generate` ✅, `npx tsc --noEmit` ✅ (clean),
+  `npm run build` ✅ (exit 0).
+- **Remaining open risk:** the Finance module's `.toISOString().slice(0, 10)` usages
+  (`expenseDate`, `voucherDate`, `travelDate`, etc.) are on plain `DateTime` columns, not
+  `@db.Date` — no write-side truncation risk, but they can still mis-render the *display* date
+  near local midnight on a positive-UTC-offset server if the stored instant isn't local
+  midnight. Not touched this phase (explicitly out of scope); flag for a future Finance-module
+  date-display pass if it ever surfaces as a real symptom.

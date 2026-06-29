@@ -563,3 +563,27 @@ Phase W2/W3 were read-only.
   `summaryDate` field and `getTeamDailyActivity`'s `date` field were checked and are **not**
   affected — both format the function's input `date` parameter (always freshly computed,
   never DB-read), not a DB-read row field.
+
+## Phase W4.1 — `@db.Date` round-trip fixed at the root (2026-06-29)
+
+Phase W4's `recoverLocalDayFromDbDate` was a narrow, 3-call-site workaround. This phase fixes
+the actual root cause everywhere it occurs, before the UI write flow is built.
+
+- **Root cause**: writing a *local*-midnight `Date` directly into a `@db.Date` column truncates
+  it to the previous *UTC* day on a positive-UTC-offset server. The fix is a single consistent
+  strategy — DB date-only values are always tagged using **UTC** components
+  (`Date.UTC(y, m-1, d)`), never local components, on both write and read. See `src/lib/date-only.ts`
+  for the full write-up and the 5 exported functions (`parseDateOnlyAsLocalDate`,
+  `toDateKeyLocal`, `dateKeyToDbDate`, `dbDateToDateKey`, `dbDateToLocalDate`).
+- **`recoverLocalDayFromDbDate` removed entirely** — replaced by `dbDateToLocalDate` at every
+  call site that re-derives a local day from a DB-read `@db.Date` value, not just the 3 Phase W4
+  touched. Every `activityDate`/`summaryDate` write and `where` filter in
+  `src/lib/daily-activity.ts` now goes through `dateKeyToDbDate`/`localDateToDbDate` (aliased
+  `toDbDate` in that file).
+- **New rule, binding for all future date-only work**: all date-only values must use the shared
+  date-only helper (`@/lib/date-only`). Do not use `new Date("YYYY-MM-DD")` or `.toISOString()`
+  for date-only business dates — see `src/lib/date-only.ts`'s module doc comment for the local-
+  midnight-vs-DB-date-only-value distinction and which function to use where.
+- **Verified** via `scripts/test-date-only-handling.mjs` (19/19 checks, including a real DB
+  round trip) and `npx prisma validate`/`generate`/`tsc --noEmit`/`npm run build`, all clean. No
+  schema/migration changes; `DailyUpdate`, mobile, and production untouched.

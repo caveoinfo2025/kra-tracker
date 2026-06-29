@@ -21,6 +21,22 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W4.1: `@db.Date` round-trip standardized for Daily Activity
+
+Phase W4.1 standardized date-only handling for Daily Activity after discovering Prisma/MySQL
+`@db.Date` IST round-trip shift. Shared helper added, Daily Activity refactored, validation
+passed. DailyUpdate, mobile, schema, migrations, and production untouched. New shared module
+`src/lib/date-only.ts` (`parseDateOnlyAsLocalDate`, `toDateKeyLocal`, `dateKeyToDbDate`,
+`dbDateToDateKey`, `dbDateToLocalDate`) replaces Phase W4's narrow `recoverLocalDayFromDbDate`
+workaround with a root fix applied at every `activityDate`/`summaryDate` read/write site in
+`src/lib/daily-activity.ts`, not just the 3 sites Phase W4 happened to touch. Audited the full
+schema — confirmed `activityDate`/`summaryDate`/`periodStart`/`periodEnd` are the only
+`@db.Date` columns; no KRA/WeeklyReview/DailyUpdate field is affected. New test script
+`scripts/test-date-only-handling.mjs` (19/19 passed, including a live DB round trip with
+temporary rows, fully cleaned up). `npx prisma validate`/`generate`, `npx tsc --noEmit`,
+`npm run build` all clean. Full record: `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W4.1",
+`docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W4.1".
+
 ### 2026-06-29 — Phase W4: Daily Activity backend write workflows implemented
 
 Phase W4 implemented Daily Activity backend write workflows: employee summary submission/

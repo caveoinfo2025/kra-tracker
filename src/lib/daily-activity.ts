@@ -18,6 +18,16 @@
  */
 import prisma from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import {
+  parseDateOnlyAsLocalDate,
+  toDateKeyLocal,
+  dbDateToLocalDate,
+  localDateToDbDate,
+} from "@/lib/date-only";
+
+// Re-exported for existing call sites (`@/lib/daily-activity` was the original home of these
+// two helpers before Phase W4.1 moved the canonical implementation to `@/lib/date-only`).
+export { parseDateOnlyAsLocalDate, toDateKeyLocal };
 
 // ── Vocabularies (String columns, no Prisma enum — matches this schema's existing convention;
 //    see docs/webapp/DAILY_ACTIVITY_SCHEMA_DESIGN_REVIEW.md §2) ────────────────────────────────
@@ -88,49 +98,11 @@ function startOfDay(d: Date): Date {
   return x;
 }
 
-/**
- * Phase W3.2 bug fix — safe local-date parser for `YYYY-MM-DD` date-only strings.
- *
- * `new Date("YYYY-MM-DD")` parses the string as **UTC midnight**; passing that through
- * `startOfDay()` (which uses local-time `setHours`) then re-anchors it to *local* midnight,
- * silently shifting the effective day back by one on any positive-UTC-offset server (e.g.
- * IST, UTC+5:30) — confirmed in Phase W3.1 browser verification (`team?date=2026-06-28`
- * returned `2026-06-27`). This parser builds the `Date` directly from the local-time
- * constructor (`new Date(year, monthIndex, day)`), so it never goes through a UTC
- * intermediate and is immune to the shift. Use this for every Daily Activity date-only
- * query/path param — never `new Date(dateOnlyString)`.
- *
- * Throws `RangeError` on malformed input (wrong format, non-numeric, or an invalid calendar
- * date such as 2026-13-01 or 2026-02-30) — callers should catch this and respond 400.
- */
-export function parseDateOnlyAsLocalDate(dateString: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString ?? "");
-  if (!match) throw new RangeError(`Invalid date format (expected YYYY-MM-DD): "${dateString}"`);
-
-  const year = Number(match[1]);
-  const month = Number(match[2]); // 1-12
-  const day = Number(match[3]);
-  const date = new Date(year, month - 1, day);
-
-  // new Date(y, m, d) silently rolls invalid day/month values over into the next period
-  // (e.g. month 13 → next January, Feb 30 → Mar 2) — detect that by reading the components
-  // back and rejecting any mismatch, since a roll-over is never a valid date-only input here.
-  const rolledOver =
-    date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day;
-  if (rolledOver) throw new RangeError(`Invalid calendar date: "${dateString}"`);
-
-  return date;
-}
-
-/** Format a `Date` as `YYYY-MM-DD` using its *local* date components — the inverse of
- *  `parseDateOnlyAsLocalDate`. Never use `date.toISOString().slice(0, 10)` for this (that
- *  reads UTC components and is subject to the same day-shift on positive-UTC-offset servers). */
-export function toDateKeyLocal(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+/** Converts a **local-midnight Date** (the shape `startOfDay`/`parseDateOnlyAsLocalDate`
+ *  produce) into the value to write/query against an `activityDate`/`summaryDate` `@db.Date`
+ *  column — see `@/lib/date-only` module doc for the full write-up of why this two-shape split
+ *  exists. Every Prisma call below that touches one of those columns goes through this. */
+const toDbDate = localDateToDbDate;
 
 /** Resolve the point value for an activity type: active DB rule (role-specific, then global)
  *  if present, else the code-level default. Defensive — never throws (mirrors crm-engine's
@@ -192,7 +164,7 @@ export async function captureDailyActivityEvent(input: CaptureDailyActivityInput
     const log = await prisma.dailyActivityLog.create({
       data: {
         employeeId: input.employeeId,
-        activityDate,
+        activityDate: toDbDate(activityDate),
         activityType: input.activityType,
         sourceType: input.sourceType,
         sourceId: input.sourceId ?? null,
@@ -278,7 +250,7 @@ export async function recomputeDailySummary(employeeId: number, activityDate: Da
   try {
     const day = startOfDay(activityDate);
     const logs = await prisma.dailyActivityLog.findMany({
-      where: { employeeId, activityDate: day },
+      where: { employeeId, activityDate: toDbDate(day) },
       select: { points: true },
     });
     const totalPoints = logs.reduce((sum, l) => sum + l.points, 0);
@@ -286,14 +258,14 @@ export async function recomputeDailySummary(employeeId: number, activityDate: Da
     const autoSummary = await buildAutoSummary(employeeId, day);
 
     const existing = await prisma.dailyActivitySummary.findUnique({
-      where: { employeeId_summaryDate: { employeeId, summaryDate: day } },
+      where: { employeeId_summaryDate: { employeeId, summaryDate: toDbDate(day) } },
     });
 
     if (!existing) {
       await prisma.dailyActivitySummary.create({
         data: {
           employeeId,
-          summaryDate: day,
+          summaryDate: toDbDate(day),
           status: totalPoints > 0 ? "SUMMARY_PENDING" : "NO_ACTIVITY",
           productivityBand,
           totalPoints,
@@ -341,7 +313,7 @@ export interface AutoSummary {
 export async function buildAutoSummary(employeeId: number, date: Date): Promise<AutoSummary> {
   const day = startOfDay(date);
   const logs = await prisma.dailyActivityLog.findMany({
-    where: { employeeId, activityDate: day },
+    where: { employeeId, activityDate: toDbDate(day) },
     select: { activityType: true },
   });
   const count = (t: DailyActivityType) => logs.filter((l) => l.activityType === t).length;
@@ -396,11 +368,11 @@ export async function getDailyActivityForEmployee(employeeId: number, date: Date
   const day = startOfDay(date);
   const [logs, summary, correction] = await Promise.all([
     prisma.dailyActivityLog.findMany({
-      where: { employeeId, activityDate: day },
+      where: { employeeId, activityDate: toDbDate(day) },
       orderBy: { capturedAt: "desc" },
     }),
     prisma.dailyActivitySummary.findUnique({
-      where: { employeeId_summaryDate: { employeeId, summaryDate: day } },
+      where: { employeeId_summaryDate: { employeeId, summaryDate: toDbDate(day) } },
     }),
     prisma.dailyActivityCorrectionRequest.findFirst({
       where: { employeeId, status: "PENDING" },
@@ -456,16 +428,15 @@ export async function getDailyActivityHistoryForEmployee(employeeId: number, day
   since.setDate(since.getDate() - days);
 
   const summaries = await prisma.dailyActivitySummary.findMany({
-    where: { employeeId, summaryDate: { gte: since } },
+    where: { employeeId, summaryDate: { gte: toDbDate(since) } },
     orderBy: { summaryDate: "desc" },
   });
 
   return summaries.map((s) => ({
-    // recoverLocalDayFromDbDate compensates for the @db.Date storage round-trip issue
-    // discovered in Phase W4 — see its doc comment below. `s.summaryDate` is a DB-read value,
-    // not a freshly-computed local Date, so formatting it directly would be off by one day on
-    // this server (confirmed empirically — this was a live bug until this fix).
-    date: toDateKeyLocal(recoverLocalDayFromDbDate(s.summaryDate)),
+    // `s.summaryDate` is a DB-read `@db.Date` value — must go through dbDateToLocalDate (UTC
+    // components) before formatting, never toDateKeyLocal directly (local components) on a raw
+    // DB-read value. See `@/lib/date-only` module doc.
+    date: toDateKeyLocal(dbDateToLocalDate(s.summaryDate)),
     summaryStatus: s.status,
     productivityBand: s.productivityBand as ProductivityBand,
   }));
@@ -494,8 +465,8 @@ export async function getDailyActivityForManagerEmployee(employeeId: number, dat
   if (!employee) return null;
 
   const [logs, summary, correctionPending] = await Promise.all([
-    prisma.dailyActivityLog.findMany({ where: { employeeId, activityDate: day }, orderBy: { capturedAt: "desc" } }),
-    prisma.dailyActivitySummary.findUnique({ where: { employeeId_summaryDate: { employeeId, summaryDate: day } } }),
+    prisma.dailyActivityLog.findMany({ where: { employeeId, activityDate: toDbDate(day) }, orderBy: { capturedAt: "desc" } }),
+    prisma.dailyActivitySummary.findUnique({ where: { employeeId_summaryDate: { employeeId, summaryDate: toDbDate(day) } } }),
     prisma.dailyActivityCorrectionRequest.count({ where: { employeeId, status: "PENDING" } }),
   ]);
 
@@ -560,8 +531,8 @@ export async function getTeamDailyActivity(date: Date, employeeIds?: number[]): 
 
   for (const emp of employees) {
     const [logs, summary, correctionPending] = await Promise.all([
-      prisma.dailyActivityLog.findMany({ where: { employeeId: emp.id, activityDate: day }, select: { points: true, capturedAt: true } }),
-      prisma.dailyActivitySummary.findUnique({ where: { employeeId_summaryDate: { employeeId: emp.id, summaryDate: day } } }),
+      prisma.dailyActivityLog.findMany({ where: { employeeId: emp.id, activityDate: toDbDate(day) }, select: { points: true, capturedAt: true } }),
+      prisma.dailyActivitySummary.findUnique({ where: { employeeId_summaryDate: { employeeId: emp.id, summaryDate: toDbDate(day) } } }),
       prisma.dailyActivityCorrectionRequest.count({ where: { employeeId: emp.id, status: "PENDING" } }),
     ]);
 
@@ -599,40 +570,6 @@ export async function getTeamDailyActivity(date: Date, employeeIds?: number[]): 
 // Phase W4 — backend write workflows (summary submit/edit, correction requests, manager
 // approve/reject/reopen). No UI write flow yet (that's a later phase); no schema changes.
 // ══════════════════════════════════════════════════════════════════════════════════════════════
-
-/**
- * Phase W4 discovery — compensates for a pre-existing, deeper-than-Phase-W3.2 storage round
- * trip issue: writing a local-midnight `Date` (e.g. via `startOfDay(new Date())`) into a
- * `@db.Date` Prisma column on this MySQL/mariadb setup truncates it down to the *previous* UTC
- * calendar day on any positive-UTC-offset server (confirmed empirically on this IST/UTC+5:30
- * dev DB: writing local-midnight 2026-06-29 round-trips back as `2026-06-28T00:00:00.000Z`).
- * Phase W2/W3 never hit this because every existing read path either (a) never re-derives a
- * `day` from a value just read back from a `@db.Date` column, or (b) formats it for *display*
- * only (where `toDateKeyLocal`, fixed in Phase W3.2, is the right tool). Phase W4's correction
- * approve/reject flow is the first code path that needs to take a DB-read `summaryDate`/
- * `activityDate` and feed it back into `startOfDay()` for a fresh Prisma query/write — and
- * `startOfDay()`'s local-time `setHours` on an already-truncated value double-shifts it.
- *
- * This helper adds back the lost day (in UTC terms) so that passing its result through
- * `startOfDay()` recovers the exact same local-midnight instant the original write used —
- * verified safe for any positive UTC offset under 24h (i.e. every real timezone east of UTC,
- * not just IST). A negative-offset deployment would not have this problem in the first place
- * (local-midnight's UTC day is greater than or equal to the local day, not less), so this is
- * intentionally not generalized further.
- *
- * This is a narrow, Phase-W4-scoped workaround, not a fix of the underlying issue — the
- * underlying issue (every `@db.Date` write of a local-midnight Date is one UTC day behind the
- * intended local day on this server) is a pre-existing condition that predates this phase and
- * is broader than this phase's "backend write APIs only" scope to fix properly (it would mean
- * either changing `startOfDay()`'s semantics or auditing every existing W1–W3 write site).
- * Flagged explicitly as a recommended next step in
- * docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md.
- */
-function recoverLocalDayFromDbDate(dbDate: Date): Date {
-  const recovered = new Date(dbDate);
-  recovered.setUTCDate(recovered.getUTCDate() + 1);
-  return recovered;
-}
 
 /** Thrown by every Phase W4 write helper on a validation/authorization/state failure. Routes
  *  catch this and respond with `.status`, keeping the same error shape across all five new
@@ -720,18 +657,20 @@ export async function canSubmitDailySummary(
 ): Promise<{ allowed: boolean; isLate: boolean; reason: string }> {
   const day = startOfDay(date);
   const existing = await prisma.dailyActivitySummary.findUnique({
-    where: { employeeId_summaryDate: { employeeId, summaryDate: day } },
+    where: { employeeId_summaryDate: { employeeId, summaryDate: toDbDate(day) } },
   });
   return evaluateSubmissionWindow(day, new Date(), existing?.status ?? "NO_ACTIVITY");
 }
 
 /** Can an already-submitted summary be edited right now? Takes the summary row itself (not a
- *  fresh DB lookup) since callers (the edit route) already have it loaded. */
+ *  fresh DB lookup) since callers (the edit route) already have it loaded. `summary.summaryDate`
+ *  is a DB-read `@db.Date` value — must go through `dbDateToLocalDate`, never `startOfDay`
+ *  directly (that would apply local-time `setHours` to UTC-tagged components). */
 export function canEditDailySummary(summary: {
   summaryDate: Date;
   status: string;
 }): { allowed: boolean; isLate: boolean; reason: string } {
-  return evaluateSubmissionWindow(startOfDay(summary.summaryDate), new Date(), summary.status);
+  return evaluateSubmissionWindow(dbDateToLocalDate(summary.summaryDate), new Date(), summary.status);
 }
 
 export interface SubmitDailyActivitySummaryInput {
@@ -760,7 +699,7 @@ export async function submitDailyActivitySummary(input: SubmitDailyActivitySumma
   const now = new Date();
 
   const existing = await prisma.dailyActivitySummary.findUnique({
-    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: toDbDate(day) } },
   });
   const window = evaluateSubmissionWindow(day, now, existing?.status ?? "NO_ACTIVITY");
   if (!window.allowed) throw new DailyActivityError(window.reason, 409);
@@ -791,7 +730,7 @@ export async function submitDailyActivitySummary(input: SubmitDailyActivitySumma
     existing?.status === "REOPENED" ? "CLOSED" : window.isLate ? "LATE_SUBMITTED" : "CLOSED";
 
   const refreshed = await prisma.dailyActivitySummary.findUniqueOrThrow({
-    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: toDbDate(day) } },
   });
 
   await prisma.dailyActivitySummary.update({
@@ -827,7 +766,7 @@ export interface UpdateDailyActivitySummaryInput {
 export async function updateDailyActivitySummary(input: UpdateDailyActivitySummaryInput) {
   const day = startOfDay(input.date);
   const existing = await prisma.dailyActivitySummary.findUnique({
-    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: toDbDate(day) } },
   });
   if (!existing || !existing.submittedAt) {
     throw new DailyActivityError("No submitted summary exists for this date yet — submit it first.", 404);
@@ -875,7 +814,7 @@ export async function createDailyActivityCorrectionRequest(input: CreateDailyAct
 
   if (input.activityLogId != null) {
     const log = await prisma.dailyActivityLog.findUnique({ where: { id: input.activityLogId } });
-    if (!log || log.employeeId !== input.employeeId || startOfDay(recoverLocalDayFromDbDate(log.activityDate)).getTime() !== day.getTime()) {
+    if (!log || log.employeeId !== input.employeeId || dbDateToLocalDate(log.activityDate).getTime() !== day.getTime()) {
       throw new DailyActivityError("activityLogId does not belong to this employee/date.", 400);
     }
   }
@@ -885,7 +824,7 @@ export async function createDailyActivityCorrectionRequest(input: CreateDailyAct
   // everywhere else a summary row is needed on demand.
   await recomputeDailySummary(input.employeeId, day);
   const summary = await prisma.dailyActivitySummary.findUniqueOrThrow({
-    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: toDbDate(day) } },
   });
 
   const request = await prisma.dailyActivityCorrectionRequest.create({
@@ -996,13 +935,13 @@ export async function approveDailyActivityCorrectionRequest(input: DecideDailyAc
   const activityType = request.requestedActivityType as DailyActivityType;
   const approvedPoints = await resolvePoints(activityType, employee?.role);
 
-  const day = startOfDay(recoverLocalDayFromDbDate(request.summary.summaryDate));
+  const day = dbDateToLocalDate(request.summary.summaryDate);
   const now = new Date();
 
   await prisma.dailyActivityLog.create({
     data: {
       employeeId: request.employeeId,
-      activityDate: day,
+      activityDate: toDbDate(day),
       activityType,
       sourceType: isValidSourceType(request.requestedSourceType) ? request.requestedSourceType : "CORRECTION",
       sourceId: request.requestedSourceId,
@@ -1081,7 +1020,7 @@ export async function rejectDailyActivityCorrectionRequest(input: DecideDailyAct
     notes: input.managerRemarks ?? "",
   });
 
-  return getDailyActivityForManagerEmployee(request.employeeId, startOfDay(recoverLocalDayFromDbDate(request.summary.summaryDate)));
+  return getDailyActivityForManagerEmployee(request.employeeId, dbDateToLocalDate(request.summary.summaryDate));
 }
 
 export interface ReopenDailyActivityDayInput {
@@ -1104,7 +1043,7 @@ export async function reopenDailyActivityDay(input: ReopenDailyActivityDayInput)
   // still reopen a NO_ACTIVITY day to invite a late summary.
   await recomputeDailySummary(input.employeeId, day);
   const summary = await prisma.dailyActivitySummary.findUniqueOrThrow({
-    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: toDbDate(day) } },
   });
 
   const now = new Date();
