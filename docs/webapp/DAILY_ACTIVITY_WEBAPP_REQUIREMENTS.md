@@ -649,3 +649,37 @@ read response shape (see below).
   page. `npx tsc --noEmit`/`npx prisma validate`/`generate`/`npm run build` all clean.
 - **No schema/migration changes. `/daily-updates` unchanged and still live. `/mobile`
   untouched. No production deploy/restart.**
+
+## Phase W6 — KRA/reporting planning notes (2026-06-29)
+
+Planning and audit only — full design in `docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md`.
+No code/schema/migration changes this phase; the notes below summarize what's binding for
+whoever implements the future phases (§16 of that doc).
+
+- **§9's open status-lifecycle gap, formalized here**: `INCOMPLETE` is a documented valid
+  `DailyActivitySummary.status` value (see the schema comment on that model) that **no write
+  path in this file ever assigns**. `evaluateSubmissionWindow`/`CUTOFF_HOUR`/`GRACE_UNTIL_HOUR`
+  only ever gate a *new* submit/edit attempt — they never write a status transition for a day
+  nobody touches again. Confirmed via full-file grep this phase. Any future code reading
+  `summary.status` for a past day to decide eligibility (KRA rollups, the Exceptions report)
+  must go through a shared effective-status predicate, not the raw column — see the planning
+  doc §4.
+- **KRA eligibility is binding going forward**: only `CLOSED`/`LATE_SUBMITTED` count;
+  `PENDING_CORRECTION` excludes the whole day (matches this file's existing whole-summary
+  status-flip behavior in `createDailyActivityCorrectionRequest`, not a finer per-log
+  granularity); `REOPENED` excludes until resubmitted back to `CLOSED`/`LATE_SUBMITTED`. See
+  planning doc §6 for the full matrix and rationale.
+- **Date handling rule reinforced**: every future weekly/monthly rollup or report endpoint must
+  use `@/lib/date-only` exclusively (per Phase W4.1's binding rule) and should reuse
+  `src/lib/kra-engine.ts`'s existing ISO-week helper for week boundaries rather than inventing a
+  second week-numbering scheme — the two need to describe literally the same week once Daily
+  Activity feeds the KRA system.
+- **`DailyProductivityScore` stays unused for now** — confirmed unused again this phase (fresh
+  grep, zero hits in hand-written code). Planning doc §9.1 recommends dynamic computation first;
+  do not start writing to this model until that recommendation is revisited.
+- **Two KRA systems exist and neither is wired to Daily Activity** — legacy `KRA`/`WeeklyReview`
+  (scored via `src/lib/kra-engine.ts`'s formula-based `computeKRAProgress()`, reading
+  `LeadGeneration`/`SalesFunnel`/`Collection`, never Daily Activity tables) and enterprise
+  `EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`. Picking which one any future
+  Daily-Activity-feeds-KRA write path targets is an explicit open decision (planning doc
+  §17.1) and must be resolved before any such write path is built.

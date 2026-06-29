@@ -21,6 +21,22 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W6: Daily Activity KRA/reporting integration planned
+
+Phase W6 planned Daily Activity KRA/reporting integration, including status lifecycle, KRA
+eligibility, reporting APIs/UI, DailyProductivityScore usage, and DailyUpdate deprecation
+approach. No code/schema/migration/mobile/production changes. Key audit finding: two parallel
+KRA systems exist (legacy `KRA`/`WeeklyReview`, scored via `src/lib/kra-engine.ts`'s
+formula-based `computeKRAProgress()` off `LeadGeneration`/`SalesFunnel`/`Collection`; enterprise
+`EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`) and neither reads `DailyUpdate`,
+`DailyActivityLog`/`DailyActivitySummary`, or `DailyProductivityScore` today — `DailyUpdate`'s
+only KRA-adjacent touchpoint is a display-only blockers panel on the employee profile page, zero
+scoring dependency. Confirmed gap: `INCOMPLETE` is a documented valid status with no write path
+ever assigning it; recommended fix is a dynamic effective-status predicate now, a scheduled
+close-day job only if/when needed later. `DailyProductivityScore` re-confirmed unused; recommend
+dynamic rollup computation first, snapshots later. Full plan:
+`docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md`.
+
 ### 2026-06-29 — Phase W5: Daily Activity write workflows connected to the webapp UI
 
 Phase W5 connected Daily Activity write workflows to the webapp UI: employee summary

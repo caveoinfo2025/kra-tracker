@@ -582,3 +582,51 @@ integration only — no new API routes, no schema/migration changes, `/daily-upd
   (points stayed at 3, no log row created, status reconciled back to `CLOSED`). Points never
   appeared anywhere on the employee-logged-in view at any point; points were visible throughout
   on the manager-logged-in view.
+
+## Phase W6 planning progress (2026-06-29)
+
+**Planning and audit only — no code, schema, migration, `db push`, `DailyUpdate`, mobile, or
+production changes.** Full document: `docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md`.
+
+- **Audited the existing KRA/reporting system** (via a dedicated research pass over
+  `prisma/schema.prisma`, `src/lib/kra-engine.ts`, `src/app/api/kras/`, `/api/reviews/`,
+  `/api/employees/[id]/reviews/`, `/api/kra-sync/`, `src/app/kras/page.tsx`,
+  `src/app/employees/[id]/page.tsx`, `src/app/dashboard/page.tsx`) plus direct schema reads.
+  **Key finding: two parallel KRA systems exist** — legacy `KRA`/`WeeklyReview` and enterprise
+  `EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/`PerformanceReview`, mid-migration, neither
+  resolved. `kra-engine.ts`'s `computeKRAProgress()` reads `LeadGeneration`/`SalesFunnel`/
+  `Collection`/`Certification`/`WeeklyCommit` — **never `DailyUpdate`, `DailyActivityLog`/
+  `DailyActivitySummary`, or `DailyProductivityScore`**. `DailyUpdate`'s only KRA-adjacent
+  touchpoint is a display-only "recent blockers" read in the employee profile page — zero
+  scoring dependency, confirmed safe to deprecate later without KRA-correctness risk.
+- **Confirmed `DailyProductivityScore` re-verified unused** — fresh grep across `src/`
+  (excluding generated Prisma client), zero hits in hand-written code. Schema already has
+  `kraEligiblePoints`/`qualityIndicatorJson` fields clearly designed for this exact use case.
+- **Identified and planned around one concrete automation gap**: `INCOMPLETE` is a documented
+  valid `DailyActivitySummary.status` value (schema comment) and is referenced in
+  `getTeamDailyActivity`'s counting logic and the `needsReview` flag, but **no write path in
+  `src/lib/daily-activity.ts` ever assigns it** — confirmed via full-file grep. Recommended
+  approach: Option D (hybrid) — a shared `resolveEffectiveStatus()` predicate computed
+  dynamically at read time now, deferring a scheduled close-day job until a genuine SQL-level
+  aggregation need arises (this project has no existing job-runner pattern to build one
+  prematurely against).
+- **KRA eligibility matrix defined** for all 7 statuses — only `CLOSED`/`LATE_SUBMITTED` count,
+  `PENDING_CORRECTION` excludes the *whole* day (not just disputed points, matching the
+  backend's existing whole-summary status flip), `REOPENED` excludes until resubmitted, late
+  submission counts automatically (no manager-acceptance step exists today, flagged as an open
+  decision if the business wants one now that this feeds a real performance number).
+- **Daily/weekly/monthly rollup designs documented**, reusing `kra-engine.ts`'s existing
+  ISO-week helper rather than inventing a second week-numbering scheme, and mandating
+  `@/lib/date-only` for all date handling (no repeat of the Phase W4.1 `@db.Date` bug).
+- **`DailyProductivityScore` recommendation: dynamic-first (Option D)** — defer snapshot writes
+  until eligibility rules (§6) and the `INCOMPLETE` automation (§4) are validated against real
+  usage; daily snapshots first when introduced, weekly/monthly as a `groupBy` over those.
+- **Manager report plan** (daily/weekly/monthly team productivity, employee detail, KRA input,
+  exceptions) and **employee report plan** (my weekly/monthly/KRA-contribution, band-only,
+  no raw points — unchanged hard rule) fully specified, plus 9 future read-API designs and a
+  2-job system/admin design — **none implemented this phase**.
+- **`DailyUpdate` deprecation recommendation confirmed: Option B (freeze as read-only archive)
+  then Option C (redirect)** — matches the source brief's own default, validated by the
+  zero-KRA-dependency audit finding above.
+- **9 open business decisions documented** (notably: which KRA system to feed, §17.1) — none
+  resolved this phase, all gating future implementation phases explicitly.
