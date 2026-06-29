@@ -380,3 +380,50 @@ once, centrally, inside `startOfDay`/the two route handlers' date-parsing line).
 pre-existing Phase W2 backend bug surfaced by Phase W3's date-filter UI, not a UI defect — no
 code change was made to fix it in this verification-only phase, per the explicit "testing
 only" scope.
+
+## Phase W3.2 fix (2026-06-29)
+
+The date-only parsing bug identified in Phase W3.1 verification is **fixed**. Scope turned out
+to be slightly broader than the original report: the bug wasn't limited to the team routes'
+*input* parsing — the same root cause (formatting a local-midnight `Date` via
+`toISOString().slice(0, 10)`, which reads UTC components) also affected every Daily Activity
+*output* date field, including `/api/daily-activity/today`'s own `date` field, on any
+positive-UTC-offset server. Confirmed empirically on this IST (UTC+5:30) dev server before the
+fix: wall-clock date 2026-06-29, but `/api/daily-activity/today` returned `"date":
+"2026-06-28"` — one day behind, the same shift, just not checked against true wall-clock time
+during W3.1 (only the team-route input/output mismatch was checked there).
+
+- **Fix:** two new helpers in `src/lib/daily-activity.ts` —
+  `parseDateOnlyAsLocalDate(dateString)` (strict `YYYY-MM-DD` regex parse → manual
+  year/month/day → `new Date(year, monthIndex, day)`, with a round-trip check that rejects any
+  JS `Date` roll-over so `2026-13-01`/`2026-02-30`-style invalid calendar dates throw
+  `RangeError` instead of silently rolling into the next period) and `toDateKeyLocal(date)`
+  (the inverse — formats using local `getFullYear`/`getMonth`/`getDate`, never
+  `toISOString()`).
+- **Every** `date`/`summaryDate` output field in `src/lib/daily-activity.ts` now uses
+  `toDateKeyLocal` instead of `.toISOString().slice(0, 10)` —
+  `getDailyActivityForEmployee`, `getDailyActivityHistoryForEmployee`,
+  `getDailyActivityForManagerEmployee`, `getTeamDailyActivity`. (`cutoffTime`/`graceUntil`
+  still use full `toISOString()` — correct as-is, since those are absolute timestamps, not
+  date-only labels.)
+- **Both team routes** (`src/app/api/daily-activity/team/route.ts`,
+  `team/[employeeId]/[date]/route.ts`) now parse their `date` query/path param via
+  `parseDateOnlyAsLocalDate` inside a try/catch, returning `400 Bad Request` on a malformed or
+  invalid-calendar date string instead of the previous silent shift (or, for the path-param
+  route, a previously-impossible-to-trigger `isNaN` check that a malformed `YYYY-MM-DD`
+  string never actually fails).
+- **`/api/daily-activity/today` and `/history` needed no change** — confirmed by code review:
+  `today` always passes a live `new Date()`, never a re-parsed string; `history` takes an
+  integer `days` count, no date-only string parsing exists there.
+- **Verified via a throwaway script** (`prisma/test-daily-activity-date-parsing.ts`, deleted
+  after the run — 15/15 checks passed, see `DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` for the
+  full list) and via live browser/API re-verification on the dev server: requesting
+  `team?date=2026-06-28` now returns `"date": "2026-06-28"` (was `"2026-06-27"`); requesting
+  `team/10/2026-06-28` now returns `"summaryDate": "2026-06-28"` (was `"2026-06-27"`);
+  `/api/daily-activity/today` now returns the true wall-clock date `"2026-06-29"` (was
+  incorrectly `"2026-06-28"`); all four invalid-date examples from the bug report
+  (`2026-13-01`, `2026-02-30`, `2026/06/28`, `abc`) now return `400` on both team routes.
+- **No schema/migration/db-push changes. No `/daily-updates` changes. No mobile changes. No
+  production changes.** Employee points-hidden and manager points-visible behavior reconfirmed
+  unchanged by this fix (it only touches date formatting/parsing, not the points-visibility
+  type split).

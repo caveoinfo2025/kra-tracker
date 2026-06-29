@@ -472,3 +472,29 @@ Sales). Verification only — no code changes other than this documentation upda
   string). Full detail and recommended fix logged in
   `WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W3.1 verification" — left unfixed here per the
   verification-only scope of this phase.
+
+## Phase W3.2 — date-only parameter handling rule (2026-06-29)
+
+**Rule, going forward:** any Daily Activity code that parses a `YYYY-MM-DD` date-only string
+(query param, path param, or future request-body field) MUST use
+`parseDateOnlyAsLocalDate()` from `src/lib/daily-activity.ts` — never
+`new Date("YYYY-MM-DD")`. Any code that formats a `Date` back into a `YYYY-MM-DD` label for a
+response MUST use `toDateKeyLocal()` — never `date.toISOString().slice(0, 10)`. Both helpers
+work in local server time and are immune to the UTC/local day-shift that affects any
+positive-UTC-offset server (confirmed on this IST/UTC+5:30 dev server).
+
+Why this matters beyond the one bug fixed: `new Date("YYYY-MM-DD")` parses as **UTC midnight**;
+`.toISOString()` reads back **UTC** components. Any `Date` that was built via
+`startOfDay()`'s local `setHours(0,0,0,0)` is **local midnight**, not UTC midnight — formatting
+it with `toISOString()` silently reads the *previous* day's date on any server east of UTC.
+This is not specific to the team routes; it would silently break **any** future Daily Activity
+date-only input or output, including `/today`'s own `date` field (which was, in fact, also
+broken until this fix — see `WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W3.2 fix" for the empirical
+confirmation).
+
+Test script used to verify the fix (`prisma/test-daily-activity-date-parsing.ts`, run via
+`npx tsx -r dotenv/config`, then deleted — throwaway per the "reusable vs. throwaway" decision
+in the Phase W3.2 task): round-trip parse/format of `2026-06-28` confirmed no day shift;
+year/month/day components read back correctly; all of `2026-13-01`, `2026-02-30`,
+`2026/06/28`, `abc`, `""`, `2026-6-28`, `2026-06-5` correctly threw `RangeError`; a genuine
+leap-day edge case (`2028-02-29`) correctly did NOT throw. 15/15 checks passed.

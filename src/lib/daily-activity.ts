@@ -88,6 +88,50 @@ function startOfDay(d: Date): Date {
   return x;
 }
 
+/**
+ * Phase W3.2 bug fix — safe local-date parser for `YYYY-MM-DD` date-only strings.
+ *
+ * `new Date("YYYY-MM-DD")` parses the string as **UTC midnight**; passing that through
+ * `startOfDay()` (which uses local-time `setHours`) then re-anchors it to *local* midnight,
+ * silently shifting the effective day back by one on any positive-UTC-offset server (e.g.
+ * IST, UTC+5:30) — confirmed in Phase W3.1 browser verification (`team?date=2026-06-28`
+ * returned `2026-06-27`). This parser builds the `Date` directly from the local-time
+ * constructor (`new Date(year, monthIndex, day)`), so it never goes through a UTC
+ * intermediate and is immune to the shift. Use this for every Daily Activity date-only
+ * query/path param — never `new Date(dateOnlyString)`.
+ *
+ * Throws `RangeError` on malformed input (wrong format, non-numeric, or an invalid calendar
+ * date such as 2026-13-01 or 2026-02-30) — callers should catch this and respond 400.
+ */
+export function parseDateOnlyAsLocalDate(dateString: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString ?? "");
+  if (!match) throw new RangeError(`Invalid date format (expected YYYY-MM-DD): "${dateString}"`);
+
+  const year = Number(match[1]);
+  const month = Number(match[2]); // 1-12
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+
+  // new Date(y, m, d) silently rolls invalid day/month values over into the next period
+  // (e.g. month 13 → next January, Feb 30 → Mar 2) — detect that by reading the components
+  // back and rejecting any mismatch, since a roll-over is never a valid date-only input here.
+  const rolledOver =
+    date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day;
+  if (rolledOver) throw new RangeError(`Invalid calendar date: "${dateString}"`);
+
+  return date;
+}
+
+/** Format a `Date` as `YYYY-MM-DD` using its *local* date components — the inverse of
+ *  `parseDateOnlyAsLocalDate`. Never use `date.toISOString().slice(0, 10)` for this (that
+ *  reads UTC components and is subject to the same day-shift on positive-UTC-offset servers). */
+export function toDateKeyLocal(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /** Resolve the point value for an activity type: active DB rule (role-specific, then global)
  *  if present, else the code-level default. Defensive — never throws (mirrors crm-engine's
  *  "every DB call try/catch-guarded" convention), since a rule-table lookup failure must not
@@ -375,7 +419,7 @@ export async function getDailyActivityForEmployee(employeeId: number, date: Date
   const withinGrace = isToday && now <= grace;
 
   return {
-    date: day.toISOString().slice(0, 10),
+    date: toDateKeyLocal(day),
     summaryStatus: summary?.status ?? (totalPoints > 0 ? "SUMMARY_PENDING" : "NO_ACTIVITY"),
     productivityBand,
     employeeVisibleStatus: productivityBand,
@@ -417,7 +461,7 @@ export async function getDailyActivityHistoryForEmployee(employeeId: number, day
   });
 
   return summaries.map((s) => ({
-    date: s.summaryDate.toISOString().slice(0, 10),
+    date: toDateKeyLocal(s.summaryDate),
     summaryStatus: s.status,
     productivityBand: s.productivityBand as ProductivityBand,
   }));
@@ -457,7 +501,7 @@ export async function getDailyActivityForManagerEmployee(employeeId: number, dat
   return {
     employeeId: employee.id,
     employeeName: employee.name,
-    summaryDate: day.toISOString().slice(0, 10),
+    summaryDate: toDateKeyLocal(day),
     summaryStatus: summary?.status ?? (totalPoints > 0 ? "SUMMARY_PENDING" : "NO_ACTIVITY"),
     totalPoints,
     productivityBand: (summary?.productivityBand as ProductivityBand | undefined) ?? getProductivityBand(totalPoints),
@@ -541,7 +585,7 @@ export async function getTeamDailyActivity(date: Date, employeeIds?: number[]): 
   }
 
   return {
-    date: day.toISOString().slice(0, 10),
+    date: toDateKeyLocal(day),
     totals: { employeeCount: employees.length, closedCount, incompleteCount, noActivityCount, summaryPendingCount },
     employees: rows,
   };

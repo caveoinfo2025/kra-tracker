@@ -21,6 +21,26 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W3.2: Daily Activity date-only parsing bug fixed
+
+Phase W3.2 fixed Daily Activity date-only parsing bug for manager team/detail/history APIs.
+Date strings now parse as local dates to avoid IST/positive-UTC day shifts. No schema,
+migration, DB push, mobile, DailyUpdate, or production changes. Two new helpers
+(`parseDateOnlyAsLocalDate`, `toDateKeyLocal`) added to `src/lib/daily-activity.ts`; both team
+routes now parse their date param via the new helper and return `400` on invalid input
+instead of silently shifting or (for the path-param route) never actually catching malformed
+strings. Scope was confirmed broader than the original report during this fix: every
+`date`/`summaryDate` output field in `daily-activity.ts` — including `/api/daily-activity/
+today`'s own field — was using the same buggy `toISOString().slice(0, 10)` pattern and is now
+on `toDateKeyLocal`. Verified via a throwaway script (15/15 checks, deleted after running) and
+live browser/API re-verification: `team?date=2026-06-28` and `team/[id]/2026-06-28` both now
+return `2026-06-28` (were `2026-06-27`); `/today` now returns the true wall-clock date; four
+invalid-date examples now return `400`. Employee points-hidden / manager points-visible
+behavior reconfirmed unchanged. Full record:
+`docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W3.2 fix",
+`docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W3.2 — date-only parameter
+handling rule".
+
 ### 2026-06-29 — Phase W3.1: browser verification of the read-only Daily Activity webapp page
 
 Phase W3.1 browser verification completed for Daily Activity read-only webapp page.

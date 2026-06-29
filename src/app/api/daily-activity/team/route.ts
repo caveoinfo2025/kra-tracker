@@ -9,7 +9,7 @@
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
-import { getTeamDailyActivity } from "@/lib/daily-activity";
+import { getTeamDailyActivity, parseDateOnlyAsLocalDate } from "@/lib/daily-activity";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -18,8 +18,12 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get("date");
-  const date = dateParam ? new Date(dateParam) : new Date();
-  if (isNaN(date.getTime())) return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+  let date: Date;
+  try {
+    date = dateParam ? parseDateOnlyAsLocalDate(dateParam) : new Date();
+  } catch {
+    return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+  }
 
   const employeeIdParam = searchParams.get("employeeId");
   const employeeIds = employeeIdParam ? [Number(employeeIdParam)] : undefined;
