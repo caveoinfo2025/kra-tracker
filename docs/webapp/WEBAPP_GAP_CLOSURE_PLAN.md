@@ -308,3 +308,75 @@ schema/migration changes; `/daily-updates` UI/API unchanged; mobile unchanged.
   write endpoints, no Prisma schema/migration changes.
 - **Still pending:** summary submission, correction requests, approve/reject/reopen (G-05/G-06
   write side), KRA wiring (G-11), reporting (G-13), admin config (G-14) — all later phases.
+
+## Phase W3.1 verification (2026-06-29)
+
+Manual browser verification of the Phase W3 read-only Daily Activity UI, performed against
+the local dev server (dev quick-login impersonation, dev DB) before any write-workflow phase
+is started. No schema/migration changes, no `db push`, no new APIs, no mobile changes, no
+production changes. All Daily Activity HTTP calls observed during this session were GET only.
+
+**Employee verification (logged in as Priya Nair, BDE, non-manager):**
+- `/daily-activity` loaded (200) with the manager panel absent (server-side gated — the
+  component is never mounted, not just hidden by CSS).
+- Zero-activity day rendered "No activity recorded" band + status, all 6 activity-count
+  tiles at 0, "No activity recorded" in the timeline panel, "No history yet." in the
+  history strip — all per the zero-activity-state spec.
+- Cutoff "8:00 PM" / Grace until "10:00 PM" rendered correctly; "Can submit summary: Yes" /
+  "Can edit summary: Yes" rendered as timing-only metadata (no submit/edit control exists).
+- Full-page text scan confirmed no occurrence of "points" anywhere on the rendered employee
+  page. No submit/approve/reject/correction button exists in the DOM (`writeButtons: []`).
+- Direct `fetch('/api/daily-activity/team')` and `fetch('/api/daily-activity/team/1/<date>')`
+  from the employee's authenticated session both returned **403 Forbidden** — manager
+  endpoints reject non-managers even when called directly, not just hidden in the UI.
+- `fetch('/api/daily-activity/today?employeeId=999')` returned an **identical** payload to
+  the unparameterized call — the `employeeId` override attempt is silently ignored; the
+  route only ever reads the session's own employeeId.
+
+**Manager verification (logged in as Vijesh Vijayan, Head of Sales, manager):**
+- `/daily-activity` loaded (200) with both the employee panel and the team dashboard present.
+- Team totals tiles rendered: Employees 16, No Activity 16, Summary Pending 0, Incomplete 0,
+  Closed 0 (all-zero is expected — dev DB has no activity rows for the tested dates).
+- Team table rendered all 16 rows with columns matching spec, including **Total Points**
+  (visible, e.g. `0` per row — manager-only field, confirmed not hidden).
+- Date filter: changing the date input fired `GET /api/daily-activity/team?date=<new date>`
+  client-side and the table updated — confirmed via network log.
+- "View details" expanded an inline row showing employee name/date, status/band badges,
+  "Total: 0 pts", an activity timeline panel, and three **disabled** buttons labeled
+  "Approve (coming in next phase)" / "Reject (coming in next phase)" /
+  "Reopen (coming in next phase)" — no write action is wired to any of them.
+- All requests observed for `/api/daily-activity/*` during the manager session were `GET`
+  (`/api/daily-activity/team`, `/api/daily-activity/team/[employeeId]/[date]`) — no
+  `POST`/`PUT`/`DELETE` calls were made or are possible from this UI.
+
+**Daily Updates compatibility:**
+- `/daily-updates` still loads, the existing filter bar / status badges / employee dropdown
+  render unchanged, and the non-destructive banner ("New Daily Activity preview is
+  available." → "View it here") appears above the list without altering layout flow.
+- Opening "+ Add Update" still opens the existing modal (`<h3>Add Daily Update</h3>`),
+  confirming the CRUD form is untouched; closed via the existing "Cancel" button without
+  side effects.
+
+**Mobile / production:**
+- `git status`/`git diff --stat` against `src/app/mobile` show no changes from this or the
+  prior phase's work.
+- No production server was started, deployed to, or restarted during this verification.
+
+**Issue found (not fixed in this phase — verification only):** the date-filtered manager
+endpoints (`GET /api/daily-activity/team?date=YYYY-MM-DD` and
+`GET /api/daily-activity/team/[employeeId]/[date]`) return data for the day **before** the
+requested date when the server's local timezone is ahead of UTC (observed: requesting
+`2026-06-28` returned `summaryDate: "2026-06-27"` on this IST dev server). Root cause is in
+`src/lib/daily-activity.ts`'s `startOfDay()` (`Date#setHours` operates in local time) applied
+to a date parsed from a bare `YYYY-MM-DD` string (`new Date("2026-06-28")`, which `Date`
+parses as UTC midnight) — the combination shifts the effective day back by one in any
+positive-UTC-offset timezone. The "today" endpoints (`/today`, the SSR-rendered employee/team
+initial load) are unaffected, since they pass a live `Date` object rather than a re-parsed
+date string. **Recommended fix (next phase, not applied here):** parse the incoming
+`YYYY-MM-DD` string as a local calendar date (e.g. `new Date(y, m-1, d)`) instead of via the
+UTC-parsing `Date` string constructor, in both call sites in
+`src/app/api/daily-activity/team/route.ts` and `team/[employeeId]/[date]/route.ts` (or fix it
+once, centrally, inside `startOfDay`/the two route handlers' date-parsing line). This is a
+pre-existing Phase W2 backend bug surfaced by Phase W3's date-filter UI, not a UI defect — no
+code change was made to fix it in this verification-only phase, per the explicit "testing
+only" scope.

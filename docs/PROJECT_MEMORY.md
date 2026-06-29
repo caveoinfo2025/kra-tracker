@@ -21,6 +21,23 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W3.1: browser verification of the read-only Daily Activity webapp page
+
+Phase W3.1 browser verification completed for Daily Activity read-only webapp page.
+Employee/manager visibility confirmed. DailyUpdate compatibility confirmed. Mobile and
+production untouched. Tested via dev quick-login impersonation (Priya Nair — non-manager;
+Vijesh Vijayan — manager) against the local dev server. Confirmed: no "points" text or write
+buttons anywhere on the employee view; manager-only API routes 403 a non-manager's session
+even when called directly; `employeeId` query-param override on `/api/daily-activity/today`
+is silently ignored; manager team table/date-filter/inline detail/disabled future-action
+buttons all render and behave per spec; every Daily Activity HTTP call observed was `GET`
+(no mutation possible from this UI); `/daily-updates` CRUD and the new banner both work
+side-by-side. One pre-existing Phase W2 backend bug was found (not fixed, per verification-
+only scope): the date-filtered team endpoints return the previous day's data on a
+positive-UTC-offset server due to a UTC/local-time mismatch in date-string parsing. Full
+record: `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W3.1 verification",
+`docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W3.1 browser verification notes".
+
 ### 2026-06-29 — Phase W3: read-only Daily Activity webapp UI added
 
 Phase W3 added read-only Daily Activity webapp UI using existing APIs. Mobile remained

@@ -443,3 +443,32 @@ Read-only UI implementation against the Phase W2 APIs. UI-only — no API or sch
   approve/reject/reopen are not implemented. The manager detail view renders disabled
   Approve/Reject/Reopen buttons labeled "Coming in next phase" per the spec's explicit
   instruction to keep future actions visible-but-disabled rather than omitted.
+
+## Phase W3.1 browser verification notes (2026-06-29)
+
+Manual browser verification performed against the local dev server using dev quick-login
+impersonation (one non-manager — Priya Nair, BDE — and one manager — Vijesh Vijayan, Head of
+Sales). Verification only — no code changes other than this documentation update.
+
+- **Employee/manager visibility split (§8) reconfirmed at runtime**, not just by type
+  inspection: a full-text scan of the rendered employee page found zero occurrences of
+  "points"; direct `fetch()` calls to both manager-only routes from the employee's session
+  returned `403`; an `employeeId` query-param override attempt on `/api/daily-activity/today`
+  was silently ignored (identical response with and without it).
+- **Manager totals/table/detail (Tasks 3–4) reconfirmed visually**: 16-employee team table,
+  exact `Total Points` column, date-filter refetch via network log, inline detail expansion
+  with full timeline + per-entry points, and disabled "Coming in next phase" Approve/Reject/
+  Reopen buttons — no write call exists for any of them.
+- **No mutating HTTP calls observed**: every `/api/daily-activity/*` request logged during
+  both sessions was `GET`. `/daily-updates` CRUD ("+ Add Update" modal, Cancel) was exercised
+  and is unaffected by the new banner.
+- **Bug found, not fixed in this phase**: `GET /api/daily-activity/team?date=...` and
+  `GET /api/daily-activity/team/[employeeId]/[date]` return the **previous day's** data
+  relative to the requested date on a positive-UTC-offset server (confirmed on this IST dev
+  server: requesting `2026-06-28` returned `summaryDate: "2026-06-27"`). Cause: `new
+  Date("YYYY-MM-DD")` parses as UTC midnight, then `startOfDay()`'s `Date#setHours(0,0,0,0)`
+  re-anchors to *local* midnight, shifting the day back by one wherever local time is ahead of
+  UTC. The "today" endpoints are unaffected (they pass a live `Date`, never a re-parsed date
+  string). Full detail and recommended fix logged in
+  `WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W3.1 verification" — left unfixed here per the
+  verification-only scope of this phase.
