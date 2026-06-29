@@ -42,6 +42,20 @@ export const SUMMARY_STATUS_VARIANT: Record<string, BadgeProps["variant"]> = {
   CLOSED: "success",
 };
 
+/** Mirrors `DAILY_ACTIVITY_TYPES`/`DAILY_ACTIVITY_SOURCE_TYPES` in `@/lib/daily-activity` — kept
+ *  as a separate literal here (not re-exported from there) because that module pulls in
+ *  `@/lib/prisma` (server-only mariadb driver), which cannot be bundled into a client component.
+ *  Keep in sync with the backend enums if they ever change. */
+export const ACTIVITY_TYPE_OPTIONS = [
+  "QUALIFIED_LEAD_CREATED", "LEAD_UPDATED", "FOLLOW_UP_ADDED", "TASK_UPDATED", "TASK_COMPLETED",
+  "MEETING_SCHEDULED", "MEETING_COMPLETED", "PROPOSAL_SENT", "OPPORTUNITY_UPDATED",
+  "CALL_NOTE_ADDED", "EMAIL_NOTE_ADDED", "WHATSAPP_NOTE_ADDED", "END_OF_DAY_SUMMARY_SUBMITTED",
+] as const;
+
+export const SOURCE_TYPE_OPTIONS = [
+  "CRM_ACTIVITY", "LEAD", "TASK", "MEETING", "OPPORTUNITY", "PROPOSAL", "FOLLOW_UP", "NOTE", "SUMMARY", "CORRECTION",
+] as const;
+
 export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   QUALIFIED_LEAD_CREATED: "Qualified lead created",
   LEAD_UPDATED: "Lead updated",
@@ -60,6 +74,23 @@ export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
 
 export function activityTypeLabel(t: string): string {
   return ACTIVITY_TYPE_LABELS[t] ?? t;
+}
+
+export const SOURCE_TYPE_LABELS: Record<string, string> = {
+  CRM_ACTIVITY: "CRM activity",
+  LEAD: "Lead",
+  TASK: "Task",
+  MEETING: "Meeting",
+  OPPORTUNITY: "Opportunity",
+  PROPOSAL: "Proposal",
+  FOLLOW_UP: "Follow-up",
+  NOTE: "Note",
+  SUMMARY: "Summary",
+  CORRECTION: "Correction",
+};
+
+export function sourceTypeLabel(t: string): string {
+  return SOURCE_TYPE_LABELS[t] ?? t;
 }
 
 export function bandLabel(b: string): string {

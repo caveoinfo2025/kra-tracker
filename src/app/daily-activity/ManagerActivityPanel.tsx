@@ -1,25 +1,27 @@
 "use client";
 /**
- * Phase W3 — manager-facing read-only Daily Activity dashboard + per-employee/day detail
- * drill-in. Manager-only (enforced server-side: this component is only rendered when
- * session.user.isManager is true). Date changes and drill-ins call the Phase W2 manager-only
- * API routes (GET /api/daily-activity/team, GET /api/daily-activity/team/[employeeId]/[date])
- * client-side. No write actions — approve/reject/reopen are disabled placeholders for a later phase.
+ * Phase W3 (read-only) → Phase W5 (write-enabled) — manager-facing Daily Activity dashboard +
+ * per-employee/day detail drill-in. Manager-only (enforced server-side: this component is only
+ * rendered when session.user.isManager is true).
+ *
+ * Phase W5 wires up the three manager write actions onto the existing read-only surface:
+ * approve/reject a pending correction request (POST /api/daily-activity/corrections/[id]/
+ * approve|reject) and reopen a locked/closed/incomplete day
+ * (POST /api/daily-activity/day/[employeeId]/[date]/reopen). None of these routes accept a
+ * points value from this component — there is no points input anywhere in this file; approved
+ * points are always resolved server-side.
  */
 import { Fragment, useState } from "react";
 import Badge from "@/components/Badge";
-import type { TeamDailyActivityView, ManagerEmployeeDayView } from "@/lib/daily-activity";
+import { toDateKeyLocal } from "@/lib/date-only";
+import type { TeamDailyActivityView, ManagerEmployeeDayView, ManagerPendingCorrection } from "@/lib/daily-activity";
 import {
   bandLabel, BAND_VARIANT, summaryStatusLabel, SUMMARY_STATUS_VARIANT,
-  activityTypeLabel, formatDateTime,
+  activityTypeLabel, sourceTypeLabel, formatDateTime,
 } from "./labels";
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function ManagerActivityPanel({ initialTeam }: { initialTeam: TeamDailyActivityView }) {
-  const [date, setDate] = useState(initialTeam.date || todayStr());
+  const [date, setDate] = useState(initialTeam.date || toDateKeyLocal(new Date()));
   const [team, setTeam] = useState(initialTeam);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -41,6 +43,20 @@ export default function ManagerActivityPanel({ initialTeam }: { initialTeam: Tea
     }
   }
 
+  async function loadDetail(employeeId: number, forDate: string) {
+    const key = `${employeeId}:${forDate}`;
+    setDetailLoading(employeeId);
+    try {
+      const res = await fetch(`/api/daily-activity/team/${employeeId}/${forDate}`);
+      if (res.ok) {
+        const data: ManagerEmployeeDayView = await res.json();
+        setDetails((prev) => ({ ...prev, [key]: data }));
+      }
+    } finally {
+      setDetailLoading(null);
+    }
+  }
+
   function onDateChange(newDate: string) {
     setDate(newDate);
     setExpandedId(null);
@@ -52,16 +68,13 @@ export default function ManagerActivityPanel({ initialTeam }: { initialTeam: Tea
     setExpandedId(employeeId);
     const key = `${employeeId}:${date}`;
     if (details[key]) return;
-    setDetailLoading(employeeId);
-    try {
-      const res = await fetch(`/api/daily-activity/team/${employeeId}/${date}`);
-      if (res.ok) {
-        const data: ManagerEmployeeDayView = await res.json();
-        setDetails((prev) => ({ ...prev, [key]: data }));
-      }
-    } finally {
-      setDetailLoading(null);
-    }
+    await loadDetail(employeeId, date);
+  }
+
+  /** Refresh both the team table and the currently-expanded detail after a write action —
+   *  required after every approve/reject/reopen so the manager sees the up-to-date state. */
+  async function refreshAfterAction(employeeId: number) {
+    await Promise.all([loadTeam(date), loadDetail(employeeId, date)]);
   }
 
   const t = team.totals;
@@ -136,7 +149,11 @@ export default function ManagerActivityPanel({ initialTeam }: { initialTeam: Tea
                           {detailLoading === row.employeeId ? (
                             <div className="text-gray-400 text-sm py-4 text-center">Loading detail…</div>
                           ) : detail ? (
-                            <EmployeeDayDetail detail={detail} />
+                            <EmployeeDayDetail
+                              detail={detail}
+                              date={date}
+                              onActionComplete={() => refreshAfterAction(row.employeeId)}
+                            />
                           ) : (
                             <div className="text-gray-400 text-sm py-4 text-center">No detail available.</div>
                           )}
@@ -154,7 +171,31 @@ export default function ManagerActivityPanel({ initialTeam }: { initialTeam: Tea
   );
 }
 
-function EmployeeDayDetail({ detail }: { detail: ManagerEmployeeDayView }) {
+function EmployeeDayDetail({
+  detail, date, onActionComplete,
+}: { detail: ManagerEmployeeDayView; date: string; onActionComplete: () => Promise<void> }) {
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleReopen() {
+    if (!confirm(`Reopen ${detail.employeeName}'s day for ${detail.summaryDate}? They will be able to resubmit their summary.`)) return;
+    setBusy(true); setMessage(null);
+    try {
+      const res = await fetch(`/api/daily-activity/day/${detail.employeeId}/${date}/reopen`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ type: "error", text: data?.error ?? "Failed to reopen day." });
+        return;
+      }
+      setMessage({ type: "success", text: "Day reopened." });
+      await onActionComplete();
+    } catch {
+      setMessage({ type: "error", text: "Something went wrong reopening the day." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -184,10 +225,101 @@ function EmployeeDayDetail({ detail }: { detail: ManagerEmployeeDayView }) {
         )}
       </div>
 
+      {detail.pendingCorrections.length > 0 && (
+        <div className="bg-white border rounded-lg p-3 space-y-2">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Pending correction requests</h4>
+          {detail.pendingCorrections.map((c) => (
+            <CorrectionDecisionRow key={c.id} correction={c} onDecided={onActionComplete} />
+          ))}
+        </div>
+      )}
+
+      {message && (
+        <p className={`text-sm px-2.5 py-1.5 rounded ${message.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          {message.text}
+        </p>
+      )}
+
       <div className="flex gap-2">
-        <button disabled title="Coming in next phase" className="text-xs border border-gray-200 text-gray-400 px-2.5 py-1 rounded cursor-not-allowed">Approve (coming in next phase)</button>
-        <button disabled title="Coming in next phase" className="text-xs border border-gray-200 text-gray-400 px-2.5 py-1 rounded cursor-not-allowed">Reject (coming in next phase)</button>
-        <button disabled title="Coming in next phase" className="text-xs border border-gray-200 text-gray-400 px-2.5 py-1 rounded cursor-not-allowed">Reopen (coming in next phase)</button>
+        <button
+          onClick={handleReopen}
+          disabled={busy}
+          className="text-xs border border-gray-300 text-gray-700 px-2.5 py-1.5 rounded hover:bg-gray-50 disabled:opacity-50"
+        >
+          Reopen Day
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** One pending correction request with its own approve/reject controls and optional manager
+ *  remarks. The manager never enters a points value here — there is no field for it. */
+function CorrectionDecisionRow({
+  correction, onDecided,
+}: { correction: ManagerPendingCorrection; onDecided: () => Promise<void> }) {
+  const [remarks, setRemarks] = useState("");
+  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  async function decide(action: "approve" | "reject") {
+    setBusy(action); setMessage(null);
+    try {
+      const res = await fetch(`/api/daily-activity/corrections/${correction.id}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ managerRemarks: remarks }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ type: "error", text: data?.error ?? `Failed to ${action} correction request.` });
+        return;
+      }
+      setMessage({ type: "success", text: action === "approve" ? "Correction request approved." : "Correction request rejected." });
+      await onDecided();
+    } catch {
+      setMessage({ type: "error", text: "Something went wrong processing this correction request." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="border rounded-lg p-2.5 space-y-1.5 bg-gray-50">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Badge label="Pending" variant="warning" />
+        <span className="font-medium text-gray-800">{activityTypeLabel(correction.requestedActivityType)}</span>
+        <span className="text-xs text-gray-500">{sourceTypeLabel(correction.requestedSourceType)}{correction.requestedSourceId != null ? ` #${correction.requestedSourceId}` : ""}</span>
+        <span className="text-xs text-gray-400">{formatDateTime(correction.createdAt)}</span>
+      </div>
+      <p className="text-sm text-gray-600">{correction.reason}</p>
+      <input
+        type="text"
+        value={remarks}
+        onChange={(e) => setRemarks(e.target.value)}
+        placeholder="Optional remarks…"
+        className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#CC2229]"
+      />
+      {message && (
+        <p className={`text-xs px-2 py-1 rounded ${message.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          {message.text}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={() => decide("approve")}
+          disabled={busy !== null}
+          className="text-xs bg-green-600 text-white px-2.5 py-1 rounded hover:bg-green-700 disabled:opacity-50"
+        >
+          {busy === "approve" ? "Approving…" : "Approve"}
+        </button>
+        <button
+          onClick={() => decide("reject")}
+          disabled={busy !== null}
+          className="text-xs bg-red-600 text-white px-2.5 py-1 rounded hover:bg-red-700 disabled:opacity-50"
+        >
+          {busy === "reject" ? "Rejecting…" : "Reject"}
+        </button>
       </div>
     </div>
   );

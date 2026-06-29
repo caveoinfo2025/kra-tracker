@@ -446,6 +446,19 @@ export interface ManagerTimelineEntry extends EmployeeTimelineEntry {
   points: number;
 }
 
+/** Manager-visible shape of one pending correction request — Phase W5 addition so the manager
+ *  UI has enough to render an approve/reject action without a separate fetch. Additive only;
+ *  no schema change (reads existing `DailyActivityCorrectionRequest` columns). Never includes
+ *  `approvedPoints` — that field is null while PENDING by definition. */
+export interface ManagerPendingCorrection {
+  id: number;
+  requestedActivityType: string;
+  requestedSourceType: string;
+  requestedSourceId: number | null;
+  reason: string;
+  createdAt: Date;
+}
+
 export interface ManagerEmployeeDayView {
   employeeId: number;
   employeeName: string;
@@ -456,6 +469,10 @@ export interface ManagerEmployeeDayView {
   activityCounts: AutoSummary;
   activityTimeline: ManagerTimelineEntry[];
   hasCorrectionPending: boolean;
+  /** Phase W5 addition — full pending correction requests for this employee (not scoped to
+   *  this specific day; correction requests aren't always for the same day they're raised on),
+   *  so the manager detail view can approve/reject directly. Empty array when none pending. */
+  pendingCorrections: ManagerPendingCorrection[];
 }
 
 /** Manager-facing view of one employee's day — exact points included (manager-only). */
@@ -464,10 +481,14 @@ export async function getDailyActivityForManagerEmployee(employeeId: number, dat
   const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { id: true, name: true } });
   if (!employee) return null;
 
-  const [logs, summary, correctionPending] = await Promise.all([
+  const [logs, summary, pendingCorrectionRows] = await Promise.all([
     prisma.dailyActivityLog.findMany({ where: { employeeId, activityDate: toDbDate(day) }, orderBy: { capturedAt: "desc" } }),
     prisma.dailyActivitySummary.findUnique({ where: { employeeId_summaryDate: { employeeId, summaryDate: toDbDate(day) } } }),
-    prisma.dailyActivityCorrectionRequest.count({ where: { employeeId, status: "PENDING" } }),
+    prisma.dailyActivityCorrectionRequest.findMany({
+      where: { employeeId, status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, requestedActivityType: true, requestedSourceType: true, requestedSourceId: true, reason: true, createdAt: true },
+    }),
   ]);
 
   const autoSummary = await buildAutoSummary(employeeId, day);
@@ -488,7 +509,8 @@ export async function getDailyActivityForManagerEmployee(employeeId: number, dat
       description: parseMetadataDescription(l.metadataJson),
       points: l.points,
     })),
-    hasCorrectionPending: correctionPending > 0,
+    hasCorrectionPending: pendingCorrectionRows.length > 0,
+    pendingCorrections: pendingCorrectionRows,
   };
 }
 

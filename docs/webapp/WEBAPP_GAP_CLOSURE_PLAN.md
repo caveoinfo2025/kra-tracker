@@ -524,3 +524,61 @@ changes. No production changes.
   near local midnight on a positive-UTC-offset server if the stored instant isn't local
   midnight. Not touched this phase (explicitly out of scope); flag for a future Finance-module
   date-display pass if it ever surfaces as a real symptom.
+
+## Phase W5 progress (2026-06-29)
+
+Connected the Phase W4 backend write workflows to the `/daily-activity` webapp UI. UI
+integration only — no new API routes, no schema/migration changes, `/daily-updates` unchanged
+(still live, untouched), mobile paused, production untouched.
+
+- **Employee summary UI connected** (`EmployeeActivityView.tsx`): editable Blockers/Next-day
+  plan/Final remarks fields wired to `POST`/`PUT /api/daily-activity/summary`. Uses `PUT` once
+  `summaryStatus` is `CLOSED`/`LATE_SUBMITTED`/`PENDING_CORRECTION` (already submitted at least
+  once), `POST` otherwise (first submit, or a manager `REOPENED` day — `submitDailyActivitySummary`
+  treats reopen as a fresh resubmission window). Button disables and labels switch to "Locked"/
+  "Submission not available" based on the API-returned `canSubmitSummary`/`canEditSummary` flags
+  — never inferred client-side. Request body is `{ date, blockers, nextDayPlan, finalRemarks }`
+  only; there is no `employeeId` field anywhere in this component's state or payload. On success,
+  refetches `GET /api/daily-activity/today` + `/history` and shows a success message; points are
+  never rendered (the response types have no points field to render even by mistake).
+- **Employee correction request UI connected**: new "Request Correction" panel with activity
+  type / source type dropdowns (sourced from a client-safe literal mirror of the backend enums —
+  see below), optional source ID, and a required reason textarea. Client-side validates all
+  three required fields before calling `POST /api/daily-activity/corrections`; the panel hides
+  the form and shows a "Pending correction" badge once `correctionRequestStatus === "PENDING"`
+  (one correction request at a time, matching the backend's one-active-request model).
+- **Manager approve/reject UI connected** (`ManagerActivityPanel.tsx`): the employee/day detail
+  drill-in now lists every pending correction request (see backend addition below) with its own
+  Approve/Reject buttons and an optional remarks input, calling `POST /api/daily-activity/
+  corrections/[id]/approve|reject`. No points input exists anywhere in this component — approved
+  points are resolved entirely server-side, exactly as the API already enforced. After a
+  decision, both the team table and the expanded detail panel are refetched.
+- **Manager reopen UI connected**: "Reopen Day" button in the detail panel, gated behind a
+  `confirm()` dialog, calls `POST /api/daily-activity/day/[employeeId]/[date]/reopen`. Only
+  rendered inside the manager-only detail component — never reachable from the employee view.
+- **Backend addition (additive, no schema change)**: `ManagerEmployeeDayView` gained a new
+  `pendingCorrections: ManagerPendingCorrection[]` field (id/requestedActivityType/
+  requestedSourceType/requestedSourceId/reason/createdAt) in `getDailyActivityForManagerEmployee`
+  — the existing `hasCorrectionPending` boolean wasn't enough for the manager UI to render an
+  approve/reject action without the request id. Reads existing `DailyActivityCorrectionRequest`
+  columns only; never exposes `approvedPoints` (always null while PENDING).
+- **Client/server bundle bug fixed during this phase**: `EmployeeActivityView.tsx` (a "use
+  client" component) initially imported `DAILY_ACTIVITY_TYPES`/`DAILY_ACTIVITY_SOURCE_TYPES`
+  from `@/lib/daily-activity`, which pulls in `@/lib/prisma` (server-only `mariadb` driver) —
+  `npm run build` failed with "the chunking context does not support external modules
+  (request: node:module)". Fixed by mirroring those two literal arrays in the already
+  client-safe `src/app/daily-activity/labels.ts` as `ACTIVITY_TYPE_OPTIONS`/
+  `SOURCE_TYPE_OPTIONS`, instead of importing the server module's exports.
+- **Manager-panel date-string bug fixed in passing**: `ManagerActivityPanel.tsx`'s local
+  `todayStr()` used `new Date().toISOString().slice(0, 10)` — exactly the banned pattern flagged
+  in Phase W4.1 — replaced with `toDateKeyLocal(new Date())` from the now-shared
+  `@/lib/date-only`.
+- **DailyUpdate unchanged. Mobile untouched. No production deploy/restart.**
+- **Browser-verified end-to-end on the dev DB** (dev quick-login, employee ↔ manager switch):
+  employee submitted a summary (POST), edited it (PUT, same row updated — confirmed via the
+  unique `employeeId_summaryDate` constraint, no duplicate), raised two correction requests; as
+  manager, approved the first (points went 2 → 3, status reconciled `PENDING_CORRECTION` →
+  `CLOSED`), reopened the day (status → `REOPENED`, points unchanged), and rejected the second
+  (points stayed at 3, no log row created, status reconciled back to `CLOSED`). Points never
+  appeared anywhere on the employee-logged-in view at any point; points were visible throughout
+  on the manager-logged-in view.

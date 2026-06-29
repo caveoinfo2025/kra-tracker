@@ -21,6 +21,24 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W5: Daily Activity write workflows connected to the webapp UI
+
+Phase W5 connected Daily Activity write workflows to the webapp UI: employee summary
+submit/edit, employee correction request, manager approve/reject, and manager reopen.
+DailyUpdate remained unchanged. Mobile and production untouched. `EmployeeActivityView.tsx` and
+`ManagerActivityPanel.tsx` wired to the existing Phase W4 routes (`POST`/`PUT
+/api/daily-activity/summary`, `POST /api/daily-activity/corrections`, `POST
+/api/daily-activity/corrections/[id]/approve|reject`, `POST /api/daily-activity/day/
+[employeeId]/[date]/reopen`) — no new API routes. One additive backend field
+(`pendingCorrections` on `ManagerEmployeeDayView`) so the manager detail view has correction
+request ids to act on. Fixed a client/server bundle bug found during `npm run build` (a client
+component was transitively importing the server-only `mariadb` driver via `@/lib/daily-activity`)
+and a leftover banned `toISOString().slice(0,10)` pattern in `ManagerActivityPanel.tsx`.
+Browser-verified end-to-end on the dev DB (employee submit/edit/correction-request, manager
+approve/reject/reopen) — points hidden from employee throughout, visible to manager throughout,
+no manual point entry anywhere. Full record: `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W5
+progress", `docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W5".
+
 ### 2026-06-29 — Phase W4.1: `@db.Date` round-trip standardized for Daily Activity
 
 Phase W4.1 standardized date-only handling for Daily Activity after discovering Prisma/MySQL
