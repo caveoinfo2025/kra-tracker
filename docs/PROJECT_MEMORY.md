@@ -21,6 +21,30 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W4: Daily Activity backend write workflows implemented
+
+Phase W4 implemented Daily Activity backend write workflows: employee summary submission/
+edit, correction request creation, manager approve/reject, and manager reopen. DailyUpdate
+UI/API unchanged. Mobile and production untouched. No schema/migration/db-push changes; no UI
+write flow yet (that's a later phase). `src/lib/daily-activity.ts` extended with
+`submitDailyActivitySummary`, `updateDailyActivitySummary`, `createDailyActivityCorrectionRequest`,
+`approveDailyActivityCorrectionRequest`, `rejectDailyActivityCorrectionRequest`,
+`reopenDailyActivityDay`, `writeDailyActivityAuditLog` (reuses the existing `AuditLog` model —
+no new audit table), plus the `canSubmitDailySummary`/`canEditDailySummary` cutoff/grace/
+late-window decision helpers. 5 new write routes under `/api/daily-activity/*`. Manager
+write-authorization mirrors the existing read-side "any manager sees/acts on all employees"
+precedent, not narrowed to `reportsToId`. Discovered (and partly fixed) a deeper bug during
+this phase: writing a local-midnight `Date` into a `@db.Date` Prisma column truncates to the
+*previous* UTC day on this IST server — broader than the Phase W3.2 string-parsing bug, since
+it's in the Prisma↔MySQL `Date`↔`DATE` marshalling itself, not API-layer parsing. Worked
+around in Phase W4's new code via `recoverLocalDayFromDbDate`, and one already-live instance
+of it in Phase W2's `getDailyActivityHistoryForEmployee` was found and fixed the same way. The
+underlying DB round-trip issue itself is not fixed at the root — flagged as a recommended next
+step. Verified via a throwaway script (20/20 checks, all rows cleaned up). Full record:
+`docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W4 progress",
+`docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W4 — backend write workflow
+implementation notes".
+
 ### 2026-06-29 — Phase W3.2: Daily Activity date-only parsing bug fixed
 
 Phase W3.2 fixed Daily Activity date-only parsing bug for manager team/detail/history APIs.

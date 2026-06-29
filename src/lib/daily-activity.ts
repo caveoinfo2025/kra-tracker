@@ -461,7 +461,11 @@ export async function getDailyActivityHistoryForEmployee(employeeId: number, day
   });
 
   return summaries.map((s) => ({
-    date: toDateKeyLocal(s.summaryDate),
+    // recoverLocalDayFromDbDate compensates for the @db.Date storage round-trip issue
+    // discovered in Phase W4 — see its doc comment below. `s.summaryDate` is a DB-read value,
+    // not a freshly-computed local Date, so formatting it directly would be off by one day on
+    // this server (confirmed empirically — this was a live bug until this fix).
+    date: toDateKeyLocal(recoverLocalDayFromDbDate(s.summaryDate)),
     summaryStatus: s.status,
     productivityBand: s.productivityBand as ProductivityBand,
   }));
@@ -589,4 +593,548 @@ export async function getTeamDailyActivity(date: Date, employeeIds?: number[]): 
     totals: { employeeCount: employees.length, closedCount, incompleteCount, noActivityCount, summaryPendingCount },
     employees: rows,
   };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// Phase W4 — backend write workflows (summary submit/edit, correction requests, manager
+// approve/reject/reopen). No UI write flow yet (that's a later phase); no schema changes.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Phase W4 discovery — compensates for a pre-existing, deeper-than-Phase-W3.2 storage round
+ * trip issue: writing a local-midnight `Date` (e.g. via `startOfDay(new Date())`) into a
+ * `@db.Date` Prisma column on this MySQL/mariadb setup truncates it down to the *previous* UTC
+ * calendar day on any positive-UTC-offset server (confirmed empirically on this IST/UTC+5:30
+ * dev DB: writing local-midnight 2026-06-29 round-trips back as `2026-06-28T00:00:00.000Z`).
+ * Phase W2/W3 never hit this because every existing read path either (a) never re-derives a
+ * `day` from a value just read back from a `@db.Date` column, or (b) formats it for *display*
+ * only (where `toDateKeyLocal`, fixed in Phase W3.2, is the right tool). Phase W4's correction
+ * approve/reject flow is the first code path that needs to take a DB-read `summaryDate`/
+ * `activityDate` and feed it back into `startOfDay()` for a fresh Prisma query/write — and
+ * `startOfDay()`'s local-time `setHours` on an already-truncated value double-shifts it.
+ *
+ * This helper adds back the lost day (in UTC terms) so that passing its result through
+ * `startOfDay()` recovers the exact same local-midnight instant the original write used —
+ * verified safe for any positive UTC offset under 24h (i.e. every real timezone east of UTC,
+ * not just IST). A negative-offset deployment would not have this problem in the first place
+ * (local-midnight's UTC day is greater than or equal to the local day, not less), so this is
+ * intentionally not generalized further.
+ *
+ * This is a narrow, Phase-W4-scoped workaround, not a fix of the underlying issue — the
+ * underlying issue (every `@db.Date` write of a local-midnight Date is one UTC day behind the
+ * intended local day on this server) is a pre-existing condition that predates this phase and
+ * is broader than this phase's "backend write APIs only" scope to fix properly (it would mean
+ * either changing `startOfDay()`'s semantics or auditing every existing W1–W3 write site).
+ * Flagged explicitly as a recommended next step in
+ * docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md.
+ */
+function recoverLocalDayFromDbDate(dbDate: Date): Date {
+  const recovered = new Date(dbDate);
+  recovered.setUTCDate(recovered.getUTCDate() + 1);
+  return recovered;
+}
+
+/** Thrown by every Phase W4 write helper on a validation/authorization/state failure. Routes
+ *  catch this and respond with `.status`, keeping the same error shape across all five new
+ *  endpoints instead of each route hand-rolling its own 400/403/404/409 logic. */
+export class DailyActivityError extends Error {
+  status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "DailyActivityError";
+    this.status = status;
+  }
+}
+
+function isValidActivityType(t: unknown): t is DailyActivityType {
+  return typeof t === "string" && (DAILY_ACTIVITY_TYPES as readonly string[]).includes(t);
+}
+
+function isValidSourceType(t: unknown): t is DailyActivitySourceType {
+  return typeof t === "string" && (DAILY_ACTIVITY_SOURCE_TYPES as readonly string[]).includes(t);
+}
+
+const MAX_TEXT_FIELD_LENGTH = 4000;
+
+/** Trims and length-caps a free-text field; returns "" for null/undefined/non-string. Caps
+ *  rather than rejects long input — these are `@db.Text` columns with no DB-level length limit,
+ *  but an unbounded request body is still worth bounding defensively at the API boundary. */
+function sanitizeText(value: unknown, maxLength = MAX_TEXT_FIELD_LENGTH): string {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
+/**
+ * Pure decision function shared by `canSubmitDailySummary` and `canEditDailySummary` — given
+ * the target day, the current moment, and the summary's current status, decides whether a
+ * submit/edit is allowed right now, and whether it would count as a late submission.
+ *
+ * Business rules implemented (docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md §9/§11):
+ *   - Same calendar day, at or before the 10:00 PM grace cutoff → allowed, on-time.
+ *   - Same calendar day, after grace → locked (the day surfaces as INCOMPLETE if never
+ *     submitted; this function just reports "not allowed", it doesn't write that status).
+ *   - Exactly one calendar day after the target day → allowed, but flagged `isLate` (the
+ *     "submit a missed summary within the next working day" rule).
+ *   - Two or more calendar days after the target day → locked; only a manager reopen
+ *     (`status === "REOPENED"`) can unlock it again.
+ *   - `status === "REOPENED"` always allows a submit/edit regardless of how old the day is —
+ *     a manager reopen is treated as an explicit, time-unbounded authorization to resubmit.
+ *   - A future target day is never allowed.
+ *
+ * Open business decision, documented rather than silently assumed: this codebase has no
+ * working-day/holiday calendar anywhere, so "next working day" is implemented as "next
+ * calendar day" (no Sunday/holiday skip). Revisit if a working-day calendar is ever added.
+ */
+function evaluateSubmissionWindow(
+  day: Date,
+  now: Date,
+  currentStatus: string
+): { allowed: boolean; isLate: boolean; reason: string } {
+  if (currentStatus === "REOPENED") {
+    return { allowed: true, isLate: false, reason: "Day was reopened by a manager — resubmission allowed." };
+  }
+
+  const today = startOfDay(now);
+  const diffDays = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+
+  if (diffDays < 0) {
+    return { allowed: false, isLate: false, reason: "Cannot submit a summary for a future date." };
+  }
+  if (diffDays === 0) {
+    const grace = new Date(day);
+    grace.setHours(GRACE_UNTIL_HOUR, 0, 0, 0);
+    if (now <= grace) return { allowed: true, isLate: false, reason: "Within same-day grace window." };
+    return { allowed: false, isLate: false, reason: "Same-day grace window (10:00 PM) has passed." };
+  }
+  if (diffDays === 1) {
+    return { allowed: true, isLate: true, reason: "Within the next-working-day late-submission window." };
+  }
+  return { allowed: false, isLate: false, reason: "Submission window has closed — ask a manager to reopen this day." };
+}
+
+/** Can `employeeId` submit (create or resubmit) a summary for `date` right now? Fetches the
+ *  current summary row (if any) to evaluate against its status. */
+export async function canSubmitDailySummary(
+  employeeId: number,
+  date: Date
+): Promise<{ allowed: boolean; isLate: boolean; reason: string }> {
+  const day = startOfDay(date);
+  const existing = await prisma.dailyActivitySummary.findUnique({
+    where: { employeeId_summaryDate: { employeeId, summaryDate: day } },
+  });
+  return evaluateSubmissionWindow(day, new Date(), existing?.status ?? "NO_ACTIVITY");
+}
+
+/** Can an already-submitted summary be edited right now? Takes the summary row itself (not a
+ *  fresh DB lookup) since callers (the edit route) already have it loaded. */
+export function canEditDailySummary(summary: {
+  summaryDate: Date;
+  status: string;
+}): { allowed: boolean; isLate: boolean; reason: string } {
+  return evaluateSubmissionWindow(startOfDay(summary.summaryDate), new Date(), summary.status);
+}
+
+export interface SubmitDailyActivitySummaryInput {
+  employeeId: number;
+  date: Date; // already parsed via parseDateOnlyAsLocalDate by the caller
+  blockers?: string;
+  nextDayPlan?: string;
+  finalRemarks?: string;
+  employeeRole?: string | null;
+}
+
+/**
+ * Employee submits (or idempotently resubmits, before lock) their end-of-day summary.
+ *
+ * Conservative, explicitly-documented behavior for the "zero activity, summary still
+ * submitted" case (open business decision per the Phase W4 brief — current docs don't resolve
+ * it, so this is the chosen default): submission is allowed even with zero captured activity;
+ * the `END_OF_DAY_SUMMARY_SUBMITTED` event (2 pts — already an existing Phase W2 default, not
+ * newly introduced here) is captured and counted, so a zero-other-activity day that submits a
+ * summary lands in the `LOW_ACTIVITY` band (2 pts), not `NO_ACTIVITY` — `getProductivityBand`
+ * is unchanged from Phase W2; this helper does not special-case "summary-only" days back to
+ * `NO_ACTIVITY`. Revisit this if the business wants summary-only closure to stay band-neutral.
+ */
+export async function submitDailyActivitySummary(input: SubmitDailyActivitySummaryInput) {
+  const day = startOfDay(input.date);
+  const now = new Date();
+
+  const existing = await prisma.dailyActivitySummary.findUnique({
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+  });
+  const window = evaluateSubmissionWindow(day, now, existing?.status ?? "NO_ACTIVITY");
+  if (!window.allowed) throw new DailyActivityError(window.reason, 409);
+
+  // capturedAt carries the real time-of-day for a realistic timeline entry; activityDate
+  // (computed by captureDailyActivityEvent via startOfDay) still correctly resolves to `day`,
+  // not "now" — required for late submissions, which submit *for* a prior day.
+  const occurredAt = new Date(day);
+  occurredAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+
+  await captureDailyActivityEvent({
+    employeeId: input.employeeId,
+    activityType: "END_OF_DAY_SUMMARY_SUBMITTED",
+    sourceType: "SUMMARY",
+    sourceId: input.employeeId,
+    sourceTable: "DailyActivitySummary",
+    sourceAction: "summary_submitted",
+    occurredAt,
+    employeeRole: input.employeeRole,
+  });
+
+  // Refreshes totalPoints/productivityBand/autoSummaryJson from the log (including the event
+  // just captured above) and creates the row if it didn't exist yet — reuses the Phase W2
+  // recompute path rather than duplicating its point-aggregation logic here.
+  await recomputeDailySummary(input.employeeId, day);
+
+  const resultStatus =
+    existing?.status === "REOPENED" ? "CLOSED" : window.isLate ? "LATE_SUBMITTED" : "CLOSED";
+
+  const refreshed = await prisma.dailyActivitySummary.findUniqueOrThrow({
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+  });
+
+  await prisma.dailyActivitySummary.update({
+    where: { id: refreshed.id },
+    data: {
+      blockers: sanitizeText(input.blockers),
+      nextDayPlan: sanitizeText(input.nextDayPlan),
+      finalRemarks: sanitizeText(input.finalRemarks),
+      status: resultStatus,
+      submittedAt: refreshed.submittedAt ?? now,
+      closedAt: now,
+      lateSubmittedAt: window.isLate ? refreshed.lateSubmittedAt ?? now : refreshed.lateSubmittedAt,
+    },
+  });
+
+  return getDailyActivityForEmployee(input.employeeId, day);
+}
+
+export interface UpdateDailyActivitySummaryInput {
+  employeeId: number;
+  date: Date;
+  blockers?: string;
+  nextDayPlan?: string;
+  finalRemarks?: string;
+}
+
+/**
+ * Employee edits the three employee-owned fields of an already-submitted summary. Never
+ * touches status/points/submittedAt/closedAt — those are submit-time-only or system-owned.
+ * Requires the summary to already exist (i.e. submitted at least once) — use
+ * `submitDailyActivitySummary` for the first submission.
+ */
+export async function updateDailyActivitySummary(input: UpdateDailyActivitySummaryInput) {
+  const day = startOfDay(input.date);
+  const existing = await prisma.dailyActivitySummary.findUnique({
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+  });
+  if (!existing || !existing.submittedAt) {
+    throw new DailyActivityError("No submitted summary exists for this date yet — submit it first.", 404);
+  }
+
+  const window = canEditDailySummary(existing);
+  if (!window.allowed) throw new DailyActivityError(window.reason, 409);
+
+  await prisma.dailyActivitySummary.update({
+    where: { id: existing.id },
+    data: {
+      blockers: sanitizeText(input.blockers),
+      nextDayPlan: sanitizeText(input.nextDayPlan),
+      finalRemarks: sanitizeText(input.finalRemarks),
+    },
+  });
+
+  return getDailyActivityForEmployee(input.employeeId, day);
+}
+
+export interface CreateDailyActivityCorrectionRequestInput {
+  employeeId: number;
+  date: Date;
+  activityLogId?: number | null;
+  requestedActivityType: string;
+  requestedSourceType: string;
+  requestedSourceId?: number | null;
+  reason: string;
+}
+
+/** Employee requests a correction for a missing/wrong captured activity on `date`. Never
+ *  touches points/score — that only happens on manager approval (see
+ *  `approveDailyActivityCorrectionRequest`). */
+export async function createDailyActivityCorrectionRequest(input: CreateDailyActivityCorrectionRequestInput) {
+  if (!isValidActivityType(input.requestedActivityType)) {
+    throw new DailyActivityError(`Invalid requestedActivityType: "${input.requestedActivityType}"`, 400);
+  }
+  if (!isValidSourceType(input.requestedSourceType)) {
+    throw new DailyActivityError(`Invalid requestedSourceType: "${input.requestedSourceType}"`, 400);
+  }
+  const reason = sanitizeText(input.reason);
+  if (!reason) throw new DailyActivityError("reason is required.", 400);
+
+  const day = startOfDay(input.date);
+
+  if (input.activityLogId != null) {
+    const log = await prisma.dailyActivityLog.findUnique({ where: { id: input.activityLogId } });
+    if (!log || log.employeeId !== input.employeeId || startOfDay(recoverLocalDayFromDbDate(log.activityDate)).getTime() !== day.getTime()) {
+      throw new DailyActivityError("activityLogId does not belong to this employee/date.", 400);
+    }
+  }
+
+  // Ensures the summary row exists (creates a NO_ACTIVITY/SUMMARY_PENDING row if this is the
+  // first write of the day) without altering totalPoints/band — same idempotent path used
+  // everywhere else a summary row is needed on demand.
+  await recomputeDailySummary(input.employeeId, day);
+  const summary = await prisma.dailyActivitySummary.findUniqueOrThrow({
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+  });
+
+  const request = await prisma.dailyActivityCorrectionRequest.create({
+    data: {
+      employeeId: input.employeeId,
+      summaryId: summary.id,
+      activityLogId: input.activityLogId ?? null,
+      requestedActivityType: input.requestedActivityType,
+      requestedSourceType: input.requestedSourceType,
+      requestedSourceId: input.requestedSourceId ?? null,
+      reason,
+      status: "PENDING",
+    },
+  });
+
+  await prisma.dailyActivitySummary.update({
+    where: { id: summary.id },
+    data: { status: "PENDING_CORRECTION" },
+  });
+
+  return {
+    id: request.id,
+    employeeId: request.employeeId,
+    date: toDateKeyLocal(day),
+    requestedActivityType: request.requestedActivityType,
+    requestedSourceType: request.requestedSourceType,
+    reason: request.reason,
+    status: request.status,
+    createdAt: request.createdAt,
+    // Deliberately no `approvedPoints` field — null until decided, and not employee-visible
+    // even once set (manager-only, surfaced via the approve/reject response instead).
+  };
+}
+
+/** Best-effort AuditLog write — mirrors this codebase's existing "approval/automation hooks
+ *  are fire-and-forget, never block the action they're logging" convention (see crm-engine).
+ *  Reuses the existing `AuditLog` model; no new audit table. */
+export async function writeDailyActivityAuditLog(input: {
+  entityType: "daily_activity_correction" | "daily_activity_day";
+  entityId: number;
+  action: "approve" | "reject" | "reopen";
+  performedById: number;
+  changes?: string;
+  notes?: string;
+}) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        entityType: input.entityType,
+        entityId: input.entityId,
+        action: input.action,
+        performedById: input.performedById,
+        changes: input.changes ?? "",
+        notes: input.notes ?? "",
+      },
+    });
+  } catch (e) {
+    console.warn("[daily-activity] writeDailyActivityAuditLog failed (non-blocking):", e);
+  }
+}
+
+/** After a correction is approved/rejected, clears `PENDING_CORRECTION` back to a normal
+ *  status — but only if no *other* correction on this summary is still pending. */
+async function reconcileSummaryStatusAfterCorrectionDecision(summaryId: number) {
+  const stillPending = await prisma.dailyActivityCorrectionRequest.count({
+    where: { summaryId, status: "PENDING" },
+  });
+  if (stillPending > 0) return;
+
+  const summary = await prisma.dailyActivitySummary.findUnique({ where: { id: summaryId } });
+  if (!summary || summary.status !== "PENDING_CORRECTION") return;
+
+  const newStatus = summary.submittedAt ? "CLOSED" : summary.totalPoints > 0 ? "SUMMARY_PENDING" : "NO_ACTIVITY";
+  await prisma.dailyActivitySummary.update({ where: { id: summaryId }, data: { status: newStatus } });
+}
+
+export interface DecideDailyActivityCorrectionRequestInput {
+  correctionRequestId: number;
+  managerId: number;
+  managerRemarks?: string;
+  /** Employee IDs the acting manager is authorized to decide for — see
+   *  `isManagerAuthorizedForEmployee` for what "authorized" means in this codebase today. */
+  authorizedEmployeeIds?: "ALL" | number[];
+}
+
+/**
+ * Manager approves a pending correction request. Approved points are always resolved
+ * server-side from the existing activity-rule/default-points table (`resolvePoints` —
+ * identical resolution path Phase W2 uses for normal capture) keyed off
+ * `requestedActivityType` — the manager never supplies a point value directly; there is no
+ * request-body field that can override it.
+ */
+export async function approveDailyActivityCorrectionRequest(input: DecideDailyActivityCorrectionRequestInput) {
+  const request = await prisma.dailyActivityCorrectionRequest.findUnique({
+    where: { id: input.correctionRequestId },
+    include: { summary: true },
+  });
+  if (!request) throw new DailyActivityError("Correction request not found.", 404);
+  if (request.status !== "PENDING") throw new DailyActivityError(`Correction request is already ${request.status}.`, 409);
+  if (request.employeeId === input.managerId) {
+    throw new DailyActivityError("Cannot approve a correction request for yourself.", 403);
+  }
+  if (input.authorizedEmployeeIds !== "ALL" && !(input.authorizedEmployeeIds ?? []).includes(request.employeeId)) {
+    throw new DailyActivityError("Not authorized to decide this employee's correction request.", 403);
+  }
+
+  const employee = await prisma.employee.findUnique({ where: { id: request.employeeId }, select: { role: true } });
+  const activityType = request.requestedActivityType as DailyActivityType;
+  const approvedPoints = await resolvePoints(activityType, employee?.role);
+
+  const day = startOfDay(recoverLocalDayFromDbDate(request.summary.summaryDate));
+  const now = new Date();
+
+  await prisma.dailyActivityLog.create({
+    data: {
+      employeeId: request.employeeId,
+      activityDate: day,
+      activityType,
+      sourceType: isValidSourceType(request.requestedSourceType) ? request.requestedSourceType : "CORRECTION",
+      sourceId: request.requestedSourceId,
+      sourceTable: "DailyActivityCorrectionRequest",
+      // Suffixed with the request id (not just "correction_approved") so two approved
+      // corrections on the same day — both legitimately missing a sourceId — don't collide on
+      // the (employeeId, sourceType, sourceId, sourceAction, activityDate) unique constraint.
+      sourceAction: `correction_approved:${request.id}`,
+      points: approvedPoints,
+      status: "COUNTED",
+      capturedAt: now,
+      countedAt: now,
+      isCorrection: true,
+      correctionRequestId: request.id,
+      metadataJson: JSON.stringify({ description: `Correction approved: ${activityType}`, correctionRequestId: request.id }),
+    },
+  });
+
+  await prisma.dailyActivityCorrectionRequest.update({
+    where: { id: request.id },
+    data: {
+      status: "APPROVED",
+      managerId: input.managerId,
+      managerDecisionAt: now,
+      managerRemarks: sanitizeText(input.managerRemarks),
+      approvedPoints,
+    },
+  });
+
+  await recomputeDailySummary(request.employeeId, day);
+  await reconcileSummaryStatusAfterCorrectionDecision(request.summaryId);
+
+  await writeDailyActivityAuditLog({
+    entityType: "daily_activity_correction",
+    entityId: request.id,
+    action: "approve",
+    performedById: input.managerId,
+    changes: JSON.stringify({ approvedPoints, activityType }),
+    notes: input.managerRemarks ?? "",
+  });
+
+  return getDailyActivityForManagerEmployee(request.employeeId, day);
+}
+
+/** Manager rejects a pending correction request. Score is never touched — no log is created,
+ *  no points change. */
+export async function rejectDailyActivityCorrectionRequest(input: DecideDailyActivityCorrectionRequestInput) {
+  const request = await prisma.dailyActivityCorrectionRequest.findUnique({
+    where: { id: input.correctionRequestId },
+    include: { summary: true },
+  });
+  if (!request) throw new DailyActivityError("Correction request not found.", 404);
+  if (request.status !== "PENDING") throw new DailyActivityError(`Correction request is already ${request.status}.`, 409);
+  if (input.authorizedEmployeeIds !== "ALL" && !(input.authorizedEmployeeIds ?? []).includes(request.employeeId)) {
+    throw new DailyActivityError("Not authorized to decide this employee's correction request.", 403);
+  }
+
+  const now = new Date();
+  await prisma.dailyActivityCorrectionRequest.update({
+    where: { id: request.id },
+    data: {
+      status: "REJECTED",
+      managerId: input.managerId,
+      managerDecisionAt: now,
+      managerRemarks: sanitizeText(input.managerRemarks),
+    },
+  });
+
+  await reconcileSummaryStatusAfterCorrectionDecision(request.summaryId);
+
+  await writeDailyActivityAuditLog({
+    entityType: "daily_activity_correction",
+    entityId: request.id,
+    action: "reject",
+    performedById: input.managerId,
+    notes: input.managerRemarks ?? "",
+  });
+
+  return getDailyActivityForManagerEmployee(request.employeeId, startOfDay(recoverLocalDayFromDbDate(request.summary.summaryDate)));
+}
+
+export interface ReopenDailyActivityDayInput {
+  employeeId: number;
+  date: Date;
+  managerId: number;
+  authorizedEmployeeIds?: "ALL" | number[];
+}
+
+/** Manager reopens a locked/incomplete/closed day for one team employee. Never adjusts
+ *  `DailyActivityLog` points — only flips the summary's status/reopen metadata so the employee
+ *  can resubmit through the normal submit path (`submitDailyActivitySummary`). */
+export async function reopenDailyActivityDay(input: ReopenDailyActivityDayInput) {
+  if (input.authorizedEmployeeIds !== "ALL" && !(input.authorizedEmployeeIds ?? []).includes(input.employeeId)) {
+    throw new DailyActivityError("Not authorized to reopen this employee's day.", 403);
+  }
+
+  const day = startOfDay(input.date);
+  // Ensures the row exists even if the employee had zero activity that day — a manager can
+  // still reopen a NO_ACTIVITY day to invite a late summary.
+  await recomputeDailySummary(input.employeeId, day);
+  const summary = await prisma.dailyActivitySummary.findUniqueOrThrow({
+    where: { employeeId_summaryDate: { employeeId: input.employeeId, summaryDate: day } },
+  });
+
+  const now = new Date();
+  await prisma.dailyActivitySummary.update({
+    where: { id: summary.id },
+    data: { status: "REOPENED", reopenedAt: now, reopenedById: input.managerId },
+  });
+
+  await writeDailyActivityAuditLog({
+    entityType: "daily_activity_day",
+    entityId: summary.id,
+    action: "reopen",
+    performedById: input.managerId,
+    notes: `Reopened ${toDateKeyLocal(day)} for employeeId ${input.employeeId}`,
+  });
+
+  return getDailyActivityForManagerEmployee(input.employeeId, day);
+}
+
+/**
+ * Authorization check shared by the three manager-write endpoints (approve/reject/reopen).
+ * Deliberately mirrors this codebase's existing, explicitly-documented precedent (see
+ * `getTeamDailyActivity` above and `/api/daily-updates`): any `isManager === true` employee is
+ * authorized for ALL employees, not narrowed to `Employee.reportsToId` direct reports — there
+ * is no other endpoint in this codebase that scopes manager authorization by reporting line,
+ * and introducing one only for the three new write endpoints would make authorization
+ * inconsistent between read and write paths for the same data. Returns `"ALL"` (matching the
+ * `authorizedEmployeeIds` shape the three write helpers above expect) when the session is a
+ * manager, otherwise `[]` (authorizes nobody).
+ */
+export function resolveManagerAuthorizedEmployeeIds(sessionUser: { isManager?: boolean } | undefined): "ALL" | number[] {
+  return sessionUser?.isManager ? "ALL" : [];
 }

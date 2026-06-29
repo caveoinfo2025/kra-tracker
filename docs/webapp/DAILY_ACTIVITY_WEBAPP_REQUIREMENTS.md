@@ -498,3 +498,68 @@ in the Phase W3.2 task): round-trip parse/format of `2026-06-28` confirmed no da
 year/month/day components read back correctly; all of `2026-13-01`, `2026-02-30`,
 `2026/06/28`, `abc`, `""`, `2026-6-28`, `2026-06-5` correctly threw `RangeError`; a genuine
 leap-day edge case (`2028-02-29`) correctly did NOT throw. 15/15 checks passed.
+
+## Phase W4 — backend write workflow implementation notes (2026-06-29)
+
+Implements the write side of §9 (status state machine)/§11 (cutoff/grace) for the first time —
+Phase W2/W3 were read-only.
+
+- **Submission window decision logic** (`evaluateSubmissionWindow` in
+  `src/lib/daily-activity.ts`) implements: same-day-before-10PM → on-time; same-day-after-10PM
+  → locked (day surfaces as INCOMPLETE if never submitted — this function only decides
+  allow/deny, a separate process would need to actually flip NO_ACTIVITY/SUMMARY_PENDING days
+  to INCOMPLETE once grace passes, which is not implemented in this phase — see "known pending
+  gaps"); next-calendar-day → late-allowed; 2+ days → locked until a manager reopens;
+  `REOPENED` status → always allowed regardless of age. **Open business decision, explicitly
+  flagged**: "next working day" is implemented as "next calendar day" — this codebase has no
+  working-day/holiday calendar anywhere, so Saturdays/Sundays/holidays are not skipped. Revisit
+  if a working-day calendar is ever added.
+- **Zero-activity summary submission** (open decision from the Phase W4 brief, resolved
+  conservatively): submission is allowed even with zero captured activity. The existing Phase
+  W2 `END_OF_DAY_SUMMARY_SUBMITTED` default (2 pts, not new to this phase) is captured and
+  counted, so a zero-other-activity day that submits a summary lands in `LOW_ACTIVITY`
+  (2 pts), not `NO_ACTIVITY`. This is NOT special-cased back to `NO_ACTIVITY` — revisit if the
+  business wants summary-only closure to stay band-neutral.
+- **Approved-points resolution**: `approveDailyActivityCorrectionRequest` always resolves
+  `approvedPoints` server-side via the exact same `resolvePoints` rule/default-fallback path
+  Phase W2 capture already uses, keyed off `requestedActivityType` — there is no request-body
+  field a manager can use to set points directly on either the correction-approve route or any
+  other Phase W4 route.
+- **AuditLog reuse — exact event names used** (no new audit table; reuses the existing
+  Finance-era `AuditLog` model): `entityType: "daily_activity_correction"` with
+  `action: "approve"` / `"reject"` (entityId = the correction request's id), and
+  `entityType: "daily_activity_day"` with `action: "reopen"` (entityId = the summary row's
+  id). `performedById` is always the acting manager. Audit writes are best-effort
+  (try/catch, never block the action they're logging) — same "fire-and-forget" convention
+  already established for crm-engine's approval/automation hooks.
+- **Bug discovered this phase (broader than the Phase W3.2 date-string bug) — `@db.Date`
+  storage round-trip**: writing a local-midnight JS `Date` into a `@db.Date` Prisma column on
+  this MySQL/mariadb setup truncates it to the *previous* UTC calendar day on this IST
+  (positive-UTC-offset) server. Confirmed empirically: writing local-midnight 2026-06-29 reads
+  back as `2026-06-28T00:00:00.000Z`. Unlike the W3.2 bug (which was about parsing/formatting
+  `YYYY-MM-DD` strings at the API boundary, fully fixed by `parseDateOnlyAsLocalDate`/
+  `toDateKeyLocal`), this is a deeper issue in how the Prisma↔MySQL `Date`↔`DATE` marshalling
+  itself behaves — neither of those two helpers can see or fix it, because the corruption
+  happens entirely inside the DB write/read, before either helper ever sees the value. It only
+  surfaced in Phase W4 because correction approve/reject is the first code path that reads a
+  `@db.Date` value back from the DB (`summary.summaryDate`) and feeds it into `startOfDay()`
+  again for a fresh query/write — every Phase W2/W3 read path either never re-derives a day
+  from a DB-read value, or only formats it for display (where `toDateKeyLocal` is correct and
+  sufficient). **Workaround applied, not a full fix**: `recoverLocalDayFromDbDate()` adds back
+  the lost UTC day before re-applying `startOfDay()`, at the 3 call sites in this phase that
+  needed it. The underlying issue — *every* `@db.Date` column written via a local-midnight
+  `Date` is one UTC day off from the intended local day on this server — is broader than this
+  phase and is NOT fixed at the root. **Recommended next step**: audit whether
+  `DailyActivityLog.activityDate`/`DailyActivitySummary.summaryDate`/
+  `DailyProductivityScore.periodStart/periodEnd` values, once read back from the DB and
+  formatted for display, are silently off-by-one anywhere else this pattern exists.
+
+  **One instance found and fixed in this same phase**: `getDailyActivityHistoryForEmployee`'s
+  `date: toDateKeyLocal(s.summaryDate)` (Phase W2 code) had exactly this bug — confirmed
+  empirically (writing local-midnight 2026-06-29, the endpoint returned `"2026-06-28"`) and
+  fixed by wrapping with `recoverLocalDayFromDbDate`, then re-verified to return `"2026-06-29"`
+  correctly. This wasn't caught in Phase W3.1/W3.2 verification because no real summary rows
+  existed yet at the time that endpoint was tested. `getDailyActivityForManagerEmployee`'s
+  `summaryDate` field and `getTeamDailyActivity`'s `date` field were checked and are **not**
+  affected — both format the function's input `date` parameter (always freshly computed,
+  never DB-read), not a DB-read row field.

@@ -427,3 +427,52 @@ during W3.1 (only the team-route input/output mismatch was checked there).
   production changes.** Employee points-hidden and manager points-visible behavior reconfirmed
   unchanged by this fix (it only touches date formatting/parsing, not the points-visibility
   type split).
+
+## Phase W4 progress (2026-06-29)
+
+Backend write workflows implemented on the dev DB — closes G-04's write side (summary submit/
+edit, correction request/approve/reject, manager reopen). No UI write flow yet (read-only
+`/daily-activity` from Phase W3 is unchanged); no schema/migration changes; no
+`/daily-updates` changes; mobile remains paused; production untouched.
+
+- **`src/lib/daily-activity.ts` extended** with: `DailyActivityError`, `evaluateSubmissionWindow`
+  (shared cutoff/grace/late-window/reopen decision logic), `canSubmitDailySummary`,
+  `canEditDailySummary`, `submitDailyActivitySummary`, `updateDailyActivitySummary`,
+  `createDailyActivityCorrectionRequest`, `approveDailyActivityCorrectionRequest`,
+  `rejectDailyActivityCorrectionRequest`, `reopenDailyActivityDay`,
+  `writeDailyActivityAuditLog`, `resolveManagerAuthorizedEmployeeIds`,
+  `reconcileSummaryStatusAfterCorrectionDecision` (internal). All new date-only handling uses
+  `parseDateOnlyAsLocalDate`/`toDateKeyLocal` per the Phase W3.2 rule.
+- **5 new write routes:** `POST/PUT /api/daily-activity/summary`,
+  `POST /api/daily-activity/corrections`, `POST /api/daily-activity/corrections/[id]/approve`,
+  `POST /api/daily-activity/corrections/[id]/reject`,
+  `POST /api/daily-activity/day/[employeeId]/[date]/reopen`.
+- **Manager authorization for the 3 write endpoints** deliberately mirrors this codebase's
+  existing read-side precedent (`getTeamDailyActivity`, `/api/daily-updates`): any
+  `isManager === true` employee is authorized for ALL employees, not narrowed to
+  `Employee.reportsToId` — see `resolveManagerAuthorizedEmployeeIds`'s doc comment for why
+  introducing reporting-line scoping only for writes would make read/write authorization
+  inconsistent for the same data.
+- **Bug discovered and fixed during this phase (broader than Phase W3.2):** writing a
+  local-midnight `Date` into a `@db.Date` Prisma column on this MySQL/mariadb setup truncates
+  it to the *previous* UTC calendar day on this IST (positive-UTC-offset) server — confirmed
+  empirically. Phase W2/W3 never hit this (no existing read path re-derives a `day` from a
+  DB-read `@db.Date` value and feeds it back into `startOfDay()`); Phase W4's correction
+  approve/reject flow is the first code path that does. Fixed narrowly within Phase W4's new
+  code via `recoverLocalDayFromDbDate` (adds back the lost UTC day before re-applying
+  `startOfDay()`) — applied at the 3 call sites that re-derive a day from a DB-read value
+  (`createDailyActivityCorrectionRequest`'s activityLogId ownership check, and both
+  approve/reject's summary-date re-derivation). **This is a workaround, not a full fix** — the
+  underlying issue (every `@db.Date` write of a local-midnight Date is one UTC day behind the
+  intended local day on this server) predates Phase W4 and is broader than "backend write APIs
+  only" to fix properly. Flagged as a recommended next step below and in
+  `DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md`. **One live instance of this same bug was also found
+  and fixed in existing Phase W2 code**: `getDailyActivityHistoryForEmployee`'s date field was
+  confirmed (empirically) to return the previous day, and is now fixed the same way — see
+  `DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` for the before/after confirmation.
+- **Verified via a throwaway script** (`prisma/test-daily-activity-write-workflows.ts`, deleted
+  after the run) — 20/20 checks passed, all throwaway DB rows cleaned up (confirmed 0 leftover
+  test employees afterward).
+- **Still pending:** UI write flow (submit/edit/correction-request/approve/reject/reopen
+  buttons) — explicitly out of scope for this phase. KRA rollup wiring (G-11), reporting
+  (G-13), admin config (G-14) remain unstarted.
