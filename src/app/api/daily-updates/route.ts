@@ -1,46 +1,20 @@
-﻿import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/dev-session";
+import { NextResponse } from "next/server";
 
-export async function GET(req: Request) {
-  const session = await getSession();
-  const { searchParams } = new URL(req.url);
-  const empId = searchParams.get("employeeId");
-
-  const where = session?.user?.isManager
-    ? empId ? { employeeId: Number(empId) } : {}
-    : { employeeId: session?.user?.employeeId };
-
-  const rows = await prisma.dailyUpdate.findMany({
-    where,
-    include: { employee: { select: { name: true } } },
-    orderBy: { date: "desc" },
-  });
-  return NextResponse.json(rows);
+// Daily Updates API retired (Enterprise KRA / Daily Activity decision, 2026-06-29) — Daily
+// Activity (`/api/daily-activity/*`) replaces it. This route must no longer create/read
+// DailyUpdate rows for active use; the DailyUpdate Prisma model/table and existing data are
+// preserved untouched for historical purposes only. All methods return 410 Gone.
+function retired() {
+  return NextResponse.json(
+    { error: "Daily Updates has been retired. Use Daily Activity instead.", redirectTo: "/daily-activity" },
+    { status: 410 }
+  );
 }
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  const body = await req.json();
-  const employeeId = session?.user?.isManager
-    ? Number(body.employeeId ?? session?.user?.employeeId)
-    : session?.user?.employeeId;
-
-  if (!employeeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const row = await prisma.dailyUpdate.create({
-    data: {
-      employeeId,
-      date: body.date ? new Date(body.date) : new Date(),
-      topUpdates: body.topUpdates,
-      keyMovement: body.keyMovement ?? "",
-      blockers: body.blockers ?? "",
-      topDealThisWeek: body.topDealThisWeek ?? "",
-      managerSupportRequired: Boolean(body.managerSupportRequired),
-      updateStatus: body.updateStatus ?? "On Track",
-    },
-    include: { employee: { select: { name: true } } },
-  });
-  return NextResponse.json(row, { status: 201 });
+export async function GET() {
+  return retired();
 }
 
+export async function POST() {
+  return retired();
+}

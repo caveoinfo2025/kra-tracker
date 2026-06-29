@@ -671,3 +671,84 @@ unchanged, mobile untouched.
   against temporary rows, fully cleaned up afterward).
 - **Validation:** `npx prisma validate` ✅, `npx prisma generate` ✅, `npx tsc --noEmit` ✅,
   `npm run build` ✅ (exit 0).
+
+## Phase W6.2 progress (2026-06-29) — KRA direction decided; Daily Updates retirement started
+
+**KRA direction decided: Enterprise KRA only.** §17.1 ("which KRA system should Daily Activity
+feed — legacy `KRA`/`WeeklyReview` or enterprise `EmployeeProfile`/`EmployeeTarget`") is closed:
+all future KRA development uses `EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/
+`PerformanceReview` only. Legacy `KRA`/`WeeklyReview` and `src/lib/kra-engine.ts` are now
+historical/read-only — they keep serving existing data/UI but must not receive new feature
+logic (guardrail comment added to the top of `src/lib/kra-engine.ts`). No Enterprise KRA write
+wiring was implemented this phase — direction-setting + Daily Updates retirement only. See
+`docs/PROJECT_MEMORY.md` "2026-06-29" and `docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md`
+§17.1 for the decision record.
+
+**Daily Updates retirement started.** Per the §2 audit above (one cross-feature dependency:
+the employee-profile blockers widget; no KRA/reporting coupling), the feature has been retired
+from active use this phase. The `DailyUpdate` Prisma model/table and its data are **preserved
+untouched** — no migration, no `db push`, no drop.
+
+### Daily Updates Usage Audit
+
+| Usage | File | Current behavior (before this phase) | Retirement action |
+|---|---|---|---|
+| Desktop page (CRUD UI) | `src/app/daily-updates/page.tsx` | Server component fetching `employees` + up to 100 `DailyUpdate` rows, rendering `DailyUpdatesClient` for full add/edit/delete | Replaced with `redirect("/daily-activity")` — old CRUD UI no longer reachable |
+| Desktop client component | `src/app/daily-updates/DailyUpdatesClient.tsx` | Filter bar, "+ Add Update" modal, card list with inline Edit/Del per row | Deleted — no longer imported by anything once the page redirects |
+| List/create API | `src/app/api/daily-updates/route.ts` | `GET` (self/manager-scoped list), `POST` (create, manager-can-submit-for-another-employee) | All methods now return `410 Gone` with `{"error":"Daily Updates has been retired. Use Daily Activity instead.","redirectTo":"/daily-activity"}`; no rows created |
+| Update/delete API | `src/app/api/daily-updates/[id]/route.ts` | `PUT`/`DELETE`, ownership-checked (`employeeId === session.user.employeeId \|\| isManager`) | All methods now return `410 Gone` (same body as above); no rows modified/deleted |
+| Sidebar nav (Manager/Employee/Accounts groups) | `src/components/SidebarLinks.tsx` | "Daily Updates" link to `/daily-updates` shown in 3 nav-group definitions, alongside "Daily Activity" | Removed all 3 "Daily Updates" entries; "Daily Activity" entries kept; now-unused `Activity` icon import removed |
+| Employee profile "recent blockers" widget | `src/app/employees/[id]/page.tsx` (~line 93) | `prisma.dailyUpdate.findMany({ where: { employeeId, blockers: { not: "" } }, orderBy: { date: "desc" }, take: 5 })` | Repointed to `prisma.dailyActivitySummary.findMany({ where: { employeeId, blockers: { not: "" } }, orderBy: { summaryDate: "desc" }, take: 5 })` — same RBAC (page already gates manager-or-self), same `[0].blockers` JSX read shape |
+| Settings hub tile | `src/app/settings/SettingsHub.tsx` | "Daily Updates" tile in the People section, `href: "/daily-updates"` | Repointed to `/daily-activity`, relabeled "Daily Activity" — no separate Daily Activity tile existed yet, so the tile now points at the active feature instead of leaving a dead link |
+| Dashboard "Add your update" link | `src/app/dashboard/DashboardClient.tsx` (Weekly Commits empty state) | `<Link href="/daily-updates">Add your update →</Link>` | Repointed to `/daily-activity` |
+| Topbar breadcrumb label map | `src/components/Topbar.tsx` | `{ prefix: "/daily-updates", label: "Daily Updates" }` | Label changed to "Daily Updates (retired)" (route still exists as a redirect target momentarily); added a `/daily-activity` → "Daily Activity" entry |
+| Mobile `DailyUpdatesScreen.tsx`, `MobileApp.tsx`, `mock-data.ts`, `HomeScreen.tsx` | `src/app/mobile/**` | Reads/displays Daily Updates-shaped data in the mobile web app | **Not touched** — explicitly out of scope per this phase's strict rules (no mobile changes); flagged here only as a known remaining surface for a future mobile-scoped phase |
+| `DailyUpdate` Prisma model | `prisma/schema.prisma` | Model definition, `Employee.dailyUpdates` relation | **Not touched** — preserved exactly as-is; no migration, no `db push`, historical data intact |
+
+**Files now fully dead and removed:** `src/app/daily-updates/DailyUpdatesClient.tsx` (was only
+imported by `src/app/daily-updates/page.tsx`, which no longer imports it after the redirect
+swap). No other Daily-Updates-specific component files were found to be orphaned — the page,
+API routes, and Prisma model itself are intentionally kept (redirect/410/historical-data
+respectively, not deletable).
+
+**Remaining gap (deliberately out of scope, flagged not fixed):** the mobile app
+(`src/app/mobile/screens/DailyUpdatesScreen.tsx` and related mock data/home-screen references)
+still presents Daily Updates as a live feature. Per this phase's strict rule ("do NOT modify
+anything under `src/app/mobile`"), this was left untouched. A future mobile-scoped phase should
+either point the mobile screen at Daily Activity data or retire it the same way, once mobile
+changes are in scope.
+
+---
+
+## Phase W6.2 progress (2026-06-29) — Enterprise KRA decision + Daily Updates retirement
+
+- **KRA direction decided: Enterprise KRA only.** Closes Phase W6 plan §17.1 (legacy vs.
+  enterprise KRA target). All future KRA development uses `EmployeeProfile`/`EmployeeTarget`/
+  `KRAAchievement`/`PerformanceReview`. Legacy `KRA`/`WeeklyReview`/`src/lib/kra-engine.ts` is
+  now historical/read-only. No Enterprise KRA write-path wiring was implemented this phase. See
+  `docs/PROJECT_MEMORY.md` "Phase W6.2" and `docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md`
+  §17.1.
+- **Daily Updates active feature retirement started (and completed for this phase's scope).**
+  Daily Activity is now the sole active workflow; Daily Updates is retired from active
+  entry/CRUD/productivity/reporting/KRA use. `DailyUpdate` Prisma model/table and existing rows
+  are preserved untouched — no schema change, no migration, no `db push`. Mobile and production
+  untouched.
+
+### Daily Updates Usage Audit
+
+| Usage | File | Current behavior | Retirement action |
+| ----- | ---- | ----------------- | ------------------ |
+| Page (employee/manager CRUD) | `src/app/daily-updates/page.tsx` | Was a server component rendering full CRUD UI via `DailyUpdatesClient` | Reduced to a single `redirect("/daily-activity")` — old CRUD UI no longer reachable |
+| Page client component | `src/app/daily-updates/DailyUpdatesClient.tsx` | 266-line client CRUD UI (filters, add/edit form, table) | Deleted — unused after the page-level redirect, no remaining imports |
+| API — list/create | `src/app/api/daily-updates/route.ts` (`GET`, `POST`) | Read/wrote `DailyUpdate` rows | Both methods now return `410 Gone` with `{ error: "Daily Updates has been retired. Use Daily Activity instead.", redirectTo: "/daily-activity" }`; no rows read or created |
+| API — update/delete | `src/app/api/daily-updates/[id]/route.ts` (`PUT`, `DELETE`) | Updated/deleted `DailyUpdate` rows | Both methods now return the same `410 Gone` payload; no rows updated or deleted |
+| Sidebar nav | `src/components/SidebarLinks.tsx` (`MANAGER_GROUPS`, `EMPLOYEE_GROUPS`, `ACCOUNTS_GROUPS`) | "Daily Updates" link alongside "Daily Activity" in all three role-based nav sets | "Daily Updates" entries removed from all three groups; "Daily Activity" retained |
+| Topbar breadcrumb label | `src/components/Topbar.tsx` (`PATH_LABELS`) | `/daily-updates` prefix mapped to "Daily Updates" | Kept as "Daily Updates (retired)" only so the breadcrumb is sane for the brief moment mid-redirect; `/daily-activity` added as its own entry |
+| Settings hub tile | `src/app/settings/SettingsHub.tsx` | Tile linked to `/daily-updates` | Tile now links to `/daily-activity` (label/description already said "Daily Activity") |
+| Dashboard "no commits" CTA | `src/app/dashboard/DashboardClient.tsx` | "Add your update →" linked to `/daily-updates` | Link now points to `/daily-activity` |
+| Employee profile — recent blockers | `src/app/employees/[id]/page.tsx` | Queried `prisma.dailyUpdate.findMany(...)` for the profile's "recent blockers" panel | Replaced with `prisma.dailyActivitySummary.findMany({ where: { employeeId, blockers: { not: "" } }, orderBy: { summaryDate: "desc" }, take: 5 } })`; same existing manager-or-self page gating reused, no RBAC change |
+| Doc-only historical-precedent comments | `src/lib/daily-activity.ts` (~line 700, ~line 1259) | Cite `/api/daily-updates` as precedent for the "isManager sees ALL employees" authorization pattern | Left unchanged — these are explanatory comments about a past API's behavior, not a functional dependency on `DailyUpdate`; no action needed |
+| Prisma model/table | `prisma/schema.prisma` `DailyUpdate` model, underlying DB table | Stores all historical Daily Updates rows | Untouched — no schema edit, no migration, no `db push`, no row mutation. Data fully preserved for historical reference |
+| Mobile | `src/app/mobile/screens/DailyUpdatesScreen.tsx`, `src/app/mobile/MobileApp.tsx`, `src/app/mobile/mock-data.ts`, `src/app/mobile/screens/HomeScreen.tsx` | Mobile web app has its own Daily Updates screen (separate from the desktop page) | **Not touched** — out of scope per explicit instruction ("do not modify mobile" / "do not modify `/mobile`") |
+
+No test files or other documentation files referenced `DailyUpdate`/`/daily-updates` beyond what's listed above.

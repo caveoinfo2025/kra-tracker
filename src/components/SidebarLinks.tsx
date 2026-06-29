@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, FileText, Briefcase, CheckSquare, Receipt, Activity,
+  LayoutDashboard, FileText, Briefcase, CheckSquare, Receipt,
   Target, Users, Upload, BarChart3, Building2, Smartphone,
   BookUser, Landmark, Banknote, Store, Wallet, MapPin, Layers, Tag,
   ClipboardList, FilePlus, ChevronDown, CheckSquare as Inbox,
@@ -60,7 +60,6 @@ const MANAGER_GROUPS: NavGroup[] = [
     label: "Operate",
     items: [
       { href: "/collections",   label: "Collections",   icon: Receipt },
-      { href: "/daily-updates", label: "Daily Updates", icon: Activity },
       { href: "/daily-activity", label: "Daily Activity", icon: BarChart3 },
     ],
   },
@@ -94,7 +93,6 @@ const EMPLOYEE_GROUPS: NavGroup[] = [
     label: "Operate",
     items: [
       { href: "/collections",   label: "Collections",   icon: Receipt },
-      { href: "/daily-updates", label: "Daily Updates", icon: Activity },
       { href: "/daily-activity", label: "Daily Activity", icon: BarChart3 },
     ],
   },
@@ -138,7 +136,6 @@ const ACCOUNTS_GROUPS: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { href: "/daily-updates", label: "Daily Updates", icon: Activity },
       { href: "/daily-activity", label: "Daily Activity", icon: BarChart3 },
       { href: "/import",        label: "Import",        icon: Upload },
     ],

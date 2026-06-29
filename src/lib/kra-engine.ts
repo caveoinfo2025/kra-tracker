@@ -1,4 +1,10 @@
 /**
+ * HISTORICAL / READ-ONLY (Enterprise KRA decision, 2026-06-29): all future KRA work uses
+ * EmployeeProfile / EmployeeTarget / KRAAchievement / PerformanceReview. This legacy KRA /
+ * WeeklyReview engine (KRA, WeeklyReview models) is preserved for existing data and reporting
+ * only — do not add new feature logic here. See docs/PROJECT_MEMORY.md and
+ * docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md for the decision record.
+ *
  * KRA Engine — computes live KRA progress from activity sheets.
  * Maps KRA titles → aggregation queries on LeadGeneration, SalesFunnel, Collection.
  *

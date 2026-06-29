@@ -188,6 +188,14 @@ here; this document specifies what "here" is.
   considers when completing a `WeeklyReview`, not an automatic overwrite of `WeeklyReview.score`
   — confirmed in the gap audit that nothing today wires `DailyUpdate` into KRA, so this is a
   net-new integration point with no existing behavior to preserve compatibility with.
+  **Superseded (2026-06-29, Phase W6.2):** Enterprise KRA was selected as the only future KRA
+  path — see Phase W6.2 notes below. `KRA`/`WeeklyReview` is no longer the system of record for
+  *future* Daily Activity KRA wiring; any future write path targets `EmployeeProfile`/
+  `EmployeeTarget`/`KRAAchievement`/`PerformanceReview` instead.
+
+**Daily Activity replaces Daily Updates.** Old Daily Updates must not be used for future
+productivity/KRA workflows — Daily Activity is the sole active workflow for daily
+entry/CRUD/productivity/reporting/KRA purposes (2026-06-29, Phase W6.2).
 
 ## 13. Reporting requirements
 
@@ -726,3 +734,45 @@ Implements the `INCOMPLETE` automation gap fix recommended in Phase W6's plannin
   then cleaned up). `npx prisma validate`/`generate`/`tsc --noEmit`/`npm run build` all clean.
   No schema/migration changes; `/daily-updates` unchanged; `/mobile` untouched; production
   untouched.
+
+## Phase W6.2 — Daily Updates retirement rule (2026-06-29)
+
+**Hard rule, effective this phase: Daily Activity replaces Daily Updates.** Old Daily Updates
+(`DailyUpdate` model, `/daily-updates` page, `/api/daily-updates` API) must not be used for any
+future productivity or KRA workflow. Concretely:
+
+- No new code may call `prisma.dailyUpdate.create/update/delete`, or otherwise write to the
+  `DailyUpdate` table, for any purpose.
+- No new feature, report, or KRA-input calculation may read from `DailyUpdate` going forward —
+  the one pre-existing read (`employees/[id]/page.tsx`'s "recent blockers" widget) has been
+  migrated to read `DailyActivitySummary.blockers` instead (see
+  `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W6.2 progress" for the full audit/migration
+  table).
+- `/daily-updates` now `redirect()`s to `/daily-activity`; `/api/daily-updates` and
+  `/api/daily-updates/[id]` now return `410 Gone` for every method. Any future work that needs
+  "daily update"-shaped functionality must build on the Daily Activity & Productivity system
+  (`DailyActivityLog`/`DailyActivitySummary`/`DailyProductivityScore`), not resurrect the legacy
+  routes.
+- The `DailyUpdate` Prisma model/table and its existing rows remain in the schema and database,
+  untouched, purely as historical data — this rule is about *future use*, not data deletion.
+- Mobile (`src/app/mobile/**`) is explicitly excluded from this rule for now — it still presents
+  Daily-Updates-shaped UI and was intentionally not touched in this phase (mobile changes are
+  out of scope here); see the gap flagged in `WEBAPP_GAP_CLOSURE_PLAN.md`.
+
+## Phase W6.2 — Enterprise KRA decision + Daily Updates retirement (2026-06-29)
+
+Business decisions closing the W6 plan's §17.1 open question and retiring Daily Updates from
+active use:
+
+- **Enterprise KRA selected as the only future KRA path.** All future Daily Activity KRA
+  integration must target `EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/`PerformanceReview`.
+  Legacy `KRA`/`WeeklyReview`/`src/lib/kra-engine.ts` is now historical/read-only — no new
+  feature logic added there. No Enterprise KRA write-path wiring implemented this phase.
+- **Daily Updates retired from active use.** `/daily-updates` redirects to `/daily-activity`;
+  `/api/daily-updates` and `/api/daily-updates/[id]` return `410 Gone` for all methods; nav links
+  removed (Daily Activity retained); employee profile "recent blockers" now reads
+  `DailyActivitySummary.blockers` instead of `DailyUpdate`. `DailyUpdate` Prisma model/table and
+  historical data preserved untouched — no schema/migration change. Mobile and production
+  untouched.
+- Full file-level audit: `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` §"Daily Updates Usage Audit".
+- Full KRA decision record: `docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md` §17.1.

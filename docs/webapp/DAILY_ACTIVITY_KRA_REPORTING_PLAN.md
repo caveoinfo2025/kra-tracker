@@ -565,8 +565,8 @@ data loss risk either way, since nothing is deleted at any stage of B or C.
    read `summary.status` raw (`getDailyActivityForEmployee`, `getDailyActivityHistoryForEmployee`,
    `getDailyActivityForManagerEmployee`, `getTeamDailyActivity`). Also added the §6
    KRA-eligibility placeholder helpers (`isDailyActivityKraEligible`/
-   `getDailyActivityKraEligibilityReason`) — pure, unwired, no KRA system call. §17.1 remains
-   unresolved and was not addressed by this step, as designed.
+   `getDailyActivityKraEligibilityReason`) — pure, unwired, no KRA system call. §17.1 was
+   unresolved at the time of this step (resolved later, 2026-06-29 — see below).
 2. **W6.2** — Implement the daily rollup shape (§7) as a small addition to existing read
    functions (mostly already present; formalize as a stable contract).
 3. **W6.3** — Implement dynamic weekly rollup (§8) + `GET /api/daily-activity/reports/my-weekly`
@@ -574,12 +574,13 @@ data loss risk either way, since nothing is deleted at any stage of B or C.
 4. **W6.4** — Implement dynamic monthly rollup (§9) + `my-monthly`/`team-monthly` (§13.2/§13.5).
 5. **W6.5** — Implement the Exceptions report (§11.6/§13.7) and its manager UI panel (§14.2) —
    highest immediate manager value, lowest score-correctness risk.
-6. **W6.6** — Resolve §17.1 (legacy vs. enterprise KRA target) with the business, then implement
-   `kra-input` report (§11.5/§13.6) and `my-kra-input` (§13.3), still read-only (computes the
-   number, doesn't push it into the KRA system yet).
-7. **W6.7** — Once §17.1 is resolved and the read-only KRA-input number has been validated for at
-   least one cycle, design (separate future phase) the actual write path into `WeeklyReview` or
-   `KRAAchievement`.
+6. **W6.6** — §17.1 is now resolved (Enterprise KRA, 2026-06-29); implement the `kra-input`
+   report (§11.5/§13.6) and `my-kra-input` (§13.3) against the Enterprise KRA path
+   (`EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/`PerformanceReview`), still read-only
+   (computes the number, doesn't push it into the KRA system yet). Not implemented this phase.
+7. **W6.7** — Once the read-only KRA-input number has been validated for at
+   least one cycle, design (separate future phase) the actual write path into `KRAAchievement`/
+   `PerformanceReview` (Enterprise KRA only — not `WeeklyReview`, per the §17.1 decision).
 8. **W6.8** — Introduce `DailyProductivityScore` daily snapshots (§9.1) once report read volume
    or audit-trail needs justify it; weekly/monthly snapshots follow as a `groupBy` over those.
 9. **W6.9** — Revisit §4 Option B (scheduled close-day job) only if/when a real performance or
@@ -591,10 +592,14 @@ data loss risk either way, since nothing is deleted at any stage of B or C.
 
 ## 17. Open Business Decisions
 
-1. **Legacy `KRA`/`WeeklyReview` vs. enterprise `EmployeeProfile`/`EmployeeTarget` —
-   which system does Daily Activity feed?** The codebase is mid-migration between the two
-   (§2.1); picking wrong is expensive to unwind. Must be resolved before any write path is built
-   (W6.6 onward).
+1. **CLOSED (2026-06-29) — Enterprise KRA selected.** Legacy `KRA`/`WeeklyReview` vs. enterprise
+   `EmployeeProfile`/`EmployeeTarget` — which system does Daily Activity feed? **Resolved: all
+   future KRA development uses the Enterprise KRA path only** (`EmployeeProfile`/
+   `EmployeeTarget`/`KRAAchievement`/`PerformanceReview`). Legacy `KRA`/`WeeklyReview`
+   (`src/lib/kra-engine.ts`) is now historical/read-only — no new feature logic may be added to
+   it. This decision does **not** itself implement the write path (W6.6/W6.7 below still apply
+   unimplemented); it only removes the "which system" ambiguity that blocked them. See
+   `docs/PROJECT_MEMORY.md` "Phase W6.2" and `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md`.
 2. *(folded into §4)* Whether to ever build the Option-B scheduled close-day job, and what
    job-runner mechanism to use (this project has no existing cron/scheduler pattern — see
    `CronCreate`/scheduled-tasks tooling available at the platform level, not yet adopted in-app).

@@ -1199,7 +1199,8 @@ export default function DashboardClient(props: DashboardProps) {
               {weeklyCommits.length === 0 ? (
                 <div style={{ textAlign: "center", padding: 16, color: "var(--fg-4)" }}>
                   <p style={{ margin: 0, fontSize: 13 }}>No commits this week yet</p>
-                  <Link href="/daily-updates" style={{ fontSize: 12, color: "var(--infra-blue)", marginTop: 8, display: "block" }}>
+                  {/* Daily Updates retired (Enterprise KRA / Daily Activity decision, 2026-06-29) — points at Daily Activity now. */}
+                  <Link href="/daily-activity" style={{ fontSize: 12, color: "var(--infra-blue)", marginTop: 8, display: "block" }}>
                     Add your update →
                   </Link>
                 </div>

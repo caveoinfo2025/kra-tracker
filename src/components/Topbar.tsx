@@ -14,7 +14,10 @@ const PATH_LABELS: { prefix: string; label: string }[] = [
   { prefix: "/pipeline/tasks",         label: "Pipeline Tasks" },
   { prefix: "/collections",            label: "Collections" },
   { prefix: "/customers",              label: "Customer Master" },
-  { prefix: "/daily-updates",          label: "Daily Updates" },
+  // Daily Updates retired (Enterprise KRA / Daily Activity decision, 2026-06-29) — /daily-updates
+  // now redirects to /daily-activity; label kept only so the breadcrumb is sane mid-redirect.
+  { prefix: "/daily-updates",          label: "Daily Updates (retired)" },
+  { prefix: "/daily-activity",         label: "Daily Activity" },
   { prefix: "/employees",              label: "Team" },
   { prefix: "/kras",                   label: "KRAs" },
   { prefix: "/accounts",               label: "Payment Tracker" },

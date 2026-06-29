@@ -75,10 +75,12 @@ const CARDS: Card[] = [
     section: "People",
   },
   {
-    href: "/daily-updates",
+    // Daily Updates retired (Enterprise KRA / Daily Activity decision, 2026-06-29) — this tile
+    // now points at its replacement, Daily Activity.
+    href: "/daily-activity",
     icon: Activity,
-    label: "Daily Updates",
-    description: "Team daily status updates — on track, at risk, blocked, or completed.",
+    label: "Daily Activity",
+    description: "Team daily activity, productivity scoring, and end-of-day summaries.",
     section: "People",
   },
 

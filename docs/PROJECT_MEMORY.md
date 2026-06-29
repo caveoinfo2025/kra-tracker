@@ -21,6 +21,24 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W6.2: Enterprise KRA selected; Daily Updates retired from active use
+
+Business decision closes the §17.1 open question from Phase W6: **Enterprise KRA
+(`EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/`PerformanceReview`) is the only path for
+all future KRA development.** Legacy `KRA`/`WeeklyReview` (scored via `src/lib/kra-engine.ts`) is
+now historical/read-only — no new Daily Activity or other feature logic may be added there. No
+Enterprise KRA wiring was implemented this phase (no writes to `KRAAchievement`/
+`PerformanceReview`/`EmployeeTarget`) — this is direction-setting only.
+
+**Daily Updates is retired from active use; Daily Activity is the active workflow.** `/daily-updates`
+now redirects to `/daily-activity`; `/api/daily-updates` and `/api/daily-updates/[id]` return
+`410 Gone` for all methods (no rows created/modified/deleted); the nav links were removed (Daily
+Activity remains); the employee profile "recent blockers" panel now reads from
+`DailyActivitySummary.blockers` instead of `DailyUpdate`. The `DailyUpdate` Prisma model/table and
+its historical data are preserved untouched — no schema change, no migration, no `db push`.
+Mobile and production untouched. Full audit and table: `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md`
+§"Daily Updates Usage Audit".
+
 ### 2026-06-29 — Phase W6.1: Daily Activity effective status lifecycle implemented
 
 Phase W6.1 implemented Daily Activity effective status lifecycle. Days past grace with activity

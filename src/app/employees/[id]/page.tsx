@@ -90,9 +90,14 @@ export default async function EmployeeDetailPage({
       where: { employeeId: Number(id), collectionStatus: { not: "Fully Received" }, deletedAt: null },
       orderBy: { dueDate: "asc" },
     }),
-    prisma.dailyUpdate.findMany({
+    // Daily Updates retired (Enterprise KRA / Daily Activity decision, 2026-06-29) — "recent
+    // blockers" now sources from DailyActivitySummary.blockers instead of the retired
+    // DailyUpdate model. Visibility is unchanged: this whole page is already gated to
+    // managers-or-self at lines 27-30 above, and this query is itself scoped to the same
+    // employeeId, so no extra RBAC is needed here.
+    prisma.dailyActivitySummary.findMany({
       where: { employeeId: Number(id), blockers: { not: "" } },
-      orderBy: { date: "desc" },
+      orderBy: { summaryDate: "desc" },
       take: 5,
     }),
     prisma.weeklyCommit.findMany({
