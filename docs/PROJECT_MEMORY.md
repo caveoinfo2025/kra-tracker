@@ -21,6 +21,21 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-29 — Phase W3: read-only Daily Activity webapp UI added
+
+Phase W3 added read-only Daily Activity webapp UI using existing APIs. Mobile remained
+paused. DailyUpdate remained unchanged. No write workflows or production changes. New
+`/daily-activity` page (`src/app/daily-activity/page.tsx` + `EmployeeActivityView.tsx` +
+`ManagerActivityPanel.tsx` + `labels.ts`) renders the Phase W2 read APIs: employee status/
+band/counts/timeline/summary (never exact points — enforced by the TypeScript shape, not just
+the API), and a manager team dashboard with date filter, totals, and an inline expandable
+employee/day detail row showing exact points. Approve/Reject/Reopen are visible-but-disabled
+placeholders. Non-destructive "Daily Activity preview" banner added to `/daily-updates`;
+"Daily Activity" nav item added alongside "Daily Updates" in `SidebarLinks.tsx`. `npx prisma
+validate`/`generate`, `npx tsc --noEmit`, and `npm run build` all clean. Full record:
+`docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` "Phase W3 progress",
+`docs/webapp/DAILY_ACTIVITY_WEBAPP_REQUIREMENTS.md` "Phase W3 implementation notes".
+
 ### 2026-06-25 — Phase W2: Daily Activity event-capture hooks and read-only APIs implemented
 
 Phase W2 implemented webapp Daily Activity event-capture hooks and read-only APIs. Mobile

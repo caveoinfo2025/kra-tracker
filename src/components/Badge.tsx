@@ -1,4 +1,5 @@
-﻿type Variant = "success" | "warning" | "danger" | "info" | "neutral";
+﻿export type Variant = "success" | "warning" | "danger" | "info" | "neutral";
+export type BadgeProps = { label: string; variant?: Variant };
 
 const styles: Record<Variant, string> = {
   success: "bg-green-100 text-green-800",
@@ -8,7 +9,7 @@ const styles: Record<Variant, string> = {
   neutral: "bg-gray-100 text-gray-700",
 };
 
-export default function Badge({ label, variant = "neutral" }: { label: string; variant?: Variant }) {
+export default function Badge({ label, variant = "neutral" }: BadgeProps) {
   return (
     <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${styles[variant]}`}>
       {label}

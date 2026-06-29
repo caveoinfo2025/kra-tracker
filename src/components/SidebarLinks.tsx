@@ -61,6 +61,7 @@ const MANAGER_GROUPS: NavGroup[] = [
     items: [
       { href: "/collections",   label: "Collections",   icon: Receipt },
       { href: "/daily-updates", label: "Daily Updates", icon: Activity },
+      { href: "/daily-activity", label: "Daily Activity", icon: BarChart3 },
     ],
   },
   {
@@ -94,6 +95,7 @@ const EMPLOYEE_GROUPS: NavGroup[] = [
     items: [
       { href: "/collections",   label: "Collections",   icon: Receipt },
       { href: "/daily-updates", label: "Daily Updates", icon: Activity },
+      { href: "/daily-activity", label: "Daily Activity", icon: BarChart3 },
     ],
   },
   {
@@ -137,6 +139,7 @@ const ACCOUNTS_GROUPS: NavGroup[] = [
     label: "Operations",
     items: [
       { href: "/daily-updates", label: "Daily Updates", icon: Activity },
+      { href: "/daily-activity", label: "Daily Activity", icon: BarChart3 },
       { href: "/import",        label: "Import",        icon: Upload },
     ],
   },

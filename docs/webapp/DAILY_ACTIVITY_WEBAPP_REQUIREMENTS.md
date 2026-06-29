@@ -410,3 +410,36 @@ got additive capture hooks only (no existing behavior changed). No mobile code w
 Production was not touched. No `.env` files were committed.
 
 **Do not touch production.**
+
+## Phase W3 implementation notes (2026-06-29)
+
+Read-only UI implementation against the Phase W2 APIs. UI-only — no API or schema changes.
+
+- **Route:** `/daily-activity` (`src/app/daily-activity/page.tsx`). Does not replace
+  `/daily-updates`; both are live simultaneously for validation.
+- **Components:** `EmployeeActivityView.tsx` (employee read-only view), `ManagerActivityPanel.tsx`
+  (manager team dashboard + inline expandable employee/day detail), `labels.ts` (display-only
+  band/status/activity-type label and badge-variant maps — no business logic, presentation
+  only).
+- **Points-hiding enforcement:** `EmployeeActivityView` consumes `EmployeeDailyActivityView`/
+  `EmployeeTimelineEntry` only — these TypeScript types have no `points` field at all (Phase
+  W2's hard-rule design, §8), so the component cannot render points even by mistake. The
+  manager components consume the separate `ManagerEmployeeDayView`/`ManagerTimelineEntry`/
+  `TeamDailyActivityRow` types, which do carry `points`/`totalPoints`.
+- **Manager-only gating:** `ManagerActivityPanel` is only rendered by `page.tsx` when
+  `session.user.isManager` is true (server-side check before the component is even mounted) —
+  not a client-side hide. The manager API routes additionally 403 non-managers themselves
+  (defense in depth, already true since Phase W2).
+- **No employeeId override:** the employee view never accepts or forwards an `employeeId` —
+  it always reads the session's own `employeeId` server-side, matching `GET
+  /api/daily-activity/today`'s self-scoped-only design.
+- **Date filter (manager only):** `ManagerActivityPanel` owns date state client-side and
+  re-fetches `GET /api/daily-activity/team?date=...` on change; the employee view has no date
+  picker in this phase (today + a fixed 14-day history strip only, per Task 2's spec).
+- **Detail drill-in:** implemented as Task 4 **Option A** (inline expandable row) — simplest
+  fit for the existing table-row UI convention in this codebase; avoids adding a new modal/
+  drawer primitive or a third route for a read-only preview.
+- **No write workflows:** summary submit/edit, correction-request creation, and
+  approve/reject/reopen are not implemented. The manager detail view renders disabled
+  Approve/Reject/Reopen buttons labeled "Coming in next phase" per the spec's explicit
+  instruction to keep future actions visible-but-disabled rather than omitted.

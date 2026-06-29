@@ -274,3 +274,37 @@ mobile changes.
   G-09 (proposal versioning) and G-10 (note-channel differentiation) remain open — both
   captured conservatively per their documented fallbacks. UI (G-05/G-06), KRA wiring (G-11),
   reporting (G-13), and admin config (G-14) are unstarted — later phases.
+
+## Phase W3 progress (2026-06-29)
+
+Read-only Daily Activity webapp UI added on top of the Phase W2 APIs — partially closes
+G-05/G-06 (read side only; write side — summary submission, correction requests,
+approve/reject/reopen — is explicitly deferred to a later phase). No production changes; no
+schema/migration changes; `/daily-updates` UI/API unchanged; mobile unchanged.
+
+- **Read-only Daily Activity page added:** `src/app/daily-activity/page.tsx` at `/daily-activity`
+  (does not replace `/daily-updates` yet, per plan). Server component loads the session and
+  calls the Phase W2 lib functions directly for the initial SSR render (same convention as
+  `/daily-updates/page.tsx`), then hands off to two client components.
+- **Employee read-only view added:** `EmployeeActivityView.tsx` — today's summary/correction
+  status badges, productivity band (label only, no points), activity counts, full timeline,
+  auto summary, blockers/next-day plan/final remarks (read-only), cutoff/grace metadata, and
+  14-day history strip. Zero-activity and no-summary states handled explicitly.
+- **Manager read-only dashboard added:** `ManagerActivityPanel.tsx` — date filter (defaults to
+  today, calls `GET /api/daily-activity/team` client-side on change), team totals tiles, and a
+  team table (employee, summary status, band, exact total points, activity count, last
+  activity, correction-pending, needs-review, view-details).
+- **Manager employee/day detail added:** inline expandable row per Task 4 Option A — lazy
+  client-side fetch of `GET /api/daily-activity/team/[employeeId]/[date]` on first expand,
+  cached per employee+date in component state. Shows full timeline with points. Approve/
+  Reject/Reopen render as disabled buttons labeled "Coming in next phase" — no write action
+  exists.
+- **Non-destructive `/daily-updates` banner added:** a dismissable-by-navigation info banner
+  linking to `/daily-activity`. `DailyUpdate` CRUD behavior, API, and page are otherwise
+  byte-for-byte unchanged.
+- **Nav item added:** "Daily Activity" inserted next to "Daily Updates" in all three role-based
+  `SidebarLinks.tsx` groups (manager/employee/accounts). "Daily Updates" was not removed.
+- **DailyUpdate unchanged. Mobile untouched. Production untouched.** No new API routes, no
+  write endpoints, no Prisma schema/migration changes.
+- **Still pending:** summary submission, correction requests, approve/reject/reopen (G-05/G-06
+  write side), KRA wiring (G-11), reporting (G-13), admin config (G-14) — all later phases.

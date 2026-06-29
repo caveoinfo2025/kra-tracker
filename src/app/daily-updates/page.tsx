@@ -1,5 +1,6 @@
 ﻿﻿import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
+import Link from "next/link";
 import SheetLayout from "@/components/SheetLayout";
 import DailyUpdatesClient from "./DailyUpdatesClient";
 
@@ -26,6 +27,10 @@ export default async function DailyUpdatesPage() {
       title="Daily Updates"
       description="Log daily progress, key movements, and blockers. Visible to your manager in real time."
     >
+      <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm px-3 py-2 rounded-lg flex items-center gap-2">
+        <span>New Daily Activity preview is available.</span>
+        <Link href="/daily-activity" className="font-medium underline hover:text-blue-900">View it here</Link>
+      </div>
       <DailyUpdatesClient
         initialRows={JSON.parse(JSON.stringify(rows))}
         employees={employees}
