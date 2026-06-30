@@ -21,6 +21,19 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-30 — Phase W8.3: Performance Audit visibility for Enterprise KRA actions
+
+Phase W8.3 added Performance Audit visibility for Enterprise KRA actions. Employee target template/apply/
+update audit events are now visible in the Performance Audit tab through a read-only admin endpoint
+(`GET /api/admin/performance/audit`, admin/manager only, default limit 50 / max 200, optional filters:
+entityType, action, employeeProfileId, startDate, endDate). Engine `listPerformanceAuditDetailed()`
+(`performance-engine/audit.ts`) resolves actor/subject **names** and friendly action labels + summaries
+via batched lookups (no N+1); the existing `logPerformanceAudit` writer is unchanged/append-only. UI
+(`PerformanceAudit.tsx`) now shows Time · Action · Entity · Employee · Performed By · Summary with
+Action/Entity/Employee/Date filters — no raw JSON. Verified: 401 unauthenticated, 403 non-manager, 200
+manager; read-only (GET only). **No schema, migration, KRAAchievement, PerformanceReview, EmployeeTarget
+mutation, DailyUpdate, mobile, or production changes; legacy KRA/WeeklyReview untouched.**
+
 ### 2026-06-30 — Phase W8.2: Employee-wise KPI target assignment for Enterprise KRA
 
 Phase W8.2 implemented employee-wise KPI target assignment for Enterprise KRA. Role templates are used

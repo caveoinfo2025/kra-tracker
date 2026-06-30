@@ -812,3 +812,16 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
 - **Audit:** `employee_target_template_applied` / `employee_target_updated` via `PerformanceAudit`.
 - **Still isolated:** no `KRAAchievement`/`PerformanceReview` writes; no legacy KRA/WeeklyReview; no
   schema/migration; Daily Updates retired; mobile/production untouched.
+
+## Phase W8.3 — Performance Audit visibility (progress)
+
+- **Closed the W8.2 audit-visibility gap.** Added read-only `GET /api/admin/performance/audit`
+  (admin/manager only) returning business-friendly rows; wired the Performance **Audit tab** to it.
+- **Engine:** `listPerformanceAuditDetailed()` resolves actor/subject names and friendly labels/
+  summaries via batched lookups; `logPerformanceAudit` writer untouched (append-only).
+- **UI** (`PerformanceAudit.tsx`): Time · Action · Entity · Employee · Performed By · Summary, with
+  Action/Entity/Employee/Date filters. Friendly labels; no raw JSON.
+- **Verified:** 401 unauthenticated, 403 non-manager, 200 manager; `employee_target_*` and Daily
+  Activity mapping events visible with names. Read-only (GET only).
+- **Still isolated:** no `KRAAchievement`/`PerformanceReview` writes; no schema/migration; legacy KRA
+  untouched; Daily Updates retired; mobile/production untouched.

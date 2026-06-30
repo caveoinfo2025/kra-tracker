@@ -128,7 +128,7 @@ export default function PerformanceAdminClient({
         <DailyActivityKraMapping metrics={initialDailyActivityMetrics} />
       )}
       {activeTab === "reviews" && <ReviewWorkflowManager />}
-      {activeTab === "audit" && <PerformanceAudit />}
+      {activeTab === "audit" && <PerformanceAudit employeeProfiles={initialEmployeeProfiles} />}
     </div>
   );
 }

@@ -806,3 +806,10 @@ active use:
   `EmployeeTarget.targetJson`; **no raw JSON and no raw employee/profile ID may appear in normal UI**.
   Applying a template seeds rows for the **selected employee only** (no hierarchy/bulk auto-assignment).
   Total active KPI weight should ideally equal 100% — warn if it does not, but do not block save.
+
+- **Audit visibility (Phase W8.3):** Enterprise KRA actions must be visible in-app. The Performance
+  **Audit tab** reads `PerformanceAudit` through a **read-only** admin endpoint and shows Time · Action ·
+  Entity · Employee · Performed By · Summary with friendly action labels (e.g. "Template Applied",
+  "Employee Target Updated", "Daily Activity Mapping Created"). Raw audit JSON must not be the main UI
+  display. Audit access is admin/manager only; plain employees are denied. Viewing audit is read-only —
+  it must never write or modify `EmployeeTarget`/`KRAAchievement`/`PerformanceReview` rows.

@@ -402,3 +402,25 @@ values, so two employees on the **same** role template can carry **different** t
 - **Isolation confirmed:** **no** `KRAAchievement` writes, **no** `PerformanceReview` writes, no legacy
   `KRA`/`WeeklyReview`/`kra-engine.ts` use, no Daily Updates revival, no mobile changes, no production
   changes, no schema/migration.
+
+## Phase W8.3 — Performance Audit visibility (IMPLEMENTED, read-only)
+
+W8.2 wrote `PerformanceAudit` rows but the Audit tab fetched a non-existent `/api/audit` and showed
+nothing. W8.3 adds a proper read endpoint and wires the tab — **visibility only, no writers changed.**
+
+- **Read endpoint:** `GET /api/admin/performance/audit` — admin/manager only (same `requirePermission(
+  Settings, Performance, EDIT)` gate as sibling routes). Optional filters: `entityType`, `action`,
+  `employeeProfileId`, `startDate`, `endDate` (YYYY-MM-DD, parsed via `@/lib/date-only`), `limit`
+  (default 50, max 200). Newest-first. **READ-ONLY — only `GET`; no writes.**
+- **Engine:** `listPerformanceAuditDetailed()` in `performance-engine/audit.ts` — batched lookups (no
+  N+1) resolve actor (`Employee`) names, EmployeeTarget→employee names, and KRAMetric names; builds
+  friendly `actionLabel`/`entityLabel` + a business `summary` (no raw JSON exposed). Existing
+  `logPerformanceAudit` writer is unchanged (append-only).
+- **UI** (`PerformanceAudit.tsx`): table **Time · Action · Entity · Employee · Performed By · Summary**
+  with friendly labels (Template Applied, Employee Target Updated, Daily Activity Mapping Created/
+  Updated/Reconciled) and simple filters (Action, Entity, Employee, Date range). No JSON shown.
+- **Events surfaced:** `employee_target_template_applied`, `employee_target_updated`,
+  `DAILY_ACTIVITY_MAPPING_CREATE/UPDATE/RECONCILE`, `performance_review` CREATE/UPDATE.
+- **Isolation:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget` writes (viewing audit never
+  mutates data), no legacy KRA/WeeklyReview, no Daily Updates, no schema/migration, no mobile, no
+  production changes.
