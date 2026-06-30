@@ -650,3 +650,14 @@ production changes. Only the following files were touched, all documentation:
 `npx prisma validate`, `npx prisma generate`, `npx tsc --noEmit`, and `npm run build` were run
 to confirm the repository is still in a clean, buildable state after these documentation-only
 changes (no source files were edited, so this is a sanity check, not a real risk surface).
+
+---
+
+## Phase W7 — Enterprise KRA integration planning moved out
+
+**Enterprise KRA integration planning has moved to
+[`DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md`](./DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md).**
+§17.1 is resolved → **Enterprise KRA only** (`EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/
+`PerformanceReview`); legacy KRA/`WeeklyReview`/`kra-engine.ts` is historical/read-only. The
+`kra-input` rollup, eligibility matrix, preview APIs, and the manager-approved write path are now
+designed in that document (Phase W7, audit + mapping only — no writes/schema/migration this phase).

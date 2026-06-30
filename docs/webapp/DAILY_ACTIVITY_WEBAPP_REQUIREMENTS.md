@@ -776,3 +776,10 @@ active use:
   untouched.
 - Full file-level audit: `docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md` §"Daily Updates Usage Audit".
 - Full KRA decision record: `docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md` §17.1.
+
+- **Enterprise KRA integration planning (Phase W7):** Daily Activity will feed the **Enterprise
+  KRA** path only (`EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/`PerformanceReview`) via a
+  read-only monthly preview that a manager explicitly approves before any `KRAAchievement` is
+  written (Option D). Legacy KRA/`WeeklyReview`/`kra-engine.ts` is historical/read-only and must
+  not receive Daily Activity logic. Full design:
+  `docs/webapp/DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md`. No writes/schema/migration in W7.

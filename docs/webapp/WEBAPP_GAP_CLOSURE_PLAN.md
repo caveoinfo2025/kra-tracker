@@ -752,3 +752,18 @@ changes are in scope.
 | Mobile | `src/app/mobile/screens/DailyUpdatesScreen.tsx`, `src/app/mobile/MobileApp.tsx`, `src/app/mobile/mock-data.ts`, `src/app/mobile/screens/HomeScreen.tsx` | Mobile web app has its own Daily Updates screen (separate from the desktop page) | **Not touched** — out of scope per explicit instruction ("do not modify mobile" / "do not modify `/mobile`") |
 
 No test files or other documentation files referenced `DailyUpdate`/`/daily-updates` beyond what's listed above.
+
+---
+
+## Phase W7 — Enterprise KRA integration planning (progress)
+
+- **Enterprise KRA integration plan created:**
+  `docs/webapp/DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md` (audit + mapping + design only).
+- **Direction confirmed:** Enterprise KRA only; legacy KRA/`WeeklyReview`/`kra-engine.ts`
+  historical/read-only. Daily Updates remains retired (no revival, no new `DailyUpdate` dependency).
+- **Key audit finding:** Daily Activity can feed Enterprise KRA with **no schema change** — uses
+  existing `KRAMetric.calculationSource`, `KRAAchievement.sourceReference`, JSON config blobs, and
+  the existing `performance-engine/achievement.ts` write path (precedent: `/api/kra/sync-achievements`).
+- **Recommended approach:** Option D — read-only monthly preview → manager-approved conversion to
+  `KRAAchievement`. No KRA writes, schema, migration, mobile, or production changes this phase.
+- **Next:** W8 admin mapping setup (config only) — see integration plan §16.

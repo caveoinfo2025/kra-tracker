@@ -21,6 +21,18 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-30 — Phase W7: Daily Activity → Enterprise KRA integration planned (audit + mapping only)
+
+Phase W7 planned Daily Activity integration with Enterprise KRA. **Enterprise KRA is the only
+future KRA path**; legacy KRA/`WeeklyReview`/`kra-engine.ts` remains historical/read-only. Audit
+confirmed Daily Activity can feed Enterprise KRA with **no schema change** (uses existing
+`KRAMetric.calculationSource`, `KRAAchievement.sourceReference`, JSON blobs, and the existing
+`performance-engine/achievement.ts` write path; precedent: `/api/kra/sync-achievements`).
+Recommended **Option D** — read-only monthly preview → manager-approved conversion to
+`KRAAchievement`. **No KRA writes, schema, migrations, `db push`, `DailyUpdate` revival, mobile, or
+production changes** were made. Deliverable:
+`docs/webapp/DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md`.
+
 ### 2026-06-29 — Phase W6.2: Enterprise KRA selected; Daily Updates retired from active use
 
 Business decision closes the §17.1 open question from Phase W6: **Enterprise KRA
