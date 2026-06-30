@@ -783,3 +783,11 @@ active use:
   written (Option D). Legacy KRA/`WeeklyReview`/`kra-engine.ts` is historical/read-only and must
   not receive Daily Activity logic. Full design:
   `docs/webapp/DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md`. No writes/schema/migration in W7.
+
+- **Enterprise KRA mapping setup (Phase W8, config only):** Daily Activity → Enterprise KRA mapping
+  is configured via `KRAMetric` records with `calculationSource="DAILY_ACTIVITY"` (target nested in
+  `formulaJson` — `KRAMetric` has no `targetJson`/`weight`/`isActive` column, so no schema change).
+  Managed by managers at `/settings/performance` → "Daily Activity KRA" tab and
+  `GET/POST/PUT /api/admin/performance/daily-activity-mapping`. This config **does not write
+  achievements** — `KRAAchievement` conversion is a later phase (manager-approved). Engine:
+  `src/lib/performance-engine/daily-activity-mapping.ts`.

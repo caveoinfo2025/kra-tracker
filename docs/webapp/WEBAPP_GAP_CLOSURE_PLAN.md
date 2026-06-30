@@ -767,3 +767,17 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
 - **Recommended approach:** Option D — read-only monthly preview → manager-approved conversion to
   `KRAAchievement`. No KRA writes, schema, migration, mobile, or production changes this phase.
 - **Next:** W8 admin mapping setup (config only) — see integration plan §16.
+
+---
+
+## Phase W8 — Enterprise KRA Daily Activity mapping setup (progress)
+
+- **Implemented (config only):** `KRAMetric` mapping records with
+  `calculationSource="DAILY_ACTIVITY"` (3 defaults: COVERAGE, PRODUCTIVITY, COMPLIANCE), an
+  idempotent default-setup action, manager-gated admin API
+  (`/api/admin/performance/daily-activity-mapping`), and a "Daily Activity KRA" admin tab under
+  `/settings/performance` with the explicit "does not write achievements" warning.
+- **No** `KRAAchievement`/`PerformanceReview`/`EmployeeTarget` writes; **no** schema change;
+  **no** migration; **no** convert-to-achievement button.
+- Legacy KRA/`WeeklyReview` untouched; Daily Updates remains retired; mobile/production untouched.
+- **Next:** W9 read-only preview APIs (employee/manager), then W10 manager-approved conversion.

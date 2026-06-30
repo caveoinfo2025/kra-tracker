@@ -299,3 +299,48 @@ This phase made **documentation-only** changes. No code, Prisma schema, migratio
 `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`EmployeeProfile` write, `DailyUpdate`
 revival, mobile (`/mobile`), or production change was performed. Validation commands (§Task 11)
 were run read-only to confirm the tree is clean.
+
+---
+
+## Phase W8 — Daily Activity KRA mapping config/admin setup (IMPLEMENTED, config only)
+
+**Status:** Implemented. **Config only — no `KRAAchievement`, `PerformanceReview`, or
+`EmployeeTarget` writes; no schema change; no migration.**
+
+**What was built:**
+- **Engine** `src/lib/performance-engine/daily-activity-mapping.ts` — defines the three default
+  mapping metrics (`DAILY_ACTIVITY_COVERAGE`, `DAILY_ACTIVITY_PRODUCTIVITY`,
+  `DAILY_ACTIVITY_COMPLIANCE`), an idempotent `ensureDefaultDailyActivityKraMetrics()`,
+  `listDailyActivityKraMetrics()`, and `validateDailyActivityFormulaJson()`. Touches **only**
+  `KRAMetric` (+ `PerformanceAudit` for audit). Exported via `performance-engine/index.ts`.
+- **Admin API** `GET/POST/PUT /api/admin/performance/daily-activity-mapping` — manager-gated
+  (`requirePermission("Settings","Performance","EDIT")`). GET lists DA metrics; POST idempotently
+  creates/reconciles the 3 defaults; PUT edits one metric's `formulaJson` (validated) / `status`.
+  Rejects any `id` whose `calculationSource !== "DAILY_ACTIVITY"`. No achievement/review/target writes.
+- **Admin UI** — new "Daily Activity KRA" tab in `/settings/performance`
+  (`components/DailyActivityKraMapping.tsx`): view metrics, "Create Default Daily Activity KRA
+  Mapping" button, enable/disable, edit `formulaJson`. Shows the mandatory warning *"This mapping
+  config does not write achievements. KRAAchievement conversion will be added in a later phase."*
+  **No convert-to-achievement button; no monthly write workflow.**
+
+**KRAMetric `calculationSource = "DAILY_ACTIVITY"` usage:** the discriminator for all mapping
+metrics. Because `KRAMetric` has **no `targetJson`/`weight`/`isActive` column**, the target
+definition is nested under `formulaJson.target`, enable/disable uses `status`
+("active"/"inactive"), and per-template weight remains a `KRATemplateItem` concern (later). **No
+schema change required** — confirmed.
+
+**`formulaJson` shape (combined formula + nested target):**
+```json
+{
+  "source": "DAILY_ACTIVITY", "version": 1, "metricType": "COVERAGE|PRODUCTIVITY|COMPLIANCE",
+  "eligibleStatuses": ["CLOSED","LATE_SUBMITTED"],
+  "excludedStatuses": ["NO_ACTIVITY","SUMMARY_PENDING","INCOMPLETE","REOPENED","PENDING_CORRECTION"],
+  "pointsVisibility": "MANAGER_ONLY", "requiresManagerApprovalForConversion": true,
+  "target": { "period": "MONTHLY", "workingDayBasis": "CALENDAR_DAYS_EXCLUDING_WEEKENDS_PENDING_DECISION",
+              "minimumCoveragePercent": 90, "minimumProductiveDays": null, "minimumEligiblePoints": null }
+}
+```
+
+**Idempotency:** `ensureDefaultDailyActivityKraMetrics()` keys on the unique `code` — missing
+metric → created; existing → catalogue fields reconciled and `formulaJson` seeded **only if empty**
+(admin edits never overwritten); `status` left as-is. Re-running creates no duplicates.

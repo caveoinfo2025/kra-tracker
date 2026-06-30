@@ -9,6 +9,7 @@ import TargetManager from "./components/TargetManager";
 import TeamTargetManager from "./components/TeamTargetManager";
 import ReviewWorkflowManager from "./components/ReviewWorkflowManager";
 import PerformanceAudit from "./components/PerformanceAudit";
+import DailyActivityKraMapping from "./components/DailyActivityKraMapping";
 
 type Tab =
   | "overview"
@@ -17,6 +18,7 @@ type Tab =
   | "templates"
   | "targets"
   | "team-targets"
+  | "daily-activity-kra"
   | "reviews"
   | "audit";
 
@@ -27,6 +29,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "templates", label: "KRA Templates" },
   { key: "targets", label: "Employee Targets" },
   { key: "team-targets", label: "Team Targets" },
+  { key: "daily-activity-kra", label: "Daily Activity KRA" },
   { key: "reviews", label: "Review Workflow" },
   { key: "audit", label: "Audit" },
 ];
@@ -37,6 +40,7 @@ type Props = {
   initialTemplates: unknown[];
   initialEmployeeTargets: unknown[];
   initialTeamTargets: unknown[];
+  initialDailyActivityMetrics: unknown[];
 };
 
 export default function PerformanceAdminClient({
@@ -45,6 +49,7 @@ export default function PerformanceAdminClient({
   initialTemplates,
   initialEmployeeTargets,
   initialTeamTargets,
+  initialDailyActivityMetrics,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
@@ -116,6 +121,9 @@ export default function PerformanceAdminClient({
       )}
       {activeTab === "team-targets" && (
         <TeamTargetManager teamTargets={initialTeamTargets} periods={initialPeriods} />
+      )}
+      {activeTab === "daily-activity-kra" && (
+        <DailyActivityKraMapping metrics={initialDailyActivityMetrics} />
       )}
       {activeTab === "reviews" && <ReviewWorkflowManager />}
       {activeTab === "audit" && <PerformanceAudit />}

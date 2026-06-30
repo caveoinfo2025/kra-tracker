@@ -661,3 +661,12 @@ changes (no source files were edited, so this is a sanity check, not a real risk
 `PerformanceReview`); legacy KRA/`WeeklyReview`/`kra-engine.ts` is historical/read-only. The
 `kra-input` rollup, eligibility matrix, preview APIs, and the manager-approved write path are now
 designed in that document (Phase W7, audit + mapping only — no writes/schema/migration this phase).
+
+## Phase W8 — mapping setup implemented
+
+The Daily Activity → Enterprise KRA **mapping config/admin setup** is implemented (config only):
+`KRAMetric` records with `calculationSource="DAILY_ACTIVITY"`, managed via
+`GET/POST/PUT /api/admin/performance/daily-activity-mapping` and the "Daily Activity KRA" tab in
+`/settings/performance`. No `KRAAchievement`/`PerformanceReview`/`EmployeeTarget` writes, no schema
+change. Engine: `src/lib/performance-engine/daily-activity-mapping.ts`. Full record in
+`DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md` (Phase W8).

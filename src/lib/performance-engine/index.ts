@@ -5,3 +5,4 @@ export * from "./targets";
 export * from "./achievement";
 export * from "./review";
 export * from "./audit";
+export * from "./daily-activity-mapping";

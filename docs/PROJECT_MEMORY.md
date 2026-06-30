@@ -21,6 +21,21 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-30 — Phase W8: Enterprise KRA Daily Activity mapping setup (config only)
+
+Phase W8 added Enterprise KRA Daily Activity mapping setup using `KRAMetric`
+`calculationSource="DAILY_ACTIVITY"`. Three default mapping metrics
+(`DAILY_ACTIVITY_COVERAGE`/`_PRODUCTIVITY`/`_COMPLIANCE`) are managed via an idempotent engine
+(`src/lib/performance-engine/daily-activity-mapping.ts`), a manager-gated admin API
+(`GET/POST/PUT /api/admin/performance/daily-activity-mapping`), and a "Daily Activity KRA" tab in
+`/settings/performance` (with an explicit "does not write achievements" warning, no convert
+button). `KRAMetric` has no `targetJson`/`weight`/`isActive` column, so the target definition is
+nested in `formulaJson` and `status` is the enable/disable — **no schema change**. **No
+`KRAAchievement`, `PerformanceReview`, or `EmployeeTarget` automation/writes; no migration; no
+`DailyUpdate` revival; mobile and production untouched.** Legacy KRA/`WeeklyReview` remains
+historical/read-only (guardrail comment added in `daily-activity.ts`). Record:
+`docs/webapp/DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md` (Phase W8).
+
 ### 2026-06-30 — Phase W7: Daily Activity → Enterprise KRA integration planned (audit + mapping only)
 
 Phase W7 planned Daily Activity integration with Enterprise KRA. **Enterprise KRA is the only

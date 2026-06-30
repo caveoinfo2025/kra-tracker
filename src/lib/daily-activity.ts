@@ -208,13 +208,16 @@ export function resolveEffectiveDailyActivityStatus(input: ResolveEffectiveStatu
 }
 
 /**
- * Phase W6.1 — KRA-eligibility placeholder, per the W6 plan's eligibility matrix
+ * Phase W6.1 — KRA-eligibility helper, per the W6 plan's eligibility matrix
  * (docs/webapp/DAILY_ACTIVITY_KRA_REPORTING_PLAN.md §6). Pure helper only — does **not** call
- * either KRA system (legacy `KRA`/`WeeklyReview` or enterprise `EmployeeTarget`/
- * `KRAAchievement`); that wiring is explicitly deferred until the W6 plan's open decision on
- * which system to feed (§17.1) is resolved. Takes an *effective* status (the output of
- * `resolveEffectiveDailyActivityStatus`), not a raw stored one — eligibility is meaningless
- * against a stale `SUMMARY_PENDING` that should actually read as `INCOMPLETE`.
+ * either KRA system. GUARDRAIL (§17.1 resolved 2026-06-29 → **Enterprise KRA only**): Daily
+ * Activity feeds the ENTERPRISE path (`EmployeeProfile`/`EmployeeTarget`/`KRAAchievement`/
+ * `PerformanceReview`) — see `src/lib/performance-engine/daily-activity-mapping.ts` (Phase W8
+ * config). **Never** wire this into the legacy `KRA`/`WeeklyReview` system (`src/lib/kra-engine.ts`,
+ * historical/read-only). The eligible-status set below is mirrored in
+ * `DAILY_ACTIVITY_ELIGIBLE_STATUSES` in that mapping module — keep the two in sync. Takes an
+ * *effective* status (the output of `resolveEffectiveDailyActivityStatus`), not a raw stored one —
+ * eligibility is meaningless against a stale `SUMMARY_PENDING` that should read as `INCOMPLETE`.
  */
 const KRA_ELIGIBLE_STATUSES = new Set(["CLOSED", "LATE_SUBMITTED"]);
 
