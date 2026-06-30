@@ -26,10 +26,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "calendar", label: "Performance Calendar" },
   { key: "kra-library", label: "KRA Library" },
+  { key: "daily-activity-kra", label: "Daily Activity KRA" },
   { key: "templates", label: "KRA Templates" },
   { key: "targets", label: "Employee Targets" },
   { key: "team-targets", label: "Team Targets" },
-  { key: "daily-activity-kra", label: "Daily Activity KRA" },
   { key: "reviews", label: "Review Workflow" },
   { key: "audit", label: "Audit" },
 ];
@@ -65,15 +65,14 @@ export default function PerformanceAdminClient({
         </p>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — wrap so no tab (e.g. Daily Activity KRA) hides behind horizontal overflow */}
       <div
         style={{
           display: "flex",
           gap: 4,
           borderBottom: "2px solid #e5e7eb",
           marginBottom: 24,
-          overflowX: "auto",
-          flexWrap: "nowrap",
+          flexWrap: "wrap",
         }}
       >
         {TABS.map((tab) => (
