@@ -19,10 +19,12 @@ import { requirePermission } from "@/lib/access-control";
 import {
   listDailyActivityKraMetrics,
   ensureDefaultDailyActivityKraMetrics,
-  validateDailyActivityFormulaJson,
   getKRAMetric,
   updateKRAMetric,
   logPerformanceAudit,
+  parseDailyActivityMetricConfig,
+  validateDailyActivityMetricFormPayload,
+  buildDailyActivityMetricFormulaJson,
   DAILY_ACTIVITY_CALC_SOURCE,
 } from "@/lib/performance-engine";
 
@@ -33,7 +35,20 @@ export async function GET(req: NextRequest) {
 
   const companyId = req.nextUrl.searchParams.get("companyId");
   const metrics = await listDailyActivityKraMetrics(companyId ? Number(companyId) : undefined);
-  return NextResponse.json(metrics);
+  // Return business-friendly metadata + a parsed `config` object — NOT raw formulaJson — so the
+  // UI never has to read/edit JSON.
+  return NextResponse.json(
+    metrics.map((m) => ({
+      id: m.id,
+      name: m.name,
+      code: m.code,
+      description: m.description,
+      metricType: m.metricType,
+      calculationSource: m.calculationSource,
+      status: m.status,
+      config: parseDailyActivityMetricConfig(m),
+    })),
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -53,7 +68,7 @@ export async function PUT(req: NextRequest) {
   if (deny) return deny;
 
   const body = await req.json();
-  const { id, formulaJson, status } = body ?? {};
+  const { id, status, config } = body ?? {};
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   // Only Daily Activity mapping metrics are editable through this endpoint.
@@ -66,11 +81,13 @@ export async function PUT(req: NextRequest) {
     );
   }
 
+  // Accept a business-friendly `config` payload (form fields) — never raw JSON. The engine
+  // converts it to the internal `formulaJson` here.
   const data: { formulaJson?: string; status?: string } = {};
-  if (typeof formulaJson === "string") {
-    const valid = validateDailyActivityFormulaJson(formulaJson);
+  if (config !== undefined) {
+    const valid = validateDailyActivityMetricFormPayload(config);
     if (!valid.ok) return NextResponse.json({ error: valid.error }, { status: 400 });
-    data.formulaJson = formulaJson;
+    data.formulaJson = buildDailyActivityMetricFormulaJson(config);
   }
   if (typeof status === "string") {
     if (status !== "active" && status !== "inactive") {
@@ -79,7 +96,7 @@ export async function PUT(req: NextRequest) {
     data.status = status;
   }
   if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "nothing to update (formulaJson or status required)" }, { status: 400 });
+    return NextResponse.json({ error: "nothing to update (config or status required)" }, { status: 400 });
   }
 
   const updated = await updateKRAMetric(Number(id), data);
@@ -87,9 +104,15 @@ export async function PUT(req: NextRequest) {
     entityType: "KRAMetric",
     entityId: Number(id),
     action: "DAILY_ACTIVITY_MAPPING_UPDATE",
-    oldValue: JSON.stringify({ formulaJson: existing.formulaJson, status: existing.status }),
-    newValue: JSON.stringify(data),
+    oldValue: JSON.stringify({ status: existing.status }),
+    newValue: JSON.stringify({ status: data.status, configUpdated: data.formulaJson !== undefined }),
     performedBy: session?.user?.employeeId ?? 0,
   });
-  return NextResponse.json(updated);
+  // Respond with business-friendly fields, not raw formulaJson.
+  return NextResponse.json({
+    id: updated.id,
+    code: updated.code,
+    status: updated.status,
+    config: parseDailyActivityMetricConfig(updated),
+  });
 }

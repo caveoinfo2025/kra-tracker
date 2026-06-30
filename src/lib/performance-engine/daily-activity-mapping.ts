@@ -132,6 +132,106 @@ export function validateDailyActivityFormulaJson(formulaJson: string): MappingVa
   return { ok: true };
 }
 
+// ── Form-style (business-friendly) config ⇄ formulaJson mappers (Phase W8.1) ──────────────────
+// The UI never edits raw JSON. It works with these plain business fields; the API/engine convert
+// them to/from `KRAMetric.formulaJson` here so the JSON stays an internal storage detail.
+
+export const POINTS_VISIBILITY_OPTIONS = ["MANAGER_ONLY", "EMPLOYEE_BAND_ONLY"] as const;
+export const DAILY_ACTIVITY_PERIODS = ["MONTHLY", "WEEKLY"] as const;
+
+/** Business-friendly config used by the UI/API — no JSON, no internal-only keys. */
+export type DailyActivityMetricFormPayload = {
+  metricType: DailyActivityMappingType;
+  period: (typeof DAILY_ACTIVITY_PERIODS)[number];
+  eligibleStatuses: string[];
+  excludedStatuses: string[];
+  pointsVisibility: (typeof POINTS_VISIBILITY_OPTIONS)[number];
+  requiresManagerApprovalForConversion: boolean;
+  minimumCoveragePercent: number | null;
+  minimumProductiveDays: number | null;
+  minimumEligiblePoints: number | null;
+  workingDayBasis: string;
+};
+
+/** Validate a business-friendly form payload (pre-conversion). Pure, never throws. */
+export function validateDailyActivityMetricFormPayload(payload: unknown): MappingValidationResult {
+  if (typeof payload !== "object" || payload === null) return { ok: false, error: "payload must be an object" };
+  const p = payload as Record<string, unknown>;
+  if (!DAILY_ACTIVITY_MAPPING_TYPES.includes(p.metricType as DailyActivityMappingType)) {
+    return { ok: false, error: `metricType must be one of ${DAILY_ACTIVITY_MAPPING_TYPES.join(", ")}` };
+  }
+  if (!DAILY_ACTIVITY_PERIODS.includes(p.period as (typeof DAILY_ACTIVITY_PERIODS)[number])) {
+    return { ok: false, error: `period must be one of ${DAILY_ACTIVITY_PERIODS.join(", ")}` };
+  }
+  if (!Array.isArray(p.eligibleStatuses) || !Array.isArray(p.excludedStatuses)) {
+    return { ok: false, error: "eligibleStatuses and excludedStatuses must be arrays" };
+  }
+  if (p.pointsVisibility !== undefined && !POINTS_VISIBILITY_OPTIONS.includes(p.pointsVisibility as (typeof POINTS_VISIBILITY_OPTIONS)[number])) {
+    return { ok: false, error: `pointsVisibility must be one of ${POINTS_VISIBILITY_OPTIONS.join(", ")}` };
+  }
+  for (const k of ["minimumCoveragePercent", "minimumProductiveDays", "minimumEligiblePoints"]) {
+    const v = p[k];
+    if (v !== null && v !== undefined && typeof v !== "number") {
+      return { ok: false, error: `${k} must be a number or null` };
+    }
+  }
+  return { ok: true };
+}
+
+/** Build the internal `formulaJson` string from a business-friendly form payload. */
+export function buildDailyActivityMetricFormulaJson(payload: DailyActivityMetricFormPayload): string {
+  return JSON.stringify({
+    source: DAILY_ACTIVITY_CALC_SOURCE,
+    version: 1,
+    metricType: payload.metricType,
+    eligibleStatuses: payload.eligibleStatuses,
+    excludedStatuses: payload.excludedStatuses,
+    pointsVisibility: payload.pointsVisibility ?? "MANAGER_ONLY",
+    requiresManagerApprovalForConversion: payload.requiresManagerApprovalForConversion ?? true,
+    target: {
+      period: payload.period,
+      workingDayBasis: payload.workingDayBasis ?? "CALENDAR_DAYS_EXCLUDING_WEEKENDS_PENDING_DECISION",
+      minimumCoveragePercent: payload.minimumCoveragePercent ?? null,
+      minimumProductiveDays: payload.minimumProductiveDays ?? null,
+      minimumEligiblePoints: payload.minimumEligiblePoints ?? null,
+    },
+  });
+}
+
+/** Parse a `KRAMetric` row's `formulaJson` into business-friendly fields for the UI/API. Never
+ *  throws — falls back to sane defaults so a malformed/empty blob never breaks the screen. */
+export function parseDailyActivityMetricConfig(metric: {
+  formulaJson?: string | null;
+}): DailyActivityMetricFormPayload {
+  let o: Record<string, unknown> = {};
+  try {
+    const p = JSON.parse(metric.formulaJson || "{}");
+    if (p && typeof p === "object") o = p as Record<string, unknown>;
+  } catch {
+    o = {};
+  }
+  const target = (o.target && typeof o.target === "object" ? (o.target as Record<string, unknown>) : {}) as Record<string, unknown>;
+  const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
+  return {
+    metricType: DAILY_ACTIVITY_MAPPING_TYPES.includes(o.metricType as DailyActivityMappingType)
+      ? (o.metricType as DailyActivityMappingType)
+      : "COVERAGE",
+    period: DAILY_ACTIVITY_PERIODS.includes(target.period as (typeof DAILY_ACTIVITY_PERIODS)[number])
+      ? (target.period as (typeof DAILY_ACTIVITY_PERIODS)[number])
+      : "MONTHLY",
+    eligibleStatuses: Array.isArray(o.eligibleStatuses) ? (o.eligibleStatuses as string[]) : [...DAILY_ACTIVITY_ELIGIBLE_STATUSES],
+    excludedStatuses: Array.isArray(o.excludedStatuses) ? (o.excludedStatuses as string[]) : [...DAILY_ACTIVITY_EXCLUDED_STATUSES],
+    pointsVisibility: POINTS_VISIBILITY_OPTIONS.includes(o.pointsVisibility as (typeof POINTS_VISIBILITY_OPTIONS)[number])
+      ? (o.pointsVisibility as (typeof POINTS_VISIBILITY_OPTIONS)[number])
+      : "MANAGER_ONLY",
+    requiresManagerApprovalForConversion: o.requiresManagerApprovalForConversion !== false,
+    minimumCoveragePercent: num(target.minimumCoveragePercent),
+    minimumProductiveDays: num(target.minimumProductiveDays),
+    minimumEligiblePoints: num(target.minimumEligiblePoints),
+    workingDayBasis: typeof target.workingDayBasis === "string" ? (target.workingDayBasis as string) : "CALENDAR_DAYS_EXCLUDING_WEEKENDS_PENDING_DECISION",
+  };
+}
+
 export type EnsureDefaultsResult = {
   created: { code: string; id: number }[];
   updated: { code: string; id: number }[];

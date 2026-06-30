@@ -41,6 +41,7 @@ type Props = {
   initialEmployeeTargets: unknown[];
   initialTeamTargets: unknown[];
   initialDailyActivityMetrics: unknown[];
+  initialEmployeeProfiles: unknown[];
 };
 
 export default function PerformanceAdminClient({
@@ -50,6 +51,7 @@ export default function PerformanceAdminClient({
   initialEmployeeTargets,
   initialTeamTargets,
   initialDailyActivityMetrics,
+  initialEmployeeProfiles,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
@@ -116,6 +118,7 @@ export default function PerformanceAdminClient({
           employeeTargets={initialEmployeeTargets}
           periods={initialPeriods}
           templates={initialTemplates}
+          employeeProfiles={initialEmployeeProfiles}
         />
       )}
       {activeTab === "team-targets" && (

@@ -344,3 +344,27 @@ schema change required** — confirmed.
 **Idempotency:** `ensureDefaultDailyActivityKraMetrics()` keys on the unique `code` — missing
 metric → created; existing → catalogue fields reconciled and `formulaJson` seeded **only if empty**
 (admin edits never overwritten); `status` left as-is. Re-running creates no duplicates.
+
+---
+
+## Phase W8.1 — UI usability correction (form-based, no JSON)
+
+Business users have zero JSON/coding knowledge, so the W8 raw-`formulaJson` textarea was unacceptable.
+
+- **Removed raw JSON editing** from the Daily Activity KRA mapping UI. `formulaJson` is now an
+  internal storage detail only — never shown or edited in the UI, and not returned to the UI by the API.
+- **Added form-based Daily Activity KRA mapping controls** (`DailyActivityKraMapping.tsx`): metric
+  type / period dropdowns, eligible & excluded status checkboxes, manager-approval and points-visibility
+  toggles/dropdowns, and number fields for minimum coverage % / productive days / eligible points /
+  working-day basis.
+- **Engine mappers** (`daily-activity-mapping.ts`): `parseDailyActivityMetricConfig(metric)`,
+  `buildDailyActivityMetricFormulaJson(formPayload)`, `validateDailyActivityMetricFormPayload(payload)`.
+  The engine still stores config in `KRAMetric.formulaJson`; all UI/API editing uses business fields.
+- **API** (`/api/admin/performance/daily-activity-mapping`): GET returns parsed `config` + metadata
+  (no raw JSON); PUT accepts a business `config` payload and converts it internally. Still config-only —
+  no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget` writes.
+- **Confirmed KRA assignment is employee-wise**: `EmployeeTarget` is one row per employee. The Employee
+  Targets UI now selects an employee **by name** (no raw profile ID), shows role/department/reporting
+  manager, and labels the template as a **starting point**. Each employee can have different targets even
+  on the same role template. Engine adds `listEmployeeProfilesForTargeting()` and enriches
+  `listEmployeeTargets` with employee/designation/manager names.

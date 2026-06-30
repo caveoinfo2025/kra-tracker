@@ -781,3 +781,18 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
   **no** migration; **no** convert-to-achievement button.
 - Legacy KRA/`WeeklyReview` untouched; Daily Updates remains retired; mobile/production untouched.
 - **Next:** W9 read-only preview APIs (employee/manager), then W10 manager-approved conversion.
+
+---
+
+## Phase W8.1 — KRA mapping UI usability correction (progress)
+
+- **Raw JSON removed** from the Daily Activity KRA mapping UI; replaced with form controls
+  (dropdowns, checkboxes, toggles, number fields). `formulaJson` is internal-only; GET returns a parsed
+  `config`, PUT accepts a business `config` payload.
+- **Engine mappers added**: `parseDailyActivityMetricConfig`, `buildDailyActivityMetricFormulaJson`,
+  `validateDailyActivityMetricFormPayload`.
+- **Employee Targets** now assign **by employee name** (no raw profile IDs), show role/department/manager,
+  and present role templates as a **starting point** only. Engine: `listEmployeeProfilesForTargeting()` +
+  enriched `listEmployeeTargets` include.
+- Still config-only: **no** `KRAAchievement`/`PerformanceReview`/`EmployeeTarget` automation; no schema/
+  migration; legacy KRA untouched; Daily Updates retired; mobile/production untouched.

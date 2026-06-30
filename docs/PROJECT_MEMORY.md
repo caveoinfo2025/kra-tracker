@@ -21,6 +21,20 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-30 — Phase W8.1: Enterprise KRA mapping UI corrected for business users
+
+Phase W8.1 corrected the Enterprise KRA mapping UI for business users. **Raw JSON editing removed**
+from the Daily Activity KRA mapping (`DailyActivityKraMapping.tsx`) — replaced with form controls
+(dropdowns, checkboxes, toggles, number fields). `KRAMetric.formulaJson` is now an internal storage
+detail; engine mappers `parseDailyActivityMetricConfig` / `buildDailyActivityMetricFormulaJson` /
+`validateDailyActivityMetricFormPayload` convert between business fields and JSON; the API GET returns a
+parsed `config`, PUT accepts a business `config` payload. **KRA targets confirmed as employee-wise**:
+Employee Targets UI now selects by employee **name** (no raw profile IDs), shows role/department/
+reporting manager, and treats role templates as **starting templates** only — each employee can have
+different targets. Engine adds `listEmployeeProfilesForTargeting()` + enriched `listEmployeeTargets`.
+**No `KRAAchievement`, `PerformanceReview`, or `EmployeeTarget` automation; no schema, migration,
+`DailyUpdate` revival, mobile, or production changes.**
+
 ### 2026-06-30 — Phase W8: Enterprise KRA Daily Activity mapping setup (config only)
 
 Phase W8 added Enterprise KRA Daily Activity mapping setup using `KRAMetric`

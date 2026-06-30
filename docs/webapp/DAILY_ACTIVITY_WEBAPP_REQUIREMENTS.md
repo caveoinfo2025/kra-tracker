@@ -791,3 +791,10 @@ active use:
   `GET/POST/PUT /api/admin/performance/daily-activity-mapping`. This config **does not write
   achievements** — `KRAAchievement` conversion is a later phase (manager-approved). Engine:
   `src/lib/performance-engine/daily-activity-mapping.ts`.
+
+- **No JSON for business users (Phase W8.1):** No JSON may be exposed to business users anywhere in the
+  UI. The Daily Activity KRA mapping must be **form-based** (dropdowns/checkboxes/toggles/number fields);
+  `formulaJson` is an internal storage detail only. KRA assignment must be **employee-wise** — selected by
+  employee name (never a raw profile/employee ID), showing role/department/reporting manager. Role
+  templates are **reusable starting defaults**, not forced hierarchy assignment; each employee's target is
+  individual and can be customized.
