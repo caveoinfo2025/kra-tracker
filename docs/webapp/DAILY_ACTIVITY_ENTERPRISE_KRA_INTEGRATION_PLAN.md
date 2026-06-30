@@ -368,3 +368,37 @@ Business users have zero JSON/coding knowledge, so the W8 raw-`formulaJson` text
   manager, and labels the template as a **starting point**. Each employee can have different targets even
   on the same role template. Engine adds `listEmployeeProfilesForTargeting()` and enriches
   `listEmployeeTargets` with employee/designation/manager names.
+
+## Phase W8.2 — Employee-wise KPI target assignment (IMPLEMENTED, EmployeeTarget + UI only)
+
+W8.1 confirmed targets are employee-wise and assignable by name. W8.2 adds the per-KPI target
+values, so two employees on the **same** role template can carry **different** targets (ISR Priya =
+35 qualified leads/month, Sangeetha = 45). Role templates remain **starting points only**.
+
+- **Structure:** `KRA Template → KPI / Metric → Employee-specific Target`. Per-KPI rows are stored
+  internally in **`EmployeeTarget.targetJson`** (existing `@db.Text` column — **no schema change, no
+  migration, no `db push`**). The UI never shows this JSON.
+- **`targetJson` shape (v1):** `{ version, templateId, templateName, period, targets: [{ metricCode,
+  metricName, category, source, unit, targetValue, weight, frequency, isActive, notes }] }`. The API
+  converts business-friendly form rows ↔ JSON internally.
+- **Engine** (`performance-engine/targets.ts`): `buildTargetRowsFromTemplate()`,
+  `applyTemplateToEmployeeTarget()`, `saveEmployeeTargetRows()`, `getEmployeeTargetDetail()`,
+  `parseEmployeeTargetJson()`, `validateTargetRows()`, plus `TARGET_SOURCES` / `TARGET_FREQUENCIES`
+  constants. Unit/category/source are derived from each metric's `metricType`/`calculationSource`
+  (Daily Activity metrics → `source = DAILY_ACTIVITY`).
+- **API** (`/api/admin/performance/employee-targets`): `GET` (business-shaped list, no raw JSON),
+  `GET [id]` (parsed KPI rows + employee/period context), `PUT [id]` (validate + save rows),
+  `POST apply-template` (seed rows for **one** target only). All gated by `requirePermission(Settings,
+  Performance, EDIT)`; actor recorded from `session.user.employeeId`.
+- **UI** (`TargetManager.tsx`): per-target **Edit KPIs** panel — role-template dropdown + **Apply
+  Template** button, editable KPI table (Target Value / Weight / Frequency / Source / Active / Notes),
+  live total-active-weight indicator with a non-blocking ≠100% warning, **Save Targets**. No JSON
+  textarea; no raw employee/profile ID field.
+- **Template application affects only the selected employee's target** — never auto-assigned to a
+  hierarchy or to all employees (bulk assignment intentionally NOT built).
+- **Audit:** `employee_target_template_applied` and `employee_target_updated` via the existing
+  `PerformanceAudit` table (`logPerformanceAudit`), recording `employeeProfileId`, `templateId`,
+  changed-row summary, and actor.
+- **Isolation confirmed:** **no** `KRAAchievement` writes, **no** `PerformanceReview` writes, no legacy
+  `KRA`/`WeeklyReview`/`kra-engine.ts` use, no Daily Updates revival, no mobile changes, no production
+  changes, no schema/migration.

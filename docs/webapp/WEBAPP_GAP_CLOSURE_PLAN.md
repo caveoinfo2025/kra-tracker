@@ -796,3 +796,19 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
   enriched `listEmployeeTargets` include.
 - Still config-only: **no** `KRAAchievement`/`PerformanceReview`/`EmployeeTarget` automation; no schema/
   migration; legacy KRA untouched; Daily Updates retired; mobile/production untouched.
+
+## Phase W8.2 — Employee-wise KPI target assignment (progress)
+
+- **Implemented per-KPI employee targets.** Each `EmployeeTarget` now stores per-KPI rows in
+  `targetJson` (no schema change): `targetValue`, `weight`, `frequency`, `source`, `unit`, `category`,
+  `isActive`, `notes`. Two employees on the same template can carry different targets.
+- **Engine** (`performance-engine/targets.ts`): `buildTargetRowsFromTemplate`,
+  `applyTemplateToEmployeeTarget`, `saveEmployeeTargetRows`, `getEmployeeTargetDetail`,
+  `parseEmployeeTargetJson`, `validateTargetRows`.
+- **API:** `/api/admin/performance/employee-targets` (GET list), `[id]` (GET detail + PUT save),
+  `apply-template` (POST, single target). Business rows in/out — never raw JSON.
+- **UI** (`TargetManager.tsx`): **Edit KPIs** panel with template dropdown + Apply Template, editable
+  KPI table, total-weight warning, Save. No JSON textarea, no raw employee ID.
+- **Audit:** `employee_target_template_applied` / `employee_target_updated` via `PerformanceAudit`.
+- **Still isolated:** no `KRAAchievement`/`PerformanceReview` writes; no legacy KRA/WeeklyReview; no
+  schema/migration; Daily Updates retired; mobile/production untouched.

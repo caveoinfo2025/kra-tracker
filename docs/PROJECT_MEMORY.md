@@ -21,6 +21,23 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-30 — Phase W8.2: Employee-wise KPI target assignment for Enterprise KRA
+
+Phase W8.2 implemented employee-wise KPI target assignment for Enterprise KRA. Role templates are used
+only as starting points; individual employee targets can differ per KPI (e.g. two ISRs on the same
+template with 35 vs 45 qualified leads). Per-KPI target rows (`targetValue`, `weight`, `frequency`,
+`source`, `unit`, `category`, `isActive`, `notes`) are stored internally in `EmployeeTarget.targetJson`
+(existing `@db.Text` column — **no schema change**). Engine (`performance-engine/targets.ts`) adds
+`buildTargetRowsFromTemplate`, `applyTemplateToEmployeeTarget`, `saveEmployeeTargetRows`,
+`getEmployeeTargetDetail`, `parseEmployeeTargetJson`, `validateTargetRows`. API under
+`/api/admin/performance/employee-targets` (list / `[id]` detail+PUT / `apply-template`) exchanges
+business rows and converts to JSON internally. UI (`TargetManager.tsx`) gains an **Edit KPIs** panel:
+template dropdown + Apply Template, editable KPI table, total-weight warning, Save. Applying a template
+affects **only the selected employee's target**. Audit events `employee_target_template_applied` /
+`employee_target_updated` via existing `PerformanceAudit`. **UI hides JSON and raw IDs. No
+`KRAAchievement`, `PerformanceReview`, schema, migration, `DailyUpdate`, mobile, or production changes;
+legacy KRA/WeeklyReview untouched.**
+
 ### 2026-06-30 — Phase W8.1: Enterprise KRA mapping UI corrected for business users
 
 Phase W8.1 corrected the Enterprise KRA mapping UI for business users. **Raw JSON editing removed**

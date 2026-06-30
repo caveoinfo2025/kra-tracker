@@ -798,3 +798,11 @@ active use:
   employee name (never a raw profile/employee ID), showing role/department/reporting manager. Role
   templates are **reusable starting defaults**, not forced hierarchy assignment; each employee's target is
   individual and can be customized.
+
+- **Employee-wise KPI targets (Phase W8.2):** KRA targets must be **employee-wise**. Each KPI/metric
+  under a KRA template must have an **editable, employee-specific target value** (plus weight, frequency,
+  active flag, optional notes). Two employees on the same role template can hold different targets — the
+  template is a **default starting point only**. Per-KPI target rows are stored internally in
+  `EmployeeTarget.targetJson`; **no raw JSON and no raw employee/profile ID may appear in normal UI**.
+  Applying a template seeds rows for the **selected employee only** (no hierarchy/bulk auto-assignment).
+  Total active KPI weight should ideally equal 100% — warn if it does not, but do not block save.
