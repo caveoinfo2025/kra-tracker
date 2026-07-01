@@ -21,6 +21,23 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-30 — Phase W8.4: Read-only KRA target visibility for employees and managers
+
+Phase W8.4 added read-only Enterprise KRA target visibility for employees and managers. Assigned KPI
+targets are shown in business-friendly tables without raw JSON or raw employee IDs. Engine
+(`performance-engine/targets.ts`, read-only) adds `getMyAssignedKraTargets` (self, resolved via
+`EmployeeProfile.userId`), `getEmployeeAssignedKraTargets`, `getManagerTeamAssignedKraTargets` (direct
+reports via `reportingManagerId`), and `listAssignedKraTargetsGrouped`. APIs: `GET /api/performance/
+my-targets` (employee self-scoped — no id override) and `GET /api/admin/performance/team-targets`
+(manager/admin, grouped by employee, filters). UI: `/performance/my-targets` page — read-only table
+(KPI · Category · Source · Unit · Target · Weight · Frequency · Status), plus a manager-only read-only
+"My Team's KRA Targets" section; "My KRA Targets" sidebar link added to the employee "Me" and manager
+"People" groups (distinct from legacy `/kras` and from Settings → Performance admin config). Verified:
+employee sees only own targets, override param ignored, employee 403 on admin endpoints, manager sees
+grouped team data, no edit controls, no raw JSON. **No KRAAchievement, PerformanceReview, schema,
+migration, EmployeeTarget mutation by viewing, DailyUpdate, mobile, or production changes; legacy KRA/
+WeeklyReview untouched.**
+
 ### 2026-06-30 — Phase W8.3: Performance Audit visibility for Enterprise KRA actions
 
 Phase W8.3 added Performance Audit visibility for Enterprise KRA actions. Employee target template/apply/

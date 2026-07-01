@@ -825,3 +825,19 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
   Activity mapping events visible with names. Read-only (GET only).
 - **Still isolated:** no `KRAAchievement`/`PerformanceReview` writes; no schema/migration; legacy KRA
   untouched; Daily Updates retired; mobile/production untouched.
+
+## Phase W8.4 — Read-only KRA target visibility (progress)
+
+- **Employees can now view their assigned KPI targets** at `/performance/my-targets` (self-scoped),
+  and **managers can view team targets** (read-only section on the same page + admin endpoint).
+- **Engine** (read-only): `getMyAssignedKraTargets`, `getEmployeeAssignedKraTargets`,
+  `getManagerTeamAssignedKraTargets`, `listAssignedKraTargetsGrouped` — parse `targetJson` into
+  business KPI rows, no raw JSON.
+- **APIs:** `GET /api/performance/my-targets` (employee self, no id override) and
+  `GET /api/admin/performance/team-targets` (manager/admin, grouped by employee, filters).
+- **UI:** `/performance/my-targets` page (read-only table KPI/Category/Source/Unit/Target/Weight/
+  Frequency/Status) + manager team section; "My KRA Targets" sidebar link.
+- **Verified:** employee sees only own targets; `?employeeProfileId=` override ignored; employee gets
+  403 on admin endpoints; manager sees grouped team data; no edit controls; no raw JSON/IDs.
+- **Still isolated:** no `KRAAchievement`/`PerformanceReview` writes; no schema/migration; legacy KRA
+  untouched; Daily Updates retired; mobile/production untouched.

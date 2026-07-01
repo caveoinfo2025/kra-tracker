@@ -469,3 +469,260 @@ export async function saveEmployeeTargetRows(params: {
 
   return { ok: true, validation };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase W8.4 — read-only KRA target VISIBILITY (employees + managers).
+//
+// These helpers only READ `EmployeeTarget` (+ profile/period/template context) and parse
+// `targetJson` into business-friendly KPI rows. They NEVER write, never touch
+// KRAAchievement/PerformanceReview, never mutate EmployeeTarget, and never expose raw JSON.
+// Used by the employee self-view (`/api/performance/my-targets`) and the manager/admin team
+// view (`/api/admin/performance/team-targets`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One KPI target row as shown to employees/managers (no metricCode-as-ID noise; business labels). */
+export type AssignedKpiRow = {
+  kpiName: string;
+  category: string;
+  source: string;
+  unit: string;
+  targetValue: number;
+  weight: number;
+  frequency: string;
+  isActive: boolean;
+  notes: string;
+};
+
+/** One assigned target (period + template + status) with its KPI rows. */
+export type AssignedTargetGroup = {
+  targetId: number;
+  period: string;
+  periodId: number;
+  templateName: string;
+  templateId: number | null;
+  status: string;
+  updatedAt: string | null;
+  kpis: AssignedKpiRow[];
+};
+
+/** An employee plus all their assigned targets — the unit returned by every W8.4 helper. */
+export type AssignedTargetsForEmployee = {
+  employeeProfileId: number;
+  employeeName: string;
+  designation: string;
+  department: string;
+  team: string;
+  reportingManager: string;
+  targets: AssignedTargetGroup[];
+};
+
+const ASSIGNED_TARGET_INCLUDE = {
+  period: true,
+  template: { select: { id: true, name: true } },
+  employeeProfile: {
+    include: {
+      employee: { select: { name: true } },
+      designation: { select: { title: true } },
+      department: { select: { name: true } },
+      team: { select: { name: true } },
+      reportingManager: { select: { name: true } },
+    },
+  },
+} as const;
+
+function toAssignedKpiRow(r: EmployeeTargetKpiRow): AssignedKpiRow {
+  return {
+    kpiName: r.metricName || r.metricCode,
+    category: r.category,
+    source: r.source,
+    unit: r.unit,
+    targetValue: r.targetValue,
+    weight: r.weight,
+    frequency: r.frequency,
+    isActive: r.isActive,
+    notes: r.notes,
+  };
+}
+
+// Minimal structural type for a target row fetched with ASSIGNED_TARGET_INCLUDE.
+type AssignedTargetRecord = {
+  id: number;
+  employeeProfileId: number;
+  periodId: number;
+  templateId: number | null;
+  targetJson: string;
+  status: string;
+  updatedAt: Date;
+  period?: { name?: string } | null;
+  template?: { name?: string } | null;
+  employeeProfile?: {
+    employee?: { name?: string } | null;
+    designation?: { title?: string } | null;
+    department?: { name?: string } | null;
+    team?: { name?: string } | null;
+    reportingManager?: { name?: string } | null;
+  } | null;
+};
+
+function shapeAssignedTarget(t: AssignedTargetRecord): AssignedTargetGroup {
+  const doc = parseEmployeeTargetJson(t.targetJson);
+  return {
+    targetId: t.id,
+    period: t.period?.name ?? `Period #${t.periodId}`,
+    periodId: t.periodId,
+    templateName: t.template?.name ?? doc.templateName ?? "",
+    templateId: t.templateId,
+    status: t.status,
+    updatedAt: t.updatedAt ? t.updatedAt.toISOString() : null,
+    kpis: doc.targets.map(toAssignedKpiRow),
+  };
+}
+
+function employeeContext(t: AssignedTargetRecord) {
+  const p = t.employeeProfile;
+  return {
+    employeeProfileId: t.employeeProfileId,
+    employeeName: p?.employee?.name ?? `Profile #${t.employeeProfileId}`,
+    designation: p?.designation?.title ?? "",
+    department: p?.department?.name ?? "",
+    team: p?.team?.name ?? "",
+    reportingManager: p?.reportingManager?.name ?? "",
+  };
+}
+
+/**
+ * Read-only: all assigned KRA targets for ONE employee profile, as business-friendly rows.
+ * Returns null if the profile does not exist (so callers can 404). Includes employee context even
+ * when the employee has no targets yet.
+ */
+export async function getEmployeeAssignedKraTargets(
+  employeeProfileId: number,
+): Promise<AssignedTargetsForEmployee | null> {
+  try {
+    const profile = await prisma.employeeProfile.findUnique({
+      where: { id: employeeProfileId },
+      include: {
+        employee: { select: { name: true } },
+        designation: { select: { title: true } },
+        department: { select: { name: true } },
+        team: { select: { name: true } },
+        reportingManager: { select: { name: true } },
+      },
+    });
+    if (!profile) return null;
+
+    const targets = (await prisma.employeeTarget.findMany({
+      where: { employeeProfileId },
+      include: ASSIGNED_TARGET_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    })) as unknown as AssignedTargetRecord[];
+
+    return {
+      employeeProfileId: profile.id,
+      employeeName: profile.employee?.name ?? `Profile #${profile.id}`,
+      designation: profile.designation?.title ?? "",
+      department: profile.department?.name ?? "",
+      team: profile.team?.name ?? "",
+      reportingManager: profile.reportingManager?.name ?? "",
+      targets: targets.map(shapeAssignedTarget),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read-only, SELF-SCOPED: assigned KRA targets for the logged-in employee, resolved from their
+ * auth user id (`Employee.id` → `EmployeeProfile.userId`). No employeeId override possible.
+ * Returns null when the user has no EmployeeProfile.
+ */
+export async function getMyAssignedKraTargets(
+  employeeId: number,
+): Promise<AssignedTargetsForEmployee | null> {
+  try {
+    const profile = await prisma.employeeProfile.findUnique({
+      where: { userId: employeeId },
+      select: { id: true },
+    });
+    if (!profile) return null;
+    return await getEmployeeAssignedKraTargets(profile.id);
+  } catch {
+    return null;
+  }
+}
+
+export type AssignedTargetsFilters = {
+  employeeProfileId?: number;
+  employeeProfileIds?: number[];
+  periodId?: number;
+  templateId?: number;
+  status?: string;
+};
+
+/**
+ * Read-only: assigned KRA targets grouped by employee, for the manager/admin team view.
+ * Optional filters (employeeProfileId(s) / periodId / templateId / status). Newest target first
+ * within each employee; employees ordered by name.
+ */
+export async function listAssignedKraTargetsGrouped(
+  filters?: AssignedTargetsFilters,
+): Promise<AssignedTargetsForEmployee[]> {
+  try {
+    const where: {
+      employeeProfileId?: number | { in: number[] };
+      periodId?: number;
+      templateId?: number;
+      status?: string;
+    } = {};
+    if (filters?.employeeProfileIds) {
+      if (filters.employeeProfileIds.length === 0) return [];
+      where.employeeProfileId = { in: filters.employeeProfileIds };
+    } else if (filters?.employeeProfileId) {
+      where.employeeProfileId = filters.employeeProfileId;
+    }
+    if (filters?.periodId) where.periodId = filters.periodId;
+    if (filters?.templateId) where.templateId = filters.templateId;
+    if (filters?.status) where.status = filters.status;
+
+    const targets = (await prisma.employeeTarget.findMany({
+      where,
+      include: ASSIGNED_TARGET_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    })) as unknown as AssignedTargetRecord[];
+
+    const byEmployee = new Map<number, AssignedTargetsForEmployee>();
+    for (const t of targets) {
+      let group = byEmployee.get(t.employeeProfileId);
+      if (!group) {
+        group = { ...employeeContext(t), targets: [] };
+        byEmployee.set(t.employeeProfileId, group);
+      }
+      group.targets.push(shapeAssignedTarget(t));
+    }
+    return [...byEmployee.values()].sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Read-only: assigned KRA targets for a manager's DIRECT REPORTS (profiles whose
+ * `reportingManagerId` = the manager's `Employee.id`), grouped by employee. Optional filters apply.
+ */
+export async function getManagerTeamAssignedKraTargets(
+  managerEmployeeId: number,
+  filters?: Omit<AssignedTargetsFilters, "employeeProfileIds">,
+): Promise<AssignedTargetsForEmployee[]> {
+  try {
+    const reports = await prisma.employeeProfile.findMany({
+      where: { reportingManagerId: managerEmployeeId },
+      select: { id: true },
+    });
+    return await listAssignedKraTargetsGrouped({
+      ...filters,
+      employeeProfileIds: reports.map((r) => r.id),
+    });
+  } catch {
+    return [];
+  }
+}

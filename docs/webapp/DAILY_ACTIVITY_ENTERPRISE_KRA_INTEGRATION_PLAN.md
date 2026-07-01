@@ -424,3 +424,26 @@ nothing. W8.3 adds a proper read endpoint and wires the tab — **visibility onl
 - **Isolation:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget` writes (viewing audit never
   mutates data), no legacy KRA/WeeklyReview, no Daily Updates, no schema/migration, no mobile, no
   production changes.
+
+## Phase W8.4 — Read-only KRA target visibility (IMPLEMENTED, employees + managers)
+
+W8.2 assigns per-KPI targets; W8.3 made the audit visible. W8.4 lets **employees see their own**
+assigned KPI targets and **managers see their team's** — all read-only, no achievement/scoring.
+
+- **Engine** (`performance-engine/targets.ts`, read-only): `getMyAssignedKraTargets(employeeId)`
+  (self, resolved via `EmployeeProfile.userId`), `getEmployeeAssignedKraTargets(employeeProfileId)`,
+  `getManagerTeamAssignedKraTargets(managerEmployeeId)` (direct reports via `reportingManagerId`),
+  and `listAssignedKraTargetsGrouped(filters)`. All parse `targetJson` into business KPI rows
+  (kpiName, category, source, unit, targetValue, weight, frequency, active, notes) — **no raw JSON**.
+- **Employee API:** `GET /api/performance/my-targets` — logged-in employee only, **SELF-SCOPED**
+  (resolved from session; no employeeId/employeeProfileId override accepted), read-only.
+- **Manager API:** `GET /api/admin/performance/team-targets` — admin/manager only (Settings →
+  Performance gate); optional filters employeeProfileId/periodId/templateId/status; returns targets
+  grouped by employee. Read-only. (Distinct from the legacy team-level `TeamTarget` model.)
+- **Employee UI:** `/performance/my-targets` page — "My KRA Targets" table (KPI · Category · Source ·
+  Unit · Target · Weight · Frequency · Status), read-only (no edit/apply/save). Managers additionally
+  see a read-only "My Team's KRA Targets" section (direct reports) that points to Settings →
+  Performance for assignment. Nav link "My KRA Targets" added to the employee "Me" and manager
+  "People" sidebar groups (distinct from legacy `/kras` and from Settings → Performance admin config).
+- **Isolation:** no `KRAAchievement`/`PerformanceReview` writes; viewing never mutates EmployeeTarget;
+  no legacy KRA/WeeklyReview; no Daily Updates; no schema/migration; mobile/production untouched.

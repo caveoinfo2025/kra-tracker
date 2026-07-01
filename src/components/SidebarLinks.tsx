@@ -73,8 +73,9 @@ const MANAGER_GROUPS: NavGroup[] = [
   {
     label: "People",
     items: [
-      { href: "/kras",      label: "KRAs",   icon: Target },
-      { href: "/import",    label: "Import", icon: Upload },
+      { href: "/kras",                   label: "KRAs",           icon: Target },
+      { href: "/performance/my-targets", label: "My KRA Targets", icon: ClipboardList },
+      { href: "/import",                 label: "Import",         icon: Upload },
     ],
   },
 ];
@@ -107,6 +108,7 @@ const EMPLOYEE_GROUPS: NavGroup[] = [
     label: "Me",
     items: [
       { href: "/kras", label: "My KRAs", icon: Target },
+      { href: "/performance/my-targets", label: "My KRA Targets", icon: ClipboardList },
     ],
   },
 ];

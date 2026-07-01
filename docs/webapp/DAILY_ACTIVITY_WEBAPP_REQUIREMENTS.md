@@ -813,3 +813,10 @@ active use:
   "Employee Target Updated", "Daily Activity Mapping Created"). Raw audit JSON must not be the main UI
   display. Audit access is admin/manager only; plain employees are denied. Viewing audit is read-only —
   it must never write or modify `EmployeeTarget`/`KRAAchievement`/`PerformanceReview` rows.
+
+- **Target visibility (Phase W8.4):** Employees must be able to view their **own** assigned KRA/KPI
+  targets (self-scoped — never another employee's), and managers must be able to view their **team's**
+  assigned targets. Target visibility outside the admin assignment flow is **read-only**: no edit, no
+  achievement/scoring values, no raw JSON, no raw employee IDs. The employee/manager view lives at
+  `/performance/my-targets` (sidebar "My KRA Targets"), kept distinct from Settings → Performance
+  (admin assignment/config).
