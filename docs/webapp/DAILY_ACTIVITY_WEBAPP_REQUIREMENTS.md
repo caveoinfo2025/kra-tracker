@@ -839,9 +839,10 @@ active use:
 - **CRM Meetings / Pipeline / Opportunity preview (Phase W9.2):** Extends the same read-only preview
   rules to three more sources, each supporting only the metrics with a reliable capture path:
   - **CRM_MEETINGS:** "Meetings Scheduled" — count of `DailyActivityLog` `MEETING_SCHEDULED` events
-    (employee-attributed, date-attributed via `activityDate`). "Meetings Completed" is
-    **NOT_IMPLEMENTED** — `CrmMeeting.status` (added Phase W1) is never transitioned to `COMPLETED` by
-    any route, so there is no reliable completion source yet.
+    (employee-attributed, date-attributed via `activityDate`). "Meetings Completed" was
+    **NOT_IMPLEMENTED** as of this phase — `CrmMeeting.status` (added Phase W1) was never transitioned
+    to `COMPLETED` by any route, so there was no reliable completion source yet. (Phase W9.3 below
+    implements the completion workflow and makes this metric IMPLEMENTED too.)
   - **CRM_OPPORTUNITY:** "Opportunities Created" (count) and "Opportunity Value" (sum of
     `CrmOpportunity.value`, ₹ INR, via the decimal-safe `moneyToNumberForDisplay` helper — no lakhs
     conversion) filtered by `createdAt`; "Opportunities Won" (count) filtered by `poDate` (a dedicated
@@ -859,3 +860,24 @@ active use:
     above → NOT_IMPLEMENTED with a specific note. No `KRAAchievement`/`PerformanceReview`/
     `EmployeeTarget`/`CrmMeeting`/`CrmOpportunity` writes; employees/managers see target, actual, and
     achievement % only — never raw internal JSON or raw employee IDs.
+
+- **CRM Meeting completion workflow (Phase W9.3):** Adds a controlled way to mark a meeting
+  COMPLETED so the "Meetings Completed" KPI can be calculated. Rules:
+  - `PATCH /api/pipeline/meetings/[id]` accepts ONLY `{ status: "SCHEDULED"|"COMPLETED"|"CANCELLED"|
+    "RESCHEDULED" }` — any other value is rejected (400); no other field is editable via this route.
+  - Authorized to the meeting's own assignee (`employeeId`) or a manager, same pattern as
+    `PATCH /api/pipeline/tasks/[id]` and lead ownership checks elsewhere in pipeline.
+  - A `MEETING_COMPLETED` Daily Activity event (4 points) is captured ONLY on an actual transition
+    `prevStatus !== COMPLETED && newStatus === COMPLETED` — never on a re-save of an already-COMPLETED
+    meeting, and never for `SCHEDULED → CANCELLED` or `CANCELLED → RESCHEDULED`.
+  - **No double-counting across re-completions:** if a completed meeting is later reopened/
+    rescheduled and completed again, it does NOT count a second time — the route checks for an
+    existing `MEETING_COMPLETED` log against the same meeting id (`sourceType: "MEETING", sourceId`)
+    before capturing. (Recommended default per this phase's spec; revisit only if the business
+    explicitly wants multi-completion scoring.)
+  - UI: a status badge + Mark Completed (confirm-dialog) / Reschedule / Cancel actions on the Lead
+    detail page's Meetings tab, gated to the meeting owner or a manager; hidden once COMPLETED/
+    CANCELLED. No mobile changes; no Enterprise KRA write action from this UI.
+  - Once captured, `CRM_MEETINGS → Meetings Completed` returns `sourceStatus: IMPLEMENTED` with
+    `actualValue` = count of `MEETING_COMPLETED` logs in the selected period (0 when none exist yet —
+    not an error/exception by itself).

@@ -523,9 +523,10 @@ preview — each source only for the specific metrics with a reliable, existing 
   once per target only when a KPI row actually uses that source. Achievement = actual ÷ target × 100
   (cap 200, higher-is-better) for every supported metric.
 - **sourceStatus behavior:** IMPLEMENTED for the metrics above; CONFIG_REQUIRED + NEEDS_REVIEW when a
-  supported metric's target is 0/missing; NOT_IMPLEMENTED (with a specific note) for meetings-completed,
-  opportunity/pipeline stage-progress, and pipeline won-deals.
-- **Exceptions:** adds `CRM_MEETINGS_UNSUPPORTED_METRIC`, `CRM_MEETINGS_COMPLETION_SOURCE_MISSING`,
+  supported metric's target is 0/missing; NOT_IMPLEMENTED (with a specific note) for
+  opportunity/pipeline stage-progress and pipeline won-deals. (Meetings-completed was
+  NOT_IMPLEMENTED as of this phase — see Phase W9.3 below, which implemented it.)
+- **Exceptions:** adds `CRM_MEETINGS_UNSUPPORTED_METRIC`,
   `CRM_MEETINGS_TARGET_MISSING`, `CRM_MEETINGS_MISSING_EMPLOYEE_MAPPING`,
   `CRM_OPPORTUNITY_UNSUPPORTED_METRIC`, `CRM_OPPORTUNITY_MISSING_MAPPING`,
   `CRM_OPPORTUNITY_TARGET_MISSING`, `CRM_PIPELINE_UNSUPPORTED_METRIC`,
@@ -537,3 +538,56 @@ preview — each source only for the specific metrics with a reliable, existing 
   generically; no edit/convert buttons, no raw JSON/IDs.
 - **No KRAAchievement/PerformanceReview/EmployeeTarget/KRAMetric/DailyActivity writes**; no legacy KRA;
   no Daily Updates; no schema/migration; mobile/production untouched.
+
+## Phase W9.3 — CRM Meeting completion workflow + Meetings Completed preview (IMPLEMENTED)
+
+Closes the Phase W9.2 gap: `CRM_MEETINGS → Meetings Completed` was NOT_IMPLEMENTED because no route
+ever transitioned `CrmMeeting.status` to `COMPLETED`. This phase adds a controlled status-update
+route + Daily Activity capture, and updates the preview accordingly.
+
+- **Audit (Task 1):** Meetings are created via `POST /api/pipeline/meetings` (employee attribution =
+  `CrmMeeting.employeeId`, the assignee — defaults to the caller). They are listed read-only on the
+  Lead detail page's Meetings tab (`LeadDetailClient.tsx`) and summarized read-only on the Opportunity
+  detail page (`OppDetailClient.tsx`). Before this phase there was **no edit route at all** for a
+  meeting — the closest existing pattern is `PATCH /api/pipeline/tasks/[id]`, which already does a
+  guarded status-transition + Daily Activity capture for `CrmTask`; this phase mirrors that pattern for
+  `CrmMeeting`. Permission pattern (mirrored from tasks/leads): the caller must be `isManager` OR the
+  meeting's own `employeeId`, else 403.
+- **New route:** `PATCH /api/pipeline/meetings/[id]` (`src/app/api/pipeline/meetings/[id]/route.ts`) —
+  the ONLY supported edit is `status` (`SCHEDULED|COMPLETED|CANCELLED|RESCHEDULED`), validated against
+  an enum (400 on anything else); no other field can be changed via this route. Same RBAC as above.
+  Logs a `CrmActivity` (`meeting_status_changed`) on the lead when the status actually changes,
+  mirroring the existing `meeting_scheduled` activity entry from the create route.
+- **Daily Activity capture:** fires `MEETING_COMPLETED` (4 points, per `DEFAULT_ACTIVITY_POINTS`) ONLY
+  when `prevStatus !== "COMPLETED" && newStatus === "COMPLETED"` — never on a re-save of an
+  already-COMPLETED meeting, never for `SCHEDULED → CANCELLED` or `CANCELLED → RESCHEDULED`. Additional
+  guard beyond the transition check: before capturing, the route checks whether a `MEETING_COMPLETED`
+  log already exists for this `sourceId` (meeting id) — if one does, it is NOT captured again. This
+  implements the recommended business rule that a meeting completed once, then reopened/rescheduled
+  and completed a second time, does **not** double-count (the DailyActivityLog `@@unique` constraint
+  on `(employeeId, sourceType, sourceId, sourceAction, activityDate)` only blocks same-day duplicates —
+  this extra check is what prevents a second count on a different day).
+- **UI:** `LeadDetailClient.tsx` Meetings tab now shows a status badge (SCHEDULED/COMPLETED/
+  CANCELLED/RESCHEDULED) and, for the meeting's owner or a manager, **Mark Completed** (with a
+  confirm-dialog), **Reschedule**, and **Cancel** actions — hidden once a meeting is COMPLETED or
+  CANCELLED. `OppDetailClient.tsx`'s read-only meeting summary also now shows the status badge (no
+  actions there — that page is read-only for meetings). No mobile changes; no Enterprise KRA write
+  action anywhere in the UI.
+- **Preview update** (`achievement-preview.ts`): `CrmMeetingsContext` gained `completedCount`;
+  `buildCrmMeetingsContext` now counts BOTH `MEETING_SCHEDULED` and `MEETING_COMPLETED`
+  `DailyActivityLog` events in the range. `calculateCrmMeetingsKpiPreview` now returns
+  `sourceStatus: "IMPLEMENTED"` for a completed-meetings KPI (actual = 0 when no completions exist yet
+  — a real employee/period with zero completions is normal data, not a gap). The
+  `CRM_MEETINGS_ONLY_NOTE` wording was updated ("scheduled- and completed-meeting count").
+- **Exceptions:** removed `CRM_MEETINGS_COMPLETION_SOURCE_MISSING` (no longer reachable — the source is
+  now reliable); `CRM_MEETINGS_TARGET_MISSING` now applies to either scheduled or completed metrics
+  with a missing/zero target. Zero completed meetings is never reported as an exception by itself.
+- **Verified** (throwaway script — created a test `CrmMeeting`, drove it through the same
+  transition-guard logic as the route, then deleted everything): completing once captured
+  `MEETING_COMPLETED` with 4 points; re-saving COMPLETED a second time was correctly skipped (both by
+  the prevStatus check and the already-completed-once guard); a `SCHEDULED → CANCELLED` transition on
+  a second test meeting created zero `MEETING_COMPLETED` logs; `buildCrmMeetingsContext` /
+  `calculateCrmMeetingsKpiPreview` correctly picked up `completedCount: 1` and returned
+  `sourceStatus: IMPLEMENTED`. `npx tsc --noEmit` and `npm run build` both clean.
+- **No KRAAchievement/PerformanceReview/EmployeeTarget/KRAMetric writes**; no legacy KRA/WeeklyReview;
+  no Daily Updates; no schema/migration/db push; mobile/production untouched.

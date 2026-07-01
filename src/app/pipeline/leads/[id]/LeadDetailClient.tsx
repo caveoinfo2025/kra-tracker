@@ -10,7 +10,7 @@ import { formatINRAsLakhs } from "@/lib/money";
 
 type Employee = { id: number; name: string; role?: string; department?: string; isManager?: boolean };
 
-type Meeting = { id: number; title: string; meetingDate: string; notes: string; location: string; employee: { id: number; name: string } };
+type Meeting = { id: number; title: string; meetingDate: string; notes: string; location: string; status: string; employee: { id: number; name: string } };
 
 type FullLead = LeadSerialized & {
   customerRefId?: number | null;
@@ -20,6 +20,21 @@ type FullLead = LeadSerialized & {
   activities: ActivitySerialized[];
   notes: NoteSerialized[];
 };
+
+const MEETING_STATUS_STYLES: Record<string, string> = {
+  SCHEDULED: "bg-blue-50 text-blue-700",
+  COMPLETED: "bg-green-50 text-green-700",
+  CANCELLED: "bg-gray-100 text-gray-500",
+  RESCHEDULED: "bg-amber-50 text-amber-700",
+};
+
+function MeetingStatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${MEETING_STATUS_STYLES[status] ?? "bg-gray-100 text-gray-500"}`}>
+      {status}
+    </span>
+  );
+}
 
 function isPresales(e: Employee) {
   const hay = `${e.role ?? ""} ${e.department ?? ""}`.toLowerCase();
@@ -633,6 +648,19 @@ export default function LeadDetailClient({
     }
   }
 
+  // ── Meeting status updater ───────────────────────────────────────────────────
+  async function updateMeetingStatus(meetingId: number, status: string) {
+    const res = await fetch(`/api/pipeline/meetings/${meetingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) {
+      setLead((p) => ({ ...p, meetings: p.meetings.map((m) => (m.id === meetingId ? { ...m, status } : m)) }));
+      router.refresh();
+    }
+  }
+
   // ── Reassign lead owner (manager only) ──────────────────────────────────────
   async function reassign(assignedToId: number) {
     const res = await fetch(`/api/pipeline/leads/${lead.id}`, {
@@ -859,18 +887,43 @@ export default function LeadDetailClient({
                 </div>
                 {lead.meetings.length === 0
                   ? <p className="text-sm text-gray-400 py-4 text-center">No meetings yet.</p>
-                  : lead.meetings.map((m) => (
+                  : lead.meetings.map((m) => {
+                    const canEditMeeting = isManager || m.employee.id === currentEmployeeId;
+                    return (
                     <div key={m.id} className="border rounded-lg p-3">
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-start gap-2">
                         <p className="text-sm font-medium text-gray-800">{m.title}</p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(m.meetingDate).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                        </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <MeetingStatusBadge status={m.status} />
+                          <p className="text-xs text-gray-400">
+                            {new Date(m.meetingDate).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">👤 {m.employee.name}{m.location ? ` · 📍 ${m.location}` : ""}</p>
                       {m.notes && <p className="text-xs text-gray-600 mt-1">{m.notes}</p>}
+                      {canEditMeeting && m.status !== "COMPLETED" && m.status !== "CANCELLED" && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => { if (confirm(`Mark "${m.title}" as completed?`)) updateMeetingStatus(m.id, "COMPLETED"); }}
+                            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700">
+                            Mark Completed
+                          </button>
+                          <button
+                            onClick={() => updateMeetingStatus(m.id, "RESCHEDULED")}
+                            className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded hover:bg-amber-100">
+                            Reschedule
+                          </button>
+                          <button
+                            onClick={() => updateMeetingStatus(m.id, "CANCELLED")}
+                            className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200">
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ))
+                    );
+                  })
                 }
               </div>
             )}

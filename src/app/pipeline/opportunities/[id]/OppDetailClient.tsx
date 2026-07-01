@@ -14,7 +14,7 @@ type FullOpp = OpportunitySerialized & {
     assignedTo: { id: number; name: string }; oemName: string; categoryName: string;
   };
   tasks: (TaskSerialized & { assignedTo: { id: number; name: string } })[];
-  meetings: { id: number; title: string; meetingDate: string; notes: string; employee: { name: string } }[];
+  meetings: { id: number; title: string; meetingDate: string; notes: string; status: string; employee: { name: string } }[];
   activities: ActivitySerialized[];
 };
 
@@ -504,7 +504,10 @@ export default function OppDetailClient({
                       <p className="text-xs text-gray-500 font-semibold uppercase mb-2 mt-2">Meetings</p>
                       {opp.meetings.map((m) => (
                         <div key={m.id} className="py-2 border-t text-sm">
-                          <p className="font-medium">{m.title}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium">{m.title}</p>
+                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-600">{m.status}</span>
+                          </div>
                           <p className="text-xs text-gray-400">{m.meetingDate.slice(0, 10)} · {m.employee.name}</p>
                           {m.notes && <p className="text-xs text-gray-500 mt-1">{m.notes}</p>}
                         </div>

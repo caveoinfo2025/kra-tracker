@@ -21,6 +21,35 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-07-01 — Phase W9.3: CRM meeting completion workflow + Meetings Completed preview
+
+Phase W9.3 added CRM meeting completion workflow and MEETING_COMPLETED Daily Activity capture.
+Enterprise KRA preview now supports completed-meeting KPIs from captured DailyActivityLog events. No
+KRAAchievement, PerformanceReview, EmployeeTarget, schema, migration, DailyUpdate, mobile, or
+production changes.
+
+New route `PATCH /api/pipeline/meetings/[id]` accepts ONLY `{ status }` (SCHEDULED/COMPLETED/
+CANCELLED/RESCHEDULED, enum-validated, 400 otherwise) — mirrors the existing `PATCH
+/api/pipeline/tasks/[id]` guarded-transition pattern; RBAC = meeting owner (`employeeId`) or manager,
+else 403. `MEETING_COMPLETED` (4 points) is captured only on `prevStatus !== COMPLETED && newStatus
+=== COMPLETED` — never on an already-COMPLETED re-save, never for SCHEDULED→CANCELLED or
+CANCELLED→RESCHEDULED — plus an extra guard that skips capture if a `MEETING_COMPLETED` log already
+exists for that meeting id, so a meeting reopened/rescheduled and completed again does not
+double-count (recommended default per spec). UI: `LeadDetailClient.tsx` Meetings tab gained a status
+badge + Mark Completed (confirm-dialog)/Reschedule/Cancel actions gated to owner/manager, hidden once
+COMPLETED/CANCELLED; `OppDetailClient.tsx`'s read-only meeting summary also shows the status badge.
+Engine (`achievement-preview.ts`): `CrmMeetingsContext` gained `completedCount`;
+`buildCrmMeetingsContext` now counts both `MEETING_SCHEDULED` and `MEETING_COMPLETED` events;
+`calculateCrmMeetingsKpiPreview` returns `sourceStatus: IMPLEMENTED` for completed-meetings KPIs
+(actual = 0 when none exist, not an error). Exceptions: removed
+`CRM_MEETINGS_COMPLETION_SOURCE_MISSING` (no longer reachable). Verified via a throwaway script (test
+`CrmMeeting` created, driven through the same guard logic as the route, then fully deleted): 1st
+completion captured with 4 points; re-save correctly skipped; a cancelled-path test meeting produced
+zero `MEETING_COMPLETED` logs; preview context/calculator picked up the count correctly. `npx tsc
+--noEmit` and `npm run build` both clean. **No KRAAchievement, PerformanceReview, EmployeeTarget,
+KRAMetric, schema, migration, DailyUpdate, mobile, or production changes; legacy KRA/WeeklyReview
+untouched.**
+
 ### 2026-07-01 — Phase W9.2: CRM Meetings / Pipeline / Opportunity achievement preview
 
 Phase W9.2 added read-only CRM Meetings / Pipeline / Opportunity preview support for Enterprise KRA

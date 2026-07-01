@@ -912,7 +912,41 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
 - **Still isolated:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity`/
   `CrmMeeting`/`CrmOpportunity` writes; no schema/migration; legacy KRA untouched; Daily Updates
   retired; mobile/production untouched.
-- **Remaining source gaps:** FINANCE_COLLECTION and MANUAL are still fully NOT_IMPLEMENTED; meetings-
-  completed, opportunity/pipeline stage-progress, and pipeline won-deals remain NOT_IMPLEMENTED pending
-  a reliable capture source (would need new capture routes/events, out of scope for a preview-only
-  phase per the no-schema-change constraint).
+- **Remaining source gaps:** FINANCE_COLLECTION and MANUAL are still fully NOT_IMPLEMENTED;
+  opportunity/pipeline stage-progress and pipeline won-deals remain NOT_IMPLEMENTED pending a reliable
+  capture source. (Meetings-completed was closed in Phase W9.3 below.)
+
+## Phase W9.3 — CRM Meeting completion workflow + Meetings Completed preview (progress)
+
+- **Added a controlled meeting-completion workflow**, closing the one preview gap left open by W9.2:
+  `PATCH /api/pipeline/meetings/[id]` (new route) accepts ONLY `{ status }` (SCHEDULED/COMPLETED/
+  CANCELLED/RESCHEDULED, validated against an enum — 400 on anything else). Mirrors the existing
+  `PATCH /api/pipeline/tasks/[id]` guarded-transition + Daily Activity capture pattern. RBAC: meeting
+  owner (`employeeId`) or manager, else 403 — same pattern as tasks/leads.
+- **Daily Activity capture:** `MEETING_COMPLETED` (4 points) fires only on
+  `prevStatus !== COMPLETED && newStatus === COMPLETED` — never on an already-COMPLETED re-save, never
+  for `SCHEDULED → CANCELLED`/`CANCELLED → RESCHEDULED`. Extra guard: skips capture if a
+  `MEETING_COMPLETED` log already exists for that meeting id (`sourceType`/`sourceId`), so a meeting
+  reopened and completed again does NOT double-count (recommended default; the DailyActivityLog
+  unique constraint alone only blocks same-day duplicates, not across days).
+- **UI:** `LeadDetailClient.tsx` Meetings tab — status badge + Mark Completed (confirm-dialog) /
+  Reschedule / Cancel actions, gated to owner/manager, hidden once COMPLETED/CANCELLED.
+  `OppDetailClient.tsx`'s read-only meeting summary also shows the status badge. No mobile changes; no
+  Enterprise KRA write action.
+- **Preview:** `achievement-preview.ts` — `CrmMeetingsContext` gained `completedCount`;
+  `buildCrmMeetingsContext` now counts both `MEETING_SCHEDULED` and `MEETING_COMPLETED` events;
+  `calculateCrmMeetingsKpiPreview` returns `sourceStatus: IMPLEMENTED` for completed-meetings KPIs
+  (actual = 0 when none exist yet, not an error).
+- **Exceptions:** removed `CRM_MEETINGS_COMPLETION_SOURCE_MISSING` (no longer reachable); Meetings
+  Completed no longer reported as unsupported; zero completed meetings is not an exception by itself.
+- **Verified** via a throwaway script (test `CrmMeeting` created, driven through the same
+  transition-guard logic as the route, then deleted): 1st completion captured `MEETING_COMPLETED` with
+  4 points; 2nd completion (re-save) correctly skipped; a separate `SCHEDULED → CANCELLED` test meeting
+  produced zero `MEETING_COMPLETED` logs; `buildCrmMeetingsContext`/`calculateCrmMeetingsKpiPreview`
+  correctly returned `completedCount: 1` / `sourceStatus: IMPLEMENTED`. `npx tsc --noEmit` and
+  `npm run build` both clean.
+- **Still isolated:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`KRAMetric` writes; no
+  schema/migration/db push; legacy KRA/WeeklyReview untouched; Daily Updates retired; mobile/production
+  untouched.
+- **Remaining gaps:** opportunity/pipeline stage-progress and pipeline won-deals still NOT_IMPLEMENTED
+  (no transition-history source); FINANCE_COLLECTION/MANUAL still fully NOT_IMPLEMENTED.

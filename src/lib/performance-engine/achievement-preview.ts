@@ -423,12 +423,11 @@ export function calculateCrmLeadsKpiPreview(row: EmployeeTargetKpiRow, ctx: CrmL
 
 export type CrmMeetingsContext = {
   scheduledCount: number;
+  completedCount: number;
   hasData: boolean;
 };
 
-const CRM_MEETINGS_COMPLETED_NOTE =
-  "CRM Meetings completed preview requires a meeting completion source. CrmMeeting.status exists, but completed-meeting workflow is not fully wired yet.";
-const CRM_MEETINGS_ONLY_NOTE = "CRM Meetings source is implemented only for scheduled-meeting count in this phase.";
+const CRM_MEETINGS_ONLY_NOTE = "CRM Meetings source is implemented for scheduled- and completed-meeting count this phase.";
 
 /** Is this a "meetings completed" KPI (recognised, but NOT implemented this phase — see audit)? */
 export function isMeetingsCompletedMetric(row: Pick<EmployeeTargetKpiRow, "metricCode" | "metricName" | "category">): boolean {
@@ -443,12 +442,14 @@ export function isMeetingsScheduledMetric(row: Pick<EmployeeTargetKpiRow, "metri
 }
 
 /**
- * Count an employee's scheduled-meeting events in [startDate, endDate]. Source of truth =
- * `DailyActivityLog` `MEETING_SCHEDULED` events (Phase W2 capture on `POST /api/pipeline/meetings`),
- * which preserve the scheduling EVENT date + employee attribution — preferred over reading
- * `CrmMeeting.meetingDate` directly (the meeting's own date can be edited/rescheduled after
- * creation, which would misattribute the "scheduled" event to a different period). Excludes
- * EXCLUDED / CORRECTION_REJECTED logs. READ-ONLY — no writes, no CrmMeeting/DailyActivity mutation.
+ * Count an employee's scheduled- and completed-meeting events in [startDate, endDate]. Source of
+ * truth for BOTH = `DailyActivityLog` (Phase W2 `MEETING_SCHEDULED` capture on
+ * `POST /api/pipeline/meetings`; Phase W9.3 `MEETING_COMPLETED` capture on
+ * `PATCH /api/pipeline/meetings/[id]` — only on an actual transition INTO `COMPLETED`), which
+ * preserve the EVENT date + employee attribution — preferred over reading `CrmMeeting.meetingDate`/
+ * `status` directly (the meeting's own date/status can be edited after creation, which would
+ * misattribute the event to a different period or double-count a re-save). Excludes EXCLUDED /
+ * CORRECTION_REJECTED logs. READ-ONLY — no writes, no CrmMeeting/DailyActivity mutation.
  */
 export async function buildCrmMeetingsContext(
   employeeId: number,
@@ -458,39 +459,41 @@ export async function buildCrmMeetingsContext(
   try {
     const gteDb = dateKeyToDbDate(toDateKeyLocal(startDate));
     const lteDb = dateKeyToDbDate(toDateKeyLocal(endDate));
-    const scheduledCount = await prisma.dailyActivityLog.count({
-      where: {
-        employeeId,
-        activityType: "MEETING_SCHEDULED",
-        activityDate: { gte: gteDb, lte: lteDb },
-        status: { notIn: ["EXCLUDED", "CORRECTION_REJECTED"] },
-      },
-    });
-    return { scheduledCount, hasData: true };
+    const [scheduledCount, completedCount] = await Promise.all([
+      prisma.dailyActivityLog.count({
+        where: {
+          employeeId,
+          activityType: "MEETING_SCHEDULED",
+          activityDate: { gte: gteDb, lte: lteDb },
+          status: { notIn: ["EXCLUDED", "CORRECTION_REJECTED"] },
+        },
+      }),
+      prisma.dailyActivityLog.count({
+        where: {
+          employeeId,
+          activityType: "MEETING_COMPLETED",
+          activityDate: { gte: gteDb, lte: lteDb },
+          status: { notIn: ["EXCLUDED", "CORRECTION_REJECTED"] },
+        },
+      }),
+    ]);
+    return { scheduledCount, completedCount, hasData: true };
   } catch {
-    return { scheduledCount: 0, hasData: false };
+    return { scheduledCount: 0, completedCount: 0, hasData: false };
   }
 }
 
 /**
- * CRM_MEETINGS KPI preview. Only "meetings scheduled" is supported this phase — "meetings
- * completed" has no reliable capture source yet (no route ever transitions `CrmMeeting.status`
- * to COMPLETED, and no `MEETING_COMPLETED` DailyActivityLog event is ever written — see the
- * Task 1 audit) so it returns NOT_IMPLEMENTED with a clear note. Missing/zero target →
- * CONFIG_REQUIRED + NEEDS_REVIEW (never throws). Higher-is-better.
+ * CRM_MEETINGS KPI preview. "Meetings Scheduled" and "Meetings Completed" (Phase W9.3 — now that
+ * `PATCH /api/pipeline/meetings/[id]` reliably captures `MEETING_COMPLETED`) are both supported
+ * this phase. Actual value = 0 (not NOT_IMPLEMENTED) when no matching events exist yet — a real
+ * employee with zero completed meetings this period is normal performance data, not a config gap.
+ * Missing/zero target → CONFIG_REQUIRED + NEEDS_REVIEW (never throws). Higher-is-better.
  */
 export function calculateCrmMeetingsKpiPreview(row: EmployeeTargetKpiRow, ctx: CrmMeetingsContext | null): KpiPreview {
   const base = baseKpi(row);
 
-  if (isMeetingsCompletedMetric(row)) {
-    return {
-      ...base, direction: "HIGHER_IS_BETTER", actualValue: null, achievementPercent: null,
-      weightedPreviewScore: null, status: "NOT_IMPLEMENTED", sourceStatus: "NOT_IMPLEMENTED",
-      needsReview: false, notes: base.notes ? `${base.notes} — ${CRM_MEETINGS_COMPLETED_NOTE}` : CRM_MEETINGS_COMPLETED_NOTE,
-    };
-  }
-
-  if (!isMeetingsScheduledMetric(row)) {
+  if (!isMeetingsCompletedMetric(row) && !isMeetingsScheduledMetric(row)) {
     return {
       ...base, direction: "HIGHER_IS_BETTER", actualValue: null, achievementPercent: null,
       weightedPreviewScore: null, status: "NOT_IMPLEMENTED", sourceStatus: "NOT_IMPLEMENTED",
@@ -498,14 +501,15 @@ export function calculateCrmMeetingsKpiPreview(row: EmployeeTargetKpiRow, ctx: C
     };
   }
 
-  const actual = ctx?.scheduledCount ?? 0;
+  const actual = isMeetingsCompletedMetric(row) ? (ctx?.completedCount ?? 0) : (ctx?.scheduledCount ?? 0);
+  const targetLabel = isMeetingsCompletedMetric(row) ? "meetings-completed" : "meetings-scheduled";
 
   if (!row.targetValue || row.targetValue <= 0) {
     return {
       ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent: null,
       weightedPreviewScore: null, status: "NEEDS_REVIEW", sourceStatus: "CONFIG_REQUIRED",
       needsReview: true,
-      notes: base.notes ? `${base.notes} — Target not set; configure a meetings-scheduled target.` : "Target not set; configure a meetings-scheduled target.",
+      notes: base.notes ? `${base.notes} — Target not set; configure a ${targetLabel} target.` : `Target not set; configure a ${targetLabel} target.`,
     };
   }
 
@@ -1053,7 +1057,6 @@ export type PreviewException = {
     | "CRM_LEADS_MISSING_EMPLOYEE_MAPPING"
     | "CRM_LEADS_NO_DATA"
     | "CRM_MEETINGS_UNSUPPORTED_METRIC"
-    | "CRM_MEETINGS_COMPLETION_SOURCE_MISSING"
     | "CRM_MEETINGS_TARGET_MISSING"
     | "CRM_MEETINGS_MISSING_EMPLOYEE_MAPPING"
     | "CRM_OPPORTUNITY_UNSUPPORTED_METRIC"
@@ -1158,19 +1161,19 @@ export async function listAchievementPreviewExceptions(
         }
       }
 
-      // CRM_MEETINGS per-KPI config checks (Phase W9.2).
+      // CRM_MEETINGS per-KPI config checks (Phase W9.2/W9.3 — scheduled AND completed are both
+      // supported now that MEETING_COMPLETED capture exists; zero completed meetings is normal
+      // performance data, not an exception, so only a missing/zero TARGET is flagged).
       const crmMeetingRows = doc.targets.filter((r) => (r.source || "").toUpperCase() === "CRM_MEETINGS");
       if (crmMeetingRows.length) {
         if (!t.employeeProfile.userId) {
           exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_MISSING_EMPLOYEE_MAPPING", detail: "CRM Meetings target has no employee mapping (missing user link)." });
         }
         for (const r of crmMeetingRows) {
-          if (isMeetingsCompletedMetric(r)) {
-            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_COMPLETION_SOURCE_MISSING", detail: `Meetings-completed metric "${r.metricName || r.metricCode}" has no reliable completion source yet (CrmMeeting.status is never transitioned to COMPLETED by any route).` });
-          } else if (!isMeetingsScheduledMetric(r)) {
-            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_UNSUPPORTED_METRIC", detail: `CRM Meetings metric "${r.metricName || r.metricCode}" is not supported (only scheduled-meeting count this phase).` });
+          if (!isMeetingsCompletedMetric(r) && !isMeetingsScheduledMetric(r)) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_UNSUPPORTED_METRIC", detail: `CRM Meetings metric "${r.metricName || r.metricCode}" is not supported (only scheduled/completed meeting count this phase).` });
           } else if (!r.targetValue || r.targetValue <= 0) {
-            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_TARGET_MISSING", detail: `Meetings-scheduled target "${r.metricName || r.metricCode}" has no target value set.` });
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_TARGET_MISSING", detail: `Meetings target "${r.metricName || r.metricCode}" has no target value set.` });
           }
         }
       }
