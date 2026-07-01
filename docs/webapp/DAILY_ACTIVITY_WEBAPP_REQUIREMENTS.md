@@ -835,3 +835,27 @@ active use:
   CONFIG_REQUIRED/NEEDS_REVIEW (never an error); any non-qualified-lead CRM_LEADS metric is marked
   NOT_IMPLEMENTED this phase. No `KRAAchievement`/`PerformanceReview` writes; employees see target and
   progress, never raw internal JSON or raw employee IDs.
+
+- **CRM Meetings / Pipeline / Opportunity preview (Phase W9.2):** Extends the same read-only preview
+  rules to three more sources, each supporting only the metrics with a reliable capture path:
+  - **CRM_MEETINGS:** "Meetings Scheduled" — count of `DailyActivityLog` `MEETING_SCHEDULED` events
+    (employee-attributed, date-attributed via `activityDate`). "Meetings Completed" is
+    **NOT_IMPLEMENTED** — `CrmMeeting.status` (added Phase W1) is never transitioned to `COMPLETED` by
+    any route, so there is no reliable completion source yet.
+  - **CRM_OPPORTUNITY:** "Opportunities Created" (count) and "Opportunity Value" (sum of
+    `CrmOpportunity.value`, ₹ INR, via the decimal-safe `moneyToNumberForDisplay` helper — no lakhs
+    conversion) filtered by `createdAt`; "Opportunities Won" (count) filtered by `poDate` (a dedicated
+    field set only on the Won transition — reliable, unlike `updatedAt`). Employee attribution is via
+    the Opportunity's source Lead (`lead.assignedToId`) — an Opportunity has no employee field of its
+    own. "Opportunity Stage Progress" is **NOT_IMPLEMENTED** — no stage-transition-history exists.
+  - **CRM_PIPELINE:** "Proposals Sent" — count of `DailyActivityLog` `PROPOSAL_SENT` events (reliable
+    despite proposal *versioning* still being unimplemented — the sent EVENT itself is captured on
+    every lead transition into `PROPOSAL_SENT`). "Pipeline Value" — current open (non-Won/non-Lost)
+    `CrmOpportunity.value` snapshot, distinct from CRM_OPPORTUNITY's period-created value (documented
+    in the KPI's own notes to avoid ambiguity, not silently duplicated). "Won Deals" and "Stage
+    Movement" are **NOT_IMPLEMENTED** — won-deals metrics should use CRM_OPPORTUNITY's "Opportunities
+    Won" instead; stage movement has no transition-history source.
+  - All three sources: missing/zero target → CONFIG_REQUIRED/NEEDS_REVIEW; any metric outside the list
+    above → NOT_IMPLEMENTED with a specific note. No `KRAAchievement`/`PerformanceReview`/
+    `EmployeeTarget`/`CrmMeeting`/`CrmOpportunity` writes; employees/managers see target, actual, and
+    achievement % only — never raw internal JSON or raw employee IDs.

@@ -868,3 +868,51 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
   self-scoped; employee 403 on admin; DA preview unchanged; no achievement/review writes.
 - **Still isolated:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity`
   writes; no schema/migration; legacy KRA untouched; Daily Updates retired; mobile/production untouched.
+
+## Phase W9.2 — CRM Meetings / Opportunity / Pipeline preview (progress)
+
+- **Wired CRM_MEETINGS, CRM_OPPORTUNITY, CRM_PIPELINE** into the achievement preview, each limited to
+  the metrics with a reliable capture path (see the Task 1 audit table in
+  `DAILY_ACTIVITY_ENTERPRISE_KRA_INTEGRATION_PLAN.md` Phase W9.2).
+- **CRM_MEETINGS:** "Meetings Scheduled" from `DailyActivityLog` `MEETING_SCHEDULED` events (reliable —
+  `POST /api/pipeline/meetings` captures every meeting). "Meetings Completed" → NOT_IMPLEMENTED (no
+  route ever sets `CrmMeeting.status = COMPLETED`; confirmed by grepping every `crmMeeting.update*`
+  call site — none exist).
+- **CRM_OPPORTUNITY:** "Opportunities Created" (count) + "Opportunity Value" (₹ sum via
+  `moneyToNumberForDisplay`) from `createdAt`; "Opportunities Won" (count) from `stage="WON"` +
+  `poDate`. Attribution via `lead.assignedToId` (Opportunity has no employee field). "Stage Progress"
+  → NOT_IMPLEMENTED (no transition-history table).
+- **CRM_PIPELINE:** "Proposals Sent" from `DailyActivityLog` `PROPOSAL_SENT` events (reliable despite
+  proposal versioning still being a known gap — the sent EVENT is captured, not the version). "Pipeline
+  Value" = current open (non-Won/non-Lost) opportunity value snapshot — explicitly documented as
+  distinct from CRM_OPPORTUNITY's period-created value, not duplicated silently. "Won Deals"/"Stage
+  Movement" → NOT_IMPLEMENTED (won-deals maps to CRM_OPPORTUNITY instead; no stage-transition history).
+- Engine: `buildCrmMeetingsContext`/`calculateCrmMeetingsKpiPreview`, `buildCrmOpportunityContext`/
+  `calculateCrmOpportunityKpiPreview`, `buildCrmPipelineContext`/`calculateCrmPipelineKpiPreview`.
+  `PreviewSourceContexts` extended with the 3 new context fields, built once per target only when a
+  KPI row uses that source.
+- Exceptions: adds `CRM_MEETINGS_UNSUPPORTED_METRIC`/`CRM_MEETINGS_COMPLETION_SOURCE_MISSING`/
+  `CRM_MEETINGS_TARGET_MISSING`/`CRM_MEETINGS_MISSING_EMPLOYEE_MAPPING`,
+  `CRM_OPPORTUNITY_UNSUPPORTED_METRIC`/`CRM_OPPORTUNITY_MISSING_MAPPING`/
+  `CRM_OPPORTUNITY_TARGET_MISSING`, `CRM_PIPELINE_UNSUPPORTED_METRIC`/
+  `CRM_PIPELINE_PROPOSAL_SOURCE_MISSING`/`CRM_PIPELINE_MISSING_EMPLOYEE_MAPPING`/
+  `CRM_PIPELINE_TARGET_MISSING`. All three sources excluded from the blanket `SOURCE_NOT_IMPLEMENTED`
+  (handled per-KPI, same pattern as CRM_LEADS).
+- **Verified against real dev data** (throwaway read-only script, no writes, deleted after use):
+  `buildCrmOpportunityContext` returned real counts/values for 3 employees with dev Opportunity data
+  (e.g. 10 created / ₹84.1L created value / 1 won for one employee); `buildCrmMeetingsContext` /
+  `buildCrmPipelineContext` correctly returned 0 scheduled-meeting / proposal-sent counts (no
+  `MEETING_SCHEDULED`/`PROPOSAL_SENT` DailyActivityLog events exist yet in dev data — expected, not a
+  bug) while `openPipelineValue` correctly summed non-Won/non-Lost opportunity value. Row-level
+  calculator smoke tests confirmed: scheduled-meeting KPI → IMPLEMENTED/ON_TRACK; completed-meeting KPI
+  → NOT_IMPLEMENTED with the exact required note; opportunity value → IMPLEMENTED/BELOW_TARGET;
+  opportunity stage-progress → NOT_IMPLEMENTED; proposals-sent → IMPLEMENTED/ON_TRACK; won-deals (under
+  CRM_PIPELINE) → NOT_IMPLEMENTED pointing to CRM_OPPORTUNITY. `npx tsc --noEmit` and `npm run build`
+  both clean.
+- **Still isolated:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity`/
+  `CrmMeeting`/`CrmOpportunity` writes; no schema/migration; legacy KRA untouched; Daily Updates
+  retired; mobile/production untouched.
+- **Remaining source gaps:** FINANCE_COLLECTION and MANUAL are still fully NOT_IMPLEMENTED; meetings-
+  completed, opportunity/pipeline stage-progress, and pipeline won-deals remain NOT_IMPLEMENTED pending
+  a reliable capture source (would need new capture routes/events, out of scope for a preview-only
+  phase per the no-schema-change constraint).

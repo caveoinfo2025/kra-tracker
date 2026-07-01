@@ -464,8 +464,8 @@ Calculates progress against assigned `EmployeeTarget` KPI rows from operational 
   count, productive days. Coverage % = eligible ÷ working days; productivity = points/productive days;
   compliance ("max allowed" incomplete/pending/reopened) is LOWER_IS_BETTER. `@db.Date` bounds built via
   `dateKeyToDbDate` (IST-safe).
-- **Unsupported sources** (CRM_LEADS/MEETINGS/PIPELINE/OPPORTUNITY, FINANCE_COLLECTION, MANUAL) return
-  `sourceStatus: "NOT_IMPLEMENTED"` — never fail.
+- **Unsupported sources** (FINANCE_COLLECTION, MANUAL — plus any unrecognised metric on a partially-
+  supported source) return `sourceStatus: "NOT_IMPLEMENTED"` — never fail.
 - **APIs:** `GET /api/performance/my-achievement-preview` (self, redacts raw DA points),
   `GET /api/admin/performance/achievement-preview` (manager, exact), `.../achievement-preview/exceptions`.
 - **UI:** read-only preview section on `/performance/my-targets` (employee + manager Team KRA Preview),
@@ -497,3 +497,43 @@ Wires the **CRM_LEADS** source into the read-only achievement preview (qualified
   no Daily Updates; no schema/migration; mobile/production untouched.
 - **Limitation:** only qualifications captured after Phase W2 wiring appear in the log (pre-W2 qualified
   leads aren't counted); counts qualification EVENTS in the period, not currently-QUALIFIED leads.
+
+## Phase W9.2 — CRM Meetings / Opportunity / Pipeline preview (IMPLEMENTED where reliable, read-only)
+
+Wires **CRM_MEETINGS**, **CRM_OPPORTUNITY**, and **CRM_PIPELINE** into the read-only achievement
+preview — each source only for the specific metrics with a reliable, existing capture path.
+
+- **Audit findings (Task 1):**
+
+  | Source | Model/table | Employee attribution | Date field | Supported now? | Notes |
+  |---|---|---|---|---|---|
+  | Meetings scheduled | `DailyActivityLog` (`MEETING_SCHEDULED`) | `employeeId` (assignee) | `activityDate` | Yes | Captured on `POST /api/pipeline/meetings`. Preferred over `CrmMeeting.meetingDate` — the meeting date can be edited/rescheduled after creation, which would misattribute the "scheduled" event to a different period. |
+  | Meetings completed | `CrmMeeting.status` | `CrmMeeting.employeeId` | — | **No** | `status` column added in Phase W1 (schema-only) but **no route ever transitions it to `COMPLETED`**; no `MEETING_COMPLETED` DailyActivityLog event is ever written either. NOT_IMPLEMENTED. |
+  | Opportunity created (count/value) | `CrmOpportunity` | `CrmOpportunity.lead.assignedToId` (Opportunity has no employee field of its own — always 1:1 with its source Lead) | `createdAt` | Yes | `value` is `Decimal @db.Decimal(18,2)`, actual ₹ INR (Decimal Release 2) — read via `moneyToNumberForDisplay`. |
+  | Opportunity won | `CrmOpportunity` (`stage="WON"`) | `lead.assignedToId` | `poDate` | Yes | `poDate` is a dedicated field required only on the Won transition — reliable, unlike `updatedAt` which changes on every edit. |
+  | Opportunity stage progress | `CrmOpportunity.stage` | `lead.assignedToId` | — | **No** | No stage-transition-history table exists; only the current `stage` is stored. NOT_IMPLEMENTED. |
+  | Proposals sent | `DailyActivityLog` (`PROPOSAL_SENT`) | `employeeId` | `activityDate` | Yes | Captured on every lead stage transition INTO `PROPOSAL_SENT` (3 call sites: `stage/route.ts`, the legacy `route.ts` PUT/PATCH fallback, and lead-convert). Proposal *versioning* is still missing (noted in Phase 8 CRM notes) but the sent-EVENT itself is reliably captured, so the count is safe to preview. |
+  | Pipeline value | `CrmOpportunity.value` (open/non-Won/non-Lost snapshot) | `lead.assignedToId` | — (current snapshot, not period-filtered) | Yes | Deliberately NOT the same calculation as CRM_OPPORTUNITY's "Opportunity Value" (that is period-created value; this is a live open-pipeline snapshot) — mapping documented in the KPI's own `notes`, not duplicated silently. |
+  | Pipeline stage movement / won deals | — | — | — | **No** | "Won deals" maps to CRM_OPPORTUNITY's "Opportunities Won" (use that source instead of duplicating); "stage movement" has no transition-history source. NOT_IMPLEMENTED. |
+
+- **Engine** (`achievement-preview.ts`): `buildCrmMeetingsContext`/`calculateCrmMeetingsKpiPreview`/
+  `isMeetingsScheduledMetric`/`isMeetingsCompletedMetric`; `buildCrmOpportunityContext`/
+  `calculateCrmOpportunityKpiPreview`; `buildCrmPipelineContext`/`calculateCrmPipelineKpiPreview`.
+  `PreviewSourceContexts` extended with `crmMeetingsCtx`/`crmOpportunityCtx`/`crmPipelineCtx`, built
+  once per target only when a KPI row actually uses that source. Achievement = actual ÷ target × 100
+  (cap 200, higher-is-better) for every supported metric.
+- **sourceStatus behavior:** IMPLEMENTED for the metrics above; CONFIG_REQUIRED + NEEDS_REVIEW when a
+  supported metric's target is 0/missing; NOT_IMPLEMENTED (with a specific note) for meetings-completed,
+  opportunity/pipeline stage-progress, and pipeline won-deals.
+- **Exceptions:** adds `CRM_MEETINGS_UNSUPPORTED_METRIC`, `CRM_MEETINGS_COMPLETION_SOURCE_MISSING`,
+  `CRM_MEETINGS_TARGET_MISSING`, `CRM_MEETINGS_MISSING_EMPLOYEE_MAPPING`,
+  `CRM_OPPORTUNITY_UNSUPPORTED_METRIC`, `CRM_OPPORTUNITY_MISSING_MAPPING`,
+  `CRM_OPPORTUNITY_TARGET_MISSING`, `CRM_PIPELINE_UNSUPPORTED_METRIC`,
+  `CRM_PIPELINE_PROPOSAL_SOURCE_MISSING` (fires only if the DailyActivityLog read itself fails at
+  runtime — the source is otherwise reliable), `CRM_PIPELINE_MISSING_EMPLOYEE_MAPPING`,
+  `CRM_PIPELINE_TARGET_MISSING`. `CRM_MEETINGS`/`CRM_OPPORTUNITY`/`CRM_PIPELINE` are excluded from the
+  blanket `SOURCE_NOT_IMPLEMENTED` (handled per-KPI instead, same pattern as CRM_LEADS).
+- **UI:** no changes required — the existing preview table already renders any `sourceStatus`/notes
+  generically; no edit/convert buttons, no raw JSON/IDs.
+- **No KRAAchievement/PerformanceReview/EmployeeTarget/KRAMetric/DailyActivity writes**; no legacy KRA;
+  no Daily Updates; no schema/migration; mobile/production untouched.

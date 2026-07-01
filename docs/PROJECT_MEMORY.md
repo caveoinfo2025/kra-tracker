@@ -21,6 +21,40 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-07-01 — Phase W9.2: CRM Meetings / Pipeline / Opportunity achievement preview
+
+Phase W9.2 added read-only CRM Meetings / Pipeline / Opportunity preview support for Enterprise KRA
+where source data is reliable. Unsupported source metrics return clear NOT_IMPLEMENTED or NEEDS_REVIEW
+statuses. No KRAAchievement, PerformanceReview, EmployeeTarget, schema, migration, DailyUpdate, mobile,
+or production changes.
+
+Supported this phase: **CRM_MEETINGS** "Meetings Scheduled" (count of `DailyActivityLog`
+`MEETING_SCHEDULED` events — reliable, captured on `POST /api/pipeline/meetings`); **CRM_OPPORTUNITY**
+"Opportunities Created" (count), "Opportunity Value" (₹ sum via `moneyToNumberForDisplay`, no lakhs
+regression — `CrmOpportunity.value` is already actual ₹ INR), and "Opportunities Won" (count via
+`stage="WON"` + `poDate`, attribution via `lead.assignedToId` since an Opportunity carries no employee
+field of its own); **CRM_PIPELINE** "Proposals Sent" (count of `DailyActivityLog` `PROPOSAL_SENT`
+events — reliable despite proposal *versioning* still being a known gap, since the sent EVENT itself is
+captured) and "Pipeline Value" (current open non-Won/non-Lost opportunity value snapshot, explicitly
+documented as distinct from CRM_OPPORTUNITY's period-created value rather than silently duplicated).
+NOT_IMPLEMENTED this phase: "Meetings Completed" (no route ever transitions `CrmMeeting.status` to
+COMPLETED — confirmed by auditing every `crmMeeting.update*` call site, none exist), "Opportunity/
+Pipeline Stage Progress" (no stage-transition-history source), "Won Deals" under CRM_PIPELINE (maps to
+CRM_OPPORTUNITY's "Opportunities Won" instead of duplicating). Engine (`achievement-preview.ts`):
+`buildCrmMeetingsContext`/`calculateCrmMeetingsKpiPreview`, `buildCrmOpportunityContext`/
+`calculateCrmOpportunityKpiPreview`, `buildCrmPipelineContext`/`calculateCrmPipelineKpiPreview`;
+`PreviewSourceContexts` extended with 3 new fields, built once per target only when a KPI row needs
+that source. Exceptions extended with per-source unsupported-metric / target-missing / employee-
+mapping-missing reason codes (`CRM_MEETINGS_*`, `CRM_OPPORTUNITY_*`, `CRM_PIPELINE_*`); all three
+sources excluded from the blanket `SOURCE_NOT_IMPLEMENTED` (handled per-KPI, same pattern as
+CRM_LEADS). UI required no changes — the existing preview table already renders `sourceStatus`/notes
+generically. Verified against real dev data via a throwaway read-only script (no writes, deleted after
+use): correct counts/values for employees with existing dev CrmOpportunity rows; correct zero-counts
+for meetings/proposals where no matching DailyActivityLog events exist yet. `npx prisma validate`,
+`npx prisma generate`, `npx tsc --noEmit`, and `npm run build` all clean. **No KRAAchievement,
+PerformanceReview, EmployeeTarget, KRAMetric, DailyActivity, CrmMeeting, CrmOpportunity, schema,
+migration, DailyUpdate, mobile, or production changes; legacy KRA/WeeklyReview untouched.**
+
 ### 2026-07-01 — Phase W9.1: CRM Leads qualified-lead achievement preview
 
 Phase W9.1 implemented read-only CRM Leads qualified-lead preview for Enterprise KRA achievement preview.

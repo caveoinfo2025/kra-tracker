@@ -62,6 +62,16 @@ const STATUS_LABELS: Record<string, string> = {
   NEEDS_REVIEW: "Needs review",
 };
 
+/** Display-only ₹ formatting for AMOUNT-unit KPIs (Opportunity Value / Pipeline Value etc.) — never
+ *  used for persistence, just makes large rupee actuals/targets readable in the preview table. */
+function formatKpiValue(value: number | null, unit: string): string {
+  if (value == null) return "—";
+  if ((unit || "").toUpperCase() === "AMOUNT") {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
+  }
+  return String(value);
+}
+
 function StatusChip({ status }: { status: string }) {
   const c = STATUS_COLORS[status] ?? STATUS_COLORS.NOT_STARTED;
   return (
@@ -96,12 +106,12 @@ function PreviewKpiTable({ kpis, showActual }: { kpis: KpiPreview[]; showActual:
                 {k.metricName}
                 <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}> · {k.source}{k.unit ? ` · ${k.unit}` : ""}</span>
               </td>
-              <td style={{ padding: "8px 10px", textAlign: "right" }}>{k.targetValue}</td>
+              <td style={{ padding: "8px 10px", textAlign: "right" }}>{formatKpiValue(k.targetValue, k.unit)}</td>
               <td style={{ padding: "8px 10px", textAlign: "right" }}>
                 {k.sourceStatus === "NOT_IMPLEMENTED"
                   ? "—"
                   : showActual
-                  ? (k.actualValue ?? "—")
+                  ? formatKpiValue(k.actualValue, k.unit)
                   : (k.achievementPercent != null ? `${k.achievementPercent}%` : "—")}
               </td>
               <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>

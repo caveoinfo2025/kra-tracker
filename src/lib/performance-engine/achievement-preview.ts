@@ -1,15 +1,18 @@
 /**
  * Phase W9 — Enterprise KRA achievement PREVIEW (read-only).
  *
- * Calculates progress against assigned `EmployeeTarget` KPI rows using operational source data
- * (currently Daily Activity). This module is STRICTLY READ-ONLY:
- *   - It only READS `EmployeeTarget` / `EmployeeProfile` / `PerformancePeriod` / `DailyActivitySummary`.
+ * Calculates progress against assigned `EmployeeTarget` KPI rows using operational source data:
+ * DAILY_ACTIVITY (full), CRM_LEADS (qualified-lead count only, Phase W9.1), and CRM_MEETINGS /
+ * CRM_OPPORTUNITY / CRM_PIPELINE (specific metrics only, Phase W9.2 — see each section below for
+ * exactly which metrics are supported and why). This module is STRICTLY READ-ONLY:
+ *   - It only READS `EmployeeTarget` / `EmployeeProfile` / `PerformancePeriod` / `DailyActivitySummary`
+ *     / `DailyActivityLog` / `CrmOpportunity` / `CrmLead`.
  *   - It NEVER writes `KRAAchievement`, `PerformanceReview`, `EmployeeTarget`, `KRAMetric`,
- *     `DailyActivityLog`, `DailyActivitySummary`, or `PerformanceAudit`.
+ *     `DailyActivityLog`, `DailyActivitySummary`, `CrmMeeting`, `CrmOpportunity`, or `PerformanceAudit`.
  *   - It NEVER touches the legacy `KRA`/`WeeklyReview` system (`src/lib/kra-engine.ts`) or Daily Updates.
  *
  * KRA structure: KRA Template → KPI/Metric → Employee-specific Target → **Preview** Achievement.
- * Unsupported sources return `sourceStatus: "NOT_IMPLEMENTED"` (never throw).
+ * Unsupported sources/metrics return `sourceStatus: "NOT_IMPLEMENTED"` (never throw).
  */
 import prisma from "@/lib/prisma";
 import {
@@ -17,6 +20,7 @@ import {
   isDailyActivityKraEligible,
 } from "@/lib/daily-activity";
 import { dbDateToDateKey, toDateKeyLocal, dateKeyToDbDate } from "@/lib/date-only";
+import { moneyToNumberForDisplay } from "@/lib/money";
 import { parseEmployeeTargetJson, type EmployeeTargetKpiRow } from "./targets";
 
 // ── Enums / constants ──────────────────────────────────────────────────────────
@@ -38,8 +42,15 @@ export type TargetDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
 /** Enterprise KRA convention: preview achievement is capped at 200%. */
 export const PREVIEW_PERCENT_CAP = 200;
 
-/** Sources for which a live preview calculation exists. CRM_LEADS is partial (qualified-lead count only). */
-export const PREVIEW_SUPPORTED_SOURCES = ["DAILY_ACTIVITY", "CRM_LEADS"] as const;
+/** Sources for which a live preview calculation exists. CRM_LEADS/CRM_MEETINGS/CRM_OPPORTUNITY/
+ *  CRM_PIPELINE are all PARTIAL — only specific metrics per source are supported this phase. */
+export const PREVIEW_SUPPORTED_SOURCES = [
+  "DAILY_ACTIVITY",
+  "CRM_LEADS",
+  "CRM_MEETINGS",
+  "CRM_OPPORTUNITY",
+  "CRM_PIPELINE",
+] as const;
 
 // ── Output shapes ───────────────────────────────────────────────────────────────
 
@@ -408,10 +419,316 @@ export function calculateCrmLeadsKpiPreview(row: EmployeeTargetKpiRow, ctx: CrmL
   };
 }
 
+// ── CRM Meetings context (Phase W9.2) ────────────────────────────────────────────
+
+export type CrmMeetingsContext = {
+  scheduledCount: number;
+  hasData: boolean;
+};
+
+const CRM_MEETINGS_COMPLETED_NOTE =
+  "CRM Meetings completed preview requires a meeting completion source. CrmMeeting.status exists, but completed-meeting workflow is not fully wired yet.";
+const CRM_MEETINGS_ONLY_NOTE = "CRM Meetings source is implemented only for scheduled-meeting count in this phase.";
+
+/** Is this a "meetings completed" KPI (recognised, but NOT implemented this phase — see audit)? */
+export function isMeetingsCompletedMetric(row: Pick<EmployeeTargetKpiRow, "metricCode" | "metricName" | "category">): boolean {
+  const hay = `${row.metricCode} ${row.metricName} ${row.category}`.toLowerCase();
+  return /meeting/.test(hay) && /complet/.test(hay);
+}
+
+/** Is this a "meetings scheduled" KPI (the only CRM_MEETINGS metric supported this phase)? */
+export function isMeetingsScheduledMetric(row: Pick<EmployeeTargetKpiRow, "metricCode" | "metricName" | "category">): boolean {
+  const hay = `${row.metricCode} ${row.metricName} ${row.category}`.toLowerCase();
+  return /meeting/.test(hay) && !isMeetingsCompletedMetric(row);
+}
+
+/**
+ * Count an employee's scheduled-meeting events in [startDate, endDate]. Source of truth =
+ * `DailyActivityLog` `MEETING_SCHEDULED` events (Phase W2 capture on `POST /api/pipeline/meetings`),
+ * which preserve the scheduling EVENT date + employee attribution — preferred over reading
+ * `CrmMeeting.meetingDate` directly (the meeting's own date can be edited/rescheduled after
+ * creation, which would misattribute the "scheduled" event to a different period). Excludes
+ * EXCLUDED / CORRECTION_REJECTED logs. READ-ONLY — no writes, no CrmMeeting/DailyActivity mutation.
+ */
+export async function buildCrmMeetingsContext(
+  employeeId: number,
+  startDate: Date,
+  endDate: Date,
+): Promise<CrmMeetingsContext> {
+  try {
+    const gteDb = dateKeyToDbDate(toDateKeyLocal(startDate));
+    const lteDb = dateKeyToDbDate(toDateKeyLocal(endDate));
+    const scheduledCount = await prisma.dailyActivityLog.count({
+      where: {
+        employeeId,
+        activityType: "MEETING_SCHEDULED",
+        activityDate: { gte: gteDb, lte: lteDb },
+        status: { notIn: ["EXCLUDED", "CORRECTION_REJECTED"] },
+      },
+    });
+    return { scheduledCount, hasData: true };
+  } catch {
+    return { scheduledCount: 0, hasData: false };
+  }
+}
+
+/**
+ * CRM_MEETINGS KPI preview. Only "meetings scheduled" is supported this phase — "meetings
+ * completed" has no reliable capture source yet (no route ever transitions `CrmMeeting.status`
+ * to COMPLETED, and no `MEETING_COMPLETED` DailyActivityLog event is ever written — see the
+ * Task 1 audit) so it returns NOT_IMPLEMENTED with a clear note. Missing/zero target →
+ * CONFIG_REQUIRED + NEEDS_REVIEW (never throws). Higher-is-better.
+ */
+export function calculateCrmMeetingsKpiPreview(row: EmployeeTargetKpiRow, ctx: CrmMeetingsContext | null): KpiPreview {
+  const base = baseKpi(row);
+
+  if (isMeetingsCompletedMetric(row)) {
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: null, achievementPercent: null,
+      weightedPreviewScore: null, status: "NOT_IMPLEMENTED", sourceStatus: "NOT_IMPLEMENTED",
+      needsReview: false, notes: base.notes ? `${base.notes} — ${CRM_MEETINGS_COMPLETED_NOTE}` : CRM_MEETINGS_COMPLETED_NOTE,
+    };
+  }
+
+  if (!isMeetingsScheduledMetric(row)) {
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: null, achievementPercent: null,
+      weightedPreviewScore: null, status: "NOT_IMPLEMENTED", sourceStatus: "NOT_IMPLEMENTED",
+      needsReview: false, notes: base.notes ? `${base.notes} — ${CRM_MEETINGS_ONLY_NOTE}` : CRM_MEETINGS_ONLY_NOTE,
+    };
+  }
+
+  const actual = ctx?.scheduledCount ?? 0;
+
+  if (!row.targetValue || row.targetValue <= 0) {
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent: null,
+      weightedPreviewScore: null, status: "NEEDS_REVIEW", sourceStatus: "CONFIG_REQUIRED",
+      needsReview: true,
+      notes: base.notes ? `${base.notes} — Target not set; configure a meetings-scheduled target.` : "Target not set; configure a meetings-scheduled target.",
+    };
+  }
+
+  const achievementPercent = calculatePreviewPercentage(actual, row.targetValue, "HIGHER_IS_BETTER");
+  const status = buildPreviewStatus(achievementPercent, { direction: "HIGHER_IS_BETTER", hasActivity: actual > 0, actual });
+  const weightedPreviewScore = Math.round((achievementPercent * row.weight) / 100 * 10) / 10;
+  return {
+    ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent,
+    weightedPreviewScore, status, sourceStatus: "IMPLEMENTED", needsReview: status === "NEEDS_REVIEW",
+    notes: base.notes,
+  };
+}
+
+// ── CRM Opportunity context (Phase W9.2) ─────────────────────────────────────────
+
+export type CrmOpportunityContext = {
+  createdCount: number;
+  createdValue: number; // ₹, sum of `CrmOpportunity.value` created in range (display-safe number)
+  wonCount: number;
+  hasData: boolean;
+};
+
+type OpportunityMetricKind = "COUNT" | "VALUE" | "WON" | "UNSUPPORTED";
+
+/** Classify a CRM_OPPORTUNITY KPI row by keyword/unit — never guesses beyond these three shapes. */
+function classifyOpportunityMetric(row: Pick<EmployeeTargetKpiRow, "metricCode" | "metricName" | "category" | "unit">): OpportunityMetricKind {
+  const hay = `${row.metricCode} ${row.metricName} ${row.category}`.toLowerCase();
+  const unit = (row.unit || "").toUpperCase();
+  if (/stage|progress|movement/.test(hay)) return "UNSUPPORTED";
+  if (/won/.test(hay)) return "WON";
+  if (/value/.test(hay) || unit === "AMOUNT") return "VALUE";
+  if (/opportunit|created|count/.test(hay)) return "COUNT";
+  return "UNSUPPORTED";
+}
+
+/**
+ * Build an employee's Opportunity aggregate for [startDate, endDate]. Employee attribution =
+ * `CrmOpportunity.lead.assignedToId` (an Opportunity carries no employee field of its own — it is
+ * always 1:1 with the Lead it was converted from, so the lead owner IS the opportunity owner).
+ * "Created" uses `createdAt` (reliable, immutable). "Won" uses `stage === "WON"` + `poDate`
+ * (reliable — `poDate` is a dedicated field required only on the Won transition, unlike
+ * `updatedAt` which changes on every edit). READ-ONLY — no writes, no Opportunity mutation.
+ */
+export async function buildCrmOpportunityContext(
+  employeeId: number,
+  startDate: Date,
+  endDate: Date,
+): Promise<CrmOpportunityContext> {
+  try {
+    const rangeStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const rangeEndExclusive = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1);
+    const created = await prisma.crmOpportunity.findMany({
+      where: { lead: { assignedToId: employeeId }, createdAt: { gte: rangeStart, lt: rangeEndExclusive } },
+      select: { value: true },
+    });
+    const wonCount = await prisma.crmOpportunity.count({
+      where: { lead: { assignedToId: employeeId }, stage: "WON", poDate: { gte: rangeStart, lt: rangeEndExclusive } },
+    });
+    const createdValue = Math.round(created.reduce((s, o) => s + moneyToNumberForDisplay(o.value), 0) * 100) / 100;
+    return { createdCount: created.length, createdValue, wonCount, hasData: true };
+  } catch {
+    return { createdCount: 0, createdValue: 0, wonCount: 0, hasData: false };
+  }
+}
+
+/**
+ * CRM_OPPORTUNITY KPI preview. Supports opportunity count, opportunity value (₹, via the
+ * decimal-safe `moneyToNumberForDisplay` helper — no lakhs conversion, `CrmOpportunity.value` is
+ * already actual ₹ INR per Decimal Release 2), and opportunities won. "Stage progress" style
+ * metrics are NOT_IMPLEMENTED (no reliable stage-transition-history source this phase). Missing/
+ * zero target → CONFIG_REQUIRED + NEEDS_REVIEW. Higher-is-better; never throws.
+ */
+export function calculateCrmOpportunityKpiPreview(row: EmployeeTargetKpiRow, ctx: CrmOpportunityContext | null): KpiPreview {
+  const base = baseKpi(row);
+  const kind = classifyOpportunityMetric(row);
+
+  if (kind === "UNSUPPORTED") {
+    const note = `CRM Opportunity metric "${row.metricName || row.metricCode}" is not supported this phase (opportunity stage/progress tracking requires a reliable stage-transition-history source, which is not implemented yet).`;
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: null, achievementPercent: null,
+      weightedPreviewScore: null, status: "NOT_IMPLEMENTED", sourceStatus: "NOT_IMPLEMENTED",
+      needsReview: false, notes: base.notes ? `${base.notes} — ${note}` : note,
+    };
+  }
+
+  const actual = kind === "VALUE" ? (ctx?.createdValue ?? 0) : kind === "WON" ? (ctx?.wonCount ?? 0) : (ctx?.createdCount ?? 0);
+
+  if (!row.targetValue || row.targetValue <= 0) {
+    const note = "Target not set; configure an opportunity target.";
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent: null,
+      weightedPreviewScore: null, status: "NEEDS_REVIEW", sourceStatus: "CONFIG_REQUIRED",
+      needsReview: true, notes: base.notes ? `${base.notes} — ${note}` : note,
+    };
+  }
+
+  const achievementPercent = calculatePreviewPercentage(actual, row.targetValue, "HIGHER_IS_BETTER");
+  const status = buildPreviewStatus(achievementPercent, { direction: "HIGHER_IS_BETTER", hasActivity: actual > 0, actual });
+  const weightedPreviewScore = Math.round((achievementPercent * row.weight) / 100 * 10) / 10;
+  return {
+    ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent,
+    weightedPreviewScore, status, sourceStatus: "IMPLEMENTED", needsReview: status === "NEEDS_REVIEW",
+    notes: base.notes,
+  };
+}
+
+// ── CRM Pipeline context (Phase W9.2) ────────────────────────────────────────────
+
+export type CrmPipelineContext = {
+  proposalsSentCount: number;
+  openPipelineValue: number; // ₹, CURRENT snapshot of open (non-Won/non-Lost) opportunity value
+  hasData: boolean;
+};
+
+type PipelineMetricKind = "PROPOSALS_SENT" | "PIPELINE_VALUE" | "UNSUPPORTED";
+
+/**
+ * Classify a CRM_PIPELINE KPI row. "Won deals" is intentionally UNSUPPORTED here — it maps to
+ * CRM_OPPORTUNITY's "Opportunities Won" metric, which already has a reliable source (`poDate`);
+ * duplicating that calculation under a second source name would risk the two drifting apart.
+ * "Stage movement" has no reliable transition-history source (same limitation as CRM_OPPORTUNITY).
+ */
+function classifyPipelineMetric(row: Pick<EmployeeTargetKpiRow, "metricCode" | "metricName" | "category" | "unit">): PipelineMetricKind {
+  const hay = `${row.metricCode} ${row.metricName} ${row.category}`.toLowerCase();
+  const unit = (row.unit || "").toUpperCase();
+  if (/won/.test(hay)) return "UNSUPPORTED";
+  if (/stage|movement/.test(hay)) return "UNSUPPORTED";
+  if (/proposal/.test(hay)) return "PROPOSALS_SENT";
+  if (/pipeline/.test(hay) && /value/.test(hay)) return "PIPELINE_VALUE";
+  if (unit === "AMOUNT" || /value/.test(hay)) return "PIPELINE_VALUE";
+  return "UNSUPPORTED";
+}
+
+/**
+ * Build an employee's Pipeline aggregate for [startDate, endDate]. "Proposals sent" = count of
+ * `DailyActivityLog` `PROPOSAL_SENT` events (reliable — captured on every lead stage transition
+ * INTO `PROPOSAL_SENT`, across all three lead-mutation routes: `stage/route.ts`, `route.ts`
+ * PUT/PATCH fallback, and the convert route). "Pipeline value" is a CURRENT snapshot of open
+ * (non-Won/non-Lost) opportunity value — NOT filtered to the selected period, since "what's
+ * currently in the pipeline" is inherently point-in-time, not a period-created total (that is
+ * CRM_OPPORTUNITY's "Opportunity Value" metric — see the mapping note in the calculator below).
+ * Employee attribution = `CrmOpportunity.lead.assignedToId`. READ-ONLY — no writes.
+ */
+export async function buildCrmPipelineContext(
+  employeeId: number,
+  startDate: Date,
+  endDate: Date,
+): Promise<CrmPipelineContext> {
+  try {
+    const gteDb = dateKeyToDbDate(toDateKeyLocal(startDate));
+    const lteDb = dateKeyToDbDate(toDateKeyLocal(endDate));
+    const proposalsSentCount = await prisma.dailyActivityLog.count({
+      where: {
+        employeeId,
+        activityType: "PROPOSAL_SENT",
+        activityDate: { gte: gteDb, lte: lteDb },
+        status: { notIn: ["EXCLUDED", "CORRECTION_REJECTED"] },
+      },
+    });
+    const openOpps = await prisma.crmOpportunity.findMany({
+      where: { lead: { assignedToId: employeeId }, stage: { notIn: ["WON", "LOST"] } },
+      select: { value: true },
+    });
+    const openPipelineValue = Math.round(openOpps.reduce((s, o) => s + moneyToNumberForDisplay(o.value), 0) * 100) / 100;
+    return { proposalsSentCount, openPipelineValue, hasData: true };
+  } catch {
+    return { proposalsSentCount: 0, openPipelineValue: 0, hasData: false };
+  }
+}
+
+/**
+ * CRM_PIPELINE KPI preview. Supports "proposals sent" (count) and "pipeline value" (current open-
+ * opportunity value snapshot). "Won deals" and "stage movement" are NOT_IMPLEMENTED — see
+ * `classifyPipelineMetric`. Missing/zero target → CONFIG_REQUIRED + NEEDS_REVIEW. Higher-is-
+ * better; never throws.
+ */
+export function calculateCrmPipelineKpiPreview(row: EmployeeTargetKpiRow, ctx: CrmPipelineContext | null): KpiPreview {
+  const base = baseKpi(row);
+  const kind = classifyPipelineMetric(row);
+
+  if (kind === "UNSUPPORTED") {
+    const hay = `${row.metricCode} ${row.metricName} ${row.category}`.toLowerCase();
+    const note = /won/.test(hay)
+      ? `CRM Pipeline "won deals" style metrics are tracked via the CRM_OPPORTUNITY source's "Opportunities Won" metric — configure this KPI's source as CRM_OPPORTUNITY instead of CRM_PIPELINE.`
+      : `CRM Pipeline metric "${row.metricName || row.metricCode}" is not supported this phase (stage-movement preview requires a reliable stage-transition-history source, which is not implemented yet).`;
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: null, achievementPercent: null,
+      weightedPreviewScore: null, status: "NOT_IMPLEMENTED", sourceStatus: "NOT_IMPLEMENTED",
+      needsReview: false, notes: base.notes ? `${base.notes} — ${note}` : note,
+    };
+  }
+
+  const actual = kind === "PIPELINE_VALUE" ? (ctx?.openPipelineValue ?? 0) : (ctx?.proposalsSentCount ?? 0);
+  const mappingNote = kind === "PIPELINE_VALUE"
+    ? "Pipeline Value reflects the CURRENT open (non-Won/non-Lost) opportunity value — a live snapshot, not filtered to the selected period. For period-created opportunity value, use the CRM_OPPORTUNITY source's Opportunity Value metric."
+    : undefined;
+
+  if (!row.targetValue || row.targetValue <= 0) {
+    const note = "Target not set; configure a pipeline target.";
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent: null,
+      weightedPreviewScore: null, status: "NEEDS_REVIEW", sourceStatus: "CONFIG_REQUIRED",
+      needsReview: true, notes: base.notes ? `${base.notes} — ${note}` : note,
+    };
+  }
+
+  const achievementPercent = calculatePreviewPercentage(actual, row.targetValue, "HIGHER_IS_BETTER");
+  const status = buildPreviewStatus(achievementPercent, { direction: "HIGHER_IS_BETTER", hasActivity: actual > 0, actual });
+  const weightedPreviewScore = Math.round((achievementPercent * row.weight) / 100 * 10) / 10;
+  return {
+    ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent,
+    weightedPreviewScore, status, sourceStatus: "IMPLEMENTED", needsReview: status === "NEEDS_REVIEW",
+    notes: mappingNote ? (base.notes ? `${base.notes} — ${mappingNote}` : mappingNote) : base.notes,
+  };
+}
+
 /** Bundle of pre-built source contexts for a (employee, range) pair. */
 export type PreviewSourceContexts = {
   daCtx: DailyActivityContext | null;
   crmLeadsCtx: CrmLeadsContext | null;
+  crmMeetingsCtx: CrmMeetingsContext | null;
+  crmOpportunityCtx: CrmOpportunityContext | null;
+  crmPipelineCtx: CrmPipelineContext | null;
 };
 
 /** Dispatch a single KPI row to its source calculator. Unsupported sources → NOT_IMPLEMENTED. */
@@ -422,6 +739,15 @@ export function calculateKpiPreview(row: EmployeeTargetKpiRow, contexts: Preview
   }
   if (source === "CRM_LEADS") {
     return calculateCrmLeadsKpiPreview(row, contexts.crmLeadsCtx);
+  }
+  if (source === "CRM_MEETINGS") {
+    return calculateCrmMeetingsKpiPreview(row, contexts.crmMeetingsCtx);
+  }
+  if (source === "CRM_OPPORTUNITY") {
+    return calculateCrmOpportunityKpiPreview(row, contexts.crmOpportunityCtx);
+  }
+  if (source === "CRM_PIPELINE") {
+    return calculateCrmPipelineKpiPreview(row, contexts.crmPipelineCtx);
   }
   // Not wired for preview in this phase.
   return {
@@ -527,13 +853,20 @@ async function buildTargetPreview(t: PreviewTargetRecord, rangeInput: PreviewRan
   });
 
   // Build each needed source context once per target (keyed by the employee's auth user id).
-  const needsDaily = doc.targets.some((r) => (r.source || "").toUpperCase() === "DAILY_ACTIVITY");
-  const needsCrmLeads = doc.targets.some((r) => (r.source || "").toUpperCase() === "CRM_LEADS");
+  const sources = new Set(doc.targets.map((r) => (r.source || "").toUpperCase()));
+  const needsDaily = sources.has("DAILY_ACTIVITY");
+  const needsCrmLeads = sources.has("CRM_LEADS");
+  const needsCrmMeetings = sources.has("CRM_MEETINGS");
+  const needsCrmOpportunity = sources.has("CRM_OPPORTUNITY");
+  const needsCrmPipeline = sources.has("CRM_PIPELINE");
   const userId = t.employeeProfile?.userId;
   const daCtx = needsDaily && userId ? await buildDailyActivityContext(userId, range.startDate, range.endDate, now) : null;
   const crmLeadsCtx = needsCrmLeads && userId ? await buildCrmLeadsContext(userId, range.startDate, range.endDate) : null;
+  const crmMeetingsCtx = needsCrmMeetings && userId ? await buildCrmMeetingsContext(userId, range.startDate, range.endDate) : null;
+  const crmOpportunityCtx = needsCrmOpportunity && userId ? await buildCrmOpportunityContext(userId, range.startDate, range.endDate) : null;
+  const crmPipelineCtx = needsCrmPipeline && userId ? await buildCrmPipelineContext(userId, range.startDate, range.endDate) : null;
 
-  const kpis = doc.targets.map((r) => calculateKpiPreview(r, { daCtx, crmLeadsCtx }));
+  const kpis = doc.targets.map((r) => calculateKpiPreview(r, { daCtx, crmLeadsCtx, crmMeetingsCtx, crmOpportunityCtx, crmPipelineCtx }));
   const scored = kpis.filter((k) => k.weightedPreviewScore !== null);
   const weightedPreviewTotal = scored.length
     ? Math.round(scored.reduce((s, k) => s + (k.weightedPreviewScore ?? 0), 0) * 10) / 10
@@ -719,6 +1052,17 @@ export type PreviewException = {
     | "CRM_LEADS_TARGET_MISSING"
     | "CRM_LEADS_MISSING_EMPLOYEE_MAPPING"
     | "CRM_LEADS_NO_DATA"
+    | "CRM_MEETINGS_UNSUPPORTED_METRIC"
+    | "CRM_MEETINGS_COMPLETION_SOURCE_MISSING"
+    | "CRM_MEETINGS_TARGET_MISSING"
+    | "CRM_MEETINGS_MISSING_EMPLOYEE_MAPPING"
+    | "CRM_OPPORTUNITY_UNSUPPORTED_METRIC"
+    | "CRM_OPPORTUNITY_MISSING_MAPPING"
+    | "CRM_OPPORTUNITY_TARGET_MISSING"
+    | "CRM_PIPELINE_UNSUPPORTED_METRIC"
+    | "CRM_PIPELINE_PROPOSAL_SOURCE_MISSING"
+    | "CRM_PIPELINE_MISSING_EMPLOYEE_MAPPING"
+    | "CRM_PIPELINE_TARGET_MISSING"
     | "DAILY_ACTIVITY_INCOMPLETE"
     | "PENDING_CORRECTION"
     | "REOPENED"
@@ -790,9 +1134,10 @@ export async function listAchievementPreviewExceptions(
         exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "WEIGHT_NOT_100", detail: `Total active KPI weight is ${activeWeight}% (ideally 100%).` });
       }
 
-      // Unimplemented sources (exclude the implemented ones: DAILY_ACTIVITY, and CRM_LEADS which is
-      // handled per-KPI below since only its qualified-lead metric is supported).
-      const IMPLEMENTED_SRC = new Set(["DAILY_ACTIVITY", "CRM_LEADS"]);
+      // Unimplemented sources (exclude the implemented ones — DAILY_ACTIVITY, and CRM_LEADS/
+      // CRM_MEETINGS/CRM_OPPORTUNITY/CRM_PIPELINE which are handled per-KPI below since each only
+      // supports specific metrics this phase).
+      const IMPLEMENTED_SRC = new Set(["DAILY_ACTIVITY", "CRM_LEADS", "CRM_MEETINGS", "CRM_OPPORTUNITY", "CRM_PIPELINE"]);
       const unimplemented = [...new Set(doc.targets.map((r) => (r.source || "MANUAL").toUpperCase()).filter((s) => !IMPLEMENTED_SRC.has(s)))];
       if (unimplemented.length) {
         exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "SOURCE_NOT_IMPLEMENTED", detail: `Preview not available for source(s): ${unimplemented.join(", ")}.` });
@@ -809,6 +1154,76 @@ export async function listAchievementPreviewExceptions(
             exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_LEADS_UNSUPPORTED_METRIC", detail: `CRM Leads metric "${r.metricName || r.metricCode}" is not supported (only qualified-lead count this phase).` });
           } else if (!r.targetValue || r.targetValue <= 0) {
             exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_LEADS_TARGET_MISSING", detail: `Qualified-lead target "${r.metricName || r.metricCode}" has no target value set.` });
+          }
+        }
+      }
+
+      // CRM_MEETINGS per-KPI config checks (Phase W9.2).
+      const crmMeetingRows = doc.targets.filter((r) => (r.source || "").toUpperCase() === "CRM_MEETINGS");
+      if (crmMeetingRows.length) {
+        if (!t.employeeProfile.userId) {
+          exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_MISSING_EMPLOYEE_MAPPING", detail: "CRM Meetings target has no employee mapping (missing user link)." });
+        }
+        for (const r of crmMeetingRows) {
+          if (isMeetingsCompletedMetric(r)) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_COMPLETION_SOURCE_MISSING", detail: `Meetings-completed metric "${r.metricName || r.metricCode}" has no reliable completion source yet (CrmMeeting.status is never transitioned to COMPLETED by any route).` });
+          } else if (!isMeetingsScheduledMetric(r)) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_UNSUPPORTED_METRIC", detail: `CRM Meetings metric "${r.metricName || r.metricCode}" is not supported (only scheduled-meeting count this phase).` });
+          } else if (!r.targetValue || r.targetValue <= 0) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_MEETINGS_TARGET_MISSING", detail: `Meetings-scheduled target "${r.metricName || r.metricCode}" has no target value set.` });
+          }
+        }
+      }
+
+      // CRM_OPPORTUNITY per-KPI config checks (Phase W9.2). Attribution is via the lead's
+      // assignedToId, so "missing mapping" here means the employee has no auth user link at all
+      // (opportunities cannot be attributed without it).
+      const crmOppRows = doc.targets.filter((r) => (r.source || "").toUpperCase() === "CRM_OPPORTUNITY");
+      if (crmOppRows.length) {
+        if (!t.employeeProfile.userId) {
+          exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_OPPORTUNITY_MISSING_MAPPING", detail: "CRM Opportunity target has no employee mapping (missing user link)." });
+        }
+        for (const r of crmOppRows) {
+          const hay = `${r.metricCode} ${r.metricName} ${r.category}`.toLowerCase();
+          const supported = !/stage|progress|movement/.test(hay);
+          if (!supported) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_OPPORTUNITY_UNSUPPORTED_METRIC", detail: `CRM Opportunity metric "${r.metricName || r.metricCode}" is not supported (stage/progress tracking requires a reliable stage-transition-history source).` });
+          } else if (!r.targetValue || r.targetValue <= 0) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_OPPORTUNITY_TARGET_MISSING", detail: `Opportunity target "${r.metricName || r.metricCode}" has no target value set.` });
+          }
+        }
+      }
+
+      // CRM_PIPELINE per-KPI config checks (Phase W9.2).
+      const crmPipelineRows = doc.targets.filter((r) => (r.source || "").toUpperCase() === "CRM_PIPELINE");
+      if (crmPipelineRows.length) {
+        if (!t.employeeProfile.userId) {
+          exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_PIPELINE_MISSING_EMPLOYEE_MAPPING", detail: "CRM Pipeline target has no employee mapping (missing user link)." });
+        }
+        for (const r of crmPipelineRows) {
+          const hay = `${r.metricCode} ${r.metricName} ${r.category}`.toLowerCase();
+          const unit = (r.unit || "").toUpperCase();
+          const isWonOrStage = /won|stage|movement/.test(hay);
+          const isProposal = !isWonOrStage && /proposal/.test(hay);
+          const isPipelineValue = !isWonOrStage && !isProposal && (unit === "AMOUNT" || /value/.test(hay) || /pipeline/.test(hay));
+          if (isWonOrStage) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_PIPELINE_UNSUPPORTED_METRIC", detail: `CRM Pipeline metric "${r.metricName || r.metricCode}" is not supported (won-deals metrics map to CRM_OPPORTUNITY; stage-movement has no reliable transition-history source).` });
+          } else if (!isProposal && !isPipelineValue) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_PIPELINE_UNSUPPORTED_METRIC", detail: `CRM Pipeline metric "${r.metricName || r.metricCode}" could not be classified as proposals-sent or pipeline-value.` });
+          } else if (!r.targetValue || r.targetValue <= 0) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_PIPELINE_TARGET_MISSING", detail: `Pipeline target "${r.metricName || r.metricCode}" has no target value set.` });
+          }
+        }
+        // Runtime reliability check: if a proposals-sent metric is configured but the DailyActivityLog
+        // read itself failed (e.g. transient DB error), flag it distinctly from a config gap.
+        const userId = t.employeeProfile.userId;
+        if (userId && crmPipelineRows.some((r) => !/won|stage|movement/.test(`${r.metricCode} ${r.metricName} ${r.category}`.toLowerCase()) && /proposal/.test(`${r.metricCode} ${r.metricName} ${r.category}`.toLowerCase()))) {
+          const fallbackStart = t.period?.startDate ? new Date(t.period.startDate) : new Date(now.getFullYear(), 0, 1);
+          const fallbackEnd = t.period?.endDate ? new Date(t.period.endDate) : now;
+          const range = await resolvePreviewRange(filters, { periodId: t.periodId, startDate: fallbackStart, endDate: fallbackEnd, label: t.period?.name ?? "" });
+          const pipelineCtx = await buildCrmPipelineContext(userId, range.startDate, range.endDate);
+          if (!pipelineCtx.hasData) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_PIPELINE_PROPOSAL_SOURCE_MISSING", detail: "Proposals-sent preview could not read the DailyActivityLog PROPOSAL_SENT source for this employee/range." });
           }
         }
       }
