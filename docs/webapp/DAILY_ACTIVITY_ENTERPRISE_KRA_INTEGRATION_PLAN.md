@@ -447,3 +447,29 @@ assigned KPI targets and **managers see their team's** — all read-only, no ach
   "People" sidebar groups (distinct from legacy `/kras` and from Settings → Performance admin config).
 - **Isolation:** no `KRAAchievement`/`PerformanceReview` writes; viewing never mutates EmployeeTarget;
   no legacy KRA/WeeklyReview; no Daily Updates; no schema/migration; mobile/production untouched.
+
+## Phase W9 — Read-only Enterprise KRA achievement preview (IMPLEMENTED)
+
+Calculates progress against assigned `EmployeeTarget` KPI rows from operational sources.
+**Preview only** — nothing is saved. Structure: KRA Template → KPI/Metric → Employee Target → **Preview**.
+
+- **Engine** (`performance-engine/achievement-preview.ts`, read-only): `getMyKraAchievementPreview`
+  (self), `getEmployeeKraAchievementPreview`, `getManagerTeamKraAchievementPreview` (direct reports),
+  `listKraAchievementPreviewGrouped`, `listAchievementPreviewExceptions`, plus pure helpers
+  `calculateKpiPreview`, `calculateDailyActivityKpiPreview`, `calculatePreviewPercentage`,
+  `buildPreviewStatus`, `buildDailyActivityContext`, `inferDirection`.
+- **Daily Activity supported.** Uses `resolveEffectiveDailyActivityStatus` + `isDailyActivityKraEligible`
+  over the range (working days = weekdays; no holiday calendar yet — documented denominator). Computes
+  eligible/excluded/incomplete/no-activity/reopened/pending-correction days, eligible points, activity
+  count, productive days. Coverage % = eligible ÷ working days; productivity = points/productive days;
+  compliance ("max allowed" incomplete/pending/reopened) is LOWER_IS_BETTER. `@db.Date` bounds built via
+  `dateKeyToDbDate` (IST-safe).
+- **Unsupported sources** (CRM_LEADS/MEETINGS/PIPELINE/OPPORTUNITY, FINANCE_COLLECTION, MANUAL) return
+  `sourceStatus: "NOT_IMPLEMENTED"` — never fail.
+- **APIs:** `GET /api/performance/my-achievement-preview` (self, redacts raw DA points),
+  `GET /api/admin/performance/achievement-preview` (manager, exact), `.../achievement-preview/exceptions`.
+- **UI:** read-only preview section on `/performance/my-targets` (employee + manager Team KRA Preview),
+  month selector, status bands — **no edit/convert buttons**, no raw JSON/IDs.
+- **Rules:** achievement % capped at 200; weighted preview = % × weight ÷ 100. **No** `KRAAchievement`/
+  `PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity` writes; no `PerformanceAudit` for
+  preview reads; no legacy KRA/WeeklyReview; no Daily Updates; no schema/migration; mobile/prod untouched.

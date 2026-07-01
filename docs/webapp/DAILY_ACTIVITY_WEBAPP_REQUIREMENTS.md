@@ -820,3 +820,10 @@ active use:
   achievement/scoring values, no raw JSON, no raw employee IDs. The employee/manager view lives at
   `/performance/my-targets` (sidebar "My KRA Targets"), kept distinct from Settings → Performance
   (admin assignment/config).
+
+- **Achievement preview (Phase W9):** KRA achievement is shown as a **read-only preview** until the
+  future manager-conversion phase. The preview calculates progress against assigned KPI targets but
+  **must not write `KRAAchievement`** (or `PerformanceReview`/`EmployeeTarget`). Employees see their
+  target, progress and achievement % (Daily Activity raw point counts stay manager-only) — never raw
+  internal JSON or raw employee IDs. Daily Activity metrics are computed dynamically from effective
+  daily status; sources without a wired calculation are marked "not available yet" (NOT_IMPLEMENTED).

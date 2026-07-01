@@ -6,3 +6,4 @@ export * from "./achievement";
 export * from "./review";
 export * from "./audit";
 export * from "./daily-activity-mapping";
+export * from "./achievement-preview";

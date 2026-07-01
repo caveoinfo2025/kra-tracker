@@ -841,3 +841,16 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
   403 on admin endpoints; manager sees grouped team data; no edit controls; no raw JSON/IDs.
 - **Still isolated:** no `KRAAchievement`/`PerformanceReview` writes; no schema/migration; legacy KRA
   untouched; Daily Updates retired; mobile/production untouched.
+
+## Phase W9 — Read-only Enterprise KRA achievement preview (progress)
+
+- **Implemented read-only achievement preview** from assigned `EmployeeTarget` KPI rows.
+  `achievement-preview.ts` engine + 3 read-only APIs (employee self / manager / exceptions).
+- **Daily Activity** metrics computed dynamically (coverage %, productivity, compliance days) via the
+  shared effective-status helpers; unsupported sources → `NOT_IMPLEMENTED`.
+- **UI:** preview section on `/performance/my-targets` (employee + manager team), month filter, status
+  bands, no edit/convert buttons, no raw JSON/IDs. Employee view redacts raw Daily Activity points.
+- **Verified:** endpoints 200; employee self-scoped (override ignored) + 403 on admin; DA calc correct
+  on real data (reopened day excluded); no achievement/review writes.
+- **Still isolated:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity`
+  writes; no schema/migration; legacy KRA untouched; Daily Updates retired; mobile/production untouched.

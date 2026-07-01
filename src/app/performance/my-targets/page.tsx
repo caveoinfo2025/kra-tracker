@@ -5,6 +5,7 @@ import {
   getManagerTeamAssignedKraTargets,
 } from "@/lib/performance-engine";
 import MyTargetsClient from "./MyTargetsClient";
+import AchievementPreview from "./AchievementPreview";
 
 /**
  * Phase W8.4 — read-only "My KRA Targets" page (Enterprise KRA).
@@ -27,11 +28,15 @@ export default async function MyTargetsPage() {
   ]);
 
   return (
-    <MyTargetsClient
-      mine={JSON.parse(JSON.stringify(mine))}
-      team={JSON.parse(JSON.stringify(team))}
-      isManager={isManager}
-      fallbackName={session.user.name ?? ""}
-    />
+    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <MyTargetsClient
+        mine={JSON.parse(JSON.stringify(mine))}
+        team={JSON.parse(JSON.stringify(team))}
+        isManager={isManager}
+        fallbackName={session.user.name ?? ""}
+      />
+      {/* Phase W9 — read-only achievement preview below the assigned targets. */}
+      <AchievementPreview isManager={isManager} />
+    </div>
   );
 }

@@ -21,6 +21,24 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-06-30 — Phase W9: Read-only Enterprise KRA achievement preview
+
+Phase W9 implemented read-only Enterprise KRA achievement preview from assigned `EmployeeTarget` KPI
+rows. Daily Activity metrics are calculated dynamically (coverage %, productivity, compliance days) via
+the shared effective-status helpers (`resolveEffectiveDailyActivityStatus`/`isDailyActivityKraEligible`);
+unsupported sources (CRM_*, FINANCE_COLLECTION, MANUAL) are marked `NOT_IMPLEMENTED`. Engine
+`performance-engine/achievement-preview.ts` (read-only): `getMyKraAchievementPreview` (self, redacts raw
+DA points), `getEmployeeKraAchievementPreview`, `getManagerTeamKraAchievementPreview`,
+`listKraAchievementPreviewGrouped`, `listAchievementPreviewExceptions`, + pure calc helpers.
+Achievement % capped at 200; weighted preview = % × weight ÷ 100. APIs: `GET /api/performance/
+my-achievement-preview` (self-scoped, no id override), `GET /api/admin/performance/achievement-preview`
+(manager, exact), `.../achievement-preview/exceptions`. UI: read-only preview section on
+`/performance/my-targets` (employee + manager Team KRA Preview) with month filter and status bands — no
+edit/convert buttons, no raw JSON/IDs. Gotcha fixed: `@db.Date` query bounds must use `dateKeyToDbDate`
+(local-midnight bounds drop IST-offset rows). **No KRAAchievement, PerformanceReview, EmployeeTarget,
+KRAMetric, DailyActivity, PerformanceAudit(preview), schema, migration, DailyUpdate, mobile, or
+production changes; legacy KRA/WeeklyReview untouched.**
+
 ### 2026-06-30 — Phase W8.4: Read-only KRA target visibility for employees and managers
 
 Phase W8.4 added read-only Enterprise KRA target visibility for employees and managers. Assigned KPI
