@@ -21,6 +21,44 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-07-01 — Phase W10: Manager-approved Enterprise KRA achievement conversion
+
+Phase W10 implemented explicit manager-approved conversion of Enterprise KRA achievement previews
+into KRAAchievement rows. Conversion is idempotent through sourceReference and writes
+PerformanceAudit. No automatic conversion, no PerformanceReview writes, no schema/migration/
+DailyUpdate/mobile/production changes.
+
+New engine `src/lib/performance-engine/achievement-conversion.ts`: `buildSourceReference` (format
+`enterprise-preview:{SOURCE}:{employeeProfileId}:{rangeStart}:{rangeEnd}:{metricCode}`),
+`validatePreviewForConversion` (buckets a KPI row OK/UNSUPPORTED/NEEDS_REVIEW by `sourceStatus`),
+`findExistingConvertedAchievements`, `convertPreviewToKraAchievements` (core write logic, reuses
+`achievement.ts`'s `calculateWeightedScore`), `convertEmployeePreviewToAchievements` (fetches via the
+Phase W9 preview engine then converts). `achievement-preview.ts`'s `TargetPreview` gained
+`rangeStart`/`rangeEnd` (date-only strings) so conversion can key off the EXACT range each target's
+KPIs were computed over. New API `POST /api/admin/performance/achievement-preview/convert`
+(manager/admin only, same permission gate as the read-only preview APIs); `employeeProfileId`
+required, `mode` (CREATE_ONLY default | REPLACE_EXISTING), optional period override + remarks;
+returns created/replaced/skipped/unsupported/needsReview counts plus a per-row outcome/reason array.
+Only `sourceStatus: IMPLEMENTED` rows with a matching `KRAMetric.code` convert; everything else is
+skipped with a specific reason, never silently dropped. Idempotency is enforced entirely in
+application code (no schema change, no DB unique constraint) — CREATE_ONLY skips rows whose exact
+`sourceReference` is already converted; REPLACE_EXISTING updates only that exact row. UI: manager-only
+"Convert to KRA Achievement" button per direct report on `/performance/my-targets`'s Team KRA Preview
+→ confirmation modal (mode + remarks) → result summary panel → auto-refreshes the preview; the
+employee's own preview view is completely unchanged (no conversion affordance). Audit: one
+`PerformanceAudit` row per conversion call (`enterprise_kra_conversion` /
+`enterprise_kra_preview_converted`), with friendly labels added to `audit.ts`. Verified end-to-end
+with real dev data and full cleanup (no lasting writes) — since dev data currently has only one
+properly-structured `EmployeeTarget` row (source=MANUAL only), the write path was exercised via a
+fabricated in-memory preview against a real `EmployeeTarget` FK + a temporary `KRAMetric` row (both
+cleaned up after): 1st CREATE_ONLY → created=1/skipped=2; 2nd CREATE_ONLY → created=0/skipped=3
+(idempotent); 3rd REPLACE_EXISTING → replaced=1/created=0 (same achievement id reused, not
+duplicated); 3 PerformanceAudit rows written; the underlying EmployeeTarget row's `updatedAt`/
+`targetJson` were byte-for-byte unchanged throughout. `npx tsc --noEmit` and `npm run build` both
+clean (new convert route present in the build's route list). **No PerformanceReview, EmployeeTarget,
+KRAMetric, DailyActivity, schema, migration, DailyUpdate, mobile, or production changes; legacy
+KRA/WeeklyReview untouched.**
+
 ### 2026-07-01 — Phase W9.3: CRM meeting completion workflow + Meetings Completed preview
 
 Phase W9.3 added CRM meeting completion workflow and MEETING_COMPLETED Daily Activity capture.

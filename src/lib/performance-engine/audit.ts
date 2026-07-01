@@ -64,6 +64,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   DAILY_ACTIVITY_MAPPING_UPDATE: "Daily Activity Mapping Updated",
   DAILY_ACTIVITY_MAPPING_RECONCILE: "Daily Activity Mapping Reconciled",
   DAILY_ACTIVITY_MAPPING_DISABLE: "Daily Activity Mapping Disabled",
+  enterprise_kra_preview_converted: "Enterprise KRA Preview Converted",
   CREATE: "Created",
   UPDATE: "Updated",
   DELETE: "Deleted",
@@ -73,6 +74,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   EmployeeTarget: "Employee Target",
   KRAMetric: "KRA Metric",
+  enterprise_kra_conversion: "Enterprise KRA Conversion",
   performance_review: "Performance Review",
   team_target: "Team Target",
   kra_template: "KRA Template",

@@ -881,3 +881,27 @@ active use:
   - Once captured, `CRM_MEETINGS → Meetings Completed` returns `sourceStatus: IMPLEMENTED` with
     `actualValue` = count of `MEETING_COMPLETED` logs in the selected period (0 when none exist yet —
     not an error/exception by itself).
+
+- **Manager-approved KRAAchievement conversion (Phase W10):** The read-only preview can be converted
+  into real `KRAAchievement` rows, but ONLY by an explicit manager action — never automatically, and
+  never by an employee. Rules:
+  - `POST /api/admin/performance/achievement-preview/convert` — manager/admin only (same permission
+    gate as the read-only preview APIs); employees get 403.
+  - Requires `employeeProfileId`; accepts optional `periodId`/`month`/`periodStart`/`periodEnd`
+    (defaults to the employee's current assigned period, same resolution as the preview), `mode`
+    (`CREATE_ONLY` default | `REPLACE_EXISTING`), and an optional manager `remarks` note.
+  - Only KPI rows with `sourceStatus: "IMPLEMENTED"` AND a matching `KRAMetric.code` convert to a
+    `KRAAchievement` row. `NOT_IMPLEMENTED` rows are always skipped (`unsupported`); `CONFIG_REQUIRED`/
+    other `NEEDS_REVIEW` rows (and rows with no matching `KRAMetric`) are always skipped
+    (`needsReview`) — every skip is reported with a specific reason, never silently dropped.
+  - **Idempotent via `sourceReference`** (format `enterprise-preview:{SOURCE}:{employeeProfileId}:
+    {rangeStart}:{rangeEnd}:{metricCode}`) — no DB unique constraint (no schema change), enforced in
+    application code. `CREATE_ONLY` skips any row whose sourceReference already has a converted
+    `KRAAchievement`. `REPLACE_EXISTING` updates ONLY the row with the exact matching
+    sourceReference — it never touches a different period or source for the same employee/metric.
+  - Writes exactly one `PerformanceAudit` row per conversion call (`action:
+    "enterprise_kra_preview_converted"`) summarizing created/replaced/skipped/remarks. Never writes
+    `PerformanceReview`, never updates `EmployeeTarget`/`KRAMetric`/`DailyActivity`.
+  - UI: manager-only "Convert to KRA Achievement" button on the Team KRA Preview, with a confirmation
+    modal (mode + remarks) and a post-conversion result summary. The employee's own preview view has
+    no conversion affordance at all.

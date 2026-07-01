@@ -81,6 +81,12 @@ export type TargetPreview = {
   templateName: string;
   status: string;
   rangeLabel: string;
+  /** Date-only (YYYY-MM-DD) bounds actually used to compute this target's KPIs — the resolved
+   *  range (explicit override → month → periodId → the target's own period), NOT necessarily the
+   *  EmployeeTarget's own period dates. Phase W10 uses these to build a stable, idempotent
+   *  `sourceReference` for conversion — never persisted anywhere, read-only preview data. */
+  rangeStart: string;
+  rangeEnd: string;
   kpis: KpiPreview[];
   totalWeight: number;
   weightedPreviewTotal: number | null;
@@ -883,6 +889,8 @@ async function buildTargetPreview(t: PreviewTargetRecord, rangeInput: PreviewRan
     templateName: t.template?.name ?? doc.templateName ?? "",
     status: t.status,
     rangeLabel: range.label,
+    rangeStart: toDateKeyLocal(range.startDate),
+    rangeEnd: toDateKeyLocal(range.endDate),
     kpis,
     totalWeight: kpis.reduce((s, k) => s + (k.weight || 0), 0),
     weightedPreviewTotal,

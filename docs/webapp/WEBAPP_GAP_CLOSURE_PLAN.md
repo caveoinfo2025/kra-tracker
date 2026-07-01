@@ -950,3 +950,47 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
   untouched.
 - **Remaining gaps:** opportunity/pipeline stage-progress and pipeline won-deals still NOT_IMPLEMENTED
   (no transition-history source); FINANCE_COLLECTION/MANUAL still fully NOT_IMPLEMENTED.
+
+## Phase W10 — Manager-approved KRAAchievement conversion (progress)
+
+- **Implemented explicit, manager-only conversion** of the read-only Phase W9 preview into real
+  `KRAAchievement` rows. No automatic conversion anywhere — every write is triggered by a manager
+  clicking "Convert / Approve" in the UI (or an equivalent explicit API call).
+- **New engine** (`achievement-conversion.ts`): `buildSourceReference`, `validatePreviewForConversion`
+  (buckets a KPI row OK/UNSUPPORTED/NEEDS_REVIEW), `findExistingConvertedAchievements`,
+  `convertPreviewToKraAchievements` (core), `convertEmployeePreviewToAchievements` (fetch-then-convert
+  wrapper via the Phase W9 preview engine), `writePerformanceAuditForConversion`. Reuses
+  `achievement.ts`'s existing `calculateWeightedScore` for consistency with the preview's own %-cap
+  convention. `TargetPreview` (achievement-preview.ts) gained `rangeStart`/`rangeEnd` so conversion
+  can build a stable sourceReference from the EXACT range each target's KPIs were computed over.
+- **New API:** `POST /api/admin/performance/achievement-preview/convert` — manager/admin only, same
+  gate as the read-only preview APIs. `employeeProfileId` required; `mode` (CREATE_ONLY default |
+  REPLACE_EXISTING); optional period override + remarks. Returns created/replaced/skipped/unsupported/
+  needsReview counts + a per-row outcome/reason array.
+- **Idempotency:** `sourceReference` format `enterprise-preview:{SOURCE}:{employeeProfileId}:
+  {rangeStart}:{rangeEnd}:{metricCode}`, enforced entirely in application code (no schema change, no
+  DB unique constraint). CREATE_ONLY skips already-converted rows; REPLACE_EXISTING updates only the
+  exact-matching row.
+- **UI:** manager-only "Convert to KRA Achievement" button per direct report on the Team KRA Preview →
+  confirmation modal (mode + remarks) → result summary panel (counts + per-row reasons) → auto-
+  refreshes the preview. Employee's own preview view unchanged — no conversion affordance.
+- **Audit:** one `PerformanceAudit` row per conversion call (`enterprise_kra_conversion` /
+  `enterprise_kra_preview_converted`), with friendly labels added to `audit.ts` so it renders in the
+  existing Performance Audit tab.
+- **Verified** end-to-end with real dev data + full cleanup (no lasting writes): dev data currently has
+  only one `EmployeeTarget` row with properly-structured target JSON, and it uses `MANUAL` source only
+  — so the write path was exercised with a fabricated in-memory preview against a REAL `EmployeeTarget`
+  FK and a TEMPORARY `KRAMetric` row (both fully cleaned up after). Confirmed: 1st CREATE_ONLY →
+  created=1/skipped=2 (1 unsupported, 1 needsReview); 2nd CREATE_ONLY → created=0/skipped=3 (idempotent);
+  3rd REPLACE_EXISTING → replaced=1/created=0 (same achievement id reused); 3 PerformanceAudit rows
+  written; the underlying EmployeeTarget row's `updatedAt`/`targetJson` were byte-for-byte unchanged
+  throughout. `npx tsc --noEmit` and `npm run build` both clean (new convert route present in the
+  build's route list).
+- **Still isolated:** no `PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity` writes; no
+  schema/migration/db push; legacy KRA/WeeklyReview untouched; Daily Updates retired; mobile/production
+  untouched.
+- **Remaining gaps:** dev data has almost no properly-structured (Phase W8.2 JSON) `EmployeeTarget`
+  rows yet — real end-to-end conversion in the UI needs actual target assignment with IMPLEMENTED-
+  source KPIs and matching `KRAMetric` rows to be meaningfully exercised beyond this phase's synthetic
+  test. `PerformanceReview` creation, opportunity/pipeline stage-progress, pipeline won-deals, and
+  FINANCE_COLLECTION/MANUAL previews remain out of scope / NOT_IMPLEMENTED.

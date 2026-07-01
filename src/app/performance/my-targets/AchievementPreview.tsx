@@ -43,6 +43,29 @@ type EmployeePreview = {
   targets: TargetPreview[];
 };
 
+type ConversionRowResult = {
+  targetId: number;
+  metricCode: string;
+  metricName: string;
+  source: string;
+  sourceReference: string;
+  outcome: "CREATED" | "REPLACED" | "SKIPPED";
+  reason?: string;
+  achievementId?: number;
+};
+type ConversionSummary = {
+  employeeProfileId: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  mode: string;
+  created: number;
+  replaced: number;
+  skipped: number;
+  unsupported: number;
+  needsReview: number;
+  rows: ConversionRowResult[];
+};
+
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   NOT_STARTED: { bg: "#f3f4f6", fg: "#6b7280" },
   BELOW_TARGET: { bg: "#fee2e2", fg: "#dc2626" },
@@ -130,6 +153,133 @@ function PreviewKpiTable({ kpis, showActual }: { kpis: KpiPreview[]; showActual:
   );
 }
 
+const OUTCOME_COLORS: Record<string, { bg: string; fg: string }> = {
+  CREATED: { bg: "#dcfce7", fg: "#15803d" },
+  REPLACED: { bg: "#e0f2fe", fg: "#0369a1" },
+  SKIPPED: { bg: "#f3f4f6", fg: "#6b7280" },
+};
+
+/** Manager-only conversion result summary — shows created/replaced/skipped counts + per-row reasons. */
+function ConversionResultPanel({ summary, onClose }: { summary: ConversionSummary; onClose: () => void }) {
+  return (
+    <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 13 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <strong>Conversion result</strong>
+        <span style={{ color: "#6b7280" }}>{summary.periodStart} → {summary.periodEnd} · mode: {summary.mode}</span>
+        <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: 12 }}>Dismiss</button>
+      </div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
+        <span>Created: <strong>{summary.created}</strong></span>
+        <span>Replaced: <strong>{summary.replaced}</strong></span>
+        <span>Skipped: <strong>{summary.skipped}</strong></span>
+        <span>Unsupported: <strong>{summary.unsupported}</strong></span>
+        <span>Needs review: <strong>{summary.needsReview}</strong></span>
+      </div>
+      {summary.rows.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ textAlign: "left", color: "#6b7280" }}>
+              <th style={{ padding: "4px 6px" }}>KPI</th>
+              <th style={{ padding: "4px 6px" }}>Outcome</th>
+              <th style={{ padding: "4px 6px" }}>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summary.rows.map((r, i) => {
+              const c = OUTCOME_COLORS[r.outcome] ?? OUTCOME_COLORS.SKIPPED;
+              return (
+                <tr key={`${r.metricCode}-${i}`} style={{ borderTop: "1px solid #e5e7eb" }}>
+                  <td style={{ padding: "4px 6px" }}>{r.metricName}</td>
+                  <td style={{ padding: "4px 6px" }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, background: c.bg, color: c.fg, borderRadius: 4, padding: "1px 6px" }}>{r.outcome}</span>
+                  </td>
+                  <td style={{ padding: "4px 6px", color: "#6b7280" }}>{r.reason ?? ""}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/** Manager/admin-only explicit conversion action — confirmation + mode + remarks. Never shown to employees. */
+function ConvertModal({
+  employeeProfileId, employeeName, month, onClose, onDone,
+}: {
+  employeeProfileId: number;
+  employeeName: string;
+  month: string;
+  onClose: () => void;
+  onDone: (summary: ConversionSummary) => void;
+}) {
+  const [mode, setMode] = useState<"CREATE_ONLY" | "REPLACE_EXISTING">("CREATE_ONLY");
+  const [remarks, setRemarks] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/performance/achievement-preview/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeProfileId, ...(month ? { month } : {}), mode, remarks }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Failed (${res.status})`);
+      }
+      const summary: ConversionSummary = await res.json();
+      onDone(summary);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Conversion failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+      <div style={{ background: "#fff", borderRadius: 10, padding: 20, width: 420, maxWidth: "92vw" }}>
+        <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 600 }}>Convert to KRA Achievement</h3>
+        <p style={{ margin: "0 0 14px", color: "#6b7280", fontSize: 13 }}>
+          This writes real <strong>KRAAchievement</strong> rows for <strong>{employeeName}</strong>'s
+          supported KPI previews only. Unsupported / config-required / needs-review rows are skipped.
+        </p>
+
+        <label style={{ display: "block", fontSize: 12, color: "#374151", marginBottom: 4 }}>Mode</label>
+        <select value={mode} onChange={(e) => setMode(e.target.value as "CREATE_ONLY" | "REPLACE_EXISTING")}
+          style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "6px 8px", fontSize: 13, marginBottom: 12 }}>
+          <option value="CREATE_ONLY">Create only (skip already-converted rows)</option>
+          <option value="REPLACE_EXISTING">Replace existing (update matching rows)</option>
+        </select>
+
+        <label style={{ display: "block", fontSize: 12, color: "#374151", marginBottom: 4 }}>Manager remarks (optional)</label>
+        <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3}
+          placeholder="Approval note for the audit log…"
+          style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "6px 8px", fontSize: 13, resize: "vertical", marginBottom: 12 }} />
+
+        {error && <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} disabled={submitting}
+            style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>
+            Cancel
+          </button>
+          <button onClick={submit} disabled={submitting}
+            style={{ background: "#CC2229", color: "#fff", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? "Converting…" : "Convert / Approve"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TargetPreviewBlock({ t, showActual }: { t: TargetPreview; showActual: boolean }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -152,6 +302,8 @@ export default function AchievementPreview({ isManager }: { isManager: boolean }
   const [loading, setLoading] = useState(true);
   const [teamLoading, setTeamLoading] = useState(isManager);
   const [error, setError] = useState("");
+  const [convertTarget, setConvertTarget] = useState<{ employeeProfileId: number; employeeName: string } | null>(null);
+  const [conversionResults, setConversionResults] = useState<Record<number, ConversionSummary>>({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -206,7 +358,8 @@ export default function AchievementPreview({ isManager }: { isManager: boolean }
         <div style={{ marginTop: 24 }}>
           <h2 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Team KRA Preview</h2>
           <p style={{ margin: "0 0 14px", color: "#6b7280", fontSize: 13 }}>
-            Read-only achievement preview for your direct reports. No conversion is applied in this phase.
+            Read-only achievement preview for your direct reports. Converting to a real KRA Achievement
+            is an explicit, manager-approved action — nothing converts automatically.
           </p>
           {teamLoading ? (
             <div style={{ ...card, color: "#9ca3af", fontSize: 14 }}>Loading team preview…</div>
@@ -215,15 +368,43 @@ export default function AchievementPreview({ isManager }: { isManager: boolean }
           ) : (
             team.map((emp) => (
               <div key={emp.employeeProfileId} style={card}>
-                <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 10 }}>
-                  <strong style={{ color: "#111827", fontSize: 15 }}>{emp.employeeName}</strong>
-                  {emp.designation ? <> · {emp.designation}</> : null}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    <strong style={{ color: "#111827", fontSize: 15 }}>{emp.employeeName}</strong>
+                    {emp.designation ? <> · {emp.designation}</> : null}
+                  </div>
+                  {emp.targets.length > 0 && (
+                    <button
+                      onClick={() => setConvertTarget({ employeeProfileId: emp.employeeProfileId, employeeName: emp.employeeName })}
+                      style={{ marginLeft: "auto", background: "#CC2229", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      Convert to KRA Achievement
+                    </button>
+                  )}
                 </div>
+                {conversionResults[emp.employeeProfileId] && (
+                  <ConversionResultPanel
+                    summary={conversionResults[emp.employeeProfileId]}
+                    onClose={() => setConversionResults((p) => { const n = { ...p }; delete n[emp.employeeProfileId]; return n; })}
+                  />
+                )}
                 {emp.targets.map((t, i) => <TargetPreviewBlock key={i} t={t} showActual={true} />)}
               </div>
             ))
           )}
         </div>
+      )}
+
+      {convertTarget && (
+        <ConvertModal
+          employeeProfileId={convertTarget.employeeProfileId}
+          employeeName={convertTarget.employeeName}
+          month={month}
+          onClose={() => setConvertTarget(null)}
+          onDone={(summary) => {
+            setConversionResults((p) => ({ ...p, [summary.employeeProfileId]: summary }));
+            load();
+          }}
+        />
       )}
     </div>
   );

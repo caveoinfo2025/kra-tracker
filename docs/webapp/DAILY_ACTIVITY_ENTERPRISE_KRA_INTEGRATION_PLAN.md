@@ -591,3 +591,68 @@ route + Daily Activity capture, and updates the preview accordingly.
   `sourceStatus: IMPLEMENTED`. `npx tsc --noEmit` and `npm run build` both clean.
 - **No KRAAchievement/PerformanceReview/EmployeeTarget/KRAMetric writes**; no legacy KRA/WeeklyReview;
   no Daily Updates; no schema/migration/db push; mobile/production untouched.
+
+## Phase W10 — Manager-approved KRAAchievement conversion (IMPLEMENTED)
+
+Converts the read-only Phase W9 preview into REAL `KRAAchievement` rows — but ONLY via an explicit
+manager action. There is no automatic/scheduled conversion anywhere in this phase.
+
+- **Audit (Task 1):** `achievement.ts`'s `recordAchievement`/`calculateAchievement`/
+  `calculateWeightedScore` are the canonical write helpers (`achievementPct = min(200, actual/target
+  ×100)`, `weightedScore = achievementPct/100 × weightage`) — reused as-is by the new conversion
+  engine for consistency with the preview's own capping convention. `KRAAchievement` FKs to
+  `EmployeeTarget` (`employeeTargetId`) and `KRAMetric` (`metricId`, unique `code`) and has a
+  `sourceReference` string column (no DB unique constraint on it — app-level idempotency required).
+  `PerformanceAudit` (`logPerformanceAudit`) is the existing generic audit writer
+  (`entityType`/`entityId`/`action`/`oldValue`/`newValue`/`performedBy`), reused unchanged. The
+  existing `POST /api/kra/sync-achievements` route is a DIFFERENT, non-idempotent legacy precedent
+  (upserts by `metricId` alone, ignores period/source, computes actuals from `SalesFunnel`/
+  `LeadGeneration` directly) — deliberately NOT reused or modified; Phase W10 builds its own
+  sourceReference-based idempotency instead.
+- **Engine** (`achievement-conversion.ts`, new): `buildSourceReference` (format
+  `enterprise-preview:{SOURCE}:{employeeProfileId}:{rangeStart}:{rangeEnd}:{metricCode}`),
+  `validatePreviewForConversion` (buckets a KPI row into OK / UNSUPPORTED / NEEDS_REVIEW by
+  `sourceStatus`), `findExistingConvertedAchievements` (exact-sourceReference lookup),
+  `convertPreviewToKraAchievements` (core: converts an already-fetched `EmployeePreview`),
+  `convertEmployeePreviewToAchievements` (fetch-via-Phase-W9-engine-then-convert wrapper),
+  `writePerformanceAuditForConversion`. `achievement-preview.ts`'s `TargetPreview` gained
+  `rangeStart`/`rangeEnd` (date-only strings) — the EXACT resolved range each target's KPIs were
+  computed over, needed to build a stable sourceReference (a manager's month/date override is not
+  necessarily the EmployeeTarget's own period).
+- **Idempotency (Task 3):** `CREATE_ONLY` (default) skips any KPI row whose `sourceReference` already
+  has a `KRAAchievement` row. `REPLACE_EXISTING` updates ONLY the row with the exact matching
+  `sourceReference` (never touches a different period/source for the same employee/metric). No DB
+  unique constraint added (no schema/migration) — enforced entirely in application code via an exact
+  `findFirst({ employeeTargetId, sourceReference })` lookup before every write.
+- **API** (new): `POST /api/admin/performance/achievement-preview/convert` — manager/admin only (same
+  `Settings/Performance/EDIT` gate as the read-only preview APIs), `employeeProfileId` required,
+  `mode` (`CREATE_ONLY`|`REPLACE_EXISTING`, validated), optional `periodId`/`month`/`periodStart`/
+  `periodEnd`/`remarks`. Returns `{ created, replaced, skipped, unsupported, needsReview, rows[] }`
+  where each row reports its outcome and (if skipped) a specific reason. Only `sourceStatus:
+  "IMPLEMENTED"` rows with a matching `KRAMetric.code` convert — `NOT_IMPLEMENTED` rows count toward
+  `unsupported`; `CONFIG_REQUIRED`/other `NEEDS_REVIEW` rows (and rows with no matching `KRAMetric`)
+  count toward `needsReview`, all reported with a `reason`, never silently dropped.
+- **UI:** `AchievementPreview.tsx`'s manager-only "Team KRA Preview" section gained a **"Convert to
+  KRA Achievement"** button per direct report → opens a confirmation modal (mode select + optional
+  remarks textarea + explicit Convert/Cancel buttons) → on success shows a result panel (created/
+  replaced/skipped/unsupported/needsReview counts + per-row outcome/reason table) and refreshes the
+  preview. The employee's own "My KRA Achievement Preview" section is completely unchanged — no
+  conversion button, no mode selector, read-only exactly as Phase W9 left it.
+- **Audit logging (Task 7):** one `PerformanceAudit` row per conversion call —
+  `entityType: "enterprise_kra_conversion"`, `entityId: employeeProfileId`,
+  `action: "enterprise_kra_preview_converted"`, `newValue` JSON = `{employeeProfileId, periodStart,
+  periodEnd, mode, created, skipped, replaced, remarks, sourceReferencePrefix}`, `performedBy` = the
+  manager's employee id. Added both codes to `audit.ts`'s `AUDIT_ACTION_LABELS`/`AUDIT_ENTITY_LABELS`
+  so the existing Performance Audit tab renders it with a friendly label (no new audit table).
+- **Verified** end-to-end against real dev data (no lasting writes — every test row/temp KRAMetric
+  created was deleted afterward): a fabricated preview run through the real engine (real
+  `EmployeeTarget` FK, temp `KRAMetric`, in-memory KPI rows covering IMPLEMENTED/NOT_IMPLEMENTED/
+  CONFIG_REQUIRED) showed 1st `CREATE_ONLY` → created=1/skipped=2 (1 unsupported, 1 needsReview); 2nd
+  `CREATE_ONLY` → created=0/skipped=3 (idempotent — same sourceReference already converted); 3rd
+  `REPLACE_EXISTING` → replaced=1/created=0 (same `KRAAchievement.id` reused, not duplicated); 3
+  `PerformanceAudit` rows written (one per call); the underlying `EmployeeTarget` row's `updatedAt`
+  and `targetJson` were byte-for-byte unchanged before vs. after all three calls. `npx tsc --noEmit`
+  and `npm run build` both clean (the new `/api/admin/performance/achievement-preview/convert` route
+  appears in the build's route list).
+- **No PerformanceReview/EmployeeTarget/KRAMetric/DailyActivity writes**; no legacy KRA/WeeklyReview;
+  no Daily Updates; no schema/migration/db push; mobile/production untouched.
