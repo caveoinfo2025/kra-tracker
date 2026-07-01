@@ -6,6 +6,7 @@ import {
 } from "@/lib/performance-engine";
 import MyTargetsClient from "./MyTargetsClient";
 import AchievementPreview from "./AchievementPreview";
+import MyReviews from "./MyReviews";
 
 /**
  * Phase W8.4 — read-only "My KRA Targets" page (Enterprise KRA).
@@ -37,6 +38,8 @@ export default async function MyTargetsPage() {
       />
       {/* Phase W9 — read-only achievement preview below the assigned targets. */}
       <AchievementPreview isManager={isManager} />
+      {/* Phase W11 — PerformanceReview workflow on top of converted KRAAchievement rows. */}
+      <MyReviews isManager={isManager} />
     </div>
   );
 }

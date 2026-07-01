@@ -21,6 +21,55 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-07-01 — Phase W11: PerformanceReview integration on converted Enterprise KRAAchievement rows
+
+Phase W11 implemented PerformanceReview integration on top of converted Enterprise KRAAchievement
+rows. Reviews are created through explicit manager action, are audited, and do not use legacy
+KRA/WeeklyReview. No schema, migration, DailyUpdate, mobile, or production changes.
+
+New engine `src/lib/performance-engine/performance-review.ts` — a NEW Enterprise-KRA-specific layer
+built alongside (not replacing) the pre-existing generic `review.ts` engine that already backs the
+raw `GET/POST/PATCH /api/admin/performance/reviews` route and `ReviewWorkflowManager.tsx` UI tab
+(both left completely untouched). `getReviewCandidate`/`listReviewCandidates` (candidacy: NO_TARGET/
+NO_CONVERTED_ACHIEVEMENTS/ALREADY_REVIEWED/READY), `calculateReviewSummaryFromAchievements`,
+`findExistingPerformanceReview` (duplicate prevention — one review per `EmployeeTarget`, no DB
+unique constraint, app-level enforced), `createPerformanceReviewFromAchievements` (CREATE_ONLY
+default | REOPEN_EXISTING — reopen resets the SAME review to DRAFT, never a second row),
+`submitSelfReview`, `submitManagerReview`, `writePerformanceAuditForReview`. A review requires at
+least one CONVERTED `KRAAchievement` row (never created from preview-only data). `finalRating` is
+NEVER auto-calculated — only written if the manager explicitly submits one. Self vs. manager remarks
+are stored as a small JSON document inside `PerformanceReview.comments` (its only text column, no
+schema change), tolerant of pre-existing plain-text values. Status vocabulary extended with
+`SELF_SUBMITTED` (a JS-level validation-list addition, not a schema/enum change).
+
+New APIs: `POST /api/admin/performance/reviews/create-from-achievements` (manager/admin only,
+employeeProfileId required, optional periodId/remarks, mode CREATE_ONLY|REOPEN_EXISTING),
+`GET /api/admin/performance/reviews/candidates`, `POST
+/api/admin/performance/reviews/[id]/manager-review` (managerRating/managerRemarks/finalRating/status,
+finalization = explicit `status: APPROVED`), `GET /api/performance/my-reviews` (employee self-scoped,
+business-friendly shape, no raw JSON/ids), `POST /api/performance/my-reviews/[id]/self-review`
+(ownership-checked via EmployeeTarget→EmployeeProfile→userId, blocked once finalized unless
+reopened). The pre-existing `GET /api/admin/performance/reviews` was extended ADDITIVELY (every
+original field preserved) with employeeName/periodName/achievementCount/totalWeightedScore.
+
+UI: `/performance/my-targets` gained `MyReviews.tsx` — "My Performance Reviews" (employee: status,
+ratings, manager remarks, achievement summary, self-review form, locked once finalized) and, for
+managers, "Team Reviews" (candidates list + Create/Reopen action, existing reviews + rating/
+finalize action). Audit: 5 distinct actions (`performance_review_created`/`_reopened`/
+`_self_submitted`/`_manager_submitted`/`_finalized`), friendly labels added to `audit.ts`.
+
+Verified end-to-end against real dev data with full cleanup (no lasting writes): attached a temp
+KRAMetric+KRAAchievement (simulating a Phase W10 conversion) to a real EmployeeTarget row; candidacy
+correctly flipped NO_CONVERTED_ACHIEVEMENTS → READY; 1st create → created; duplicate create →
+skipped with a clear reason; self-review by the correct owner succeeded, by a different employee id
+was correctly rejected as Forbidden; manager rating updated without changing status; finalization
+(explicit `status: APPROVED` + explicit `finalRating`) succeeded; self-review after finalization was
+blocked; REOPEN_EXISTING reused the SAME reviewId and reset to DRAFT; exactly 5 PerformanceAudit rows
+were written; the underlying EmployeeTarget row's `updatedAt`/`targetJson` were byte-for-byte
+unchanged throughout. `npx tsc --noEmit` and `npm run build` both clean. **No unexpected
+KRAAchievement/EmployeeTarget/KRAMetric/DailyActivity changes (temp test rows fully deleted); legacy
+KRA/WeeklyReview untouched; Daily Updates retired; mobile/production untouched.**
+
 ### 2026-07-01 — Phase W10: Manager-approved Enterprise KRA achievement conversion
 
 Phase W10 implemented explicit manager-approved conversion of Enterprise KRA achievement previews

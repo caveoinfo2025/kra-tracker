@@ -905,3 +905,40 @@ active use:
   - UI: manager-only "Convert to KRA Achievement" button on the Team KRA Preview, with a confirmation
     modal (mode + remarks) and a post-conversion result summary. The employee's own preview view has
     no conversion affordance at all.
+
+- **PerformanceReview workflow (Phase W11):** An explicit review workflow on top of converted
+  `KRAAchievement` rows — a review is per `EmployeeTarget` (i.e. per employee+period, since
+  `EmployeeTarget` is already scoped that way), never per-KPI. Rules:
+  - **Creation:** `POST /api/admin/performance/reviews/create-from-achievements` — manager/admin
+    only, explicit action. Requires `employeeProfileId`; the target `EmployeeTarget` must already
+    have at least one CONVERTED `KRAAchievement` row (Phase W10) — a review is never created from
+    preview-only data. `mode: CREATE_ONLY` (default) skips if a review already exists for that
+    EmployeeTarget; `mode: REOPEN_EXISTING` resets that SAME review back to `DRAFT` (never creates a
+    second row for the same employee/period).
+  - **Self-review:** `POST /api/performance/my-reviews/[id]/self-review` — the employee may submit
+    `selfRating`/`selfRemarks` only on their OWN review (ownership checked via the review's
+    EmployeeTarget → EmployeeProfile → auth user id chain); the first submission moves status
+    `DRAFT → SELF_SUBMITTED`; blocked entirely once the review is finalized (`status: APPROVED`)
+    unless a manager reopens it.
+  - **Manager rating/finalization:** `POST /api/admin/performance/reviews/[id]/manager-review` —
+    manager/admin only. `managerRating`/`managerRemarks`/`finalRating`/`status` are all optional and
+    independently settable. `finalRating` is **NEVER auto-calculated** from self/manager ratings —
+    it is only written if the manager explicitly submits a value. Setting `status: "APPROVED"` is
+    treated as finalization (its own audit action); any other status change is a plain update.
+  - **Remarks storage:** `PerformanceReview.comments` is a single `@db.Text` column (no separate
+    self/manager columns exist, and this phase does not change the schema) — self and manager
+    remarks are stored as a small JSON document inside that one column, tolerant of any pre-existing
+    plain-text value from the older generic review engine (preserved under a `legacy` key).
+  - **Reads:** `GET /api/performance/my-reviews` (employee self-scoped — no id override; business-
+    friendly shape with parsed comments + achievement summary, never raw JSON/ids) and
+    `GET /api/admin/performance/reviews/candidates` (manager/admin; reports NO_TARGET /
+    NO_CONVERTED_ACHIEVEMENTS / ALREADY_REVIEWED / READY per employee).
+  - **Audit:** one `PerformanceAudit` row per lifecycle event — `performance_review_created`,
+    `performance_review_reopened`, `performance_review_self_submitted`,
+    `performance_review_manager_submitted`, `performance_review_finalized`.
+  - **UI:** `/performance/my-targets` gained a "My Performance Reviews" section (employee) and a
+    "Team Reviews" section (manager only — candidates list + Create/Reopen action + existing-reviews
+    rating/finalize action). No conversion controls here — that remains Phase W10's
+    Achievement Preview section.
+  - No `EmployeeTarget`/`KRAMetric`/`DailyActivity` writes from any review action; no legacy
+    KRA/WeeklyReview; no automatic review creation or scoring anywhere in this phase.

@@ -992,5 +992,50 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
 - **Remaining gaps:** dev data has almost no properly-structured (Phase W8.2 JSON) `EmployeeTarget`
   rows yet — real end-to-end conversion in the UI needs actual target assignment with IMPLEMENTED-
   source KPIs and matching `KRAMetric` rows to be meaningfully exercised beyond this phase's synthetic
-  test. `PerformanceReview` creation, opportunity/pipeline stage-progress, pipeline won-deals, and
-  FINANCE_COLLECTION/MANUAL previews remain out of scope / NOT_IMPLEMENTED.
+  test. `PerformanceReview` creation (closed in Phase W11 below), opportunity/pipeline stage-progress,
+  pipeline won-deals, and FINANCE_COLLECTION/MANUAL previews remain out of scope / NOT_IMPLEMENTED.
+
+## Phase W11 — PerformanceReview integration on converted KRAAchievement rows (progress)
+
+- **Implemented explicit review workflow** on top of Phase W10's converted `KRAAchievement` rows —
+  creation, self-review, manager rating, and finalization are all separate explicit actions; nothing
+  is created or scored automatically.
+- **New engine** (`performance-review.ts`): candidacy resolution (`getReviewCandidate`/
+  `listReviewCandidates` — NO_TARGET/NO_CONVERTED_ACHIEVEMENTS/ALREADY_REVIEWED/READY),
+  `calculateReviewSummaryFromAchievements`, `findExistingPerformanceReview` (duplicate prevention,
+  one review per `EmployeeTarget`), `createPerformanceReviewFromAchievements` (CREATE_ONLY default |
+  REOPEN_EXISTING), `submitSelfReview`, `submitManagerReview`, `writePerformanceAuditForReview`. Left
+  the pre-existing generic `review.ts` engine + raw admin reviews API + `ReviewWorkflowManager.tsx`
+  UI completely untouched — this is a NEW layer alongside it, not a modification.
+- **New APIs:** `POST /api/admin/performance/reviews/create-from-achievements`,
+  `GET /api/admin/performance/reviews/candidates`,
+  `POST /api/admin/performance/reviews/[id]/manager-review`, `GET /api/performance/my-reviews`,
+  `POST /api/performance/my-reviews/[id]/self-review`. The pre-existing
+  `GET /api/admin/performance/reviews` was extended ADDITIVELY (all original fields preserved) with
+  `employeeName`/`periodName`/`achievementCount`/`totalWeightedScore`.
+- **Remarks storage:** self vs. manager remarks stored as a small JSON document inside
+  `PerformanceReview.comments` (the model's only text column) — no schema change; tolerant of any
+  pre-existing plain-text value from the generic engine.
+- **UI:** `/performance/my-targets` gained "My Performance Reviews" (employee: status, ratings,
+  manager remarks, achievement summary, self-review form — locked once finalized) and, for managers,
+  "Team Reviews" (candidates list with Create/Reopen action, existing reviews with rating/remarks/
+  finalize action). No conversion controls duplicated here.
+- **Audit:** 5 distinct `PerformanceAudit` actions (`performance_review_created`/`_reopened`/
+  `_self_submitted`/`_manager_submitted`/`_finalized`), friendly labels added to `audit.ts`.
+- **Verified** end-to-end with real dev data + full cleanup (no lasting writes): attached a temp
+  `KRAMetric`+`KRAAchievement` (simulating a W10 conversion) to a real `EmployeeTarget`; candidacy
+  correctly flipped NO_CONVERTED_ACHIEVEMENTS → READY; 1st create → created; 2nd create (duplicate) →
+  skipped with reason; self-review by the correct owner succeeded, by a different employee id was
+  correctly rejected as Forbidden; manager rating updated without changing status; finalization
+  (`status: APPROVED`, explicit `finalRating`) succeeded; self-review after finalization was blocked;
+  REOPEN_EXISTING reused the SAME reviewId and reset to DRAFT; exactly 5 PerformanceAudit rows were
+  written; the underlying EmployeeTarget row's `updatedAt`/`targetJson` were byte-for-byte unchanged
+  throughout. `npx tsc --noEmit` and `npm run build` both clean.
+- **Still isolated:** no unexpected `KRAAchievement`/`EmployeeTarget`/`KRAMetric`/`DailyActivity`
+  writes (temp rows created for testing were fully deleted); no legacy KRA/WeeklyReview; no Daily
+  Updates; no schema/migration/db push; mobile/production untouched.
+- **Remaining gaps:** dev data still has almost no properly-structured `EmployeeTarget`+converted-
+  achievement combinations to exercise the review UI on live data end-to-end (same underlying gap as
+  W10). Opportunity/pipeline stage-progress, pipeline won-deals, and FINANCE_COLLECTION/MANUAL
+  previews remain NOT_IMPLEMENTED. No workflow/notification integration for review due-dates or
+  reminders (out of scope for this phase).

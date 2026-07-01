@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/dev-session";
 import { requirePermission } from "@/lib/access-control";
-import { listReviews, startPerformanceReview, updateReview } from "@/lib/performance-engine";
+import { listReviews, startPerformanceReview, updateReview, calculateReviewSummaryFromAchievements } from "@/lib/performance-engine";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -17,7 +18,29 @@ export async function GET(req: NextRequest) {
     ...(reviewerId ? { reviewerId: Number(reviewerId) } : {}),
     ...(status ? { status } : {}),
   });
-  return NextResponse.json(reviews);
+
+  // Phase W11 — ADDITIVE business-friendly enrichment only (employeeName/periodName/achievement
+  // summary). Every original field is preserved unchanged so the existing ReviewWorkflowManager UI
+  // (and any other consumer of this route) keeps working exactly as before.
+  const profiles = await prisma.employeeTarget.findMany({
+    where: { id: { in: reviews.map((r) => r.employeeTargetId) } },
+    select: { id: true, periodId: true, period: { select: { name: true } }, employeeProfile: { select: { employee: { select: { name: true } } } } },
+  });
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+
+  const enriched = await Promise.all(reviews.map(async (r) => {
+    const target = profileById.get(r.employeeTargetId);
+    const summary = await calculateReviewSummaryFromAchievements(r.employeeTargetId);
+    return {
+      ...r,
+      employeeName: target?.employeeProfile?.employee?.name ?? null,
+      periodName: target?.period?.name ?? null,
+      achievementCount: summary.achievementCount,
+      totalWeightedScore: summary.totalWeightedScore,
+    };
+  }));
+
+  return NextResponse.json(enriched);
 }
 
 export async function POST(req: NextRequest) {

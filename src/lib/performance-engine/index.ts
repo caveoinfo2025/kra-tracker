@@ -8,3 +8,4 @@ export * from "./audit";
 export * from "./daily-activity-mapping";
 export * from "./achievement-preview";
 export * from "./achievement-conversion";
+export * from "./performance-review";
