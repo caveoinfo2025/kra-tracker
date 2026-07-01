@@ -32,14 +32,14 @@ export const PREVIEW_STATUSES = [
 ] as const;
 export type PreviewStatus = (typeof PREVIEW_STATUSES)[number];
 
-export type SourceStatus = "OK" | "NOT_IMPLEMENTED" | "NO_DATA";
+export type SourceStatus = "IMPLEMENTED" | "NOT_IMPLEMENTED" | "CONFIG_REQUIRED" | "NEEDS_REVIEW" | "NO_DATA";
 export type TargetDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
 
 /** Enterprise KRA convention: preview achievement is capped at 200%. */
 export const PREVIEW_PERCENT_CAP = 200;
 
-/** Sources for which a live preview calculation exists in this phase. */
-export const PREVIEW_SUPPORTED_SOURCES = ["DAILY_ACTIVITY"] as const;
+/** Sources for which a live preview calculation exists. CRM_LEADS is partial (qualified-lead count only). */
+export const PREVIEW_SUPPORTED_SOURCES = ["DAILY_ACTIVITY", "CRM_LEADS"] as const;
 
 // ── Output shapes ───────────────────────────────────────────────────────────────
 
@@ -297,7 +297,7 @@ export function calculateDailyActivityKpiPreview(row: EmployeeTargetKpiRow, ctx:
     // Recognised source but the KPI shape is ambiguous → flag for human review, do not guess.
     return {
       ...base, direction, actualValue: null, achievementPercent: null, weightedPreviewScore: null,
-      status: "NEEDS_REVIEW", sourceStatus: "OK", needsReview: true,
+      status: "NEEDS_REVIEW", sourceStatus: "NEEDS_REVIEW", needsReview: true,
       notes: base.notes, exclusionSummary: exclusionSummary(ctx),
     };
   }
@@ -316,7 +316,7 @@ export function calculateDailyActivityKpiPreview(row: EmployeeTargetKpiRow, ctx:
     achievementPercent,
     weightedPreviewScore,
     status,
-    sourceStatus: "OK",
+    sourceStatus: "IMPLEMENTED",
     needsReview,
     notes: base.notes,
     exclusionSummary: exclusionSummary(ctx),
@@ -325,11 +325,103 @@ export function calculateDailyActivityKpiPreview(row: EmployeeTargetKpiRow, ctx:
   } as KpiPreview & { _pointBased?: boolean };
 }
 
+// ── CRM Leads context (Phase W9.1) ───────────────────────────────────────────────
+
+export type CrmLeadsContext = {
+  qualifiedLeadCount: number;
+  hasData: boolean;
+};
+
+const CRM_LEADS_ONLY_NOTE = "CRM Leads source is implemented only for qualified-lead count in this phase.";
+
+/** Is this a qualified-leads KPI (the only CRM_LEADS metric supported this phase)? */
+export function isQualifiedLeadsMetric(row: Pick<EmployeeTargetKpiRow, "metricCode" | "metricName" | "category">): boolean {
+  const hay = `${row.metricCode} ${row.metricName} ${row.category}`.toLowerCase();
+  if (/qualified_?lead/.test(hay)) return true;
+  return /qualif/.test(hay) && /lead/.test(hay);
+}
+
+/**
+ * Count an employee's qualified-lead events in [startDate, endDate]. Source of truth =
+ * `DailyActivityLog` `QUALIFIED_LEAD_CREATED` events (Phase W2 capture on a lead's transition INTO
+ * QUALIFIED), which preserve the qualification EVENT date + employee attribution. Excludes EXCLUDED /
+ * CORRECTION_REJECTED logs. `activityDate` is `@db.Date` → bounds built with `dateKeyToDbDate`
+ * (IST-safe). READ-ONLY — no writes, no CrmLead/DailyActivity mutation.
+ */
+export async function buildCrmLeadsContext(
+  employeeId: number,
+  startDate: Date,
+  endDate: Date,
+): Promise<CrmLeadsContext> {
+  try {
+    const gteDb = dateKeyToDbDate(toDateKeyLocal(startDate));
+    const lteDb = dateKeyToDbDate(toDateKeyLocal(endDate));
+    const qualifiedLeadCount = await prisma.dailyActivityLog.count({
+      where: {
+        employeeId,
+        activityType: "QUALIFIED_LEAD_CREATED",
+        activityDate: { gte: gteDb, lte: lteDb },
+        status: { notIn: ["EXCLUDED", "CORRECTION_REJECTED"] },
+      },
+    });
+    return { qualifiedLeadCount, hasData: true };
+  } catch {
+    return { qualifiedLeadCount: 0, hasData: false };
+  }
+}
+
+/**
+ * CRM_LEADS KPI preview. Only qualified-lead count is supported this phase; any other CRM_LEADS
+ * metric → NOT_IMPLEMENTED with a clear note. Missing/zero target → CONFIG_REQUIRED + NEEDS_REVIEW
+ * (never throws). Higher-is-better; achievement = actual ÷ target × 100 (capped 200).
+ */
+export function calculateCrmLeadsKpiPreview(row: EmployeeTargetKpiRow, ctx: CrmLeadsContext | null): KpiPreview {
+  const base = baseKpi(row);
+
+  if (!isQualifiedLeadsMetric(row)) {
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: null, achievementPercent: null,
+      weightedPreviewScore: null, status: "NOT_IMPLEMENTED", sourceStatus: "NOT_IMPLEMENTED",
+      needsReview: false, notes: base.notes ? `${base.notes} — ${CRM_LEADS_ONLY_NOTE}` : CRM_LEADS_ONLY_NOTE,
+    };
+  }
+
+  const actual = ctx?.qualifiedLeadCount ?? 0;
+
+  // Target missing / zero → cannot compute a percentage; needs configuration review.
+  if (!row.targetValue || row.targetValue <= 0) {
+    return {
+      ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent: null,
+      weightedPreviewScore: null, status: "NEEDS_REVIEW", sourceStatus: "CONFIG_REQUIRED",
+      needsReview: true,
+      notes: base.notes ? `${base.notes} — Target not set; configure a qualified-lead target.` : "Target not set; configure a qualified-lead target.",
+    };
+  }
+
+  const achievementPercent = calculatePreviewPercentage(actual, row.targetValue, "HIGHER_IS_BETTER");
+  const status = buildPreviewStatus(achievementPercent, { direction: "HIGHER_IS_BETTER", hasActivity: actual > 0, actual });
+  const weightedPreviewScore = Math.round((achievementPercent * row.weight) / 100 * 10) / 10;
+  return {
+    ...base, direction: "HIGHER_IS_BETTER", actualValue: actual, achievementPercent,
+    weightedPreviewScore, status, sourceStatus: "IMPLEMENTED", needsReview: status === "NEEDS_REVIEW",
+    notes: base.notes,
+  };
+}
+
+/** Bundle of pre-built source contexts for a (employee, range) pair. */
+export type PreviewSourceContexts = {
+  daCtx: DailyActivityContext | null;
+  crmLeadsCtx: CrmLeadsContext | null;
+};
+
 /** Dispatch a single KPI row to its source calculator. Unsupported sources → NOT_IMPLEMENTED. */
-export function calculateKpiPreview(row: EmployeeTargetKpiRow, daCtx: DailyActivityContext | null): KpiPreview {
+export function calculateKpiPreview(row: EmployeeTargetKpiRow, contexts: PreviewSourceContexts): KpiPreview {
   const source = (row.source || "MANUAL").toUpperCase();
-  if (source === "DAILY_ACTIVITY" && daCtx) {
-    return calculateDailyActivityKpiPreview(row, daCtx);
+  if (source === "DAILY_ACTIVITY" && contexts.daCtx) {
+    return calculateDailyActivityKpiPreview(row, contexts.daCtx);
+  }
+  if (source === "CRM_LEADS") {
+    return calculateCrmLeadsKpiPreview(row, contexts.crmLeadsCtx);
   }
   // Not wired for preview in this phase.
   return {
@@ -434,12 +526,14 @@ async function buildTargetPreview(t: PreviewTargetRecord, rangeInput: PreviewRan
     label: t.period?.name ?? `Period #${t.periodId}`,
   });
 
-  // Build the Daily Activity context once per target if any KPI needs it.
+  // Build each needed source context once per target (keyed by the employee's auth user id).
   const needsDaily = doc.targets.some((r) => (r.source || "").toUpperCase() === "DAILY_ACTIVITY");
+  const needsCrmLeads = doc.targets.some((r) => (r.source || "").toUpperCase() === "CRM_LEADS");
   const userId = t.employeeProfile?.userId;
   const daCtx = needsDaily && userId ? await buildDailyActivityContext(userId, range.startDate, range.endDate, now) : null;
+  const crmLeadsCtx = needsCrmLeads && userId ? await buildCrmLeadsContext(userId, range.startDate, range.endDate) : null;
 
-  const kpis = doc.targets.map((r) => calculateKpiPreview(r, daCtx));
+  const kpis = doc.targets.map((r) => calculateKpiPreview(r, { daCtx, crmLeadsCtx }));
   const scored = kpis.filter((k) => k.weightedPreviewScore !== null);
   const weightedPreviewTotal = scored.length
     ? Math.round(scored.reduce((s, k) => s + (k.weightedPreviewScore ?? 0), 0) * 10) / 10
@@ -621,6 +715,10 @@ export type PreviewException = {
   reasonCode:
     | "NO_ASSIGNED_TARGETS"
     | "SOURCE_NOT_IMPLEMENTED"
+    | "CRM_LEADS_UNSUPPORTED_METRIC"
+    | "CRM_LEADS_TARGET_MISSING"
+    | "CRM_LEADS_MISSING_EMPLOYEE_MAPPING"
+    | "CRM_LEADS_NO_DATA"
     | "DAILY_ACTIVITY_INCOMPLETE"
     | "PENDING_CORRECTION"
     | "REOPENED"
@@ -692,10 +790,27 @@ export async function listAchievementPreviewExceptions(
         exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "WEIGHT_NOT_100", detail: `Total active KPI weight is ${activeWeight}% (ideally 100%).` });
       }
 
-      // Unimplemented sources.
-      const unimplemented = [...new Set(doc.targets.map((r) => (r.source || "MANUAL").toUpperCase()).filter((s) => s !== "DAILY_ACTIVITY"))];
+      // Unimplemented sources (exclude the implemented ones: DAILY_ACTIVITY, and CRM_LEADS which is
+      // handled per-KPI below since only its qualified-lead metric is supported).
+      const IMPLEMENTED_SRC = new Set(["DAILY_ACTIVITY", "CRM_LEADS"]);
+      const unimplemented = [...new Set(doc.targets.map((r) => (r.source || "MANUAL").toUpperCase()).filter((s) => !IMPLEMENTED_SRC.has(s)))];
       if (unimplemented.length) {
         exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "SOURCE_NOT_IMPLEMENTED", detail: `Preview not available for source(s): ${unimplemented.join(", ")}.` });
+      }
+
+      // CRM_LEADS per-KPI config checks (Phase W9.1).
+      const crmLeadRows = doc.targets.filter((r) => (r.source || "").toUpperCase() === "CRM_LEADS");
+      if (crmLeadRows.length) {
+        if (!t.employeeProfile.userId) {
+          exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_LEADS_MISSING_EMPLOYEE_MAPPING", detail: "CRM Leads target has no employee mapping (missing user link)." });
+        }
+        for (const r of crmLeadRows) {
+          if (!isQualifiedLeadsMetric(r)) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_LEADS_UNSUPPORTED_METRIC", detail: `CRM Leads metric "${r.metricName || r.metricCode}" is not supported (only qualified-lead count this phase).` });
+          } else if (!r.targetValue || r.targetValue <= 0) {
+            exceptions.push({ employeeProfileId: t.employeeProfileId, employeeName: name, targetId: t.id, reasonCode: "CRM_LEADS_TARGET_MISSING", detail: `Qualified-lead target "${r.metricName || r.metricCode}" has no target value set.` });
+          }
+        }
       }
 
       // Daily Activity exceptions in the preview range.

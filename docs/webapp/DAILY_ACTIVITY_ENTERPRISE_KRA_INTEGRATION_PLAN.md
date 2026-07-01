@@ -473,3 +473,27 @@ Calculates progress against assigned `EmployeeTarget` KPI rows from operational 
 - **Rules:** achievement % capped at 200; weighted preview = % × weight ÷ 100. **No** `KRAAchievement`/
   `PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity` writes; no `PerformanceAudit` for
   preview reads; no legacy KRA/WeeklyReview; no Daily Updates; no schema/migration; mobile/prod untouched.
+
+## Phase W9.1 — CRM Leads qualified-lead preview (IMPLEMENTED, read-only)
+
+Wires the **CRM_LEADS** source into the read-only achievement preview (qualified-lead count only this phase).
+
+- **Source of truth:** `DailyActivityLog` `QUALIFIED_LEAD_CREATED` events (Phase W2 capture on a lead's
+  transition INTO QUALIFIED — leads/[id]/stage). Preserves the qualification EVENT date + employee
+  attribution; the same source Daily Activity capture uses. Excludes EXCLUDED / CORRECTION_REJECTED logs.
+  Date filter = `activityDate` (`@db.Date`, bounds via `dateKeyToDbDate`, IST-safe). `CrmLead` has no
+  qualification-date field (only createdAt/updatedAt) → DailyActivityLog is the safer source (documented).
+- **Mapping:** `EmployeeProfile.userId` = `Employee.id` = `DailyActivityLog.employeeId` (same as DA).
+- **Engine** (`achievement-preview.ts`): `buildCrmLeadsContext`, `calculateCrmLeadsKpiPreview`,
+  `isQualifiedLeadsMetric`, `PreviewSourceContexts` bundle. Achievement = actual ÷ target × 100 (cap 200).
+  `sourceStatus`: IMPLEMENTED (qualified-lead), CONFIG_REQUIRED + NEEDS_REVIEW (target 0/missing),
+  NOT_IMPLEMENTED (any other CRM_LEADS metric — note "CRM Leads source is implemented only for
+  qualified-lead count in this phase"). (DA success status renamed OK → IMPLEMENTED.)
+- **Exceptions:** adds CRM_LEADS_UNSUPPORTED_METRIC, CRM_LEADS_TARGET_MISSING,
+  CRM_LEADS_MISSING_EMPLOYEE_MAPPING. CRM_LEADS excluded from the blanket SOURCE_NOT_IMPLEMENTED.
+- **UI:** CRM_LEADS KPIs render automatically once IMPLEMENTED (no source filtering); no edit/convert
+  buttons, no raw IDs/JSON.
+- **No KRAAchievement/PerformanceReview/EmployeeTarget/KRAMetric/DailyActivity writes**; no legacy KRA;
+  no Daily Updates; no schema/migration; mobile/production untouched.
+- **Limitation:** only qualifications captured after Phase W2 wiring appear in the log (pre-W2 qualified
+  leads aren't counted); counts qualification EVENTS in the period, not currently-QUALIFIED leads.

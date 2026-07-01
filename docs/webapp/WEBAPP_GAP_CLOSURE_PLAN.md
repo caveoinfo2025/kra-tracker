@@ -854,3 +854,17 @@ No test files or other documentation files referenced `DailyUpdate`/`/daily-upda
   on real data (reopened day excluded); no achievement/review writes.
 - **Still isolated:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity`
   writes; no schema/migration; legacy KRA untouched; Daily Updates retired; mobile/production untouched.
+
+## Phase W9.1 — CRM Leads qualified-lead preview (progress)
+
+- **Wired CRM_LEADS into the achievement preview** — qualified-lead count computed from
+  `DailyActivityLog` `QUALIFIED_LEAD_CREATED` events (event date + employee attribution preserved).
+- Engine: `buildCrmLeadsContext`, `calculateCrmLeadsKpiPreview`, `isQualifiedLeadsMetric`,
+  `PreviewSourceContexts`. Achievement = actual ÷ target × 100 (cap 200).
+- Behaviour: qualified-lead → IMPLEMENTED; missing/zero target → CONFIG_REQUIRED/NEEDS_REVIEW; other
+  CRM_LEADS metric → NOT_IMPLEMENTED. Exceptions add CRM_LEADS_UNSUPPORTED_METRIC /
+  CRM_LEADS_TARGET_MISSING / CRM_LEADS_MISSING_EMPLOYEE_MAPPING.
+- **Verified:** qualified count 1/5 = 20% BELOW_TARGET IMPLEMENTED; unsupported metric NOT_IMPLEMENTED;
+  self-scoped; employee 403 on admin; DA preview unchanged; no achievement/review writes.
+- **Still isolated:** no `KRAAchievement`/`PerformanceReview`/`EmployeeTarget`/`KRAMetric`/`DailyActivity`
+  writes; no schema/migration; legacy KRA untouched; Daily Updates retired; mobile/production untouched.

@@ -21,6 +21,25 @@ infrastructure / security solutions reseller). It gives the sales team and manag
 
 ## 0. Current status (2026-06-25 — Step 4H-7: FT-2b and FT-4 handed off for manual verification by Vijesh; production stays paused)
 
+### 2026-07-01 — Phase W9.1: CRM Leads qualified-lead achievement preview
+
+Phase W9.1 implemented read-only CRM Leads qualified-lead preview for Enterprise KRA achievement preview.
+Qualified-lead targets now calculate dynamically from the selected source. Source of truth =
+`DailyActivityLog` `QUALIFIED_LEAD_CREATED` events (Phase W2 capture on a lead's transition INTO
+QUALIFIED), which preserve the qualification event date + employee attribution; excludes EXCLUDED/
+CORRECTION_REJECTED logs; `activityDate` (`@db.Date`) bounds via `dateKeyToDbDate`. Mapping:
+`EmployeeProfile.userId` = `Employee.id` = `DailyActivityLog.employeeId` (same as DA). Engine
+(`achievement-preview.ts`): `buildCrmLeadsContext`, `calculateCrmLeadsKpiPreview`, `isQualifiedLeadsMetric`,
+new `PreviewSourceContexts` bundle; `SourceStatus` extended to IMPLEMENTED/NOT_IMPLEMENTED/CONFIG_REQUIRED/
+NEEDS_REVIEW (DA success renamed OK→IMPLEMENTED). Qualified-lead achievement = actual ÷ target × 100
+(cap 200); missing/zero target → CONFIG_REQUIRED + NEEDS_REVIEW; non-qualified CRM_LEADS metric →
+NOT_IMPLEMENTED ("CRM Leads source is implemented only for qualified-lead count in this phase").
+Exceptions add CRM_LEADS_UNSUPPORTED_METRIC / CRM_LEADS_TARGET_MISSING / CRM_LEADS_MISSING_EMPLOYEE_MAPPING.
+UI renders CRM_LEADS KPIs automatically (no source filtering). Verified: qualified count 1/5 = 20%
+BELOW_TARGET IMPLEMENTED; self-scoped; 403 for employee on admin. **No KRAAchievement, PerformanceReview,
+EmployeeTarget, KRAMetric, DailyActivity, schema, migration, DailyUpdate, mobile, or production changes;
+legacy KRA/WeeklyReview untouched.**
+
 ### 2026-06-30 — Phase W9: Read-only Enterprise KRA achievement preview
 
 Phase W9 implemented read-only Enterprise KRA achievement preview from assigned `EmployeeTarget` KPI

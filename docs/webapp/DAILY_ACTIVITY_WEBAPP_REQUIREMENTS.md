@@ -827,3 +827,11 @@ active use:
   target, progress and achievement % (Daily Activity raw point counts stay manager-only) — never raw
   internal JSON or raw employee IDs. Daily Activity metrics are computed dynamically from effective
   daily status; sources without a wired calculation are marked "not available yet" (NOT_IMPLEMENTED).
+
+- **CRM Leads preview (Phase W9.1):** The achievement preview supports **CRM_LEADS qualified-lead count**
+  (read-only). Qualified-lead actuals come from `DailyActivityLog` `QUALIFIED_LEAD_CREATED` events (which
+  preserve the qualification date and employee), filtered by the qualification date within the selected
+  period. Achievement = actual ÷ target × 100 (capped 200). A missing/zero target is flagged
+  CONFIG_REQUIRED/NEEDS_REVIEW (never an error); any non-qualified-lead CRM_LEADS metric is marked
+  NOT_IMPLEMENTED this phase. No `KRAAchievement`/`PerformanceReview` writes; employees see target and
+  progress, never raw internal JSON or raw employee IDs.
