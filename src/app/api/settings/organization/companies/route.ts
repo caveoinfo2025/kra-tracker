@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
 import { hasPermission } from "@/lib/access-control";
 import { canAccessSettings } from "@/lib/roles";
+import { logAuditEvent } from "@/lib/audit-log";
 import { MOCK_COMPANIES } from "@/app/settings/organization/data/organization.types";
 
 async function checkAccess(writeRequired = false): Promise<{ ok: boolean; userId: number | null }> {
@@ -61,6 +62,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const { ok, userId } = await checkAccess(true);
   if (!ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actorId = userId ?? 0;
 
   const body = await req.json();
   const { companyName, legalName, companyCode, gstNumber, panNumber, email, phone, website } = body;
@@ -94,6 +96,18 @@ export async function POST(req: Request) {
         status: "ACTIVE",
       },
     });
+
+    // Phase W11.3 — Organization Audit (read side: GET /api/settings/organization/audit).
+    // Fire-and-forget, same convention as every other audit/capture call in this codebase
+    // ("never let it block or fail the save").
+    logAuditEvent({
+      entityType: "Company",
+      entityId: company.id,
+      action: "CREATED",
+      performedById: actorId,
+      changes: { entityName: company.companyName, newValue: `Status: ${company.status}` },
+    }).catch(() => {});
+
     return NextResponse.json(company, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Database not ready. Run migration first." }, { status: 503 });

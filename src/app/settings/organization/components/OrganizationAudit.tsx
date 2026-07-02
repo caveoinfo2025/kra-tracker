@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Building2, GitBranch, Layers, Users, Award, CheckCircle2, AlertCircle, PlusCircle, Edit2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, Building2, GitBranch, Layers, Users, Award, UserCog, CheckCircle2, AlertCircle, PlusCircle, Edit2 } from "lucide-react";
 import type { OrgAuditRecord, AuditAction } from "../data/organization.types";
-import { MOCK_AUDIT, fmtDate } from "../data/organization.types";
+import { fmtDate } from "../data/organization.types";
 
 const ACTION_BADGE: Record<AuditAction, string> = {
   CREATED:     "badge-success",
@@ -25,13 +25,26 @@ const ENTITY_ICON: Record<string, React.ComponentType<{ size?: number; strokeWid
   Department:  Layers,
   Team:        Users,
   Designation: Award,
+  Employee:    UserCog,
 };
 
 export default function OrganizationAudit() {
-  const [records]    = useState<OrgAuditRecord[]>(MOCK_AUDIT);
+  const [records, setRecords] = useState<OrgAuditRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
   const [search, setSearch] = useState("");
   const [filterAction, setFilterAction] = useState<AuditAction | "">("");
   const [filterEntity, setFilterEntity] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    setError("");
+    fetch("/api/settings/organization/audit")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Failed (${r.status})`))))
+      .then((d) => setRecords(Array.isArray(d.records) ? d.records : []))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load audit log"))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = records.filter((r) => {
     const q = search.toLowerCase();
@@ -49,14 +62,6 @@ export default function OrganizationAudit() {
         <div style={{ fontSize: 11.5, color: "var(--fg-4)", marginTop: 2 }}>
           Track all changes to your organization structure — who changed what and when.
         </div>
-      </div>
-
-      {/* Notice: live data pending migration */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", background: "rgba(0,102,255,0.05)", border: "1px solid rgba(0,102,255,0.15)", borderRadius: "var(--radius-md)", marginBottom: 16 }}>
-        <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--infra-blue)", marginTop: 4, flexShrink: 0 }} />
-        <span style={{ fontSize: 11.5, color: "var(--fg-3)" }}>
-          <strong>Sample data shown.</strong> Live audit entries will appear here after the organization DB migration is applied and changes are made through this console.
-        </span>
       </div>
 
       {/* Filters */}
@@ -79,7 +84,19 @@ export default function OrganizationAudit() {
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "48px 24px", border: "1px dashed var(--border)", borderRadius: "var(--radius-lg)" }}>
+          <div style={{ fontSize: 13, color: "var(--fg-4)" }}>Loading audit log…</div>
+        </div>
+      ) : error ? (
+        <div style={{ textAlign: "center", padding: "48px 24px", border: "1px dashed var(--border)", borderRadius: "var(--radius-lg)" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>{error}</div>
+        </div>
+      ) : records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "48px 24px", border: "1px dashed var(--border)", borderRadius: "var(--radius-lg)" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)" }}>No organization audit entries found yet.</div>
+        </div>
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 24px", border: "1px dashed var(--border)", borderRadius: "var(--radius-lg)" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)" }}>No audit records match your filters</div>
         </div>

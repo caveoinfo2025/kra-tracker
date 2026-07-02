@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
+import { logAuditEvent } from "@/lib/audit-log";
 
 function forbidden() {
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -43,6 +44,12 @@ export async function PUT(
     : reportsToId && Number(reportsToId) !== Number(id) ? Number(reportsToId)
     : null;
 
+  // Phase W11.3 — snapshot the current manager before overwriting it, so a genuine change can be
+  // audited (and a no-op resave of the same value is never logged as a "change").
+  const before = reportsToId !== undefined
+    ? await prisma.employee.findUnique({ where: { id: Number(id) }, select: { reportsToId: true, name: true } })
+    : null;
+
   const employee = await prisma.employee.update({
     where: { id: Number(id) },
     data: {
@@ -73,6 +80,27 @@ export async function PUT(
         ...(reportsTo     && { reportingManagerId: reportsTo }),
       },
     });
+  }
+
+  // Phase W11.3 — audit only a GENUINE reporting-manager change (before !== after), never a
+  // no-op resave. Fire-and-forget, same convention as every other audit call in this codebase.
+  if (before && before.reportsToId !== reportsTo) {
+    const [oldManager, newManager] = await Promise.all([
+      before.reportsToId ? prisma.employee.findUnique({ where: { id: before.reportsToId }, select: { name: true } }) : null,
+      reportsTo ? prisma.employee.findUnique({ where: { id: reportsTo }, select: { name: true } }) : null,
+    ]);
+    logAuditEvent({
+      entityType: "Employee",
+      entityId: employee.id,
+      action: "UPDATED",
+      performedById: session?.user?.employeeId ?? 0,
+      changes: {
+        entityName: before.name,
+        field: "reportingManager",
+        oldValue: `Manager: ${oldManager?.name ?? "None"}`,
+        newValue: `Manager: ${newManager?.name ?? "None"}`,
+      },
+    }).catch(() => {});
   }
 
   return NextResponse.json(employee);

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/dev-session";
 import prisma from "@/lib/prisma";
 import { hasPermission } from "@/lib/access-control";
 import { canAccessSettings } from "@/lib/roles";
+import { logAuditEvent } from "@/lib/audit-log";
 import { MOCK_DESIGNATIONS } from "@/app/settings/organization/data/organization.types";
 
 async function checkAccess(write = false): Promise<boolean> {
@@ -48,6 +49,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (!await checkAccess(true)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await getSession();
+  const actorId = session?.user?.employeeId ?? 0;
 
   const body = await req.json();
   const { companyId, title, level, description } = body;
@@ -65,6 +68,15 @@ export async function POST(req: Request) {
         status: "ACTIVE",
       },
     });
+
+    logAuditEvent({
+      entityType: "Designation",
+      entityId: desig.id,
+      action: "CREATED",
+      performedById: actorId,
+      changes: { entityName: desig.title, newValue: `Level: ${desig.level}` },
+    }).catch(() => {});
+
     return NextResponse.json(desig, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Database not ready. Run migration first." }, { status: 503 });

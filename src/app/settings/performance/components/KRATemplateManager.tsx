@@ -37,18 +37,21 @@ export default function KRATemplateManager({ templates, metrics }: Props) {
   const totalWeight = items.reduce((s, i) => s + i.weightage, 0);
 
   function addItem() {
-    setItems([
-      ...items,
-      { metricId: typedMetrics[0]?.id ?? 0, weightage: 0, targetType: "AMOUNT", minimumTarget: 0, expectedTarget: 0, stretchTarget: 0, sortOrder: items.length },
+    // Functional update — reads the LATEST state, not the `items` closure captured at render
+    // time. Plain `setItems([...items, ...])` silently drops rows when "+ Add KRA" is clicked
+    // multiple times in the same tick (React batches the clicks against the same stale `items`).
+    setItems((prev) => [
+      ...prev,
+      { metricId: typedMetrics[0]?.id ?? 0, weightage: 0, targetType: "AMOUNT", minimumTarget: 0, expectedTarget: 0, stretchTarget: 0, sortOrder: prev.length },
     ]);
   }
 
   function removeItem(idx: number) {
-    setItems(items.filter((_, i) => i !== idx));
+    setItems((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function updateItem(idx: number, field: keyof TemplateItem, value: number | string) {
-    setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
+    setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   }
 
   async function handleSubmit(e: React.FormEvent) {

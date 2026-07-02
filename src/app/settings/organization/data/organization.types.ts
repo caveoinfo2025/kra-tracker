@@ -330,15 +330,6 @@ export const MOCK_EMPLOYEES: OrgEmployee[] = [
   { id: 5, name: "Arjun Krishnamurthy", role: "Sales Manager" },
 ].map((e) => ({ ...e, email: `${e.name.toLowerCase().replace(/ /g, ".")}@caveo.in` }));
 
-export const MOCK_AUDIT: OrgAuditRecord[] = [
-  { id: 1, entity: "Company",     entityName: "Caveo Infosystems",  action: "CREATED",     actor: "Vijesh Vijayan",   date: LAST_WEEK,  newValue: "Status: ACTIVE"                    },
-  { id: 2, entity: "Branch",      entityName: "Head Office",        action: "CREATED",     actor: "Vijesh Vijayan",   date: LAST_WEEK,  newValue: "Chennai, Tamil Nadu"               },
-  { id: 3, entity: "Department",  entityName: "Sales",              action: "CREATED",     actor: "Vijesh Vijayan",   date: LAST_WEEK,  newValue: "Code: SALES"                       },
-  { id: 4, entity: "Department",  entityName: "Finance",            action: "CREATED",     actor: "Vijesh Vijayan",   date: LAST_WEEK,  newValue: "Code: FIN"                         },
-  { id: 5, entity: "Branch",      entityName: "Mumbai Office",      action: "DEACTIVATED", actor: "Deepak Sharma",    date: NOW,        oldValue: "Status: ACTIVE", newValue: "Status: INACTIVE" },
-  { id: 6, entity: "Designation", entityName: "Account Manager",    action: "UPDATED",     actor: "Vijesh Vijayan",   date: YESTERDAY,  oldValue: "Level: 35",     newValue: "Level: 40"        },
-];
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function statusBadge(status: string): string {
