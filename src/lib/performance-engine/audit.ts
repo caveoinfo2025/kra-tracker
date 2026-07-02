@@ -208,8 +208,21 @@ export async function listPerformanceAuditDetailed(
       : [];
     const actorName = new Map(actors.map((a) => [a.id, a.name]));
 
-    // Batch-resolve EmployeeTarget → employee name.
-    const targetIds = [...new Set(rows.filter((r) => r.entityType === "EmployeeTarget").map((r) => r.entityId))];
+    // Batch-resolve PerformanceReview (entityId = reviewId, Phase W11 lifecycle events) →
+    // EmployeeTarget id, so its employee name can be resolved via the SAME EmployeeTarget batch
+    // lookup below (one query covers both "EmployeeTarget" rows and "performance_review" rows).
+    const reviewIds = [...new Set(rows.filter((r) => r.entityType === "performance_review").map((r) => r.entityId))];
+    const reviews = reviewIds.length
+      ? await prisma.performanceReview.findMany({ where: { id: { in: reviewIds } }, select: { id: true, employeeTargetId: true } })
+      : [];
+    const reviewTargetId = new Map(reviews.map((rv) => [rv.id, rv.employeeTargetId]));
+
+    // Batch-resolve EmployeeTarget → employee name (covers "EmployeeTarget" rows directly, and
+    // "performance_review" rows indirectly via reviewTargetId above).
+    const targetIds = [...new Set([
+      ...rows.filter((r) => r.entityType === "EmployeeTarget").map((r) => r.entityId),
+      ...reviews.map((rv) => rv.employeeTargetId),
+    ])];
     const targets = targetIds.length
       ? await prisma.employeeTarget.findMany({
           where: { id: { in: targetIds } },
@@ -225,11 +238,24 @@ export async function listPerformanceAuditDetailed(
       : [];
     const metricName = new Map(metrics.map((m) => [m.id, m.name]));
 
+    // Batch-resolve enterprise_kra_conversion rows — entityId IS the employeeProfileId directly
+    // (see writePerformanceAuditForConversion in achievement-conversion.ts).
+    const conversionProfileIds = [...new Set(rows.filter((r) => r.entityType === "enterprise_kra_conversion").map((r) => r.entityId))];
+    const conversionProfiles = conversionProfileIds.length
+      ? await prisma.employeeProfile.findMany({ where: { id: { in: conversionProfileIds } }, select: { id: true, employee: { select: { name: true } } } })
+      : [];
+    const conversionProfileName = new Map(conversionProfiles.map((p) => [p.id, p.employee?.name ?? ""]));
+
     return rows.map((r) => {
       const parsed = safeParse(r.newValue);
       let employeeName = "";
       if (r.entityType === "EmployeeTarget") employeeName = targetEmployeeName.get(r.entityId) ?? "";
       else if (r.entityType === "KRAMetric") employeeName = metricName.get(r.entityId) ?? "";
+      else if (r.entityType === "enterprise_kra_conversion") employeeName = conversionProfileName.get(r.entityId) ?? "";
+      else if (r.entityType === "performance_review") {
+        const targetId = reviewTargetId.get(r.entityId);
+        employeeName = targetId != null ? (targetEmployeeName.get(targetId) ?? "") : "";
+      }
       return {
         id: r.id,
         action: r.action,

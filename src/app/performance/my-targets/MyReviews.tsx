@@ -64,6 +64,18 @@ function StatusChip({ status }: { status: string }) {
   return <span style={{ fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg, borderRadius: 4, padding: "2px 8px", whiteSpace: "nowrap" }}>{status}</span>;
 }
 
+/** Tolerant parse mirroring performance-review.ts's parseReviewComments — a pre-existing
+ *  plain-text comments value (from the older generic review engine) has no managerRemarks key,
+ *  which is fine, the field just comes back undefined. */
+function parseManagerRemarks(raw: string): string {
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && typeof parsed.managerRemarks === "string") return parsed.managerRemarks;
+  } catch { /* legacy plain text — no managerRemarks to prepopulate */ }
+  return "";
+}
+
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 12 };
 const input: React.CSSProperties = { border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 8px", fontSize: 13 };
 
@@ -212,7 +224,7 @@ function CandidateRow({ c, onDone }: { c: Candidate; onDone: () => void }) {
 function AdminReviewRow({ r, onUpdated }: { r: AdminReview; onUpdated: () => void }) {
   const [managerRating, setManagerRating] = useState(r.managerRating || 0);
   const [finalRating, setFinalRating] = useState(r.finalRating || 0);
-  const [managerRemarks, setManagerRemarks] = useState("");
+  const [managerRemarks, setManagerRemarks] = useState(() => parseManagerRemarks(r.comments));
   const [status, setStatus] = useState(r.status);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -314,6 +326,16 @@ export default function MyReviews({ isManager }: { isManager: boolean }) {
 
   useEffect(() => { loadMine(); }, [loadMine]);
   useEffect(() => { loadManager(); }, [loadManager]);
+
+  // Phase W11.2 — AchievementPreview's conversion action lives in a separate component with its
+  // own fetch state; it dispatches this event so the candidates list refreshes without requiring
+  // a manual page reload. Does not trigger any conversion/creation itself — read-only refresh.
+  useEffect(() => {
+    if (!isManager) return;
+    const handler = () => loadManager();
+    window.addEventListener("enterprise-kra-converted", handler);
+    return () => window.removeEventListener("enterprise-kra-converted", handler);
+  }, [isManager, loadManager]);
 
   return (
     <div style={{ marginTop: 28 }}>

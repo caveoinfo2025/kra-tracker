@@ -403,6 +403,10 @@ export default function AchievementPreview({ isManager }: { isManager: boolean }
           onDone={(summary) => {
             setConversionResults((p) => ({ ...p, [summary.employeeProfileId]: summary }));
             load();
+            // Phase W11.2 — let the (separately-mounted) MyReviews section know a conversion just
+            // happened, so its "Team Reviews" candidates list can refresh without a manual page
+            // reload. Plain window event — no shared state/context needed for one signal.
+            window.dispatchEvent(new CustomEvent("enterprise-kra-converted", { detail: { employeeProfileId: summary.employeeProfileId } }));
           }}
         />
       )}

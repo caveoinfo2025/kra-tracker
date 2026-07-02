@@ -734,3 +734,56 @@ automatic.
 - **No unexpected KRAAchievement/EmployeeTarget/KRAMetric/DailyActivity writes** (the temp
   KRAAchievement/KRAMetric created for testing were fully deleted, not left behind); no legacy
   KRA/WeeklyReview; no Daily Updates; no schema/migration/db push; mobile/production untouched.
+
+## Phase W11.1 — Real-data full-flow verification (VERIFIED, no code changes)
+
+Verification-only pass before UAT: assigned real KPI targets to a pilot employee (Akshayah M) via
+the actual Settings UI, ran the full preview → convert → review → self-review → manager-review →
+finalize flow with real dev data, and checked the Audit tab. No files changed in this phase — see
+`docs/webapp/WEBAPP_GAP_CLOSURE_PLAN.md`'s Phase W11.1 entry for the full report. Findings that
+needed fixing are addressed in Phase W11.2 below.
+
+## Phase W11.2 — W11.1 bug fixes + UX polish (IMPLEMENTED)
+
+Targeted fixes for the 4 issues found during Phase W11.1 verification. No schema/migration changes,
+no new major features.
+
+1. **Manager remarks reload bug (fixed):** `AdminReviewRow` in `MyReviews.tsx` always initialized
+   its local `managerRemarks` state to `""`, never reading the review's saved
+   `comments.managerRemarks` — so a full page reload (or, in the reproduction, switching identity
+   and navigating back) showed an empty remarks box even though remarks had been saved, and
+   clicking Finalize without retyping silently blanked them (the manager-review endpoint always
+   writes whatever the client sends, by design — see `submitManagerReview` in
+   `performance-review.ts`, unchanged). Fix: added a tolerant `parseManagerRemarks(comments)`
+   helper (mirrors `performance-review.ts`'s own `parseReviewComments` — same JSON-with-`legacy`-
+   fallback convention) and seeded `managerRemarks`'s `useState` from it. Backend unchanged — the
+   bug was purely the UI never round-tripping the saved value into its own edit form. Self-review
+   remarks were never affected (already correctly seeded from the my-reviews API's pre-parsed
+   `comments` object).
+2. **Candidate list staleness (fixed):** `AchievementPreview.tsx` (conversion) and `MyReviews.tsx`
+   (candidates) are separate, independently-fetching components — converting a preview never told
+   the candidates list to refresh. Fix: `ConvertModal`'s `onDone` now also dispatches a plain
+   `window` `CustomEvent("enterprise-kra-converted")`; `MyReviews` adds/removes a listener in a
+   `useEffect` that calls its existing `loadManager()` (a pure read-only refetch — no new state
+   management, no conversion/creation logic added or changed).
+3. **Audit "Employee" column showing "—" for newer event types (fixed):**
+   `listPerformanceAuditDetailed` (`audit.ts`) only resolved employee names for
+   `entityType: "EmployeeTarget"`/`"KRAMetric"` rows. Extended (read-only, no audit rows
+   rewritten/deleted) to also resolve: `enterprise_kra_conversion` rows (entityId IS the
+   `employeeProfileId` directly — a single batched `EmployeeProfile` lookup) and
+   `performance_review` rows (entityId is the reviewId — batched `PerformanceReview` lookup to get
+   `employeeTargetId`, which then reuses the SAME `EmployeeTarget`→employee-name batch lookup
+   already used for `EmployeeTarget` rows — one extra query total, no N+1).
+4. **Daily Activity KRA metrics not attached to any template (documented, no code change):**
+   `KRATemplateManager.tsx` supports creating a **brand-new** template with any metric from the
+   Library (including the 3 `DAILY_ACTIVITY_*` metrics — its metric dropdown lists the whole
+   Library) via "+ New Template", but has **no edit action on existing templates** — there is no
+   way to add an item to, say, "Lead Generation Activity (Inside Sales)" after the fact through
+   this UI. Recommended UAT setup (no code change needed): create a new template (e.g. "Daily
+   Activity — Inside Sales") via "+ New Template" including Daily Activity Coverage / Productivity
+   / Compliance-Exceptions with sensible weights (e.g. 40/30/30), then apply it to a pilot employee
+   via Employee Targets → Apply Template, same flow already used in Phase W11.1. A small future
+   enhancement (out of scope here) would add an "Edit Template" action so DA metrics can be added to
+   an already-in-use template without creating a parallel one.
+- **No unexpected KRAAchievement/EmployeeTarget/KRAMetric/DailyActivity writes**; no legacy
+  KRA/WeeklyReview; no Daily Updates; no schema/migration/db push; mobile/production untouched.
