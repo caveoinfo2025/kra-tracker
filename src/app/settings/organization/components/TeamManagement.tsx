@@ -192,7 +192,9 @@ export default function TeamManagement({ canEdit, departments, employees }: Prop
                   <select value={form.teamLeadId} onChange={(e) => setForm((f) => ({ ...f, teamLeadId: e.target.value }))}
                     style={{ padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)", color: "var(--fg-1)", outline: "none" }}>
                     <option value="">None / Unassigned</option>
-                    {employees.map((e) => <option key={e.id} value={e.id.toString()}>{e.name} — {e.role}</option>)}
+                    {employees.length === 0
+                      ? <option value="" disabled>No employees available</option>
+                      : employees.map((e) => <option key={e.id} value={e.id.toString()}>{e.name} — {e.role}</option>)}
                   </select>
                 </div>
                 {error && <div style={{ padding: "8px 12px", background: "rgba(200,16,46,0.06)", border: "1px solid rgba(200,16,46,0.2)", borderRadius: 4, fontSize: 12, color: "var(--danger)" }}>{error}</div>}

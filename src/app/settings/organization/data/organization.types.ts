@@ -322,14 +322,6 @@ export const MOCK_DESIGNATIONS: OrgDesignation[] = [
   { id: 8, companyId: 1, companyName: "Caveo Infosystems", title: "Pre-Sales Engineer", level: 30, description: "Technical pre-sales & demos",  status: "ACTIVE", createdAt: LAST_WEEK, updatedAt: LAST_WEEK, employeeCount: 1 },
 ];
 
-export const MOCK_EMPLOYEES: OrgEmployee[] = [
-  { id: 1, name: "Admin User",          role: "Manager" },
-  { id: 2, name: "Vijesh Vijayan",       role: "Head of Sales" },
-  { id: 3, name: "Deepak Sharma",        role: "Operations Head" },
-  { id: 4, name: "Priyadharshini R",     role: "Accounts" },
-  { id: 5, name: "Arjun Krishnamurthy", role: "Sales Manager" },
-].map((e) => ({ ...e, email: `${e.name.toLowerCase().replace(/ /g, ".")}@caveo.in` }));
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function statusBadge(status: string): string {

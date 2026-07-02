@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Building2, GitBranch, Layers, Users, Award, Network, ClipboardList, LayoutDashboard, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { OrgCompany, OrgBranch, OrgDepartment, OrgTeam, OrgDesignation, OrgEmployee } from "./data/organization.types";
-import { MOCK_COMPANIES, MOCK_BRANCHES, MOCK_DEPARTMENTS, MOCK_TEAMS, MOCK_DESIGNATIONS, MOCK_EMPLOYEES } from "./data/organization.types";
+import { MOCK_COMPANIES, MOCK_BRANCHES, MOCK_DEPARTMENTS, MOCK_TEAMS, MOCK_DESIGNATIONS } from "./data/organization.types";
 import OrganizationOverview    from "./components/OrganizationOverview";
 import CompanyManagement       from "./components/CompanyManagement";
 import BranchManagement        from "./components/BranchManagement";
@@ -44,7 +44,7 @@ export default function OrganizationClient({ canEdit }: Props) {
   const [departments, setDepartments] = useState<OrgDepartment[]>(MOCK_DEPARTMENTS);
   const [teams, setTeams]             = useState<OrgTeam[]>(MOCK_TEAMS);
   const [designations, setDesigs]     = useState<OrgDesignation[]>(MOCK_DESIGNATIONS);
-  const [employees]                   = useState<OrgEmployee[]>(MOCK_EMPLOYEES);
+  const [employees, setEmployees]     = useState<OrgEmployee[]>([]);
 
   // Load all data once on mount (all tabs share this data for cross-selects)
   const loadAll = useCallback(async () => {
@@ -52,18 +52,24 @@ export default function OrganizationClient({ canEdit }: Props) {
       try { const r = await fetch(url); return r.ok ? r.json() : null; }
       catch { return null; }
     };
-    const [cos, brs, depts, tms, desgs] = await Promise.all([
+    const [cos, brs, depts, tms, desgs, emps] = await Promise.all([
       safeJson("/api/settings/organization/companies"),
       safeJson("/api/settings/organization/branches"),
       safeJson("/api/settings/organization/departments"),
       safeJson("/api/settings/organization/teams"),
       safeJson("/api/settings/organization/designations"),
+      safeJson("/api/employees"),
     ]);
     if (cos)   setCompanies(cos);
     if (brs)   setBranches(brs);
     if (depts) setDepartments(depts);
     if (tms)   setTeams(tms);
     if (desgs) setDesigs(desgs);
+    if (Array.isArray(emps)) {
+      setEmployees(emps.map((e: { id: number; name: string; role: string; email: string }) => ({
+        id: e.id, name: e.name, role: e.role, email: e.email,
+      })));
+    }
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
